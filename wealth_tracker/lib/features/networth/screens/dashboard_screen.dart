@@ -4,7 +4,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/format/money_formatter.dart';
 import '../../../core/models/asset_category.dart';
 import '../../../data/db/database.dart';
+import '../../settings/screens/settings_screen.dart';
 import '../providers/asset_providers.dart';
+import '../providers/pricing_providers.dart';
 import '../widgets/net_worth_summary_card.dart';
 import 'add_edit_asset_screen.dart';
 
@@ -13,12 +15,36 @@ class DashboardScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    ref.watch(cachedPricesLoaderProvider);
     final assetsAsync = ref.watch(assetsStreamProvider);
     final netWorth = ref.watch(netWorthResultProvider);
     final usdToEgpRate = ref.watch(usdToEgpRateProvider);
+    final refreshState = ref.watch(priceRefreshControllerProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Net Worth')),
+      appBar: AppBar(
+        title: const Text('Net Worth'),
+        actions: [
+          IconButton(
+            icon: refreshState.isRefreshing
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.refresh),
+            onPressed: refreshState.isRefreshing
+                ? null
+                : () => ref.read(priceRefreshControllerProvider.notifier).refresh(),
+          ),
+          IconButton(
+            icon: const Icon(Icons.settings),
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const SettingsScreen()),
+            ),
+          ),
+        ],
+      ),
       body: assetsAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, st) => Center(child: Text('Error: $e')),
