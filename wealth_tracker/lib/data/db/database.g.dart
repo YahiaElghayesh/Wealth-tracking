@@ -1,0 +1,3052 @@
+// GENERATED CODE - DO NOT MODIFY BY HAND
+
+part of 'database.dart';
+
+// ignore_for_file: type=lint
+class $AssetsTable extends Assets with TableInfo<$AssetsTable, Asset> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $AssetsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _nameMeta = const VerificationMeta('name');
+  @override
+  late final GeneratedColumn<String> name = GeneratedColumn<String>(
+    'name',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _categoryMeta = const VerificationMeta(
+    'category',
+  );
+  @override
+  late final GeneratedColumn<String> category = GeneratedColumn<String>(
+    'category',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _valuationModeMeta = const VerificationMeta(
+    'valuationMode',
+  );
+  @override
+  late final GeneratedColumn<String> valuationMode = GeneratedColumn<String>(
+    'valuation_mode',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _quantityMeta = const VerificationMeta(
+    'quantity',
+  );
+  @override
+  late final GeneratedColumn<double> quantity = GeneratedColumn<double>(
+    'quantity',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _symbolOrCurrencyMeta = const VerificationMeta(
+    'symbolOrCurrency',
+  );
+  @override
+  late final GeneratedColumn<String> symbolOrCurrency = GeneratedColumn<String>(
+    'symbol_or_currency',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _manualValueUsdMeta = const VerificationMeta(
+    'manualValueUsd',
+  );
+  @override
+  late final GeneratedColumn<double> manualValueUsd = GeneratedColumn<double>(
+    'manual_value_usd',
+    aliasedName,
+    true,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _notesMeta = const VerificationMeta('notes');
+  @override
+  late final GeneratedColumn<String> notes = GeneratedColumn<String>(
+    'notes',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> updatedAt = GeneratedColumn<DateTime>(
+    'updated_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    name,
+    category,
+    valuationMode,
+    quantity,
+    symbolOrCurrency,
+    manualValueUsd,
+    notes,
+    createdAt,
+    updatedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'assets';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<Asset> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('name')) {
+      context.handle(
+        _nameMeta,
+        name.isAcceptableOrUnknown(data['name']!, _nameMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_nameMeta);
+    }
+    if (data.containsKey('category')) {
+      context.handle(
+        _categoryMeta,
+        category.isAcceptableOrUnknown(data['category']!, _categoryMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_categoryMeta);
+    }
+    if (data.containsKey('valuation_mode')) {
+      context.handle(
+        _valuationModeMeta,
+        valuationMode.isAcceptableOrUnknown(
+          data['valuation_mode']!,
+          _valuationModeMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_valuationModeMeta);
+    }
+    if (data.containsKey('quantity')) {
+      context.handle(
+        _quantityMeta,
+        quantity.isAcceptableOrUnknown(data['quantity']!, _quantityMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_quantityMeta);
+    }
+    if (data.containsKey('symbol_or_currency')) {
+      context.handle(
+        _symbolOrCurrencyMeta,
+        symbolOrCurrency.isAcceptableOrUnknown(
+          data['symbol_or_currency']!,
+          _symbolOrCurrencyMeta,
+        ),
+      );
+    }
+    if (data.containsKey('manual_value_usd')) {
+      context.handle(
+        _manualValueUsdMeta,
+        manualValueUsd.isAcceptableOrUnknown(
+          data['manual_value_usd']!,
+          _manualValueUsdMeta,
+        ),
+      );
+    }
+    if (data.containsKey('notes')) {
+      context.handle(
+        _notesMeta,
+        notes.isAcceptableOrUnknown(data['notes']!, _notesMeta),
+      );
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_updatedAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  Asset map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return Asset(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      name: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}name'],
+      )!,
+      category: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}category'],
+      )!,
+      valuationMode: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}valuation_mode'],
+      )!,
+      quantity: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}quantity'],
+      )!,
+      symbolOrCurrency: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}symbol_or_currency'],
+      ),
+      manualValueUsd: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}manual_value_usd'],
+      ),
+      notes: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}notes'],
+      ),
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_at'],
+      )!,
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}updated_at'],
+      )!,
+    );
+  }
+
+  @override
+  $AssetsTable createAlias(String alias) {
+    return $AssetsTable(attachedDatabase, alias);
+  }
+}
+
+class Asset extends DataClass implements Insertable<Asset> {
+  final String id;
+  final String name;
+  final String category;
+  final String valuationMode;
+
+  /// Units held: coins for crypto, grams for metals, currency units for
+  /// fiat, or `1` for manually-valued assets.
+  final double quantity;
+
+  /// Crypto symbol (BTC), metal symbol (XAU/XAG) or currency code
+  /// (USD/EGP). Null for manually-valued assets.
+  final String? symbolOrCurrency;
+
+  /// Current value in USD, only used when [valuationMode] is manual.
+  final double? manualValueUsd;
+  final String? notes;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+  const Asset({
+    required this.id,
+    required this.name,
+    required this.category,
+    required this.valuationMode,
+    required this.quantity,
+    this.symbolOrCurrency,
+    this.manualValueUsd,
+    this.notes,
+    required this.createdAt,
+    required this.updatedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['name'] = Variable<String>(name);
+    map['category'] = Variable<String>(category);
+    map['valuation_mode'] = Variable<String>(valuationMode);
+    map['quantity'] = Variable<double>(quantity);
+    if (!nullToAbsent || symbolOrCurrency != null) {
+      map['symbol_or_currency'] = Variable<String>(symbolOrCurrency);
+    }
+    if (!nullToAbsent || manualValueUsd != null) {
+      map['manual_value_usd'] = Variable<double>(manualValueUsd);
+    }
+    if (!nullToAbsent || notes != null) {
+      map['notes'] = Variable<String>(notes);
+    }
+    map['created_at'] = Variable<DateTime>(createdAt);
+    map['updated_at'] = Variable<DateTime>(updatedAt);
+    return map;
+  }
+
+  AssetsCompanion toCompanion(bool nullToAbsent) {
+    return AssetsCompanion(
+      id: Value(id),
+      name: Value(name),
+      category: Value(category),
+      valuationMode: Value(valuationMode),
+      quantity: Value(quantity),
+      symbolOrCurrency: symbolOrCurrency == null && nullToAbsent
+          ? const Value.absent()
+          : Value(symbolOrCurrency),
+      manualValueUsd: manualValueUsd == null && nullToAbsent
+          ? const Value.absent()
+          : Value(manualValueUsd),
+      notes: notes == null && nullToAbsent
+          ? const Value.absent()
+          : Value(notes),
+      createdAt: Value(createdAt),
+      updatedAt: Value(updatedAt),
+    );
+  }
+
+  factory Asset.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return Asset(
+      id: serializer.fromJson<String>(json['id']),
+      name: serializer.fromJson<String>(json['name']),
+      category: serializer.fromJson<String>(json['category']),
+      valuationMode: serializer.fromJson<String>(json['valuationMode']),
+      quantity: serializer.fromJson<double>(json['quantity']),
+      symbolOrCurrency: serializer.fromJson<String?>(json['symbolOrCurrency']),
+      manualValueUsd: serializer.fromJson<double?>(json['manualValueUsd']),
+      notes: serializer.fromJson<String?>(json['notes']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+      updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'name': serializer.toJson<String>(name),
+      'category': serializer.toJson<String>(category),
+      'valuationMode': serializer.toJson<String>(valuationMode),
+      'quantity': serializer.toJson<double>(quantity),
+      'symbolOrCurrency': serializer.toJson<String?>(symbolOrCurrency),
+      'manualValueUsd': serializer.toJson<double?>(manualValueUsd),
+      'notes': serializer.toJson<String?>(notes),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+      'updatedAt': serializer.toJson<DateTime>(updatedAt),
+    };
+  }
+
+  Asset copyWith({
+    String? id,
+    String? name,
+    String? category,
+    String? valuationMode,
+    double? quantity,
+    Value<String?> symbolOrCurrency = const Value.absent(),
+    Value<double?> manualValueUsd = const Value.absent(),
+    Value<String?> notes = const Value.absent(),
+    DateTime? createdAt,
+    DateTime? updatedAt,
+  }) => Asset(
+    id: id ?? this.id,
+    name: name ?? this.name,
+    category: category ?? this.category,
+    valuationMode: valuationMode ?? this.valuationMode,
+    quantity: quantity ?? this.quantity,
+    symbolOrCurrency: symbolOrCurrency.present
+        ? symbolOrCurrency.value
+        : this.symbolOrCurrency,
+    manualValueUsd: manualValueUsd.present
+        ? manualValueUsd.value
+        : this.manualValueUsd,
+    notes: notes.present ? notes.value : this.notes,
+    createdAt: createdAt ?? this.createdAt,
+    updatedAt: updatedAt ?? this.updatedAt,
+  );
+  Asset copyWithCompanion(AssetsCompanion data) {
+    return Asset(
+      id: data.id.present ? data.id.value : this.id,
+      name: data.name.present ? data.name.value : this.name,
+      category: data.category.present ? data.category.value : this.category,
+      valuationMode: data.valuationMode.present
+          ? data.valuationMode.value
+          : this.valuationMode,
+      quantity: data.quantity.present ? data.quantity.value : this.quantity,
+      symbolOrCurrency: data.symbolOrCurrency.present
+          ? data.symbolOrCurrency.value
+          : this.symbolOrCurrency,
+      manualValueUsd: data.manualValueUsd.present
+          ? data.manualValueUsd.value
+          : this.manualValueUsd,
+      notes: data.notes.present ? data.notes.value : this.notes,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('Asset(')
+          ..write('id: $id, ')
+          ..write('name: $name, ')
+          ..write('category: $category, ')
+          ..write('valuationMode: $valuationMode, ')
+          ..write('quantity: $quantity, ')
+          ..write('symbolOrCurrency: $symbolOrCurrency, ')
+          ..write('manualValueUsd: $manualValueUsd, ')
+          ..write('notes: $notes, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    name,
+    category,
+    valuationMode,
+    quantity,
+    symbolOrCurrency,
+    manualValueUsd,
+    notes,
+    createdAt,
+    updatedAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is Asset &&
+          other.id == this.id &&
+          other.name == this.name &&
+          other.category == this.category &&
+          other.valuationMode == this.valuationMode &&
+          other.quantity == this.quantity &&
+          other.symbolOrCurrency == this.symbolOrCurrency &&
+          other.manualValueUsd == this.manualValueUsd &&
+          other.notes == this.notes &&
+          other.createdAt == this.createdAt &&
+          other.updatedAt == this.updatedAt);
+}
+
+class AssetsCompanion extends UpdateCompanion<Asset> {
+  final Value<String> id;
+  final Value<String> name;
+  final Value<String> category;
+  final Value<String> valuationMode;
+  final Value<double> quantity;
+  final Value<String?> symbolOrCurrency;
+  final Value<double?> manualValueUsd;
+  final Value<String?> notes;
+  final Value<DateTime> createdAt;
+  final Value<DateTime> updatedAt;
+  final Value<int> rowid;
+  const AssetsCompanion({
+    this.id = const Value.absent(),
+    this.name = const Value.absent(),
+    this.category = const Value.absent(),
+    this.valuationMode = const Value.absent(),
+    this.quantity = const Value.absent(),
+    this.symbolOrCurrency = const Value.absent(),
+    this.manualValueUsd = const Value.absent(),
+    this.notes = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  AssetsCompanion.insert({
+    required String id,
+    required String name,
+    required String category,
+    required String valuationMode,
+    required double quantity,
+    this.symbolOrCurrency = const Value.absent(),
+    this.manualValueUsd = const Value.absent(),
+    this.notes = const Value.absent(),
+    required DateTime createdAt,
+    required DateTime updatedAt,
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       name = Value(name),
+       category = Value(category),
+       valuationMode = Value(valuationMode),
+       quantity = Value(quantity),
+       createdAt = Value(createdAt),
+       updatedAt = Value(updatedAt);
+  static Insertable<Asset> custom({
+    Expression<String>? id,
+    Expression<String>? name,
+    Expression<String>? category,
+    Expression<String>? valuationMode,
+    Expression<double>? quantity,
+    Expression<String>? symbolOrCurrency,
+    Expression<double>? manualValueUsd,
+    Expression<String>? notes,
+    Expression<DateTime>? createdAt,
+    Expression<DateTime>? updatedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (name != null) 'name': name,
+      if (category != null) 'category': category,
+      if (valuationMode != null) 'valuation_mode': valuationMode,
+      if (quantity != null) 'quantity': quantity,
+      if (symbolOrCurrency != null) 'symbol_or_currency': symbolOrCurrency,
+      if (manualValueUsd != null) 'manual_value_usd': manualValueUsd,
+      if (notes != null) 'notes': notes,
+      if (createdAt != null) 'created_at': createdAt,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  AssetsCompanion copyWith({
+    Value<String>? id,
+    Value<String>? name,
+    Value<String>? category,
+    Value<String>? valuationMode,
+    Value<double>? quantity,
+    Value<String?>? symbolOrCurrency,
+    Value<double?>? manualValueUsd,
+    Value<String?>? notes,
+    Value<DateTime>? createdAt,
+    Value<DateTime>? updatedAt,
+    Value<int>? rowid,
+  }) {
+    return AssetsCompanion(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      category: category ?? this.category,
+      valuationMode: valuationMode ?? this.valuationMode,
+      quantity: quantity ?? this.quantity,
+      symbolOrCurrency: symbolOrCurrency ?? this.symbolOrCurrency,
+      manualValueUsd: manualValueUsd ?? this.manualValueUsd,
+      notes: notes ?? this.notes,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (name.present) {
+      map['name'] = Variable<String>(name.value);
+    }
+    if (category.present) {
+      map['category'] = Variable<String>(category.value);
+    }
+    if (valuationMode.present) {
+      map['valuation_mode'] = Variable<String>(valuationMode.value);
+    }
+    if (quantity.present) {
+      map['quantity'] = Variable<double>(quantity.value);
+    }
+    if (symbolOrCurrency.present) {
+      map['symbol_or_currency'] = Variable<String>(symbolOrCurrency.value);
+    }
+    if (manualValueUsd.present) {
+      map['manual_value_usd'] = Variable<double>(manualValueUsd.value);
+    }
+    if (notes.present) {
+      map['notes'] = Variable<String>(notes.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<DateTime>(updatedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('AssetsCompanion(')
+          ..write('id: $id, ')
+          ..write('name: $name, ')
+          ..write('category: $category, ')
+          ..write('valuationMode: $valuationMode, ')
+          ..write('quantity: $quantity, ')
+          ..write('symbolOrCurrency: $symbolOrCurrency, ')
+          ..write('manualValueUsd: $manualValueUsd, ')
+          ..write('notes: $notes, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $PriceCacheTable extends PriceCache
+    with TableInfo<$PriceCacheTable, PriceCacheData> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $PriceCacheTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _symbolMeta = const VerificationMeta('symbol');
+  @override
+  late final GeneratedColumn<String> symbol = GeneratedColumn<String>(
+    'symbol',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _priceUsdMeta = const VerificationMeta(
+    'priceUsd',
+  );
+  @override
+  late final GeneratedColumn<double> priceUsd = GeneratedColumn<double>(
+    'price_usd',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _fetchedAtMeta = const VerificationMeta(
+    'fetchedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> fetchedAt = GeneratedColumn<DateTime>(
+    'fetched_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [symbol, priceUsd, fetchedAt];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'price_cache';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<PriceCacheData> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('symbol')) {
+      context.handle(
+        _symbolMeta,
+        symbol.isAcceptableOrUnknown(data['symbol']!, _symbolMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_symbolMeta);
+    }
+    if (data.containsKey('price_usd')) {
+      context.handle(
+        _priceUsdMeta,
+        priceUsd.isAcceptableOrUnknown(data['price_usd']!, _priceUsdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_priceUsdMeta);
+    }
+    if (data.containsKey('fetched_at')) {
+      context.handle(
+        _fetchedAtMeta,
+        fetchedAt.isAcceptableOrUnknown(data['fetched_at']!, _fetchedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_fetchedAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {symbol};
+  @override
+  PriceCacheData map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return PriceCacheData(
+      symbol: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}symbol'],
+      )!,
+      priceUsd: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}price_usd'],
+      )!,
+      fetchedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}fetched_at'],
+      )!,
+    );
+  }
+
+  @override
+  $PriceCacheTable createAlias(String alias) {
+    return $PriceCacheTable(attachedDatabase, alias);
+  }
+}
+
+class PriceCacheData extends DataClass implements Insertable<PriceCacheData> {
+  final String symbol;
+  final double priceUsd;
+  final DateTime fetchedAt;
+  const PriceCacheData({
+    required this.symbol,
+    required this.priceUsd,
+    required this.fetchedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['symbol'] = Variable<String>(symbol);
+    map['price_usd'] = Variable<double>(priceUsd);
+    map['fetched_at'] = Variable<DateTime>(fetchedAt);
+    return map;
+  }
+
+  PriceCacheCompanion toCompanion(bool nullToAbsent) {
+    return PriceCacheCompanion(
+      symbol: Value(symbol),
+      priceUsd: Value(priceUsd),
+      fetchedAt: Value(fetchedAt),
+    );
+  }
+
+  factory PriceCacheData.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return PriceCacheData(
+      symbol: serializer.fromJson<String>(json['symbol']),
+      priceUsd: serializer.fromJson<double>(json['priceUsd']),
+      fetchedAt: serializer.fromJson<DateTime>(json['fetchedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'symbol': serializer.toJson<String>(symbol),
+      'priceUsd': serializer.toJson<double>(priceUsd),
+      'fetchedAt': serializer.toJson<DateTime>(fetchedAt),
+    };
+  }
+
+  PriceCacheData copyWith({
+    String? symbol,
+    double? priceUsd,
+    DateTime? fetchedAt,
+  }) => PriceCacheData(
+    symbol: symbol ?? this.symbol,
+    priceUsd: priceUsd ?? this.priceUsd,
+    fetchedAt: fetchedAt ?? this.fetchedAt,
+  );
+  PriceCacheData copyWithCompanion(PriceCacheCompanion data) {
+    return PriceCacheData(
+      symbol: data.symbol.present ? data.symbol.value : this.symbol,
+      priceUsd: data.priceUsd.present ? data.priceUsd.value : this.priceUsd,
+      fetchedAt: data.fetchedAt.present ? data.fetchedAt.value : this.fetchedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('PriceCacheData(')
+          ..write('symbol: $symbol, ')
+          ..write('priceUsd: $priceUsd, ')
+          ..write('fetchedAt: $fetchedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(symbol, priceUsd, fetchedAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is PriceCacheData &&
+          other.symbol == this.symbol &&
+          other.priceUsd == this.priceUsd &&
+          other.fetchedAt == this.fetchedAt);
+}
+
+class PriceCacheCompanion extends UpdateCompanion<PriceCacheData> {
+  final Value<String> symbol;
+  final Value<double> priceUsd;
+  final Value<DateTime> fetchedAt;
+  final Value<int> rowid;
+  const PriceCacheCompanion({
+    this.symbol = const Value.absent(),
+    this.priceUsd = const Value.absent(),
+    this.fetchedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  PriceCacheCompanion.insert({
+    required String symbol,
+    required double priceUsd,
+    required DateTime fetchedAt,
+    this.rowid = const Value.absent(),
+  }) : symbol = Value(symbol),
+       priceUsd = Value(priceUsd),
+       fetchedAt = Value(fetchedAt);
+  static Insertable<PriceCacheData> custom({
+    Expression<String>? symbol,
+    Expression<double>? priceUsd,
+    Expression<DateTime>? fetchedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (symbol != null) 'symbol': symbol,
+      if (priceUsd != null) 'price_usd': priceUsd,
+      if (fetchedAt != null) 'fetched_at': fetchedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  PriceCacheCompanion copyWith({
+    Value<String>? symbol,
+    Value<double>? priceUsd,
+    Value<DateTime>? fetchedAt,
+    Value<int>? rowid,
+  }) {
+    return PriceCacheCompanion(
+      symbol: symbol ?? this.symbol,
+      priceUsd: priceUsd ?? this.priceUsd,
+      fetchedAt: fetchedAt ?? this.fetchedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (symbol.present) {
+      map['symbol'] = Variable<String>(symbol.value);
+    }
+    if (priceUsd.present) {
+      map['price_usd'] = Variable<double>(priceUsd.value);
+    }
+    if (fetchedAt.present) {
+      map['fetched_at'] = Variable<DateTime>(fetchedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('PriceCacheCompanion(')
+          ..write('symbol: $symbol, ')
+          ..write('priceUsd: $priceUsd, ')
+          ..write('fetchedAt: $fetchedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $CounterpartiesTable extends Counterparties
+    with TableInfo<$CounterpartiesTable, Counterparty> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $CounterpartiesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _nameMeta = const VerificationMeta('name');
+  @override
+  late final GeneratedColumn<String> name = GeneratedColumn<String>(
+    'name',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [id, name];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'counterparties';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<Counterparty> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('name')) {
+      context.handle(
+        _nameMeta,
+        name.isAcceptableOrUnknown(data['name']!, _nameMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_nameMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  Counterparty map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return Counterparty(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      name: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}name'],
+      )!,
+    );
+  }
+
+  @override
+  $CounterpartiesTable createAlias(String alias) {
+    return $CounterpartiesTable(attachedDatabase, alias);
+  }
+}
+
+class Counterparty extends DataClass implements Insertable<Counterparty> {
+  final String id;
+  final String name;
+  const Counterparty({required this.id, required this.name});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['name'] = Variable<String>(name);
+    return map;
+  }
+
+  CounterpartiesCompanion toCompanion(bool nullToAbsent) {
+    return CounterpartiesCompanion(id: Value(id), name: Value(name));
+  }
+
+  factory Counterparty.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return Counterparty(
+      id: serializer.fromJson<String>(json['id']),
+      name: serializer.fromJson<String>(json['name']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'name': serializer.toJson<String>(name),
+    };
+  }
+
+  Counterparty copyWith({String? id, String? name}) =>
+      Counterparty(id: id ?? this.id, name: name ?? this.name);
+  Counterparty copyWithCompanion(CounterpartiesCompanion data) {
+    return Counterparty(
+      id: data.id.present ? data.id.value : this.id,
+      name: data.name.present ? data.name.value : this.name,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('Counterparty(')
+          ..write('id: $id, ')
+          ..write('name: $name')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(id, name);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is Counterparty && other.id == this.id && other.name == this.name);
+}
+
+class CounterpartiesCompanion extends UpdateCompanion<Counterparty> {
+  final Value<String> id;
+  final Value<String> name;
+  final Value<int> rowid;
+  const CounterpartiesCompanion({
+    this.id = const Value.absent(),
+    this.name = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  CounterpartiesCompanion.insert({
+    required String id,
+    required String name,
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       name = Value(name);
+  static Insertable<Counterparty> custom({
+    Expression<String>? id,
+    Expression<String>? name,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (name != null) 'name': name,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  CounterpartiesCompanion copyWith({
+    Value<String>? id,
+    Value<String>? name,
+    Value<int>? rowid,
+  }) {
+    return CounterpartiesCompanion(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (name.present) {
+      map['name'] = Variable<String>(name.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('CounterpartiesCompanion(')
+          ..write('id: $id, ')
+          ..write('name: $name, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $LedgerTransactionsTable extends LedgerTransactions
+    with TableInfo<$LedgerTransactionsTable, LedgerTransaction> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $LedgerTransactionsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _counterpartyIdMeta = const VerificationMeta(
+    'counterpartyId',
+  );
+  @override
+  late final GeneratedColumn<String> counterpartyId = GeneratedColumn<String>(
+    'counterparty_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES counterparties (id)',
+    ),
+  );
+  static const VerificationMeta _dateMeta = const VerificationMeta('date');
+  @override
+  late final GeneratedColumn<DateTime> date = GeneratedColumn<DateTime>(
+    'date',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _amountMeta = const VerificationMeta('amount');
+  @override
+  late final GeneratedColumn<double> amount = GeneratedColumn<double>(
+    'amount',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _categoryMeta = const VerificationMeta(
+    'category',
+  );
+  @override
+  late final GeneratedColumn<String> category = GeneratedColumn<String>(
+    'category',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _descriptionMeta = const VerificationMeta(
+    'description',
+  );
+  @override
+  late final GeneratedColumn<String> description = GeneratedColumn<String>(
+    'description',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    counterpartyId,
+    date,
+    amount,
+    category,
+    description,
+    createdAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'ledger_transactions';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<LedgerTransaction> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('counterparty_id')) {
+      context.handle(
+        _counterpartyIdMeta,
+        counterpartyId.isAcceptableOrUnknown(
+          data['counterparty_id']!,
+          _counterpartyIdMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_counterpartyIdMeta);
+    }
+    if (data.containsKey('date')) {
+      context.handle(
+        _dateMeta,
+        date.isAcceptableOrUnknown(data['date']!, _dateMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_dateMeta);
+    }
+    if (data.containsKey('amount')) {
+      context.handle(
+        _amountMeta,
+        amount.isAcceptableOrUnknown(data['amount']!, _amountMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_amountMeta);
+    }
+    if (data.containsKey('category')) {
+      context.handle(
+        _categoryMeta,
+        category.isAcceptableOrUnknown(data['category']!, _categoryMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_categoryMeta);
+    }
+    if (data.containsKey('description')) {
+      context.handle(
+        _descriptionMeta,
+        description.isAcceptableOrUnknown(
+          data['description']!,
+          _descriptionMeta,
+        ),
+      );
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  LedgerTransaction map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return LedgerTransaction(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      counterpartyId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}counterparty_id'],
+      )!,
+      date: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}date'],
+      )!,
+      amount: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}amount'],
+      )!,
+      category: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}category'],
+      )!,
+      description: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}description'],
+      ),
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_at'],
+      )!,
+    );
+  }
+
+  @override
+  $LedgerTransactionsTable createAlias(String alias) {
+    return $LedgerTransactionsTable(attachedDatabase, alias);
+  }
+}
+
+class LedgerTransaction extends DataClass
+    implements Insertable<LedgerTransaction> {
+  final String id;
+  final String counterpartyId;
+  final DateTime date;
+  final double amount;
+  final String category;
+  final String? description;
+  final DateTime createdAt;
+  const LedgerTransaction({
+    required this.id,
+    required this.counterpartyId,
+    required this.date,
+    required this.amount,
+    required this.category,
+    this.description,
+    required this.createdAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['counterparty_id'] = Variable<String>(counterpartyId);
+    map['date'] = Variable<DateTime>(date);
+    map['amount'] = Variable<double>(amount);
+    map['category'] = Variable<String>(category);
+    if (!nullToAbsent || description != null) {
+      map['description'] = Variable<String>(description);
+    }
+    map['created_at'] = Variable<DateTime>(createdAt);
+    return map;
+  }
+
+  LedgerTransactionsCompanion toCompanion(bool nullToAbsent) {
+    return LedgerTransactionsCompanion(
+      id: Value(id),
+      counterpartyId: Value(counterpartyId),
+      date: Value(date),
+      amount: Value(amount),
+      category: Value(category),
+      description: description == null && nullToAbsent
+          ? const Value.absent()
+          : Value(description),
+      createdAt: Value(createdAt),
+    );
+  }
+
+  factory LedgerTransaction.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return LedgerTransaction(
+      id: serializer.fromJson<String>(json['id']),
+      counterpartyId: serializer.fromJson<String>(json['counterpartyId']),
+      date: serializer.fromJson<DateTime>(json['date']),
+      amount: serializer.fromJson<double>(json['amount']),
+      category: serializer.fromJson<String>(json['category']),
+      description: serializer.fromJson<String?>(json['description']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'counterpartyId': serializer.toJson<String>(counterpartyId),
+      'date': serializer.toJson<DateTime>(date),
+      'amount': serializer.toJson<double>(amount),
+      'category': serializer.toJson<String>(category),
+      'description': serializer.toJson<String?>(description),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+    };
+  }
+
+  LedgerTransaction copyWith({
+    String? id,
+    String? counterpartyId,
+    DateTime? date,
+    double? amount,
+    String? category,
+    Value<String?> description = const Value.absent(),
+    DateTime? createdAt,
+  }) => LedgerTransaction(
+    id: id ?? this.id,
+    counterpartyId: counterpartyId ?? this.counterpartyId,
+    date: date ?? this.date,
+    amount: amount ?? this.amount,
+    category: category ?? this.category,
+    description: description.present ? description.value : this.description,
+    createdAt: createdAt ?? this.createdAt,
+  );
+  LedgerTransaction copyWithCompanion(LedgerTransactionsCompanion data) {
+    return LedgerTransaction(
+      id: data.id.present ? data.id.value : this.id,
+      counterpartyId: data.counterpartyId.present
+          ? data.counterpartyId.value
+          : this.counterpartyId,
+      date: data.date.present ? data.date.value : this.date,
+      amount: data.amount.present ? data.amount.value : this.amount,
+      category: data.category.present ? data.category.value : this.category,
+      description: data.description.present
+          ? data.description.value
+          : this.description,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('LedgerTransaction(')
+          ..write('id: $id, ')
+          ..write('counterpartyId: $counterpartyId, ')
+          ..write('date: $date, ')
+          ..write('amount: $amount, ')
+          ..write('category: $category, ')
+          ..write('description: $description, ')
+          ..write('createdAt: $createdAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    counterpartyId,
+    date,
+    amount,
+    category,
+    description,
+    createdAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is LedgerTransaction &&
+          other.id == this.id &&
+          other.counterpartyId == this.counterpartyId &&
+          other.date == this.date &&
+          other.amount == this.amount &&
+          other.category == this.category &&
+          other.description == this.description &&
+          other.createdAt == this.createdAt);
+}
+
+class LedgerTransactionsCompanion extends UpdateCompanion<LedgerTransaction> {
+  final Value<String> id;
+  final Value<String> counterpartyId;
+  final Value<DateTime> date;
+  final Value<double> amount;
+  final Value<String> category;
+  final Value<String?> description;
+  final Value<DateTime> createdAt;
+  final Value<int> rowid;
+  const LedgerTransactionsCompanion({
+    this.id = const Value.absent(),
+    this.counterpartyId = const Value.absent(),
+    this.date = const Value.absent(),
+    this.amount = const Value.absent(),
+    this.category = const Value.absent(),
+    this.description = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  LedgerTransactionsCompanion.insert({
+    required String id,
+    required String counterpartyId,
+    required DateTime date,
+    required double amount,
+    required String category,
+    this.description = const Value.absent(),
+    required DateTime createdAt,
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       counterpartyId = Value(counterpartyId),
+       date = Value(date),
+       amount = Value(amount),
+       category = Value(category),
+       createdAt = Value(createdAt);
+  static Insertable<LedgerTransaction> custom({
+    Expression<String>? id,
+    Expression<String>? counterpartyId,
+    Expression<DateTime>? date,
+    Expression<double>? amount,
+    Expression<String>? category,
+    Expression<String>? description,
+    Expression<DateTime>? createdAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (counterpartyId != null) 'counterparty_id': counterpartyId,
+      if (date != null) 'date': date,
+      if (amount != null) 'amount': amount,
+      if (category != null) 'category': category,
+      if (description != null) 'description': description,
+      if (createdAt != null) 'created_at': createdAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  LedgerTransactionsCompanion copyWith({
+    Value<String>? id,
+    Value<String>? counterpartyId,
+    Value<DateTime>? date,
+    Value<double>? amount,
+    Value<String>? category,
+    Value<String?>? description,
+    Value<DateTime>? createdAt,
+    Value<int>? rowid,
+  }) {
+    return LedgerTransactionsCompanion(
+      id: id ?? this.id,
+      counterpartyId: counterpartyId ?? this.counterpartyId,
+      date: date ?? this.date,
+      amount: amount ?? this.amount,
+      category: category ?? this.category,
+      description: description ?? this.description,
+      createdAt: createdAt ?? this.createdAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (counterpartyId.present) {
+      map['counterparty_id'] = Variable<String>(counterpartyId.value);
+    }
+    if (date.present) {
+      map['date'] = Variable<DateTime>(date.value);
+    }
+    if (amount.present) {
+      map['amount'] = Variable<double>(amount.value);
+    }
+    if (category.present) {
+      map['category'] = Variable<String>(category.value);
+    }
+    if (description.present) {
+      map['description'] = Variable<String>(description.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('LedgerTransactionsCompanion(')
+          ..write('id: $id, ')
+          ..write('counterpartyId: $counterpartyId, ')
+          ..write('date: $date, ')
+          ..write('amount: $amount, ')
+          ..write('category: $category, ')
+          ..write('description: $description, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $SyncMetaTable extends SyncMeta
+    with TableInfo<$SyncMetaTable, SyncMetaData> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $SyncMetaTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _keyMeta = const VerificationMeta('key');
+  @override
+  late final GeneratedColumn<String> key = GeneratedColumn<String>(
+    'key',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _valueMeta = const VerificationMeta('value');
+  @override
+  late final GeneratedColumn<String> value = GeneratedColumn<String>(
+    'value',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [key, value];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'sync_meta';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<SyncMetaData> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('key')) {
+      context.handle(
+        _keyMeta,
+        key.isAcceptableOrUnknown(data['key']!, _keyMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_keyMeta);
+    }
+    if (data.containsKey('value')) {
+      context.handle(
+        _valueMeta,
+        value.isAcceptableOrUnknown(data['value']!, _valueMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_valueMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {key};
+  @override
+  SyncMetaData map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return SyncMetaData(
+      key: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}key'],
+      )!,
+      value: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}value'],
+      )!,
+    );
+  }
+
+  @override
+  $SyncMetaTable createAlias(String alias) {
+    return $SyncMetaTable(attachedDatabase, alias);
+  }
+}
+
+class SyncMetaData extends DataClass implements Insertable<SyncMetaData> {
+  final String key;
+  final String value;
+  const SyncMetaData({required this.key, required this.value});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['key'] = Variable<String>(key);
+    map['value'] = Variable<String>(value);
+    return map;
+  }
+
+  SyncMetaCompanion toCompanion(bool nullToAbsent) {
+    return SyncMetaCompanion(key: Value(key), value: Value(value));
+  }
+
+  factory SyncMetaData.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return SyncMetaData(
+      key: serializer.fromJson<String>(json['key']),
+      value: serializer.fromJson<String>(json['value']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'key': serializer.toJson<String>(key),
+      'value': serializer.toJson<String>(value),
+    };
+  }
+
+  SyncMetaData copyWith({String? key, String? value}) =>
+      SyncMetaData(key: key ?? this.key, value: value ?? this.value);
+  SyncMetaData copyWithCompanion(SyncMetaCompanion data) {
+    return SyncMetaData(
+      key: data.key.present ? data.key.value : this.key,
+      value: data.value.present ? data.value.value : this.value,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('SyncMetaData(')
+          ..write('key: $key, ')
+          ..write('value: $value')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(key, value);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is SyncMetaData &&
+          other.key == this.key &&
+          other.value == this.value);
+}
+
+class SyncMetaCompanion extends UpdateCompanion<SyncMetaData> {
+  final Value<String> key;
+  final Value<String> value;
+  final Value<int> rowid;
+  const SyncMetaCompanion({
+    this.key = const Value.absent(),
+    this.value = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  SyncMetaCompanion.insert({
+    required String key,
+    required String value,
+    this.rowid = const Value.absent(),
+  }) : key = Value(key),
+       value = Value(value);
+  static Insertable<SyncMetaData> custom({
+    Expression<String>? key,
+    Expression<String>? value,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (key != null) 'key': key,
+      if (value != null) 'value': value,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  SyncMetaCompanion copyWith({
+    Value<String>? key,
+    Value<String>? value,
+    Value<int>? rowid,
+  }) {
+    return SyncMetaCompanion(
+      key: key ?? this.key,
+      value: value ?? this.value,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (key.present) {
+      map['key'] = Variable<String>(key.value);
+    }
+    if (value.present) {
+      map['value'] = Variable<String>(value.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('SyncMetaCompanion(')
+          ..write('key: $key, ')
+          ..write('value: $value, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+abstract class _$AppDatabase extends GeneratedDatabase {
+  _$AppDatabase(QueryExecutor e) : super(e);
+  $AppDatabaseManager get managers => $AppDatabaseManager(this);
+  late final $AssetsTable assets = $AssetsTable(this);
+  late final $PriceCacheTable priceCache = $PriceCacheTable(this);
+  late final $CounterpartiesTable counterparties = $CounterpartiesTable(this);
+  late final $LedgerTransactionsTable ledgerTransactions =
+      $LedgerTransactionsTable(this);
+  late final $SyncMetaTable syncMeta = $SyncMetaTable(this);
+  @override
+  Iterable<TableInfo<Table, Object?>> get allTables =>
+      allSchemaEntities.whereType<TableInfo<Table, Object?>>();
+  @override
+  List<DatabaseSchemaEntity> get allSchemaEntities => [
+    assets,
+    priceCache,
+    counterparties,
+    ledgerTransactions,
+    syncMeta,
+  ];
+}
+
+typedef $$AssetsTableCreateCompanionBuilder =
+    AssetsCompanion Function({
+      required String id,
+      required String name,
+      required String category,
+      required String valuationMode,
+      required double quantity,
+      Value<String?> symbolOrCurrency,
+      Value<double?> manualValueUsd,
+      Value<String?> notes,
+      required DateTime createdAt,
+      required DateTime updatedAt,
+      Value<int> rowid,
+    });
+typedef $$AssetsTableUpdateCompanionBuilder =
+    AssetsCompanion Function({
+      Value<String> id,
+      Value<String> name,
+      Value<String> category,
+      Value<String> valuationMode,
+      Value<double> quantity,
+      Value<String?> symbolOrCurrency,
+      Value<double?> manualValueUsd,
+      Value<String?> notes,
+      Value<DateTime> createdAt,
+      Value<DateTime> updatedAt,
+      Value<int> rowid,
+    });
+
+class $$AssetsTableFilterComposer
+    extends Composer<_$AppDatabase, $AssetsTable> {
+  $$AssetsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get category => $composableBuilder(
+    column: $table.category,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get valuationMode => $composableBuilder(
+    column: $table.valuationMode,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get quantity => $composableBuilder(
+    column: $table.quantity,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get symbolOrCurrency => $composableBuilder(
+    column: $table.symbolOrCurrency,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get manualValueUsd => $composableBuilder(
+    column: $table.manualValueUsd,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get notes => $composableBuilder(
+    column: $table.notes,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$AssetsTableOrderingComposer
+    extends Composer<_$AppDatabase, $AssetsTable> {
+  $$AssetsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get category => $composableBuilder(
+    column: $table.category,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get valuationMode => $composableBuilder(
+    column: $table.valuationMode,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get quantity => $composableBuilder(
+    column: $table.quantity,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get symbolOrCurrency => $composableBuilder(
+    column: $table.symbolOrCurrency,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get manualValueUsd => $composableBuilder(
+    column: $table.manualValueUsd,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get notes => $composableBuilder(
+    column: $table.notes,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$AssetsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $AssetsTable> {
+  $$AssetsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get name =>
+      $composableBuilder(column: $table.name, builder: (column) => column);
+
+  GeneratedColumn<String> get category =>
+      $composableBuilder(column: $table.category, builder: (column) => column);
+
+  GeneratedColumn<String> get valuationMode => $composableBuilder(
+    column: $table.valuationMode,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get quantity =>
+      $composableBuilder(column: $table.quantity, builder: (column) => column);
+
+  GeneratedColumn<String> get symbolOrCurrency => $composableBuilder(
+    column: $table.symbolOrCurrency,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get manualValueUsd => $composableBuilder(
+    column: $table.manualValueUsd,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get notes =>
+      $composableBuilder(column: $table.notes, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+}
+
+class $$AssetsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $AssetsTable,
+          Asset,
+          $$AssetsTableFilterComposer,
+          $$AssetsTableOrderingComposer,
+          $$AssetsTableAnnotationComposer,
+          $$AssetsTableCreateCompanionBuilder,
+          $$AssetsTableUpdateCompanionBuilder,
+          (Asset, BaseReferences<_$AppDatabase, $AssetsTable, Asset>),
+          Asset,
+          PrefetchHooks Function()
+        > {
+  $$AssetsTableTableManager(_$AppDatabase db, $AssetsTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$AssetsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$AssetsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$AssetsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> name = const Value.absent(),
+                Value<String> category = const Value.absent(),
+                Value<String> valuationMode = const Value.absent(),
+                Value<double> quantity = const Value.absent(),
+                Value<String?> symbolOrCurrency = const Value.absent(),
+                Value<double?> manualValueUsd = const Value.absent(),
+                Value<String?> notes = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => AssetsCompanion(
+                id: id,
+                name: name,
+                category: category,
+                valuationMode: valuationMode,
+                quantity: quantity,
+                symbolOrCurrency: symbolOrCurrency,
+                manualValueUsd: manualValueUsd,
+                notes: notes,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String name,
+                required String category,
+                required String valuationMode,
+                required double quantity,
+                Value<String?> symbolOrCurrency = const Value.absent(),
+                Value<double?> manualValueUsd = const Value.absent(),
+                Value<String?> notes = const Value.absent(),
+                required DateTime createdAt,
+                required DateTime updatedAt,
+                Value<int> rowid = const Value.absent(),
+              }) => AssetsCompanion.insert(
+                id: id,
+                name: name,
+                category: category,
+                valuationMode: valuationMode,
+                quantity: quantity,
+                symbolOrCurrency: symbolOrCurrency,
+                manualValueUsd: manualValueUsd,
+                notes: notes,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$AssetsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $AssetsTable,
+      Asset,
+      $$AssetsTableFilterComposer,
+      $$AssetsTableOrderingComposer,
+      $$AssetsTableAnnotationComposer,
+      $$AssetsTableCreateCompanionBuilder,
+      $$AssetsTableUpdateCompanionBuilder,
+      (Asset, BaseReferences<_$AppDatabase, $AssetsTable, Asset>),
+      Asset,
+      PrefetchHooks Function()
+    >;
+typedef $$PriceCacheTableCreateCompanionBuilder =
+    PriceCacheCompanion Function({
+      required String symbol,
+      required double priceUsd,
+      required DateTime fetchedAt,
+      Value<int> rowid,
+    });
+typedef $$PriceCacheTableUpdateCompanionBuilder =
+    PriceCacheCompanion Function({
+      Value<String> symbol,
+      Value<double> priceUsd,
+      Value<DateTime> fetchedAt,
+      Value<int> rowid,
+    });
+
+class $$PriceCacheTableFilterComposer
+    extends Composer<_$AppDatabase, $PriceCacheTable> {
+  $$PriceCacheTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get symbol => $composableBuilder(
+    column: $table.symbol,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get priceUsd => $composableBuilder(
+    column: $table.priceUsd,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get fetchedAt => $composableBuilder(
+    column: $table.fetchedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$PriceCacheTableOrderingComposer
+    extends Composer<_$AppDatabase, $PriceCacheTable> {
+  $$PriceCacheTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get symbol => $composableBuilder(
+    column: $table.symbol,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get priceUsd => $composableBuilder(
+    column: $table.priceUsd,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get fetchedAt => $composableBuilder(
+    column: $table.fetchedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$PriceCacheTableAnnotationComposer
+    extends Composer<_$AppDatabase, $PriceCacheTable> {
+  $$PriceCacheTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get symbol =>
+      $composableBuilder(column: $table.symbol, builder: (column) => column);
+
+  GeneratedColumn<double> get priceUsd =>
+      $composableBuilder(column: $table.priceUsd, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get fetchedAt =>
+      $composableBuilder(column: $table.fetchedAt, builder: (column) => column);
+}
+
+class $$PriceCacheTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $PriceCacheTable,
+          PriceCacheData,
+          $$PriceCacheTableFilterComposer,
+          $$PriceCacheTableOrderingComposer,
+          $$PriceCacheTableAnnotationComposer,
+          $$PriceCacheTableCreateCompanionBuilder,
+          $$PriceCacheTableUpdateCompanionBuilder,
+          (
+            PriceCacheData,
+            BaseReferences<_$AppDatabase, $PriceCacheTable, PriceCacheData>,
+          ),
+          PriceCacheData,
+          PrefetchHooks Function()
+        > {
+  $$PriceCacheTableTableManager(_$AppDatabase db, $PriceCacheTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$PriceCacheTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$PriceCacheTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$PriceCacheTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> symbol = const Value.absent(),
+                Value<double> priceUsd = const Value.absent(),
+                Value<DateTime> fetchedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => PriceCacheCompanion(
+                symbol: symbol,
+                priceUsd: priceUsd,
+                fetchedAt: fetchedAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String symbol,
+                required double priceUsd,
+                required DateTime fetchedAt,
+                Value<int> rowid = const Value.absent(),
+              }) => PriceCacheCompanion.insert(
+                symbol: symbol,
+                priceUsd: priceUsd,
+                fetchedAt: fetchedAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$PriceCacheTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $PriceCacheTable,
+      PriceCacheData,
+      $$PriceCacheTableFilterComposer,
+      $$PriceCacheTableOrderingComposer,
+      $$PriceCacheTableAnnotationComposer,
+      $$PriceCacheTableCreateCompanionBuilder,
+      $$PriceCacheTableUpdateCompanionBuilder,
+      (
+        PriceCacheData,
+        BaseReferences<_$AppDatabase, $PriceCacheTable, PriceCacheData>,
+      ),
+      PriceCacheData,
+      PrefetchHooks Function()
+    >;
+typedef $$CounterpartiesTableCreateCompanionBuilder =
+    CounterpartiesCompanion Function({
+      required String id,
+      required String name,
+      Value<int> rowid,
+    });
+typedef $$CounterpartiesTableUpdateCompanionBuilder =
+    CounterpartiesCompanion Function({
+      Value<String> id,
+      Value<String> name,
+      Value<int> rowid,
+    });
+
+final class $$CounterpartiesTableReferences
+    extends BaseReferences<_$AppDatabase, $CounterpartiesTable, Counterparty> {
+  $$CounterpartiesTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static MultiTypedResultKey<$LedgerTransactionsTable, List<LedgerTransaction>>
+  _ledgerTransactionsRefsTable(_$AppDatabase db) =>
+      MultiTypedResultKey.fromTable(
+        db.ledgerTransactions,
+        aliasName: 'counterparties__id__ledger_transactions__counterparty_id',
+      );
+
+  $$LedgerTransactionsTableProcessedTableManager get ledgerTransactionsRefs {
+    final manager = $$LedgerTransactionsTableTableManager(
+      $_db,
+      $_db.ledgerTransactions,
+    ).filter((f) => f.counterpartyId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _ledgerTransactionsRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+}
+
+class $$CounterpartiesTableFilterComposer
+    extends Composer<_$AppDatabase, $CounterpartiesTable> {
+  $$CounterpartiesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  Expression<bool> ledgerTransactionsRefs(
+    Expression<bool> Function($$LedgerTransactionsTableFilterComposer f) f,
+  ) {
+    final $$LedgerTransactionsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.ledgerTransactions,
+      getReferencedColumn: (t) => t.counterpartyId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$LedgerTransactionsTableFilterComposer(
+            $db: $db,
+            $table: $db.ledgerTransactions,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+}
+
+class $$CounterpartiesTableOrderingComposer
+    extends Composer<_$AppDatabase, $CounterpartiesTable> {
+  $$CounterpartiesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$CounterpartiesTableAnnotationComposer
+    extends Composer<_$AppDatabase, $CounterpartiesTable> {
+  $$CounterpartiesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get name =>
+      $composableBuilder(column: $table.name, builder: (column) => column);
+
+  Expression<T> ledgerTransactionsRefs<T extends Object>(
+    Expression<T> Function($$LedgerTransactionsTableAnnotationComposer a) f,
+  ) {
+    final $$LedgerTransactionsTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.ledgerTransactions,
+          getReferencedColumn: (t) => t.counterpartyId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$LedgerTransactionsTableAnnotationComposer(
+                $db: $db,
+                $table: $db.ledgerTransactions,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
+}
+
+class $$CounterpartiesTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $CounterpartiesTable,
+          Counterparty,
+          $$CounterpartiesTableFilterComposer,
+          $$CounterpartiesTableOrderingComposer,
+          $$CounterpartiesTableAnnotationComposer,
+          $$CounterpartiesTableCreateCompanionBuilder,
+          $$CounterpartiesTableUpdateCompanionBuilder,
+          (Counterparty, $$CounterpartiesTableReferences),
+          Counterparty,
+          PrefetchHooks Function({bool ledgerTransactionsRefs})
+        > {
+  $$CounterpartiesTableTableManager(
+    _$AppDatabase db,
+    $CounterpartiesTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$CounterpartiesTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$CounterpartiesTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$CounterpartiesTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> name = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => CounterpartiesCompanion(id: id, name: name, rowid: rowid),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String name,
+                Value<int> rowid = const Value.absent(),
+              }) => CounterpartiesCompanion.insert(
+                id: id,
+                name: name,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable(table),
+                  $$CounterpartiesTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({ledgerTransactionsRefs = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [
+                if (ledgerTransactionsRefs) db.ledgerTransactions,
+              ],
+              addJoins: null,
+              getPrefetchedDataCallback: (items) async {
+                return [
+                  if (ledgerTransactionsRefs)
+                    await $_getPrefetchedData<
+                      Counterparty,
+                      $CounterpartiesTable,
+                      LedgerTransaction
+                    >(
+                      currentTable: table,
+                      referencedTable: $$CounterpartiesTableReferences
+                          ._ledgerTransactionsRefsTable(db),
+                      managerFromTypedResult: (p0) =>
+                          $$CounterpartiesTableReferences(
+                            db,
+                            table,
+                            p0,
+                          ).ledgerTransactionsRefs,
+                      referencedItemsForCurrentItem: (item, referencedItems) =>
+                          referencedItems.where(
+                            (e) => e.counterpartyId == item.id,
+                          ),
+                      typedResults: items,
+                    ),
+                ];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$CounterpartiesTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $CounterpartiesTable,
+      Counterparty,
+      $$CounterpartiesTableFilterComposer,
+      $$CounterpartiesTableOrderingComposer,
+      $$CounterpartiesTableAnnotationComposer,
+      $$CounterpartiesTableCreateCompanionBuilder,
+      $$CounterpartiesTableUpdateCompanionBuilder,
+      (Counterparty, $$CounterpartiesTableReferences),
+      Counterparty,
+      PrefetchHooks Function({bool ledgerTransactionsRefs})
+    >;
+typedef $$LedgerTransactionsTableCreateCompanionBuilder =
+    LedgerTransactionsCompanion Function({
+      required String id,
+      required String counterpartyId,
+      required DateTime date,
+      required double amount,
+      required String category,
+      Value<String?> description,
+      required DateTime createdAt,
+      Value<int> rowid,
+    });
+typedef $$LedgerTransactionsTableUpdateCompanionBuilder =
+    LedgerTransactionsCompanion Function({
+      Value<String> id,
+      Value<String> counterpartyId,
+      Value<DateTime> date,
+      Value<double> amount,
+      Value<String> category,
+      Value<String?> description,
+      Value<DateTime> createdAt,
+      Value<int> rowid,
+    });
+
+final class $$LedgerTransactionsTableReferences
+    extends
+        BaseReferences<
+          _$AppDatabase,
+          $LedgerTransactionsTable,
+          LedgerTransaction
+        > {
+  $$LedgerTransactionsTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static $CounterpartiesTable _counterpartyIdTable(_$AppDatabase db) => db
+      .counterparties
+      .createAlias('ledger_transactions__counterparty_id__counterparties__id');
+
+  $$CounterpartiesTableProcessedTableManager get counterpartyId {
+    final $_column = $_itemColumn<String>('counterparty_id')!;
+
+    final manager = $$CounterpartiesTableTableManager(
+      $_db,
+      $_db.counterparties,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_counterpartyIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$LedgerTransactionsTableFilterComposer
+    extends Composer<_$AppDatabase, $LedgerTransactionsTable> {
+  $$LedgerTransactionsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get date => $composableBuilder(
+    column: $table.date,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get amount => $composableBuilder(
+    column: $table.amount,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get category => $composableBuilder(
+    column: $table.category,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get description => $composableBuilder(
+    column: $table.description,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$CounterpartiesTableFilterComposer get counterpartyId {
+    final $$CounterpartiesTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.counterpartyId,
+      referencedTable: $db.counterparties,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$CounterpartiesTableFilterComposer(
+            $db: $db,
+            $table: $db.counterparties,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$LedgerTransactionsTableOrderingComposer
+    extends Composer<_$AppDatabase, $LedgerTransactionsTable> {
+  $$LedgerTransactionsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get date => $composableBuilder(
+    column: $table.date,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get amount => $composableBuilder(
+    column: $table.amount,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get category => $composableBuilder(
+    column: $table.category,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get description => $composableBuilder(
+    column: $table.description,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$CounterpartiesTableOrderingComposer get counterpartyId {
+    final $$CounterpartiesTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.counterpartyId,
+      referencedTable: $db.counterparties,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$CounterpartiesTableOrderingComposer(
+            $db: $db,
+            $table: $db.counterparties,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$LedgerTransactionsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $LedgerTransactionsTable> {
+  $$LedgerTransactionsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get date =>
+      $composableBuilder(column: $table.date, builder: (column) => column);
+
+  GeneratedColumn<double> get amount =>
+      $composableBuilder(column: $table.amount, builder: (column) => column);
+
+  GeneratedColumn<String> get category =>
+      $composableBuilder(column: $table.category, builder: (column) => column);
+
+  GeneratedColumn<String> get description => $composableBuilder(
+    column: $table.description,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  $$CounterpartiesTableAnnotationComposer get counterpartyId {
+    final $$CounterpartiesTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.counterpartyId,
+      referencedTable: $db.counterparties,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$CounterpartiesTableAnnotationComposer(
+            $db: $db,
+            $table: $db.counterparties,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$LedgerTransactionsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $LedgerTransactionsTable,
+          LedgerTransaction,
+          $$LedgerTransactionsTableFilterComposer,
+          $$LedgerTransactionsTableOrderingComposer,
+          $$LedgerTransactionsTableAnnotationComposer,
+          $$LedgerTransactionsTableCreateCompanionBuilder,
+          $$LedgerTransactionsTableUpdateCompanionBuilder,
+          (LedgerTransaction, $$LedgerTransactionsTableReferences),
+          LedgerTransaction,
+          PrefetchHooks Function({bool counterpartyId})
+        > {
+  $$LedgerTransactionsTableTableManager(
+    _$AppDatabase db,
+    $LedgerTransactionsTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$LedgerTransactionsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$LedgerTransactionsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$LedgerTransactionsTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> counterpartyId = const Value.absent(),
+                Value<DateTime> date = const Value.absent(),
+                Value<double> amount = const Value.absent(),
+                Value<String> category = const Value.absent(),
+                Value<String?> description = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => LedgerTransactionsCompanion(
+                id: id,
+                counterpartyId: counterpartyId,
+                date: date,
+                amount: amount,
+                category: category,
+                description: description,
+                createdAt: createdAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String counterpartyId,
+                required DateTime date,
+                required double amount,
+                required String category,
+                Value<String?> description = const Value.absent(),
+                required DateTime createdAt,
+                Value<int> rowid = const Value.absent(),
+              }) => LedgerTransactionsCompanion.insert(
+                id: id,
+                counterpartyId: counterpartyId,
+                date: date,
+                amount: amount,
+                category: category,
+                description: description,
+                createdAt: createdAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable(table),
+                  $$LedgerTransactionsTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({counterpartyId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (counterpartyId) {
+                      state =
+                          state.withJoin(
+                                currentTable: table,
+                                currentColumn: table.counterpartyId,
+                                referencedTable:
+                                    $$LedgerTransactionsTableReferences
+                                        ._counterpartyIdTable(db),
+                                referencedColumn:
+                                    $$LedgerTransactionsTableReferences
+                                        ._counterpartyIdTable(db)
+                                        .id,
+                              )
+                              as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$LedgerTransactionsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $LedgerTransactionsTable,
+      LedgerTransaction,
+      $$LedgerTransactionsTableFilterComposer,
+      $$LedgerTransactionsTableOrderingComposer,
+      $$LedgerTransactionsTableAnnotationComposer,
+      $$LedgerTransactionsTableCreateCompanionBuilder,
+      $$LedgerTransactionsTableUpdateCompanionBuilder,
+      (LedgerTransaction, $$LedgerTransactionsTableReferences),
+      LedgerTransaction,
+      PrefetchHooks Function({bool counterpartyId})
+    >;
+typedef $$SyncMetaTableCreateCompanionBuilder =
+    SyncMetaCompanion Function({
+      required String key,
+      required String value,
+      Value<int> rowid,
+    });
+typedef $$SyncMetaTableUpdateCompanionBuilder =
+    SyncMetaCompanion Function({
+      Value<String> key,
+      Value<String> value,
+      Value<int> rowid,
+    });
+
+class $$SyncMetaTableFilterComposer
+    extends Composer<_$AppDatabase, $SyncMetaTable> {
+  $$SyncMetaTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get key => $composableBuilder(
+    column: $table.key,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get value => $composableBuilder(
+    column: $table.value,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$SyncMetaTableOrderingComposer
+    extends Composer<_$AppDatabase, $SyncMetaTable> {
+  $$SyncMetaTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get key => $composableBuilder(
+    column: $table.key,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get value => $composableBuilder(
+    column: $table.value,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$SyncMetaTableAnnotationComposer
+    extends Composer<_$AppDatabase, $SyncMetaTable> {
+  $$SyncMetaTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get key =>
+      $composableBuilder(column: $table.key, builder: (column) => column);
+
+  GeneratedColumn<String> get value =>
+      $composableBuilder(column: $table.value, builder: (column) => column);
+}
+
+class $$SyncMetaTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $SyncMetaTable,
+          SyncMetaData,
+          $$SyncMetaTableFilterComposer,
+          $$SyncMetaTableOrderingComposer,
+          $$SyncMetaTableAnnotationComposer,
+          $$SyncMetaTableCreateCompanionBuilder,
+          $$SyncMetaTableUpdateCompanionBuilder,
+          (
+            SyncMetaData,
+            BaseReferences<_$AppDatabase, $SyncMetaTable, SyncMetaData>,
+          ),
+          SyncMetaData,
+          PrefetchHooks Function()
+        > {
+  $$SyncMetaTableTableManager(_$AppDatabase db, $SyncMetaTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$SyncMetaTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$SyncMetaTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$SyncMetaTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> key = const Value.absent(),
+                Value<String> value = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => SyncMetaCompanion(key: key, value: value, rowid: rowid),
+          createCompanionCallback:
+              ({
+                required String key,
+                required String value,
+                Value<int> rowid = const Value.absent(),
+              }) => SyncMetaCompanion.insert(
+                key: key,
+                value: value,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$SyncMetaTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $SyncMetaTable,
+      SyncMetaData,
+      $$SyncMetaTableFilterComposer,
+      $$SyncMetaTableOrderingComposer,
+      $$SyncMetaTableAnnotationComposer,
+      $$SyncMetaTableCreateCompanionBuilder,
+      $$SyncMetaTableUpdateCompanionBuilder,
+      (
+        SyncMetaData,
+        BaseReferences<_$AppDatabase, $SyncMetaTable, SyncMetaData>,
+      ),
+      SyncMetaData,
+      PrefetchHooks Function()
+    >;
+
+class $AppDatabaseManager {
+  final _$AppDatabase _db;
+  $AppDatabaseManager(this._db);
+  $$AssetsTableTableManager get assets =>
+      $$AssetsTableTableManager(_db, _db.assets);
+  $$PriceCacheTableTableManager get priceCache =>
+      $$PriceCacheTableTableManager(_db, _db.priceCache);
+  $$CounterpartiesTableTableManager get counterparties =>
+      $$CounterpartiesTableTableManager(_db, _db.counterparties);
+  $$LedgerTransactionsTableTableManager get ledgerTransactions =>
+      $$LedgerTransactionsTableTableManager(_db, _db.ledgerTransactions);
+  $$SyncMetaTableTableManager get syncMeta =>
+      $$SyncMetaTableTableManager(_db, _db.syncMeta);
+}
