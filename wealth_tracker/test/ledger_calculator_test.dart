@@ -79,4 +79,42 @@ void main() {
       expect(monthlyRepaymentTotal(txns, DateTime(2026, 1), _prices), closeTo(50, 0.001));
     });
   });
+
+  group('monthlySpendTrend', () {
+    test('returns one entry per month, oldest first, zero-filling months with no entries', () {
+      final txns = [
+        _txn(date: DateTime(2026, 1, 5), amount: 100, category: 'Groceries'),
+        _txn(date: DateTime(2026, 3, 5), amount: 40, category: 'Fuel'),
+      ];
+
+      final trend = monthlySpendTrend(txns, _prices, months: 3, asOf: DateTime(2026, 3, 15));
+
+      expect(trend.map((m) => m.month), [DateTime(2026, 1), DateTime(2026, 2), DateTime(2026, 3)]);
+      expect(trend[0].amount, closeTo(100, 0.001));
+      expect(trend[1].amount, 0);
+      expect(trend[2].amount, closeTo(40, 0.001));
+    });
+
+    test('rolls over the year boundary correctly', () {
+      final trend = monthlySpendTrend(const [], _prices, months: 3, asOf: DateTime(2026, 1, 15));
+      expect(trend.map((m) => m.month), [DateTime(2025, 11), DateTime(2025, 12), DateTime(2026, 1)]);
+    });
+  });
+
+  group('categoryTotalsAllTime', () {
+    test('sums expenses by category across every month, excluding repayments', () {
+      final txns = [
+        _txn(date: DateTime(2026, 1, 5), amount: 100, category: 'Talabat'),
+        _txn(date: DateTime(2026, 2, 5), amount: 50, category: 'Talabat'),
+        _txn(date: DateTime(2026, 2, 6), amount: 30, category: 'Amazon'),
+        _txn(date: DateTime(2026, 3, 1), amount: -20, category: 'Repayment'),
+      ];
+
+      final totals = categoryTotalsAllTime(txns, _prices);
+
+      expect(totals['Talabat'], closeTo(150, 0.001));
+      expect(totals['Amazon'], closeTo(30, 0.001));
+      expect(totals.containsKey('Repayment'), isFalse);
+    });
+  });
 }

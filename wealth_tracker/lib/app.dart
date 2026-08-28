@@ -8,6 +8,7 @@ import 'core/navigation/app_navigator.dart';
 import 'core/theme/app_theme.dart';
 import 'features/ledger/providers/quick_add_launch.dart';
 import 'features/ledger/screens/ledger_home_screen.dart';
+import 'features/ledger/screens/statistics_screen.dart';
 import 'features/networth/providers/home_widget_providers.dart';
 import 'features/networth/screens/dashboard_screen.dart';
 
@@ -58,7 +59,7 @@ class _RootShellState extends ConsumerState<_RootShell> {
     return Scaffold(
       body: IndexedStack(
         index: _index,
-        children: const [DashboardScreen(), LedgerHomeScreen()],
+        children: const [DashboardScreen(), LedgerHomeScreen(), StatisticsScreen()],
       ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _index,
@@ -66,6 +67,7 @@ class _RootShellState extends ConsumerState<_RootShell> {
         destinations: const [
           NavigationDestination(icon: Icon(Icons.account_balance_wallet), label: 'Net Worth'),
           NavigationDestination(icon: Icon(Icons.receipt_long), label: 'Ledger'),
+          NavigationDestination(icon: Icon(Icons.bar_chart), label: 'Statistics'),
         ],
       ),
     );

@@ -92,6 +92,64 @@ double monthlyExpenseTotal(
       .fold(0.0, (a, b) => a + b);
 }
 
+/// One month's worth of spend, for charting a trend over time.
+class MonthlySpend {
+  const MonthlySpend(this.month, this.amount);
+
+  /// First day of the month.
+  final DateTime month;
+  final double amount;
+}
+
+/// Expense totals for the last [months] calendar months (oldest first),
+/// ending with the month containing [asOf] (defaults to now). Months with
+/// no entries still appear with an amount of 0, so a chart's x-axis stays
+/// evenly spaced.
+List<MonthlySpend> monthlySpendTrend(
+  Iterable<LedgerTransaction> transactions,
+  Map<String, double> pricesUsdPerUnit, {
+  int months = 6,
+  DateTime? asOf,
+  String settlementCurrency = defaultCurrency,
+}) {
+  final end = asOf ?? DateTime.now();
+  final result = <MonthlySpend>[];
+  for (var i = months - 1; i >= 0; i--) {
+    final month = DateTime(end.year, end.month - i);
+    final total = monthlyExpenseTotal(
+      transactions,
+      month,
+      pricesUsdPerUnit,
+      settlementCurrency: settlementCurrency,
+    );
+    result.add(MonthlySpend(month, total));
+  }
+  return result;
+}
+
+/// Expense entries (positive amounts), grouped and summed by category
+/// across every transaction (not scoped to a single month), converted to
+/// [settlementCurrency] — "what have we actually spent the most on."
+Map<String, double> categoryTotalsAllTime(
+  Iterable<LedgerTransaction> transactions,
+  Map<String, double> pricesUsdPerUnit, {
+  String settlementCurrency = defaultCurrency,
+}) {
+  final totals = <String, double>{};
+  for (final t in transactions) {
+    if (t.amount <= 0) continue;
+    final converted = convertToSettlement(
+      t.amount,
+      t.currency,
+      pricesUsdPerUnit,
+      settlementCurrency: settlementCurrency,
+    );
+    if (converted == null) continue;
+    totals[t.category] = (totals[t.category] ?? 0) + converted;
+  }
+  return totals;
+}
+
 double monthlyRepaymentTotal(
   Iterable<LedgerTransaction> transactions,
   DateTime month,
