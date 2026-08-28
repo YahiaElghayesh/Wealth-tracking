@@ -90,6 +90,33 @@ class CalculatorInputs extends Table {
   Set<Column> get primaryKey => {key};
 }
 
+/// One saved "current liquid cash" calculation — an immutable historical
+/// record, not a live-editing state. Each row is what the calculator's
+/// inputs and result were at the moment the user tapped Save; card owed
+/// amounts are stored directly (not just the available-balance the user
+/// typed in) so a later change to a card's limit in Settings doesn't
+/// retroactively change past history.
+class CalculatorSnapshots extends Table {
+  TextColumn get id => text()();
+  DateTimeColumn get computedAt => dateTime()();
+  RealColumn get resultAmount => real()();
+  RealColumn get ledgersTotal => real()();
+  RealColumn get apartmentSavings => real()();
+  RealColumn get cibAccountBalance => real()();
+  RealColumn get nbeAvailable => real()();
+  RealColumn get nbeOwed => real()();
+  RealColumn get cibExplorerWalletAvailable => real()();
+  RealColumn get cibExplorerWalletOwed => real()();
+  RealColumn get cibPlatinumAvailable => real()();
+  RealColumn get cibPlatinumOwed => real()();
+
+  /// JSON-encoded list of `{label, amount, isAddition}` custom line items.
+  TextColumn get customItemsJson => text().withDefault(const Constant('[]'))();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
 /// A rule matching a bank SMS merchant name to where it should be recorded:
 /// "any charge at a merchant whose name contains [vendorPattern] (case
 /// insensitive) is a payment made on [counterpartyId]'s behalf, categorized

@@ -14,6 +14,7 @@ part 'database.g.dart';
     SyncMeta,
     CalculatorInputs,
     VendorRules,
+    CalculatorSnapshots,
   ],
 )
 class AppDatabase extends _$AppDatabase {
@@ -22,7 +23,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 4;
+  int get schemaVersion => 5;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -31,7 +32,10 @@ class AppDatabase extends _$AppDatabase {
         // the simplest correct migration is to just rebuild the affected
         // tables (version 2: asset valuation model + ledger currency;
         // version 3: adds the calculator_inputs table; version 4: adds the
-        // vendor_rules table for SMS auto-capture).
+        // vendor_rules table for SMS auto-capture; version 5: adds the
+        // calculator_snapshots history table — calculator_inputs is reused
+        // for the (now few) persisted card-limit settings, no schema
+        // change needed for that part).
         onUpgrade: (m, from, to) async {
           await m.deleteTable(assets.actualTableName);
           await m.createTable(assets);
@@ -42,6 +46,9 @@ class AppDatabase extends _$AppDatabase {
           }
           if (from < 4) {
             await m.createTable(vendorRules);
+          }
+          if (from < 5) {
+            await m.createTable(calculatorSnapshots);
           }
         },
         // The "Breakfast" quick-pick category was a voice-transcription

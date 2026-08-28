@@ -147,6 +147,34 @@ class _StatisticsBodyState extends ConsumerState<_StatisticsBody> {
   }
 }
 
+/// Compact money label used above bars — a shortened form (e.g. "1.2K")
+/// keeps labels legible when several bars sit close together.
+String _shortMoney(double value) {
+  final abs = value.abs();
+  final sign = value < 0 ? '-' : '';
+  if (abs >= 1000000) return '$sign${(abs / 1000000).toStringAsFixed(1)}M';
+  if (abs >= 1000) return '$sign${(abs / 1000).toStringAsFixed(1)}K';
+  return formatMoney(value, defaultCurrency);
+}
+
+/// A permanently-visible label above a bar, using the same tooltip
+/// machinery fl_chart uses for touch — [BarChartGroupData.showingTooltipIndicators]
+/// keeps it displayed without requiring a tap.
+BarTouchTooltipData _permanentLabelTooltip(Color textColor) {
+  return BarTouchTooltipData(
+    getTooltipColor: (_) => Colors.transparent,
+    tooltipPadding: EdgeInsets.zero,
+    tooltipMargin: 8,
+    fitInsideVertically: true,
+    getTooltipItem: (group, groupIndex, rod, rodIndex) {
+      return BarTooltipItem(
+        _shortMoney(rod.toY),
+        TextStyle(color: textColor, fontWeight: FontWeight.bold, fontSize: 11),
+      );
+    },
+  );
+}
+
 class _MonthlyTrendChart extends StatelessWidget {
   const _MonthlyTrendChart({required this.trend});
 
@@ -159,7 +187,7 @@ class _MonthlyTrendChart extends StatelessWidget {
 
     return BarChart(
       BarChartData(
-        maxY: maxY == 0 ? 1 : maxY * 1.2,
+        maxY: maxY == 0 ? 1 : maxY * 1.3,
         alignment: BarChartAlignment.spaceAround,
         gridData: const FlGridData(show: false),
         borderData: FlBorderData(show: false),
@@ -185,16 +213,7 @@ class _MonthlyTrendChart extends StatelessWidget {
             ),
           ),
         ),
-        barTouchData: BarTouchData(
-          touchTooltipData: BarTouchTooltipData(
-            getTooltipItem: (group, groupIndex, rod, rodIndex) {
-              return BarTooltipItem(
-                formatMoney(rod.toY, defaultCurrency),
-                TextStyle(color: color, fontWeight: FontWeight.bold),
-              );
-            },
-          ),
-        ),
+        barTouchData: BarTouchData(touchTooltipData: _permanentLabelTooltip(color)),
         barGroups: [
           for (var i = 0; i < trend.length; i++)
             BarChartGroupData(
@@ -207,6 +226,7 @@ class _MonthlyTrendChart extends StatelessWidget {
                   borderRadius: const BorderRadius.vertical(top: Radius.circular(4)),
                 ),
               ],
+              showingTooltipIndicators: trend[i].amount > 0 ? [0] : [],
             ),
         ],
       ),
@@ -222,7 +242,7 @@ class _CategoryBarChart extends StatelessWidget {
 
   final List<MapEntry<String, double>> categories;
 
-  static const _barWidth = 70.0;
+  static const _barWidth = 90.0;
 
   @override
   Widget build(BuildContext context) {
@@ -238,25 +258,14 @@ class _CategoryBarChart extends StatelessWidget {
             width: chartWidth,
             child: BarChart(
               BarChartData(
-                maxY: maxY == 0 ? 1 : maxY * 1.2,
+                maxY: maxY == 0 ? 1 : maxY * 1.3,
                 alignment: BarChartAlignment.spaceAround,
                 gridData: const FlGridData(show: false),
                 borderData: FlBorderData(show: false),
                 titlesData: FlTitlesData(
                   topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
                   rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                  leftTitles: AxisTitles(
-                    sideTitles: SideTitles(
-                      showTitles: true,
-                      reservedSize: 48,
-                      getTitlesWidget: (value, meta) {
-                        return Text(
-                          formatMoney(value, defaultCurrency),
-                          style: Theme.of(context).textTheme.bodySmall,
-                        );
-                      },
-                    ),
-                  ),
+                  leftTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
                   bottomTitles: AxisTitles(
                     sideTitles: SideTitles(
                       showTitles: true,
@@ -266,28 +275,19 @@ class _CategoryBarChart extends StatelessWidget {
                         if (index < 0 || index >= categories.length) return const SizedBox.shrink();
                         return Padding(
                           padding: const EdgeInsets.only(top: 8),
-                          child: Transform.rotate(
-                            angle: -0.5,
-                            child: Text(
-                              categories[index].key,
-                              style: Theme.of(context).textTheme.bodySmall,
-                            ),
+                          child: Text(
+                            categories[index].key,
+                            style: Theme.of(context).textTheme.bodySmall,
+                            textAlign: TextAlign.center,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
                           ),
                         );
                       },
                     ),
                   ),
                 ),
-                barTouchData: BarTouchData(
-                  touchTooltipData: BarTouchTooltipData(
-                    getTooltipItem: (group, groupIndex, rod, rodIndex) {
-                      return BarTooltipItem(
-                        formatMoney(rod.toY, defaultCurrency),
-                        TextStyle(color: color, fontWeight: FontWeight.bold),
-                      );
-                    },
-                  ),
-                ),
+                barTouchData: BarTouchData(touchTooltipData: _permanentLabelTooltip(color)),
                 barGroups: [
                   for (var i = 0; i < categories.length; i++)
                     BarChartGroupData(
@@ -296,10 +296,11 @@ class _CategoryBarChart extends StatelessWidget {
                         BarChartRodData(
                           toY: categories[i].value,
                           color: color,
-                          width: 24,
+                          width: 28,
                           borderRadius: const BorderRadius.vertical(top: Radius.circular(4)),
                         ),
                       ],
+                      showingTooltipIndicators: [0],
                     ),
                 ],
               ),

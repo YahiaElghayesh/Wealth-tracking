@@ -60,8 +60,18 @@ class DashboardScreen extends ConsumerWidget {
                   padding: const EdgeInsets.only(top: 12),
                   child: Text(
                     '${netWorth.unpricedAssets.length} asset(s) missing a live price — '
-                    'excluded from the totals above. Pull to refresh prices from Settings.',
+                    'excluded from the totals above. Tap refresh above, or check Settings for errors.',
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Colors.orange),
+                  ),
+                ),
+              if (refreshState.errors.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: refreshState.errors
+                        .map((e) => Text(e, style: const TextStyle(color: Colors.red)))
+                        .toList(),
                   ),
                 ),
               const SizedBox(height: 24),

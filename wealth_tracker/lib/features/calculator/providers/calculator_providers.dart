@@ -1,7 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../core/models/calculator_input.dart';
-import '../../../data/calculator/current_money_calculator.dart';
+import '../../../core/models/calculator_card.dart';
+import '../../../data/db/database.dart';
 import '../../../data/ledger/ledger_calculator.dart';
 import '../../../data/repositories/calculator_repository.dart';
 import '../../ledger/providers/ledger_providers.dart';
@@ -11,8 +11,12 @@ final calculatorRepositoryProvider = Provider<CalculatorRepository>((ref) {
   return CalculatorRepository(ref.watch(databaseProvider));
 });
 
-final calculatorInputsStreamProvider = StreamProvider<Map<CalculatorInputKey, double>>((ref) {
-  return ref.watch(calculatorRepositoryProvider).watchAll();
+final cardLimitsStreamProvider = StreamProvider<Map<CalculatorCard, double>>((ref) {
+  return ref.watch(calculatorRepositoryProvider).watchCardLimits();
+});
+
+final calculatorHistoryStreamProvider = StreamProvider<List<CalculatorSnapshot>>((ref) {
+  return ref.watch(calculatorRepositoryProvider).watchSnapshots();
 });
 
 /// Sum of every ledger's balance, in the app's default settlement currency —
@@ -22,10 +26,4 @@ final ledgersTotalProvider = Provider<double>((ref) {
   final transactions = ref.watch(allTransactionsStreamProvider).valueOrNull ?? const [];
   final prices = ref.watch(pricesUsdPerUnitProvider);
   return runningBalance(transactions, prices).amount;
-});
-
-final currentMoneyProvider = Provider<double>((ref) {
-  final ledgersTotal = ref.watch(ledgersTotalProvider);
-  final inputs = ref.watch(calculatorInputsStreamProvider).valueOrNull ?? const {};
-  return calculateCurrentMoney(ledgersTotal: ledgersTotal, inputs: inputs);
 });

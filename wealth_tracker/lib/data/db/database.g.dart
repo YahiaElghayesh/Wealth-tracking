@@ -2369,6 +2369,834 @@ class VendorRulesCompanion extends UpdateCompanion<VendorRule> {
   }
 }
 
+class $CalculatorSnapshotsTable extends CalculatorSnapshots
+    with TableInfo<$CalculatorSnapshotsTable, CalculatorSnapshot> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $CalculatorSnapshotsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _computedAtMeta = const VerificationMeta(
+    'computedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> computedAt = GeneratedColumn<DateTime>(
+    'computed_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _resultAmountMeta = const VerificationMeta(
+    'resultAmount',
+  );
+  @override
+  late final GeneratedColumn<double> resultAmount = GeneratedColumn<double>(
+    'result_amount',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _ledgersTotalMeta = const VerificationMeta(
+    'ledgersTotal',
+  );
+  @override
+  late final GeneratedColumn<double> ledgersTotal = GeneratedColumn<double>(
+    'ledgers_total',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _apartmentSavingsMeta = const VerificationMeta(
+    'apartmentSavings',
+  );
+  @override
+  late final GeneratedColumn<double> apartmentSavings = GeneratedColumn<double>(
+    'apartment_savings',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _cibAccountBalanceMeta = const VerificationMeta(
+    'cibAccountBalance',
+  );
+  @override
+  late final GeneratedColumn<double> cibAccountBalance =
+      GeneratedColumn<double>(
+        'cib_account_balance',
+        aliasedName,
+        false,
+        type: DriftSqlType.double,
+        requiredDuringInsert: true,
+      );
+  static const VerificationMeta _nbeAvailableMeta = const VerificationMeta(
+    'nbeAvailable',
+  );
+  @override
+  late final GeneratedColumn<double> nbeAvailable = GeneratedColumn<double>(
+    'nbe_available',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _nbeOwedMeta = const VerificationMeta(
+    'nbeOwed',
+  );
+  @override
+  late final GeneratedColumn<double> nbeOwed = GeneratedColumn<double>(
+    'nbe_owed',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _cibExplorerWalletAvailableMeta =
+      const VerificationMeta('cibExplorerWalletAvailable');
+  @override
+  late final GeneratedColumn<double> cibExplorerWalletAvailable =
+      GeneratedColumn<double>(
+        'cib_explorer_wallet_available',
+        aliasedName,
+        false,
+        type: DriftSqlType.double,
+        requiredDuringInsert: true,
+      );
+  static const VerificationMeta _cibExplorerWalletOwedMeta =
+      const VerificationMeta('cibExplorerWalletOwed');
+  @override
+  late final GeneratedColumn<double> cibExplorerWalletOwed =
+      GeneratedColumn<double>(
+        'cib_explorer_wallet_owed',
+        aliasedName,
+        false,
+        type: DriftSqlType.double,
+        requiredDuringInsert: true,
+      );
+  static const VerificationMeta _cibPlatinumAvailableMeta =
+      const VerificationMeta('cibPlatinumAvailable');
+  @override
+  late final GeneratedColumn<double> cibPlatinumAvailable =
+      GeneratedColumn<double>(
+        'cib_platinum_available',
+        aliasedName,
+        false,
+        type: DriftSqlType.double,
+        requiredDuringInsert: true,
+      );
+  static const VerificationMeta _cibPlatinumOwedMeta = const VerificationMeta(
+    'cibPlatinumOwed',
+  );
+  @override
+  late final GeneratedColumn<double> cibPlatinumOwed = GeneratedColumn<double>(
+    'cib_platinum_owed',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _customItemsJsonMeta = const VerificationMeta(
+    'customItemsJson',
+  );
+  @override
+  late final GeneratedColumn<String> customItemsJson = GeneratedColumn<String>(
+    'custom_items_json',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('[]'),
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    computedAt,
+    resultAmount,
+    ledgersTotal,
+    apartmentSavings,
+    cibAccountBalance,
+    nbeAvailable,
+    nbeOwed,
+    cibExplorerWalletAvailable,
+    cibExplorerWalletOwed,
+    cibPlatinumAvailable,
+    cibPlatinumOwed,
+    customItemsJson,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'calculator_snapshots';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<CalculatorSnapshot> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('computed_at')) {
+      context.handle(
+        _computedAtMeta,
+        computedAt.isAcceptableOrUnknown(data['computed_at']!, _computedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_computedAtMeta);
+    }
+    if (data.containsKey('result_amount')) {
+      context.handle(
+        _resultAmountMeta,
+        resultAmount.isAcceptableOrUnknown(
+          data['result_amount']!,
+          _resultAmountMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_resultAmountMeta);
+    }
+    if (data.containsKey('ledgers_total')) {
+      context.handle(
+        _ledgersTotalMeta,
+        ledgersTotal.isAcceptableOrUnknown(
+          data['ledgers_total']!,
+          _ledgersTotalMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_ledgersTotalMeta);
+    }
+    if (data.containsKey('apartment_savings')) {
+      context.handle(
+        _apartmentSavingsMeta,
+        apartmentSavings.isAcceptableOrUnknown(
+          data['apartment_savings']!,
+          _apartmentSavingsMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_apartmentSavingsMeta);
+    }
+    if (data.containsKey('cib_account_balance')) {
+      context.handle(
+        _cibAccountBalanceMeta,
+        cibAccountBalance.isAcceptableOrUnknown(
+          data['cib_account_balance']!,
+          _cibAccountBalanceMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_cibAccountBalanceMeta);
+    }
+    if (data.containsKey('nbe_available')) {
+      context.handle(
+        _nbeAvailableMeta,
+        nbeAvailable.isAcceptableOrUnknown(
+          data['nbe_available']!,
+          _nbeAvailableMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_nbeAvailableMeta);
+    }
+    if (data.containsKey('nbe_owed')) {
+      context.handle(
+        _nbeOwedMeta,
+        nbeOwed.isAcceptableOrUnknown(data['nbe_owed']!, _nbeOwedMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_nbeOwedMeta);
+    }
+    if (data.containsKey('cib_explorer_wallet_available')) {
+      context.handle(
+        _cibExplorerWalletAvailableMeta,
+        cibExplorerWalletAvailable.isAcceptableOrUnknown(
+          data['cib_explorer_wallet_available']!,
+          _cibExplorerWalletAvailableMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_cibExplorerWalletAvailableMeta);
+    }
+    if (data.containsKey('cib_explorer_wallet_owed')) {
+      context.handle(
+        _cibExplorerWalletOwedMeta,
+        cibExplorerWalletOwed.isAcceptableOrUnknown(
+          data['cib_explorer_wallet_owed']!,
+          _cibExplorerWalletOwedMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_cibExplorerWalletOwedMeta);
+    }
+    if (data.containsKey('cib_platinum_available')) {
+      context.handle(
+        _cibPlatinumAvailableMeta,
+        cibPlatinumAvailable.isAcceptableOrUnknown(
+          data['cib_platinum_available']!,
+          _cibPlatinumAvailableMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_cibPlatinumAvailableMeta);
+    }
+    if (data.containsKey('cib_platinum_owed')) {
+      context.handle(
+        _cibPlatinumOwedMeta,
+        cibPlatinumOwed.isAcceptableOrUnknown(
+          data['cib_platinum_owed']!,
+          _cibPlatinumOwedMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_cibPlatinumOwedMeta);
+    }
+    if (data.containsKey('custom_items_json')) {
+      context.handle(
+        _customItemsJsonMeta,
+        customItemsJson.isAcceptableOrUnknown(
+          data['custom_items_json']!,
+          _customItemsJsonMeta,
+        ),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  CalculatorSnapshot map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return CalculatorSnapshot(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      computedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}computed_at'],
+      )!,
+      resultAmount: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}result_amount'],
+      )!,
+      ledgersTotal: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}ledgers_total'],
+      )!,
+      apartmentSavings: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}apartment_savings'],
+      )!,
+      cibAccountBalance: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}cib_account_balance'],
+      )!,
+      nbeAvailable: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}nbe_available'],
+      )!,
+      nbeOwed: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}nbe_owed'],
+      )!,
+      cibExplorerWalletAvailable: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}cib_explorer_wallet_available'],
+      )!,
+      cibExplorerWalletOwed: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}cib_explorer_wallet_owed'],
+      )!,
+      cibPlatinumAvailable: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}cib_platinum_available'],
+      )!,
+      cibPlatinumOwed: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}cib_platinum_owed'],
+      )!,
+      customItemsJson: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}custom_items_json'],
+      )!,
+    );
+  }
+
+  @override
+  $CalculatorSnapshotsTable createAlias(String alias) {
+    return $CalculatorSnapshotsTable(attachedDatabase, alias);
+  }
+}
+
+class CalculatorSnapshot extends DataClass
+    implements Insertable<CalculatorSnapshot> {
+  final String id;
+  final DateTime computedAt;
+  final double resultAmount;
+  final double ledgersTotal;
+  final double apartmentSavings;
+  final double cibAccountBalance;
+  final double nbeAvailable;
+  final double nbeOwed;
+  final double cibExplorerWalletAvailable;
+  final double cibExplorerWalletOwed;
+  final double cibPlatinumAvailable;
+  final double cibPlatinumOwed;
+
+  /// JSON-encoded list of `{label, amount, isAddition}` custom line items.
+  final String customItemsJson;
+  const CalculatorSnapshot({
+    required this.id,
+    required this.computedAt,
+    required this.resultAmount,
+    required this.ledgersTotal,
+    required this.apartmentSavings,
+    required this.cibAccountBalance,
+    required this.nbeAvailable,
+    required this.nbeOwed,
+    required this.cibExplorerWalletAvailable,
+    required this.cibExplorerWalletOwed,
+    required this.cibPlatinumAvailable,
+    required this.cibPlatinumOwed,
+    required this.customItemsJson,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['computed_at'] = Variable<DateTime>(computedAt);
+    map['result_amount'] = Variable<double>(resultAmount);
+    map['ledgers_total'] = Variable<double>(ledgersTotal);
+    map['apartment_savings'] = Variable<double>(apartmentSavings);
+    map['cib_account_balance'] = Variable<double>(cibAccountBalance);
+    map['nbe_available'] = Variable<double>(nbeAvailable);
+    map['nbe_owed'] = Variable<double>(nbeOwed);
+    map['cib_explorer_wallet_available'] = Variable<double>(
+      cibExplorerWalletAvailable,
+    );
+    map['cib_explorer_wallet_owed'] = Variable<double>(cibExplorerWalletOwed);
+    map['cib_platinum_available'] = Variable<double>(cibPlatinumAvailable);
+    map['cib_platinum_owed'] = Variable<double>(cibPlatinumOwed);
+    map['custom_items_json'] = Variable<String>(customItemsJson);
+    return map;
+  }
+
+  CalculatorSnapshotsCompanion toCompanion(bool nullToAbsent) {
+    return CalculatorSnapshotsCompanion(
+      id: Value(id),
+      computedAt: Value(computedAt),
+      resultAmount: Value(resultAmount),
+      ledgersTotal: Value(ledgersTotal),
+      apartmentSavings: Value(apartmentSavings),
+      cibAccountBalance: Value(cibAccountBalance),
+      nbeAvailable: Value(nbeAvailable),
+      nbeOwed: Value(nbeOwed),
+      cibExplorerWalletAvailable: Value(cibExplorerWalletAvailable),
+      cibExplorerWalletOwed: Value(cibExplorerWalletOwed),
+      cibPlatinumAvailable: Value(cibPlatinumAvailable),
+      cibPlatinumOwed: Value(cibPlatinumOwed),
+      customItemsJson: Value(customItemsJson),
+    );
+  }
+
+  factory CalculatorSnapshot.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return CalculatorSnapshot(
+      id: serializer.fromJson<String>(json['id']),
+      computedAt: serializer.fromJson<DateTime>(json['computedAt']),
+      resultAmount: serializer.fromJson<double>(json['resultAmount']),
+      ledgersTotal: serializer.fromJson<double>(json['ledgersTotal']),
+      apartmentSavings: serializer.fromJson<double>(json['apartmentSavings']),
+      cibAccountBalance: serializer.fromJson<double>(json['cibAccountBalance']),
+      nbeAvailable: serializer.fromJson<double>(json['nbeAvailable']),
+      nbeOwed: serializer.fromJson<double>(json['nbeOwed']),
+      cibExplorerWalletAvailable: serializer.fromJson<double>(
+        json['cibExplorerWalletAvailable'],
+      ),
+      cibExplorerWalletOwed: serializer.fromJson<double>(
+        json['cibExplorerWalletOwed'],
+      ),
+      cibPlatinumAvailable: serializer.fromJson<double>(
+        json['cibPlatinumAvailable'],
+      ),
+      cibPlatinumOwed: serializer.fromJson<double>(json['cibPlatinumOwed']),
+      customItemsJson: serializer.fromJson<String>(json['customItemsJson']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'computedAt': serializer.toJson<DateTime>(computedAt),
+      'resultAmount': serializer.toJson<double>(resultAmount),
+      'ledgersTotal': serializer.toJson<double>(ledgersTotal),
+      'apartmentSavings': serializer.toJson<double>(apartmentSavings),
+      'cibAccountBalance': serializer.toJson<double>(cibAccountBalance),
+      'nbeAvailable': serializer.toJson<double>(nbeAvailable),
+      'nbeOwed': serializer.toJson<double>(nbeOwed),
+      'cibExplorerWalletAvailable': serializer.toJson<double>(
+        cibExplorerWalletAvailable,
+      ),
+      'cibExplorerWalletOwed': serializer.toJson<double>(cibExplorerWalletOwed),
+      'cibPlatinumAvailable': serializer.toJson<double>(cibPlatinumAvailable),
+      'cibPlatinumOwed': serializer.toJson<double>(cibPlatinumOwed),
+      'customItemsJson': serializer.toJson<String>(customItemsJson),
+    };
+  }
+
+  CalculatorSnapshot copyWith({
+    String? id,
+    DateTime? computedAt,
+    double? resultAmount,
+    double? ledgersTotal,
+    double? apartmentSavings,
+    double? cibAccountBalance,
+    double? nbeAvailable,
+    double? nbeOwed,
+    double? cibExplorerWalletAvailable,
+    double? cibExplorerWalletOwed,
+    double? cibPlatinumAvailable,
+    double? cibPlatinumOwed,
+    String? customItemsJson,
+  }) => CalculatorSnapshot(
+    id: id ?? this.id,
+    computedAt: computedAt ?? this.computedAt,
+    resultAmount: resultAmount ?? this.resultAmount,
+    ledgersTotal: ledgersTotal ?? this.ledgersTotal,
+    apartmentSavings: apartmentSavings ?? this.apartmentSavings,
+    cibAccountBalance: cibAccountBalance ?? this.cibAccountBalance,
+    nbeAvailable: nbeAvailable ?? this.nbeAvailable,
+    nbeOwed: nbeOwed ?? this.nbeOwed,
+    cibExplorerWalletAvailable:
+        cibExplorerWalletAvailable ?? this.cibExplorerWalletAvailable,
+    cibExplorerWalletOwed: cibExplorerWalletOwed ?? this.cibExplorerWalletOwed,
+    cibPlatinumAvailable: cibPlatinumAvailable ?? this.cibPlatinumAvailable,
+    cibPlatinumOwed: cibPlatinumOwed ?? this.cibPlatinumOwed,
+    customItemsJson: customItemsJson ?? this.customItemsJson,
+  );
+  CalculatorSnapshot copyWithCompanion(CalculatorSnapshotsCompanion data) {
+    return CalculatorSnapshot(
+      id: data.id.present ? data.id.value : this.id,
+      computedAt: data.computedAt.present
+          ? data.computedAt.value
+          : this.computedAt,
+      resultAmount: data.resultAmount.present
+          ? data.resultAmount.value
+          : this.resultAmount,
+      ledgersTotal: data.ledgersTotal.present
+          ? data.ledgersTotal.value
+          : this.ledgersTotal,
+      apartmentSavings: data.apartmentSavings.present
+          ? data.apartmentSavings.value
+          : this.apartmentSavings,
+      cibAccountBalance: data.cibAccountBalance.present
+          ? data.cibAccountBalance.value
+          : this.cibAccountBalance,
+      nbeAvailable: data.nbeAvailable.present
+          ? data.nbeAvailable.value
+          : this.nbeAvailable,
+      nbeOwed: data.nbeOwed.present ? data.nbeOwed.value : this.nbeOwed,
+      cibExplorerWalletAvailable: data.cibExplorerWalletAvailable.present
+          ? data.cibExplorerWalletAvailable.value
+          : this.cibExplorerWalletAvailable,
+      cibExplorerWalletOwed: data.cibExplorerWalletOwed.present
+          ? data.cibExplorerWalletOwed.value
+          : this.cibExplorerWalletOwed,
+      cibPlatinumAvailable: data.cibPlatinumAvailable.present
+          ? data.cibPlatinumAvailable.value
+          : this.cibPlatinumAvailable,
+      cibPlatinumOwed: data.cibPlatinumOwed.present
+          ? data.cibPlatinumOwed.value
+          : this.cibPlatinumOwed,
+      customItemsJson: data.customItemsJson.present
+          ? data.customItemsJson.value
+          : this.customItemsJson,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('CalculatorSnapshot(')
+          ..write('id: $id, ')
+          ..write('computedAt: $computedAt, ')
+          ..write('resultAmount: $resultAmount, ')
+          ..write('ledgersTotal: $ledgersTotal, ')
+          ..write('apartmentSavings: $apartmentSavings, ')
+          ..write('cibAccountBalance: $cibAccountBalance, ')
+          ..write('nbeAvailable: $nbeAvailable, ')
+          ..write('nbeOwed: $nbeOwed, ')
+          ..write('cibExplorerWalletAvailable: $cibExplorerWalletAvailable, ')
+          ..write('cibExplorerWalletOwed: $cibExplorerWalletOwed, ')
+          ..write('cibPlatinumAvailable: $cibPlatinumAvailable, ')
+          ..write('cibPlatinumOwed: $cibPlatinumOwed, ')
+          ..write('customItemsJson: $customItemsJson')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    computedAt,
+    resultAmount,
+    ledgersTotal,
+    apartmentSavings,
+    cibAccountBalance,
+    nbeAvailable,
+    nbeOwed,
+    cibExplorerWalletAvailable,
+    cibExplorerWalletOwed,
+    cibPlatinumAvailable,
+    cibPlatinumOwed,
+    customItemsJson,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is CalculatorSnapshot &&
+          other.id == this.id &&
+          other.computedAt == this.computedAt &&
+          other.resultAmount == this.resultAmount &&
+          other.ledgersTotal == this.ledgersTotal &&
+          other.apartmentSavings == this.apartmentSavings &&
+          other.cibAccountBalance == this.cibAccountBalance &&
+          other.nbeAvailable == this.nbeAvailable &&
+          other.nbeOwed == this.nbeOwed &&
+          other.cibExplorerWalletAvailable == this.cibExplorerWalletAvailable &&
+          other.cibExplorerWalletOwed == this.cibExplorerWalletOwed &&
+          other.cibPlatinumAvailable == this.cibPlatinumAvailable &&
+          other.cibPlatinumOwed == this.cibPlatinumOwed &&
+          other.customItemsJson == this.customItemsJson);
+}
+
+class CalculatorSnapshotsCompanion extends UpdateCompanion<CalculatorSnapshot> {
+  final Value<String> id;
+  final Value<DateTime> computedAt;
+  final Value<double> resultAmount;
+  final Value<double> ledgersTotal;
+  final Value<double> apartmentSavings;
+  final Value<double> cibAccountBalance;
+  final Value<double> nbeAvailable;
+  final Value<double> nbeOwed;
+  final Value<double> cibExplorerWalletAvailable;
+  final Value<double> cibExplorerWalletOwed;
+  final Value<double> cibPlatinumAvailable;
+  final Value<double> cibPlatinumOwed;
+  final Value<String> customItemsJson;
+  final Value<int> rowid;
+  const CalculatorSnapshotsCompanion({
+    this.id = const Value.absent(),
+    this.computedAt = const Value.absent(),
+    this.resultAmount = const Value.absent(),
+    this.ledgersTotal = const Value.absent(),
+    this.apartmentSavings = const Value.absent(),
+    this.cibAccountBalance = const Value.absent(),
+    this.nbeAvailable = const Value.absent(),
+    this.nbeOwed = const Value.absent(),
+    this.cibExplorerWalletAvailable = const Value.absent(),
+    this.cibExplorerWalletOwed = const Value.absent(),
+    this.cibPlatinumAvailable = const Value.absent(),
+    this.cibPlatinumOwed = const Value.absent(),
+    this.customItemsJson = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  CalculatorSnapshotsCompanion.insert({
+    required String id,
+    required DateTime computedAt,
+    required double resultAmount,
+    required double ledgersTotal,
+    required double apartmentSavings,
+    required double cibAccountBalance,
+    required double nbeAvailable,
+    required double nbeOwed,
+    required double cibExplorerWalletAvailable,
+    required double cibExplorerWalletOwed,
+    required double cibPlatinumAvailable,
+    required double cibPlatinumOwed,
+    this.customItemsJson = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       computedAt = Value(computedAt),
+       resultAmount = Value(resultAmount),
+       ledgersTotal = Value(ledgersTotal),
+       apartmentSavings = Value(apartmentSavings),
+       cibAccountBalance = Value(cibAccountBalance),
+       nbeAvailable = Value(nbeAvailable),
+       nbeOwed = Value(nbeOwed),
+       cibExplorerWalletAvailable = Value(cibExplorerWalletAvailable),
+       cibExplorerWalletOwed = Value(cibExplorerWalletOwed),
+       cibPlatinumAvailable = Value(cibPlatinumAvailable),
+       cibPlatinumOwed = Value(cibPlatinumOwed);
+  static Insertable<CalculatorSnapshot> custom({
+    Expression<String>? id,
+    Expression<DateTime>? computedAt,
+    Expression<double>? resultAmount,
+    Expression<double>? ledgersTotal,
+    Expression<double>? apartmentSavings,
+    Expression<double>? cibAccountBalance,
+    Expression<double>? nbeAvailable,
+    Expression<double>? nbeOwed,
+    Expression<double>? cibExplorerWalletAvailable,
+    Expression<double>? cibExplorerWalletOwed,
+    Expression<double>? cibPlatinumAvailable,
+    Expression<double>? cibPlatinumOwed,
+    Expression<String>? customItemsJson,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (computedAt != null) 'computed_at': computedAt,
+      if (resultAmount != null) 'result_amount': resultAmount,
+      if (ledgersTotal != null) 'ledgers_total': ledgersTotal,
+      if (apartmentSavings != null) 'apartment_savings': apartmentSavings,
+      if (cibAccountBalance != null) 'cib_account_balance': cibAccountBalance,
+      if (nbeAvailable != null) 'nbe_available': nbeAvailable,
+      if (nbeOwed != null) 'nbe_owed': nbeOwed,
+      if (cibExplorerWalletAvailable != null)
+        'cib_explorer_wallet_available': cibExplorerWalletAvailable,
+      if (cibExplorerWalletOwed != null)
+        'cib_explorer_wallet_owed': cibExplorerWalletOwed,
+      if (cibPlatinumAvailable != null)
+        'cib_platinum_available': cibPlatinumAvailable,
+      if (cibPlatinumOwed != null) 'cib_platinum_owed': cibPlatinumOwed,
+      if (customItemsJson != null) 'custom_items_json': customItemsJson,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  CalculatorSnapshotsCompanion copyWith({
+    Value<String>? id,
+    Value<DateTime>? computedAt,
+    Value<double>? resultAmount,
+    Value<double>? ledgersTotal,
+    Value<double>? apartmentSavings,
+    Value<double>? cibAccountBalance,
+    Value<double>? nbeAvailable,
+    Value<double>? nbeOwed,
+    Value<double>? cibExplorerWalletAvailable,
+    Value<double>? cibExplorerWalletOwed,
+    Value<double>? cibPlatinumAvailable,
+    Value<double>? cibPlatinumOwed,
+    Value<String>? customItemsJson,
+    Value<int>? rowid,
+  }) {
+    return CalculatorSnapshotsCompanion(
+      id: id ?? this.id,
+      computedAt: computedAt ?? this.computedAt,
+      resultAmount: resultAmount ?? this.resultAmount,
+      ledgersTotal: ledgersTotal ?? this.ledgersTotal,
+      apartmentSavings: apartmentSavings ?? this.apartmentSavings,
+      cibAccountBalance: cibAccountBalance ?? this.cibAccountBalance,
+      nbeAvailable: nbeAvailable ?? this.nbeAvailable,
+      nbeOwed: nbeOwed ?? this.nbeOwed,
+      cibExplorerWalletAvailable:
+          cibExplorerWalletAvailable ?? this.cibExplorerWalletAvailable,
+      cibExplorerWalletOwed:
+          cibExplorerWalletOwed ?? this.cibExplorerWalletOwed,
+      cibPlatinumAvailable: cibPlatinumAvailable ?? this.cibPlatinumAvailable,
+      cibPlatinumOwed: cibPlatinumOwed ?? this.cibPlatinumOwed,
+      customItemsJson: customItemsJson ?? this.customItemsJson,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (computedAt.present) {
+      map['computed_at'] = Variable<DateTime>(computedAt.value);
+    }
+    if (resultAmount.present) {
+      map['result_amount'] = Variable<double>(resultAmount.value);
+    }
+    if (ledgersTotal.present) {
+      map['ledgers_total'] = Variable<double>(ledgersTotal.value);
+    }
+    if (apartmentSavings.present) {
+      map['apartment_savings'] = Variable<double>(apartmentSavings.value);
+    }
+    if (cibAccountBalance.present) {
+      map['cib_account_balance'] = Variable<double>(cibAccountBalance.value);
+    }
+    if (nbeAvailable.present) {
+      map['nbe_available'] = Variable<double>(nbeAvailable.value);
+    }
+    if (nbeOwed.present) {
+      map['nbe_owed'] = Variable<double>(nbeOwed.value);
+    }
+    if (cibExplorerWalletAvailable.present) {
+      map['cib_explorer_wallet_available'] = Variable<double>(
+        cibExplorerWalletAvailable.value,
+      );
+    }
+    if (cibExplorerWalletOwed.present) {
+      map['cib_explorer_wallet_owed'] = Variable<double>(
+        cibExplorerWalletOwed.value,
+      );
+    }
+    if (cibPlatinumAvailable.present) {
+      map['cib_platinum_available'] = Variable<double>(
+        cibPlatinumAvailable.value,
+      );
+    }
+    if (cibPlatinumOwed.present) {
+      map['cib_platinum_owed'] = Variable<double>(cibPlatinumOwed.value);
+    }
+    if (customItemsJson.present) {
+      map['custom_items_json'] = Variable<String>(customItemsJson.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('CalculatorSnapshotsCompanion(')
+          ..write('id: $id, ')
+          ..write('computedAt: $computedAt, ')
+          ..write('resultAmount: $resultAmount, ')
+          ..write('ledgersTotal: $ledgersTotal, ')
+          ..write('apartmentSavings: $apartmentSavings, ')
+          ..write('cibAccountBalance: $cibAccountBalance, ')
+          ..write('nbeAvailable: $nbeAvailable, ')
+          ..write('nbeOwed: $nbeOwed, ')
+          ..write('cibExplorerWalletAvailable: $cibExplorerWalletAvailable, ')
+          ..write('cibExplorerWalletOwed: $cibExplorerWalletOwed, ')
+          ..write('cibPlatinumAvailable: $cibPlatinumAvailable, ')
+          ..write('cibPlatinumOwed: $cibPlatinumOwed, ')
+          ..write('customItemsJson: $customItemsJson, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -2382,6 +3210,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     this,
   );
   late final $VendorRulesTable vendorRules = $VendorRulesTable(this);
+  late final $CalculatorSnapshotsTable calculatorSnapshots =
+      $CalculatorSnapshotsTable(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -2394,6 +3224,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     syncMeta,
     calculatorInputs,
     vendorRules,
+    calculatorSnapshots,
   ];
 }
 
@@ -4185,6 +5016,396 @@ typedef $$VendorRulesTableProcessedTableManager =
       VendorRule,
       PrefetchHooks Function({bool counterpartyId})
     >;
+typedef $$CalculatorSnapshotsTableCreateCompanionBuilder =
+    CalculatorSnapshotsCompanion Function({
+      required String id,
+      required DateTime computedAt,
+      required double resultAmount,
+      required double ledgersTotal,
+      required double apartmentSavings,
+      required double cibAccountBalance,
+      required double nbeAvailable,
+      required double nbeOwed,
+      required double cibExplorerWalletAvailable,
+      required double cibExplorerWalletOwed,
+      required double cibPlatinumAvailable,
+      required double cibPlatinumOwed,
+      Value<String> customItemsJson,
+      Value<int> rowid,
+    });
+typedef $$CalculatorSnapshotsTableUpdateCompanionBuilder =
+    CalculatorSnapshotsCompanion Function({
+      Value<String> id,
+      Value<DateTime> computedAt,
+      Value<double> resultAmount,
+      Value<double> ledgersTotal,
+      Value<double> apartmentSavings,
+      Value<double> cibAccountBalance,
+      Value<double> nbeAvailable,
+      Value<double> nbeOwed,
+      Value<double> cibExplorerWalletAvailable,
+      Value<double> cibExplorerWalletOwed,
+      Value<double> cibPlatinumAvailable,
+      Value<double> cibPlatinumOwed,
+      Value<String> customItemsJson,
+      Value<int> rowid,
+    });
+
+class $$CalculatorSnapshotsTableFilterComposer
+    extends Composer<_$AppDatabase, $CalculatorSnapshotsTable> {
+  $$CalculatorSnapshotsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get computedAt => $composableBuilder(
+    column: $table.computedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get resultAmount => $composableBuilder(
+    column: $table.resultAmount,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get ledgersTotal => $composableBuilder(
+    column: $table.ledgersTotal,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get apartmentSavings => $composableBuilder(
+    column: $table.apartmentSavings,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get cibAccountBalance => $composableBuilder(
+    column: $table.cibAccountBalance,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get nbeAvailable => $composableBuilder(
+    column: $table.nbeAvailable,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get nbeOwed => $composableBuilder(
+    column: $table.nbeOwed,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get cibExplorerWalletAvailable => $composableBuilder(
+    column: $table.cibExplorerWalletAvailable,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get cibExplorerWalletOwed => $composableBuilder(
+    column: $table.cibExplorerWalletOwed,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get cibPlatinumAvailable => $composableBuilder(
+    column: $table.cibPlatinumAvailable,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get cibPlatinumOwed => $composableBuilder(
+    column: $table.cibPlatinumOwed,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get customItemsJson => $composableBuilder(
+    column: $table.customItemsJson,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$CalculatorSnapshotsTableOrderingComposer
+    extends Composer<_$AppDatabase, $CalculatorSnapshotsTable> {
+  $$CalculatorSnapshotsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get computedAt => $composableBuilder(
+    column: $table.computedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get resultAmount => $composableBuilder(
+    column: $table.resultAmount,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get ledgersTotal => $composableBuilder(
+    column: $table.ledgersTotal,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get apartmentSavings => $composableBuilder(
+    column: $table.apartmentSavings,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get cibAccountBalance => $composableBuilder(
+    column: $table.cibAccountBalance,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get nbeAvailable => $composableBuilder(
+    column: $table.nbeAvailable,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get nbeOwed => $composableBuilder(
+    column: $table.nbeOwed,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get cibExplorerWalletAvailable => $composableBuilder(
+    column: $table.cibExplorerWalletAvailable,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get cibExplorerWalletOwed => $composableBuilder(
+    column: $table.cibExplorerWalletOwed,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get cibPlatinumAvailable => $composableBuilder(
+    column: $table.cibPlatinumAvailable,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get cibPlatinumOwed => $composableBuilder(
+    column: $table.cibPlatinumOwed,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get customItemsJson => $composableBuilder(
+    column: $table.customItemsJson,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$CalculatorSnapshotsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $CalculatorSnapshotsTable> {
+  $$CalculatorSnapshotsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get computedAt => $composableBuilder(
+    column: $table.computedAt,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get resultAmount => $composableBuilder(
+    column: $table.resultAmount,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get ledgersTotal => $composableBuilder(
+    column: $table.ledgersTotal,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get apartmentSavings => $composableBuilder(
+    column: $table.apartmentSavings,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get cibAccountBalance => $composableBuilder(
+    column: $table.cibAccountBalance,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get nbeAvailable => $composableBuilder(
+    column: $table.nbeAvailable,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get nbeOwed =>
+      $composableBuilder(column: $table.nbeOwed, builder: (column) => column);
+
+  GeneratedColumn<double> get cibExplorerWalletAvailable => $composableBuilder(
+    column: $table.cibExplorerWalletAvailable,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get cibExplorerWalletOwed => $composableBuilder(
+    column: $table.cibExplorerWalletOwed,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get cibPlatinumAvailable => $composableBuilder(
+    column: $table.cibPlatinumAvailable,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get cibPlatinumOwed => $composableBuilder(
+    column: $table.cibPlatinumOwed,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get customItemsJson => $composableBuilder(
+    column: $table.customItemsJson,
+    builder: (column) => column,
+  );
+}
+
+class $$CalculatorSnapshotsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $CalculatorSnapshotsTable,
+          CalculatorSnapshot,
+          $$CalculatorSnapshotsTableFilterComposer,
+          $$CalculatorSnapshotsTableOrderingComposer,
+          $$CalculatorSnapshotsTableAnnotationComposer,
+          $$CalculatorSnapshotsTableCreateCompanionBuilder,
+          $$CalculatorSnapshotsTableUpdateCompanionBuilder,
+          (
+            CalculatorSnapshot,
+            BaseReferences<
+              _$AppDatabase,
+              $CalculatorSnapshotsTable,
+              CalculatorSnapshot
+            >,
+          ),
+          CalculatorSnapshot,
+          PrefetchHooks Function()
+        > {
+  $$CalculatorSnapshotsTableTableManager(
+    _$AppDatabase db,
+    $CalculatorSnapshotsTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$CalculatorSnapshotsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$CalculatorSnapshotsTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$CalculatorSnapshotsTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<DateTime> computedAt = const Value.absent(),
+                Value<double> resultAmount = const Value.absent(),
+                Value<double> ledgersTotal = const Value.absent(),
+                Value<double> apartmentSavings = const Value.absent(),
+                Value<double> cibAccountBalance = const Value.absent(),
+                Value<double> nbeAvailable = const Value.absent(),
+                Value<double> nbeOwed = const Value.absent(),
+                Value<double> cibExplorerWalletAvailable = const Value.absent(),
+                Value<double> cibExplorerWalletOwed = const Value.absent(),
+                Value<double> cibPlatinumAvailable = const Value.absent(),
+                Value<double> cibPlatinumOwed = const Value.absent(),
+                Value<String> customItemsJson = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => CalculatorSnapshotsCompanion(
+                id: id,
+                computedAt: computedAt,
+                resultAmount: resultAmount,
+                ledgersTotal: ledgersTotal,
+                apartmentSavings: apartmentSavings,
+                cibAccountBalance: cibAccountBalance,
+                nbeAvailable: nbeAvailable,
+                nbeOwed: nbeOwed,
+                cibExplorerWalletAvailable: cibExplorerWalletAvailable,
+                cibExplorerWalletOwed: cibExplorerWalletOwed,
+                cibPlatinumAvailable: cibPlatinumAvailable,
+                cibPlatinumOwed: cibPlatinumOwed,
+                customItemsJson: customItemsJson,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required DateTime computedAt,
+                required double resultAmount,
+                required double ledgersTotal,
+                required double apartmentSavings,
+                required double cibAccountBalance,
+                required double nbeAvailable,
+                required double nbeOwed,
+                required double cibExplorerWalletAvailable,
+                required double cibExplorerWalletOwed,
+                required double cibPlatinumAvailable,
+                required double cibPlatinumOwed,
+                Value<String> customItemsJson = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => CalculatorSnapshotsCompanion.insert(
+                id: id,
+                computedAt: computedAt,
+                resultAmount: resultAmount,
+                ledgersTotal: ledgersTotal,
+                apartmentSavings: apartmentSavings,
+                cibAccountBalance: cibAccountBalance,
+                nbeAvailable: nbeAvailable,
+                nbeOwed: nbeOwed,
+                cibExplorerWalletAvailable: cibExplorerWalletAvailable,
+                cibExplorerWalletOwed: cibExplorerWalletOwed,
+                cibPlatinumAvailable: cibPlatinumAvailable,
+                cibPlatinumOwed: cibPlatinumOwed,
+                customItemsJson: customItemsJson,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$CalculatorSnapshotsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $CalculatorSnapshotsTable,
+      CalculatorSnapshot,
+      $$CalculatorSnapshotsTableFilterComposer,
+      $$CalculatorSnapshotsTableOrderingComposer,
+      $$CalculatorSnapshotsTableAnnotationComposer,
+      $$CalculatorSnapshotsTableCreateCompanionBuilder,
+      $$CalculatorSnapshotsTableUpdateCompanionBuilder,
+      (
+        CalculatorSnapshot,
+        BaseReferences<
+          _$AppDatabase,
+          $CalculatorSnapshotsTable,
+          CalculatorSnapshot
+        >,
+      ),
+      CalculatorSnapshot,
+      PrefetchHooks Function()
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -4203,4 +5424,6 @@ class $AppDatabaseManager {
       $$CalculatorInputsTableTableManager(_db, _db.calculatorInputs);
   $$VendorRulesTableTableManager get vendorRules =>
       $$VendorRulesTableTableManager(_db, _db.vendorRules);
+  $$CalculatorSnapshotsTableTableManager get calculatorSnapshots =>
+      $$CalculatorSnapshotsTableTableManager(_db, _db.calculatorSnapshots);
 }

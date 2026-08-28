@@ -3,15 +3,17 @@ import '../db/database.dart';
 const _snapshotVersion = 1;
 
 /// Everything that gets synced across devices: assets, the debt ledger,
-/// counterparties, the calculator's manually-entered inputs, and SMS
-/// vendor-matching rules. Deliberately excludes `price_cache` (re-fetched
-/// from live APIs anyway) and `sync_meta` (local bookkeeping only).
+/// counterparties, the calculator's persisted card limits and saved
+/// snapshot history, and SMS vendor-matching rules. Deliberately excludes
+/// `price_cache` (re-fetched from live APIs anyway) and `sync_meta` (local
+/// bookkeeping only).
 Future<Map<String, dynamic>> exportSnapshot(AppDatabase db, {required DateTime modifiedAt}) async {
   final assets = await db.select(db.assets).get();
   final counterparties = await db.select(db.counterparties).get();
   final transactions = await db.select(db.ledgerTransactions).get();
   final calculatorInputs = await db.select(db.calculatorInputs).get();
   final vendorRules = await db.select(db.vendorRules).get();
+  final calculatorSnapshots = await db.select(db.calculatorSnapshots).get();
 
   return {
     'version': _snapshotVersion,
@@ -21,6 +23,7 @@ Future<Map<String, dynamic>> exportSnapshot(AppDatabase db, {required DateTime m
     'ledgerTransactions': transactions.map((t) => t.toJson()).toList(),
     'calculatorInputs': calculatorInputs.map((c) => c.toJson()).toList(),
     'vendorRules': vendorRules.map((v) => v.toJson()).toList(),
+    'calculatorSnapshots': calculatorSnapshots.map((s) => s.toJson()).toList(),
   };
 }
 
@@ -53,6 +56,10 @@ Future<void> importSnapshot(AppDatabase db, Map<String, dynamic> json) async {
       .cast<Map<String, dynamic>>()
       .map(VendorRule.fromJson)
       .toList();
+  final calculatorSnapshots = (json['calculatorSnapshots'] as List? ?? [])
+      .cast<Map<String, dynamic>>()
+      .map(CalculatorSnapshot.fromJson)
+      .toList();
 
   await db.transaction(() async {
     await db.delete(db.ledgerTransactions).go();
@@ -60,6 +67,7 @@ Future<void> importSnapshot(AppDatabase db, Map<String, dynamic> json) async {
     await db.delete(db.assets).go();
     await db.delete(db.calculatorInputs).go();
     await db.delete(db.vendorRules).go();
+    await db.delete(db.calculatorSnapshots).go();
 
     await db.batch((batch) {
       batch.insertAll(db.assets, assets.map((a) => a.toCompanion(true)));
@@ -67,6 +75,7 @@ Future<void> importSnapshot(AppDatabase db, Map<String, dynamic> json) async {
       batch.insertAll(db.ledgerTransactions, transactions.map((t) => t.toCompanion(true)));
       batch.insertAll(db.calculatorInputs, calculatorInputs.map((c) => c.toCompanion(true)));
       batch.insertAll(db.vendorRules, vendorRules.map((v) => v.toCompanion(true)));
+      batch.insertAll(db.calculatorSnapshots, calculatorSnapshots.map((s) => s.toCompanion(true)));
     });
   });
 }

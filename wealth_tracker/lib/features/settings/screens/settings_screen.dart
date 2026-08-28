@@ -2,10 +2,13 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:url_launcher/url_launcher.dart';
 
+import '../../../core/models/calculator_card.dart';
 import '../../../core/providers/core_providers.dart';
 import '../../../data/sync/drive_sync_service.dart';
 import '../../../data/widget/home_widget_service.dart';
+import '../../calculator/providers/calculator_providers.dart';
 import '../../networth/providers/asset_providers.dart';
 import '../../networth/providers/home_widget_providers.dart';
 import '../../networth/providers/pricing_providers.dart';
@@ -163,11 +166,33 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             'Crypto (CoinGecko) and FX rates (open.er-api.com) work out of the box. '
             'Gold and silver need a free goldapi.io API key.',
           ),
+          const SizedBox(height: 8),
+          InkWell(
+            onTap: () => launchUrl(
+              Uri.parse('https://www.goldapi.io/register'),
+              mode: LaunchMode.externalApplication,
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Get a free API key at goldapi.io',
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.primary,
+                    decoration: TextDecoration.underline,
+                  ),
+                ),
+                const SizedBox(width: 4),
+                Icon(Icons.open_in_new, size: 14, color: Theme.of(context).colorScheme.primary),
+              ],
+            ),
+          ),
           const SizedBox(height: 16),
           TextField(
             controller: _metalsKeyController,
             decoration: InputDecoration(
               labelText: 'goldapi.io API key',
+              helperText: 'Paste the key from your goldapi.io dashboard, then tap save.',
               suffixIcon: IconButton(icon: const Icon(Icons.save), onPressed: _saveMetalsKey),
             ),
           ),
@@ -274,6 +299,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               padding: const EdgeInsets.only(top: 8),
               child: Text(_syncMessage!),
             ),
+          const Divider(height: 40),
+          const _CardLimitsSection(),
           if (Platform.isAndroid) ...[
             const Divider(height: 40),
             _buildWidgetColorSection(context),
@@ -323,6 +350,80 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           }).toList(),
         ),
       ],
+    );
+  }
+}
+
+/// Credit card limits, editable here so changing one doesn't require an
+/// app update — the Calculator tab reads these to work out what's owed on
+/// each card from the available-balance figure the user types in there.
+class _CardLimitsSection extends ConsumerStatefulWidget {
+  const _CardLimitsSection();
+
+  @override
+  ConsumerState<_CardLimitsSection> createState() => _CardLimitsSectionState();
+}
+
+class _CardLimitsSectionState extends ConsumerState<_CardLimitsSection> {
+  final _controllers = {for (final card in CalculatorCard.values) card: TextEditingController()};
+  bool _seeded = false;
+
+  @override
+  void dispose() {
+    for (final c in _controllers.values) {
+      c.dispose();
+    }
+    super.dispose();
+  }
+
+  static String _formatValue(double value) {
+    return value == value.roundToDouble() ? value.toInt().toString() : value.toString();
+  }
+
+  Future<void> _save(CalculatorCard card) async {
+    final value = double.tryParse(_controllers[card]!.text.trim());
+    if (value == null) return;
+    await ref.read(calculatorRepositoryProvider).setCardLimit(card, value);
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Saved')));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final limitsAsync = ref.watch(cardLimitsStreamProvider);
+
+    return limitsAsync.when(
+      loading: () => const SizedBox.shrink(),
+      error: (e, st) => Text('Error: $e'),
+      data: (limits) {
+        if (!_seeded) {
+          for (final card in CalculatorCard.values) {
+            _controllers[card]!.text = _formatValue(limits[card] ?? card.defaultLimit);
+          }
+          _seeded = true;
+        }
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Credit card limits', style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: 8),
+            const Text('Used by the Calculator tab to work out what you owe on each card.'),
+            const SizedBox(height: 16),
+            for (final card in CalculatorCard.values) ...[
+              TextField(
+                controller: _controllers[card]!,
+                decoration: InputDecoration(
+                  labelText: card.label,
+                  suffixIcon: IconButton(icon: const Icon(Icons.save), onPressed: () => _save(card)),
+                ),
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              ),
+              const SizedBox(height: 12),
+            ],
+          ],
+        );
+      },
     );
   }
 }
