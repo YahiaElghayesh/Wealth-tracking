@@ -17,7 +17,7 @@ class NetWorthSummary {
 
 /// Resolves the USD value of a single [Asset] given a lookup of live
 /// per-unit USD prices, keyed by the asset's `symbolOrCurrency` (crypto
-/// ticker, `XAU_GRAM` / `XAG_GRAM`, or a currency code). The formula is the
+/// ticker, `XAU_GRAM_<karat>K` / `XAG_GRAM`, or a currency code). The formula is the
 /// same regardless of [ValuationMode] — quantity times the live price of
 /// whatever it's denominated in — the mode only determines which price
 /// provider supplies that number.

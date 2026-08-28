@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/format/money_formatter.dart';
 import '../../../core/models/asset_category.dart';
+import '../../../core/models/gold_karat.dart';
 import '../../../data/db/database.dart';
 import '../../../data/net_worth/net_worth_calculator.dart';
 import '../../settings/screens/settings_screen.dart';
@@ -97,6 +98,10 @@ class _AssetTile extends ConsumerWidget {
     final category = AssetCategory.values.byName(asset.category);
     final prices = ref.watch(pricesUsdPerUnitProvider);
     final value = valueUsdForAsset(asset, prices);
+    final karat = category == AssetCategory.gold
+        ? GoldKarat.fromPriceSymbol(asset.symbolOrCurrency)
+        : null;
+    final categoryLabel = karat == null ? category.label : '${category.label} (${karat.label})';
 
     return Dismissible(
       key: ValueKey(asset.id),
@@ -112,7 +117,7 @@ class _AssetTile extends ConsumerWidget {
         child: ListTile(
           title: Text(asset.name),
           subtitle: Text(
-            '${category.label} · ${category.defaultClass == AssetClass.liquid ? "Liquid" : "Non-liquid"}',
+            '$categoryLabel · ${category.defaultClass == AssetClass.liquid ? "Liquid" : "Non-liquid"}',
           ),
           trailing: Text(value == null ? '—' : formatUsd(value)),
           onTap: () => Navigator.of(context).push(

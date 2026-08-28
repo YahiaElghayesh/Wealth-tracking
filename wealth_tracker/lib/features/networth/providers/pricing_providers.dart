@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../data/pricing/coingecko_price_provider.dart';
 import '../../../data/pricing/fx_price_provider.dart';
 import '../../../data/pricing/metals_price_provider.dart';
+import '../../../data/pricing/price_refresh_orchestrator.dart';
 import '../../../data/pricing/price_refresh_service.dart';
 import '../../../data/repositories/price_cache_repository.dart';
 import '../../settings/providers/settings_providers.dart';
@@ -61,19 +62,18 @@ class PriceRefreshController extends Notifier<PriceRefreshState> {
     state = state.copyWith(isRefreshing: true, errors: const []);
 
     final assets = ref.read(assetsStreamProvider).valueOrNull ?? const [];
-    final service = ref.read(priceRefreshServiceProvider);
-    final result = await service.refresh(assets);
+    final outcome = await refreshAndPersistPrices(
+      assets: assets,
+      service: ref.read(priceRefreshServiceProvider),
+      cacheRepo: ref.read(priceCacheRepositoryProvider),
+    );
 
-    if (result.prices.isNotEmpty) {
-      final merged = {...ref.read(pricesUsdPerUnitProvider), ...result.prices};
-      ref.read(pricesUsdPerUnitProvider.notifier).state = merged;
-      await ref.read(priceCacheRepositoryProvider).upsertAll(result.prices);
-    }
-    if (result.usdToEgpRate != null) {
-      ref.read(usdToEgpRateProvider.notifier).state = result.usdToEgpRate;
+    ref.read(pricesUsdPerUnitProvider.notifier).state = outcome.allPrices;
+    if (outcome.usdToEgpRate != null) {
+      ref.read(usdToEgpRateProvider.notifier).state = outcome.usdToEgpRate;
     }
 
-    state = state.copyWith(isRefreshing: false, lastRefreshedAt: DateTime.now(), errors: result.errors);
+    state = state.copyWith(isRefreshing: false, lastRefreshedAt: DateTime.now(), errors: outcome.errors);
   }
 }
 

@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/models/asset_category.dart';
 import '../../../core/models/currency.dart';
+import '../../../core/models/gold_karat.dart';
 import '../../../data/db/database.dart';
 import '../providers/asset_providers.dart';
 
@@ -20,6 +21,7 @@ class _AddEditAssetScreenState extends ConsumerState<AddEditAssetScreen> {
   final _formKey = GlobalKey<FormState>();
   late AssetCategory _category;
   late String _currency;
+  late GoldKarat _goldKarat;
   late final TextEditingController _nameController;
   late final TextEditingController _quantityController;
   late final TextEditingController _symbolController;
@@ -36,6 +38,9 @@ class _AddEditAssetScreenState extends ConsumerState<AddEditAssetScreen> {
     _currency = (existing != null && _category.defaultValuationMode == ValuationMode.currency)
         ? existing.symbolOrCurrency
         : defaultCurrency;
+    _goldKarat = (existing != null && _category == AssetCategory.gold)
+        ? GoldKarat.fromPriceSymbol(existing.symbolOrCurrency) ?? defaultGoldKarat
+        : defaultGoldKarat;
     _nameController = TextEditingController(text: existing?.name ?? '');
     _quantityController =
         TextEditingController(text: existing == null ? '' : existing.quantity.toString());
@@ -144,6 +149,17 @@ class _AddEditAssetScreenState extends ConsumerState<AddEditAssetScreen> {
         ];
       case ValuationMode.metal:
         return [
+          if (_category == AssetCategory.gold) ...[
+            DropdownButtonFormField<GoldKarat>(
+              initialValue: _goldKarat,
+              decoration: const InputDecoration(labelText: 'Karat'),
+              items: GoldKarat.values
+                  .map((k) => DropdownMenuItem(value: k, child: Text(k.label)))
+                  .toList(),
+              onChanged: (k) => setState(() => _goldKarat = k!),
+            ),
+            const SizedBox(height: 16),
+          ],
           TextFormField(
             controller: _quantityController,
             decoration: const InputDecoration(labelText: 'Quantity (grams)'),
@@ -165,7 +181,7 @@ class _AddEditAssetScreenState extends ConsumerState<AddEditAssetScreen> {
 
     final repo = ref.read(assetRepositoryProvider);
     final symbol = switch (_valuationMode) {
-      ValuationMode.metal => _category == AssetCategory.gold ? 'XAU_GRAM' : 'XAG_GRAM',
+      ValuationMode.metal => _category == AssetCategory.gold ? _goldKarat.priceSymbol : 'XAG_GRAM',
       ValuationMode.crypto => _symbolController.text.trim(),
       ValuationMode.currency => _currency,
     };

@@ -263,7 +263,7 @@ class Asset extends DataClass implements Insertable<Asset> {
   /// (covers both literal cash holdings and a typed-in value like a car's).
   final double quantity;
 
-  /// Crypto symbol (e.g. `bitcoin`), metal symbol (`XAU_GRAM`/`XAG_GRAM`),
+  /// Crypto symbol (e.g. `bitcoin`), metal symbol (`XAU_GRAM_<karat>K`/`XAG_GRAM`),
   /// or a currency code (EGP/USD/EUR/SAR/AED/TRY).
   final String symbolOrCurrency;
   final String? notes;

@@ -12,7 +12,7 @@ class Assets extends Table {
   /// (covers both literal cash holdings and a typed-in value like a car's).
   RealColumn get quantity => real()();
 
-  /// Crypto symbol (e.g. `bitcoin`), metal symbol (`XAU_GRAM`/`XAG_GRAM`),
+  /// Crypto symbol (e.g. `bitcoin`), metal symbol (`XAU_GRAM_<karat>K`/`XAG_GRAM`),
   /// or a currency code (EGP/USD/EUR/SAR/AED/TRY).
   TextColumn get symbolOrCurrency => text()();
 
@@ -25,7 +25,7 @@ class Assets extends Table {
 }
 
 /// Cached last-known USD price for a priceable symbol (crypto ticker,
-/// `XAU_GRAM` / `XAG_GRAM`, or a currency code for FX).
+/// `XAU_GRAM_<karat>K` / `XAG_GRAM`, or a currency code for FX).
 class PriceCache extends Table {
   TextColumn get symbol => text()();
   RealColumn get priceUsd => real()();
