@@ -8,7 +8,7 @@
 /// `limit - availableBalance`. See `current_money_calculator.dart`.
 enum CalculatorCard {
   nbe('card_nbe_limit', 'NBE Wallet', defaultLimit: 500000),
-  cibExplorerWallet('card_cib_explorer_wallet_limit', 'CIB Explorer Wallet', defaultLimit: 109900),
+  cibExplorerWallet('card_cib_explorer_wallet_limit', 'CIB Explore World', defaultLimit: 109900),
   cibPlatinum('card_cib_platinum_limit', 'CIB Platinum', defaultLimit: 145500);
 
   const CalculatorCard(this.storageKey, this.label, {required this.defaultLimit});

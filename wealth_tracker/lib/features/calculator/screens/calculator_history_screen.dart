@@ -74,7 +74,7 @@ class _SnapshotCard extends ConsumerWidget {
             _BreakdownRow(isAddition: false, label: 'NBE Wallet owed', amount: snapshot.nbeOwed),
             _BreakdownRow(
               isAddition: false,
-              label: 'CIB Explorer Wallet owed',
+              label: 'CIB Explore World owed',
               amount: snapshot.cibExplorerWalletOwed,
             ),
             _BreakdownRow(isAddition: false, label: 'CIB Platinum owed', amount: snapshot.cibPlatinumOwed),
