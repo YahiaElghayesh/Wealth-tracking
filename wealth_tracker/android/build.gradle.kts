@@ -19,14 +19,21 @@ subprojects {
     project.evaluationDependsOn(":app")
 }
 
-// Some plugins (another_telephony pins Kotlin to JVM 1.8 but leaves Java at
-// AGP's default of 11) declare Java and Kotlin JVM targets that disagree
-// with each other, which Gradle now treats as a hard error
-// ("Inconsistent JVM Target Compatibility Between Java and Kotlin Tasks").
-// Force every third-party plugin module (all "com.android.library",
-// never ":app" itself) to the same JVM 17 target ":app"'s own
-// build.gradle.kts already sets for itself, overriding whatever a
-// plugin's own build.gradle set.
+// another_telephony's own build.gradle pins Kotlin to JVM 1.8 but leaves
+// Java at AGP's default of 11 — a mismatch within the plugin itself that
+// Gradle treats as a hard error ("Inconsistent JVM Target Compatibility
+// Between Java and Kotlin Tasks").
+//
+// This is scoped to that ONE plugin, deliberately not applied to every
+// subproject: an earlier, broader version of this fix forced every
+// plugin's Kotlin tasks to JVM 17, which broke home_widget — it was
+// building fine before (its own build.gradle pins Java to 1.8, and
+// evaluates *after* plugin application, so a `pluginManager.withPlugin`
+// hook forcing its Java side to 17 gets silently overwritten by its own
+// later-executing script; only the always-lazy KotlinCompile task
+// override actually stuck, creating a NEW mismatch: Java 1.8 vs Kotlin
+// 17). Every other plugin already has consistent Java/Kotlin targets on
+// its own and must be left alone.
 //
 // Two things this deliberately avoids, both hit while getting this
 // working:
@@ -41,10 +48,9 @@ subprojects {
 //   already finalized its `sourceCompatibility` (it's set correctly in
 //   :app's own build.gradle.kts, evaluated earlier via
 //   evaluationDependsOn) — setting it again throws "sourceCompatibility
-//   has been finalized". `:app` doesn't need this fix anyway, only the
-//   plugin modules do.
+//   has been finalized". `:app` doesn't need this fix anyway.
 subprojects {
-    if (project.path != ":app") {
+    if (project.name == "another_telephony") {
         pluginManager.withPlugin("com.android.library") {
             extensions.findByType<com.android.build.gradle.BaseExtension>()?.apply {
                 compileOptions {
@@ -53,11 +59,10 @@ subprojects {
                 }
             }
         }
-    }
-
-    tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {
-        compilerOptions {
-            jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
+        tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {
+            compilerOptions {
+                jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
+            }
         }
     }
 }
