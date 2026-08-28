@@ -2,14 +2,17 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:home_widget/home_widget.dart';
 
 import 'core/navigation/app_navigator.dart';
 import 'core/providers/core_providers.dart';
 import 'core/theme/app_theme.dart';
+import 'data/sms/notification_action_handler.dart';
 import 'features/calculator/screens/calculator_screen.dart';
 import 'features/ledger/providers/quick_add_launch.dart';
+import 'features/ledger/providers/sms_review_launch.dart';
 import 'features/ledger/providers/widget_counterparties_sync.dart';
 import 'features/ledger/screens/ledger_home_screen.dart';
 import 'features/ledger/screens/statistics_screen.dart';
@@ -61,6 +64,26 @@ class _RootShellState extends ConsumerState<_RootShell> with WidgetsBindingObser
       HomeWidget.initiallyLaunchedFromHomeWidget().then((uri) => handleQuickAddLaunch(uri, ref));
     });
     _resumeSmsCaptureIfEnabled();
+    if (Platform.isAndroid) _initNotifications();
+  }
+
+  /// Registers the notification response callbacks (must happen once,
+  /// early — this is also where the top-level background handler for the
+  /// "Add"/"Ignore" quick actions gets wired up) and checks whether this
+  /// app start was itself triggered by tapping a bank-charge notification.
+  Future<void> _initNotifications() async {
+    final plugin = FlutterLocalNotificationsPlugin();
+    await plugin.initialize(
+      settings: const InitializationSettings(
+        android: AndroidInitializationSettings('@mipmap/ic_launcher'),
+      ),
+      onDidReceiveNotificationResponse: (response) => handleNotificationResponse(response, ref),
+      onDidReceiveBackgroundNotificationResponse: bankChargeNotificationBackgroundHandler,
+    );
+    final launchDetails = await plugin.getNotificationAppLaunchDetails();
+    if (launchDetails?.didNotificationLaunchApp ?? false) {
+      await handleNotificationResponse(launchDetails!.notificationResponse, ref);
+    }
   }
 
   /// Re-registers the SMS listener on every app start if the user

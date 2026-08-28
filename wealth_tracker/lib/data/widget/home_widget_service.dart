@@ -8,6 +8,22 @@ import '../net_worth/net_worth_calculator.dart';
 /// `home_widget` simply returns false/null there rather than throwing.
 class HomeWidgetService {
   static const _providerClassName = 'NetWorthWidgetProvider';
+  static const _quickAddProviderClassName = 'QuickAddLedgerWidgetProvider';
+
+  /// Keys understood by `WidgetBackground.kt` on the native side — keep in
+  /// sync with that file.
+  static const backgroundPresets = ['default', 'blue', 'purple', 'amber', 'charcoal'];
+
+  Future<String> loadBackgroundPreset() async {
+    final preset = await HomeWidget.getWidgetData<String>('widget_background_preset');
+    return backgroundPresets.contains(preset) ? preset! : 'default';
+  }
+
+  Future<void> setBackgroundPreset(String preset) async {
+    await HomeWidget.saveWidgetData<String>('widget_background_preset', preset);
+    await HomeWidget.updateWidget(androidName: _providerClassName);
+    await HomeWidget.updateWidget(androidName: _quickAddProviderClassName);
+  }
 
   Future<void> updateNetWorthWidget({
     required NetWorthSummary summary,

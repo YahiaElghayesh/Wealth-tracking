@@ -22,6 +22,7 @@ class NetWorthWidgetProvider : HomeWidgetProvider() {
     ) {
         appWidgetIds.forEach { widgetId ->
             val views = RemoteViews(context.packageName, R.layout.net_worth_widget).apply {
+                setInt(R.id.widget_root, "setBackgroundResource", WidgetBackground.resolve(widgetData))
                 setTextViewText(
                     R.id.widget_total_usd,
                     widgetData.getString("net_worth_total_usd", "—") ?: "—",

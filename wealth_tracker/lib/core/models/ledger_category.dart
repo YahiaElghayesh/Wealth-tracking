@@ -11,6 +11,8 @@ const ledgerExpenseCategories = [
   'Electrical',
   'Gas',
   'Telecom',
+  'Pharmacy',
+  'Mother',
   'Other',
 ];
 

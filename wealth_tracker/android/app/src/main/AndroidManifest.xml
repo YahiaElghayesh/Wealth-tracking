@@ -81,6 +81,14 @@
                 <action android:name="android.provider.Telephony.SMS_RECEIVED"/>
             </intent-filter>
         </receiver>
+
+        <!-- Required by flutter_local_notifications to resolve the
+             "Add"/"Ignore" notification quick actions in a background
+             isolate without launching the app — not registered by the
+             plugin itself, per its own setup instructions. -->
+        <receiver
+            android:name="com.dexterous.flutterlocalnotifications.ActionBroadcastReceiver"
+            android:exported="false" />
     </application>
     <!-- Required to query activities that can process text, see:
          https://developer.android.com/training/package-visibility and

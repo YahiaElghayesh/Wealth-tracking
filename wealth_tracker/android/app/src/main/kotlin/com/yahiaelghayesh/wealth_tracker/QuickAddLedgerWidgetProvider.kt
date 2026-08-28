@@ -6,6 +6,7 @@ import android.content.Context
 import android.net.Uri
 import android.widget.RemoteViews
 import es.antonborri.home_widget.HomeWidgetLaunchIntent
+import es.antonborri.home_widget.HomeWidgetPlugin
 
 /**
  * Small home-screen widget with a single purpose: tapping it opens the app
@@ -23,6 +24,7 @@ class QuickAddLedgerWidgetProvider : AppWidgetProvider() {
         appWidgetManager: AppWidgetManager,
         appWidgetIds: IntArray,
     ) {
+        val widgetData = HomeWidgetPlugin.getData(context)
         appWidgetIds.forEach { widgetId ->
             val configured = QuickAddLedgerWidgetConfigureActivity.loadCounterparty(context, widgetId)
 
@@ -37,6 +39,7 @@ class QuickAddLedgerWidgetProvider : AppWidgetProvider() {
             )
 
             val views = RemoteViews(context.packageName, R.layout.quick_add_ledger_widget).apply {
+                setInt(R.id.quick_add_root, "setBackgroundResource", WidgetBackground.resolve(widgetData))
                 setOnClickPendingIntent(R.id.quick_add_root, pendingIntent)
                 setTextViewText(R.id.quick_add_subtitle, configured?.second ?: "")
             }

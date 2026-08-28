@@ -1,7 +1,9 @@
 import 'package:another_telephony/telephony.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../data/db/database.dart';
+import '../../../data/sms/bank_charge_notifications.dart';
 import '../../../data/sms/sms_ledger_processor.dart';
 import '../../networth/providers/asset_providers.dart' show databaseProvider;
 
@@ -14,12 +16,18 @@ final _telephony = Telephony.instance;
 /// is only trusted once actually checked.
 final smsPermissionGrantedProvider = StateProvider<bool>((ref) => false);
 
-/// Requests the SMS permission (Android's runtime dialog only appears if
-/// it isn't already granted — calling this when already granted resolves
-/// immediately with no dialog). Returns whether it ended up granted.
+/// Requests the SMS and notification permissions this feature needs
+/// (Android's runtime dialogs only appear if not already granted — calling
+/// this when already granted resolves immediately with no dialog). Both
+/// are required: SMS to detect a charge, notifications to ask what to do
+/// with it. Returns whether both ended up granted.
 Future<bool> requestSmsPermission() async {
-  final granted = await _telephony.requestSmsPermissions;
-  return granted ?? false;
+  final smsGranted = await _telephony.requestSmsPermissions ?? false;
+  final notificationsGranted = await FlutterLocalNotificationsPlugin()
+          .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
+          ?.requestNotificationsPermission() ??
+      true;
+  return smsGranted && notificationsGranted;
 }
 
 bool _listening = false;
@@ -35,7 +43,8 @@ void startSmsListener(WidgetRef ref) {
   _telephony.listenIncomingSms(
     onNewMessage: (message) async {
       final db = ref.read(databaseProvider);
-      await processIncomingSms(db, body: message.body, timestampMillis: message.date);
+      final notifications = await initNotificationsForIsolate();
+      await handleIncomingBankSms(db, notifications, body: message.body, timestampMillis: message.date);
     },
     onBackgroundMessage: smsBackgroundMessageHandler,
     listenInBackground: true,
@@ -45,12 +54,14 @@ void startSmsListener(WidgetRef ref) {
 /// Headless entry point Android invokes for a message that arrives while
 /// the app isn't running — there's no ProviderScope here, same as
 /// `background_refresh.dart`'s callback dispatcher, so it opens its own DB
-/// connection instead of reading one from Riverpod.
+/// connection and its own notifications-plugin instance instead of reading
+/// either from Riverpod or from the main isolate's setup.
 @pragma('vm:entry-point')
 void smsBackgroundMessageHandler(SmsMessage message) async {
   final db = AppDatabase();
   try {
-    await processIncomingSms(db, body: message.body, timestampMillis: message.date);
+    final notifications = await initNotificationsForIsolate();
+    await handleIncomingBankSms(db, notifications, body: message.body, timestampMillis: message.date);
   } finally {
     await db.close();
   }

@@ -7,8 +7,10 @@ import '../../../core/models/ledger_category.dart';
 import '../../../core/providers/core_providers.dart';
 import '../../../data/db/database.dart';
 import '../../../data/sync/drive_sync_service.dart';
+import '../../../data/widget/home_widget_service.dart';
 import '../../ledger/providers/ledger_providers.dart';
 import '../../networth/providers/asset_providers.dart';
+import '../../networth/providers/home_widget_providers.dart';
 import '../../networth/providers/pricing_providers.dart';
 import '../providers/drive_sync_providers.dart';
 import '../providers/settings_providers.dart';
@@ -32,6 +34,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   String? _syncMessage;
   final _vendorPatternController = TextEditingController();
   late bool _smsCaptureEnabled;
+  String _widgetBackgroundPreset = 'default';
 
   @override
   void initState() {
@@ -42,6 +45,17 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     _desktopClientSecretController = TextEditingController(text: settings.desktopClientSecret ?? '');
     _smsCaptureEnabled = settings.smsCaptureEnabled;
     _checkDriveSignInStatus();
+    _loadWidgetBackgroundPreset();
+  }
+
+  Future<void> _loadWidgetBackgroundPreset() async {
+    final preset = await ref.read(homeWidgetServiceProvider).loadBackgroundPreset();
+    if (mounted) setState(() => _widgetBackgroundPreset = preset);
+  }
+
+  Future<void> _setWidgetBackgroundPreset(String preset) async {
+    setState(() => _widgetBackgroundPreset = preset);
+    await ref.read(homeWidgetServiceProvider).setBackgroundPreset(preset);
   }
 
   @override
@@ -359,10 +373,55 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             ),
           if (Platform.isAndroid) ...[
             const Divider(height: 40),
+            _buildWidgetColorSection(context),
+            const Divider(height: 40),
             _buildSmsCaptureSection(context),
           ],
         ],
       ),
+    );
+  }
+
+  static const _widgetPresetColors = {
+    'default': Color(0xFF2E7D6B),
+    'blue': Color(0xFF1565C0),
+    'purple': Color(0xFF6A1B9A),
+    'amber': Color(0xFFFF8F00),
+    'charcoal': Color(0xFF263238),
+  };
+
+  Widget _buildWidgetColorSection(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Widget color', style: Theme.of(context).textTheme.titleMedium),
+        const SizedBox(height: 8),
+        const Text('Applies to both home-screen widgets.'),
+        const SizedBox(height: 12),
+        Wrap(
+          spacing: 12,
+          children: HomeWidgetService.backgroundPresets.map((preset) {
+            final selected = preset == _widgetBackgroundPreset;
+            return InkWell(
+              onTap: () => _setWidgetBackgroundPreset(preset),
+              customBorder: const CircleBorder(),
+              child: Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: _widgetPresetColors[preset],
+                  border: Border.all(
+                    color: selected ? Theme.of(context).colorScheme.primary : Colors.transparent,
+                    width: 3,
+                  ),
+                ),
+                child: selected ? const Icon(Icons.check, color: Colors.white, size: 18) : null,
+              ),
+            );
+          }).toList(),
+        ),
+      ],
     );
   }
 
@@ -374,12 +433,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('Bank SMS auto-capture', style: Theme.of(context).textTheme.titleMedium),
+        Text('Bank SMS detection', style: Theme.of(context).textTheme.titleMedium),
         const SizedBox(height: 8),
         const Text(
-          'Automatically records a ledger entry when your bank texts you about a charge at '
-          'one of the vendors below. Reads incoming SMS in the background, so it needs a '
-          'sensitive Android permission — only grant it if you\'re comfortable with that.',
+          'When your bank texts you about a charge, shows a notification to add it to a '
+          'ledger — nothing is recorded without you tapping to confirm. If the vendor matches '
+          'a rule below, the notification offers one-tap Add/Ignore; otherwise tap it to pick '
+          'where it goes. Reads incoming SMS in the background, so it needs a sensitive '
+          'Android permission — only grant it if you\'re comfortable with that.',
         ),
         const SizedBox(height: 12),
         SwitchListTile(
