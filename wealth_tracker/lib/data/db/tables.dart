@@ -74,3 +74,18 @@ class SyncMeta extends Table {
   @override
   Set<Column> get primaryKey => {key};
 }
+
+/// Manually-entered inputs for the "current liquid cash" calculator: the
+/// ledger totals auto-derive from existing data, but these values (apartment
+/// savings set aside monthly, the CIB account balance, and each credit
+/// card's current owed balance) only the user knows and re-enters when they
+/// check. One row per [key]; see `calculator_inputs.dart` for the fixed set
+/// of keys in use.
+class CalculatorInputs extends Table {
+  TextColumn get key => text()();
+  RealColumn get value => real()();
+  DateTimeColumn get updatedAt => dateTime()();
+
+  @override
+  Set<Column> get primaryKey => {key};
+}

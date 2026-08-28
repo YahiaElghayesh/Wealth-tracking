@@ -16,3 +16,9 @@ final transactionsStreamProvider =
     StreamProvider.family<List<LedgerTransaction>, String>((ref, counterpartyId) {
   return ref.watch(ledgerRepositoryProvider).watchTransactions(counterpartyId);
 });
+
+/// Every ledger transaction across every counterparty — feeds the
+/// calculator's "sum of all ledgers" figure.
+final allTransactionsStreamProvider = StreamProvider<List<LedgerTransaction>>((ref) {
+  return ref.watch(ledgerRepositoryProvider).watchAllTransactions();
+});

@@ -1779,6 +1779,268 @@ class SyncMetaCompanion extends UpdateCompanion<SyncMetaData> {
   }
 }
 
+class $CalculatorInputsTable extends CalculatorInputs
+    with TableInfo<$CalculatorInputsTable, CalculatorInput> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $CalculatorInputsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _keyMeta = const VerificationMeta('key');
+  @override
+  late final GeneratedColumn<String> key = GeneratedColumn<String>(
+    'key',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _valueMeta = const VerificationMeta('value');
+  @override
+  late final GeneratedColumn<double> value = GeneratedColumn<double>(
+    'value',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> updatedAt = GeneratedColumn<DateTime>(
+    'updated_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [key, value, updatedAt];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'calculator_inputs';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<CalculatorInput> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('key')) {
+      context.handle(
+        _keyMeta,
+        key.isAcceptableOrUnknown(data['key']!, _keyMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_keyMeta);
+    }
+    if (data.containsKey('value')) {
+      context.handle(
+        _valueMeta,
+        value.isAcceptableOrUnknown(data['value']!, _valueMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_valueMeta);
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_updatedAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {key};
+  @override
+  CalculatorInput map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return CalculatorInput(
+      key: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}key'],
+      )!,
+      value: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}value'],
+      )!,
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}updated_at'],
+      )!,
+    );
+  }
+
+  @override
+  $CalculatorInputsTable createAlias(String alias) {
+    return $CalculatorInputsTable(attachedDatabase, alias);
+  }
+}
+
+class CalculatorInput extends DataClass implements Insertable<CalculatorInput> {
+  final String key;
+  final double value;
+  final DateTime updatedAt;
+  const CalculatorInput({
+    required this.key,
+    required this.value,
+    required this.updatedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['key'] = Variable<String>(key);
+    map['value'] = Variable<double>(value);
+    map['updated_at'] = Variable<DateTime>(updatedAt);
+    return map;
+  }
+
+  CalculatorInputsCompanion toCompanion(bool nullToAbsent) {
+    return CalculatorInputsCompanion(
+      key: Value(key),
+      value: Value(value),
+      updatedAt: Value(updatedAt),
+    );
+  }
+
+  factory CalculatorInput.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return CalculatorInput(
+      key: serializer.fromJson<String>(json['key']),
+      value: serializer.fromJson<double>(json['value']),
+      updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'key': serializer.toJson<String>(key),
+      'value': serializer.toJson<double>(value),
+      'updatedAt': serializer.toJson<DateTime>(updatedAt),
+    };
+  }
+
+  CalculatorInput copyWith({String? key, double? value, DateTime? updatedAt}) =>
+      CalculatorInput(
+        key: key ?? this.key,
+        value: value ?? this.value,
+        updatedAt: updatedAt ?? this.updatedAt,
+      );
+  CalculatorInput copyWithCompanion(CalculatorInputsCompanion data) {
+    return CalculatorInput(
+      key: data.key.present ? data.key.value : this.key,
+      value: data.value.present ? data.value.value : this.value,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('CalculatorInput(')
+          ..write('key: $key, ')
+          ..write('value: $value, ')
+          ..write('updatedAt: $updatedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(key, value, updatedAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is CalculatorInput &&
+          other.key == this.key &&
+          other.value == this.value &&
+          other.updatedAt == this.updatedAt);
+}
+
+class CalculatorInputsCompanion extends UpdateCompanion<CalculatorInput> {
+  final Value<String> key;
+  final Value<double> value;
+  final Value<DateTime> updatedAt;
+  final Value<int> rowid;
+  const CalculatorInputsCompanion({
+    this.key = const Value.absent(),
+    this.value = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  CalculatorInputsCompanion.insert({
+    required String key,
+    required double value,
+    required DateTime updatedAt,
+    this.rowid = const Value.absent(),
+  }) : key = Value(key),
+       value = Value(value),
+       updatedAt = Value(updatedAt);
+  static Insertable<CalculatorInput> custom({
+    Expression<String>? key,
+    Expression<double>? value,
+    Expression<DateTime>? updatedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (key != null) 'key': key,
+      if (value != null) 'value': value,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  CalculatorInputsCompanion copyWith({
+    Value<String>? key,
+    Value<double>? value,
+    Value<DateTime>? updatedAt,
+    Value<int>? rowid,
+  }) {
+    return CalculatorInputsCompanion(
+      key: key ?? this.key,
+      value: value ?? this.value,
+      updatedAt: updatedAt ?? this.updatedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (key.present) {
+      map['key'] = Variable<String>(key.value);
+    }
+    if (value.present) {
+      map['value'] = Variable<double>(value.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<DateTime>(updatedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('CalculatorInputsCompanion(')
+          ..write('key: $key, ')
+          ..write('value: $value, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -1788,6 +2050,9 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $LedgerTransactionsTable ledgerTransactions =
       $LedgerTransactionsTable(this);
   late final $SyncMetaTable syncMeta = $SyncMetaTable(this);
+  late final $CalculatorInputsTable calculatorInputs = $CalculatorInputsTable(
+    this,
+  );
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -1798,6 +2063,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     counterparties,
     ledgerTransactions,
     syncMeta,
+    calculatorInputs,
   ];
 }
 
@@ -3023,6 +3289,174 @@ typedef $$SyncMetaTableProcessedTableManager =
       SyncMetaData,
       PrefetchHooks Function()
     >;
+typedef $$CalculatorInputsTableCreateCompanionBuilder =
+    CalculatorInputsCompanion Function({
+      required String key,
+      required double value,
+      required DateTime updatedAt,
+      Value<int> rowid,
+    });
+typedef $$CalculatorInputsTableUpdateCompanionBuilder =
+    CalculatorInputsCompanion Function({
+      Value<String> key,
+      Value<double> value,
+      Value<DateTime> updatedAt,
+      Value<int> rowid,
+    });
+
+class $$CalculatorInputsTableFilterComposer
+    extends Composer<_$AppDatabase, $CalculatorInputsTable> {
+  $$CalculatorInputsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get key => $composableBuilder(
+    column: $table.key,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get value => $composableBuilder(
+    column: $table.value,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$CalculatorInputsTableOrderingComposer
+    extends Composer<_$AppDatabase, $CalculatorInputsTable> {
+  $$CalculatorInputsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get key => $composableBuilder(
+    column: $table.key,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get value => $composableBuilder(
+    column: $table.value,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$CalculatorInputsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $CalculatorInputsTable> {
+  $$CalculatorInputsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get key =>
+      $composableBuilder(column: $table.key, builder: (column) => column);
+
+  GeneratedColumn<double> get value =>
+      $composableBuilder(column: $table.value, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+}
+
+class $$CalculatorInputsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $CalculatorInputsTable,
+          CalculatorInput,
+          $$CalculatorInputsTableFilterComposer,
+          $$CalculatorInputsTableOrderingComposer,
+          $$CalculatorInputsTableAnnotationComposer,
+          $$CalculatorInputsTableCreateCompanionBuilder,
+          $$CalculatorInputsTableUpdateCompanionBuilder,
+          (
+            CalculatorInput,
+            BaseReferences<
+              _$AppDatabase,
+              $CalculatorInputsTable,
+              CalculatorInput
+            >,
+          ),
+          CalculatorInput,
+          PrefetchHooks Function()
+        > {
+  $$CalculatorInputsTableTableManager(
+    _$AppDatabase db,
+    $CalculatorInputsTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$CalculatorInputsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$CalculatorInputsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$CalculatorInputsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> key = const Value.absent(),
+                Value<double> value = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => CalculatorInputsCompanion(
+                key: key,
+                value: value,
+                updatedAt: updatedAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String key,
+                required double value,
+                required DateTime updatedAt,
+                Value<int> rowid = const Value.absent(),
+              }) => CalculatorInputsCompanion.insert(
+                key: key,
+                value: value,
+                updatedAt: updatedAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$CalculatorInputsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $CalculatorInputsTable,
+      CalculatorInput,
+      $$CalculatorInputsTableFilterComposer,
+      $$CalculatorInputsTableOrderingComposer,
+      $$CalculatorInputsTableAnnotationComposer,
+      $$CalculatorInputsTableCreateCompanionBuilder,
+      $$CalculatorInputsTableUpdateCompanionBuilder,
+      (
+        CalculatorInput,
+        BaseReferences<_$AppDatabase, $CalculatorInputsTable, CalculatorInput>,
+      ),
+      CalculatorInput,
+      PrefetchHooks Function()
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -3037,4 +3471,6 @@ class $AppDatabaseManager {
       $$LedgerTransactionsTableTableManager(_db, _db.ledgerTransactions);
   $$SyncMetaTableTableManager get syncMeta =>
       $$SyncMetaTableTableManager(_db, _db.syncMeta);
+  $$CalculatorInputsTableTableManager get calculatorInputs =>
+      $$CalculatorInputsTableTableManager(_db, _db.calculatorInputs);
 }

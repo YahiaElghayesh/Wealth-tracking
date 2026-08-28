@@ -33,6 +33,14 @@ class LedgerRepository {
         .watch();
   }
 
+  /// Every transaction across every counterparty. `runningBalance` applied
+  /// to this combined list is the calculator's "sum of all ledgers" figure
+  /// — summing amounts is linear, so this is equivalent to totaling each
+  /// counterparty's own balance, just without grouping.
+  Stream<List<LedgerTransaction>> watchAllTransactions() {
+    return _db.select(_db.ledgerTransactions).watch();
+  }
+
   Future<void> addTransaction({
     required String counterpartyId,
     required DateTime date,
