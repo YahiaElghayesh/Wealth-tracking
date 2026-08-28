@@ -17,7 +17,6 @@ class AddTransactionScreen extends ConsumerStatefulWidget {
 class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
   final _formKey = GlobalKey<FormState>();
   final _amountController = TextEditingController();
-  final _descriptionController = TextEditingController();
   final _customCategoryController = TextEditingController();
   bool _isPayment = true;
   String _category = ledgerExpenseCategories.first;
@@ -27,7 +26,6 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
   @override
   void dispose() {
     _amountController.dispose();
-    _descriptionController.dispose();
     _customCategoryController.dispose();
     super.dispose();
   }
@@ -56,8 +54,7 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
           amount: _isPayment ? amount : -amount,
           currency: _currency,
           category: category.isEmpty ? 'Other' : category,
-          description:
-              _descriptionController.text.trim().isEmpty ? null : _descriptionController.text.trim(),
+          description: null,
         );
 
     if (mounted) Navigator.of(context).pop();
@@ -72,15 +69,6 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            SegmentedButton<bool>(
-              segments: const [
-                ButtonSegment(value: true, label: Text('I paid')),
-                ButtonSegment(value: false, label: Text('They paid me back')),
-              ],
-              selected: {_isPayment},
-              onSelectionChanged: (s) => setState(() => _isPayment = s.first),
-            ),
-            const SizedBox(height: 16),
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -88,6 +76,7 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
                   flex: 2,
                   child: TextFormField(
                     controller: _amountController,
+                    autofocus: true,
                     decoration: const InputDecoration(labelText: 'Amount'),
                     keyboardType: const TextInputType.numberWithOptions(decimal: true),
                     validator: (v) {
@@ -111,16 +100,8 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
                 ),
               ],
             ),
-            const SizedBox(height: 16),
-            ListTile(
-              contentPadding: EdgeInsets.zero,
-              title: const Text('Date'),
-              subtitle: Text('${_date.year}-${_date.month.toString().padLeft(2, '0')}-${_date.day.toString().padLeft(2, '0')}'),
-              trailing: const Icon(Icons.calendar_today),
-              onTap: _pickDate,
-            ),
             if (_isPayment) ...[
-              const SizedBox(height: 8),
+              const SizedBox(height: 16),
               Wrap(
                 spacing: 8,
                 children: ledgerExpenseCategories.map((c) {
@@ -140,9 +121,21 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
               ],
             ],
             const SizedBox(height: 16),
-            TextFormField(
-              controller: _descriptionController,
-              decoration: const InputDecoration(labelText: 'Note (optional)'),
+            SegmentedButton<bool>(
+              segments: const [
+                ButtonSegment(value: true, label: Text('I paid')),
+                ButtonSegment(value: false, label: Text('They paid me back')),
+              ],
+              selected: {_isPayment},
+              onSelectionChanged: (s) => setState(() => _isPayment = s.first),
+            ),
+            const SizedBox(height: 16),
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Date'),
+              subtitle: Text('${_date.year}-${_date.month.toString().padLeft(2, '0')}-${_date.day.toString().padLeft(2, '0')}'),
+              trailing: const Icon(Icons.calendar_today),
+              onTap: _pickDate,
             ),
           ],
         ),

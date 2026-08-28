@@ -80,6 +80,31 @@ void main() {
     });
   });
 
+  group('categoryTotalsForMonths', () {
+    test('sums only the selected months, across multiple months at once', () {
+      final txns = [
+        _txn(date: DateTime(2026, 1, 5), amount: 100, category: 'Groceries'),
+        _txn(date: DateTime(2026, 2, 5), amount: 50, category: 'Groceries'),
+        _txn(date: DateTime(2026, 3, 5), amount: 30, category: 'Groceries'),
+        _txn(date: DateTime(2026, 1, 6), amount: 40, category: 'Fuel'),
+      ];
+
+      final totals = categoryTotalsForMonths(
+        txns,
+        {DateTime(2026, 1), DateTime(2026, 3)},
+        _prices,
+      );
+
+      expect(totals['Groceries'], closeTo(130, 0.001));
+      expect(totals['Fuel'], closeTo(40, 0.001));
+    });
+
+    test('returns an empty map for an empty month selection', () {
+      final txns = [_txn(date: DateTime(2026, 1, 5), amount: 100, category: 'Groceries')];
+      expect(categoryTotalsForMonths(txns, {}, _prices), isEmpty);
+    });
+  });
+
   group('monthlySpendTrend', () {
     test('returns one entry per month, oldest first, zero-filling months with no entries', () {
       final txns = [

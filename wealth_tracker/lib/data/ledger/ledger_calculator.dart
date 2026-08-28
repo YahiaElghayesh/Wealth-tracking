@@ -150,6 +150,34 @@ Map<String, double> categoryTotalsAllTime(
   return totals;
 }
 
+/// Expense entries (positive amounts) whose month (year+month) is in
+/// [months], grouped and summed by category, converted to
+/// [settlementCurrency]. Used for the statistics category chart, where the
+/// user picks one or more months to compare. An empty [months] returns an
+/// empty map rather than silently falling back to "all time".
+Map<String, double> categoryTotalsForMonths(
+  Iterable<LedgerTransaction> transactions,
+  Set<DateTime> months,
+  Map<String, double> pricesUsdPerUnit, {
+  String settlementCurrency = defaultCurrency,
+}) {
+  if (months.isEmpty) return {};
+  final totals = <String, double>{};
+  for (final t in transactions) {
+    if (t.amount <= 0) continue;
+    if (!months.any((m) => _isSameMonth(t.date, m))) continue;
+    final converted = convertToSettlement(
+      t.amount,
+      t.currency,
+      pricesUsdPerUnit,
+      settlementCurrency: settlementCurrency,
+    );
+    if (converted == null) continue;
+    totals[t.category] = (totals[t.category] ?? 0) + converted;
+  }
+  return totals;
+}
+
 double monthlyRepaymentTotal(
   Iterable<LedgerTransaction> transactions,
   DateTime month,

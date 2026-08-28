@@ -60,14 +60,27 @@ class _StatisticsScreenState extends ConsumerState<StatisticsScreen> {
   }
 }
 
-class _StatisticsBody extends ConsumerWidget {
+class _StatisticsBody extends ConsumerStatefulWidget {
   const _StatisticsBody({required this.counterpartyId});
 
   final String counterpartyId;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final transactionsAsync = ref.watch(transactionsStreamProvider(counterpartyId));
+  ConsumerState<_StatisticsBody> createState() => _StatisticsBodyState();
+}
+
+class _StatisticsBodyState extends ConsumerState<_StatisticsBody> {
+  /// Last 12 months (this month first), newest first — what the chip row offers.
+  static List<DateTime> _recentMonths() {
+    final now = DateTime.now();
+    return [for (var i = 0; i < 12; i++) DateTime(now.year, now.month - i)];
+  }
+
+  late Set<DateTime> _selectedMonths = {DateTime(DateTime.now().year, DateTime.now().month)};
+
+  @override
+  Widget build(BuildContext context) {
+    final transactionsAsync = ref.watch(transactionsStreamProvider(widget.counterpartyId));
     final prices = ref.watch(pricesUsdPerUnitProvider);
 
     return transactionsAsync.when(
@@ -79,11 +92,9 @@ class _StatisticsBody extends ConsumerWidget {
         }
 
         final trend = monthlySpendTrend(transactions, prices, months: 6);
-        final categoryTotals = categoryTotalsAllTime(transactions, prices);
+        final categoryTotals = categoryTotalsForMonths(transactions, _selectedMonths, prices);
         final sortedCategories = categoryTotals.entries.toList()
           ..sort((a, b) => b.value.compareTo(a.value));
-        final maxCategoryAmount =
-            sortedCategories.isEmpty ? 0.0 : sortedCategories.first.value;
 
         return ListView(
           padding: const EdgeInsets.all(16),
@@ -92,17 +103,42 @@ class _StatisticsBody extends ConsumerWidget {
             const SizedBox(height: 8),
             SizedBox(height: 220, child: _MonthlyTrendChart(trend: trend)),
             const SizedBox(height: 32),
-            Text('By category (all time)', style: Theme.of(context).textTheme.titleMedium),
-            const SizedBox(height: 12),
+            Text('By category', style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: _recentMonths().map((month) {
+                final selected = _selectedMonths.any(
+                  (m) => m.year == month.year && m.month == month.month,
+                );
+                return FilterChip(
+                  label: Text(DateFormat.MMM().format(month)),
+                  selected: selected,
+                  onSelected: (isSelected) {
+                    setState(() {
+                      if (isSelected) {
+                        _selectedMonths = {..._selectedMonths, month};
+                      } else {
+                        _selectedMonths = _selectedMonths
+                            .where((m) => !(m.year == month.year && m.month == month.month))
+                            .toSet();
+                      }
+                    });
+                  },
+                );
+              }).toList(),
+            ),
+            const SizedBox(height: 16),
             if (sortedCategories.isEmpty)
-              const Text('No expenses recorded yet.')
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 16),
+                child: Text('No expenses in the selected month(s).'),
+              )
             else
-              ...sortedCategories.map(
-                (entry) => _CategoryBar(
-                  category: entry.key,
-                  amount: entry.value,
-                  maxAmount: maxCategoryAmount,
-                ),
+              SizedBox(
+                height: 260,
+                child: _CategoryBarChart(categories: sortedCategories),
               ),
           ],
         );
@@ -178,42 +214,99 @@ class _MonthlyTrendChart extends StatelessWidget {
   }
 }
 
-class _CategoryBar extends StatelessWidget {
-  const _CategoryBar({required this.category, required this.amount, required this.maxAmount});
+/// Cost on the Y axis, category on the X axis — horizontally scrollable
+/// once there are enough categories that fixed-width bars would otherwise
+/// get squeezed illegibly.
+class _CategoryBarChart extends StatelessWidget {
+  const _CategoryBarChart({required this.categories});
 
-  final String category;
-  final double amount;
-  final double maxAmount;
+  final List<MapEntry<String, double>> categories;
+
+  static const _barWidth = 70.0;
 
   @override
   Widget build(BuildContext context) {
-    final fraction = maxAmount == 0 ? 0.0 : (amount / maxAmount).clamp(0.0, 1.0);
     final color = Theme.of(context).colorScheme.primary;
+    final maxY = categories.map((e) => e.value).fold(0.0, (a, b) => a > b ? a : b);
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(category, style: Theme.of(context).textTheme.bodyMedium),
-              Text(formatMoney(amount, defaultCurrency), style: Theme.of(context).textTheme.bodyMedium),
-            ],
-          ),
-          const SizedBox(height: 4),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(4),
-            child: LinearProgressIndicator(
-              value: fraction,
-              minHeight: 8,
-              backgroundColor: color.withValues(alpha: 0.15),
-              valueColor: AlwaysStoppedAnimation(color),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final chartWidth = (categories.length * _barWidth).clamp(constraints.maxWidth, double.infinity);
+        return SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: SizedBox(
+            width: chartWidth,
+            child: BarChart(
+              BarChartData(
+                maxY: maxY == 0 ? 1 : maxY * 1.2,
+                alignment: BarChartAlignment.spaceAround,
+                gridData: const FlGridData(show: false),
+                borderData: FlBorderData(show: false),
+                titlesData: FlTitlesData(
+                  topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                  rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                  leftTitles: AxisTitles(
+                    sideTitles: SideTitles(
+                      showTitles: true,
+                      reservedSize: 48,
+                      getTitlesWidget: (value, meta) {
+                        return Text(
+                          formatMoney(value, defaultCurrency),
+                          style: Theme.of(context).textTheme.bodySmall,
+                        );
+                      },
+                    ),
+                  ),
+                  bottomTitles: AxisTitles(
+                    sideTitles: SideTitles(
+                      showTitles: true,
+                      reservedSize: 56,
+                      getTitlesWidget: (value, meta) {
+                        final index = value.toInt();
+                        if (index < 0 || index >= categories.length) return const SizedBox.shrink();
+                        return Padding(
+                          padding: const EdgeInsets.only(top: 8),
+                          child: Transform.rotate(
+                            angle: -0.5,
+                            child: Text(
+                              categories[index].key,
+                              style: Theme.of(context).textTheme.bodySmall,
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ),
+                barTouchData: BarTouchData(
+                  touchTooltipData: BarTouchTooltipData(
+                    getTooltipItem: (group, groupIndex, rod, rodIndex) {
+                      return BarTooltipItem(
+                        formatMoney(rod.toY, defaultCurrency),
+                        TextStyle(color: color, fontWeight: FontWeight.bold),
+                      );
+                    },
+                  ),
+                ),
+                barGroups: [
+                  for (var i = 0; i < categories.length; i++)
+                    BarChartGroupData(
+                      x: i,
+                      barRods: [
+                        BarChartRodData(
+                          toY: categories[i].value,
+                          color: color,
+                          width: 24,
+                          borderRadius: const BorderRadius.vertical(top: Radius.circular(4)),
+                        ),
+                      ],
+                    ),
+                ],
+              ),
             ),
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 }

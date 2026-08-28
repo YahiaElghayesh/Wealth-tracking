@@ -17,7 +17,7 @@ class DashboardScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    ref.watch(cachedPricesLoaderProvider);
+    ref.watch(autoRefreshOnLaunchProvider);
     final assetsAsync = ref.watch(assetsStreamProvider);
     final netWorth = ref.watch(netWorthResultProvider);
     final usdToEgpRate = ref.watch(usdToEgpRateProvider);

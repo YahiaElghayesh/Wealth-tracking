@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../data/pricing/coingecko_price_provider.dart';
@@ -79,3 +81,16 @@ class PriceRefreshController extends Notifier<PriceRefreshState> {
 
 final priceRefreshControllerProvider =
     NotifierProvider<PriceRefreshController, PriceRefreshState>(PriceRefreshController.new);
+
+/// Loading the cache alone only shows what was last fetched — nothing was
+/// actually kicking off a *live* fetch on its own, so prices could go
+/// stale indefinitely between manual taps of "refresh" (the periodic
+/// background task exists too, but its first run isn't guaranteed to be
+/// prompt). This kicks off one live refresh automatically per app launch,
+/// once the cache is loaded and the asset list has emitted at least once.
+/// Watched once from the dashboard, same pattern as [cachedPricesLoaderProvider].
+final autoRefreshOnLaunchProvider = FutureProvider<void>((ref) async {
+  await ref.read(cachedPricesLoaderProvider.future);
+  await ref.read(assetsStreamProvider.future);
+  unawaited(ref.read(priceRefreshControllerProvider.notifier).refresh());
+});
