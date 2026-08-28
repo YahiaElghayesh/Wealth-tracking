@@ -23,30 +23,37 @@ subprojects {
 // AGP's default of 11) declare Java and Kotlin JVM targets that disagree
 // with each other, which Gradle now treats as a hard error
 // ("Inconsistent JVM Target Compatibility Between Java and Kotlin Tasks").
-// Force every subproject — including third-party plugin modules — to the
-// same JVM 17 target the app itself already uses, overriding whatever a
+// Force every third-party plugin module (all "com.android.library",
+// never ":app" itself) to the same JVM 17 target ":app"'s own
+// build.gradle.kts already sets for itself, overriding whatever a
 // plugin's own build.gradle set.
 //
-// Deliberately not using `afterEvaluate` here: the `evaluationDependsOn`
-// block above makes Gradle evaluate `:app` before this block would run,
-// and calling `afterEvaluate` on an already-evaluated project is a hard
-// error ("Cannot run Project.afterEvaluate(Action) when the project is
-// already evaluated"). `pluginManager.withPlugin` fires as soon as the
-// Android plugin is applied, which is always safe regardless of
-// evaluation order; `tasks.withType(...).configureEach` is lazy and has
-// the same property.
+// Two things this deliberately avoids, both hit while getting this
+// working:
+// - `afterEvaluate`: the `evaluationDependsOn` block above makes Gradle
+//   evaluate `:app` before a later `subprojects { afterEvaluate {...} }`
+//   block would run, and calling `afterEvaluate` on an already-evaluated
+//   project is a hard error. `pluginManager.withPlugin` fires as soon as
+//   the plugin is applied instead, which is safe regardless of
+//   evaluation order.
+// - Touching `:app` here at all: by the time this block's
+//   `pluginManager.withPlugin` callback would fire for `:app`, AGP has
+//   already finalized its `sourceCompatibility` (it's set correctly in
+//   :app's own build.gradle.kts, evaluated earlier via
+//   evaluationDependsOn) — setting it again throws "sourceCompatibility
+//   has been finalized". `:app` doesn't need this fix anyway, only the
+//   plugin modules do.
 subprojects {
-    val forceJvm17 = {
-        extensions.findByType<com.android.build.gradle.BaseExtension>()?.apply {
-            compileOptions {
-                sourceCompatibility = JavaVersion.VERSION_17
-                targetCompatibility = JavaVersion.VERSION_17
+    if (project.path != ":app") {
+        pluginManager.withPlugin("com.android.library") {
+            extensions.findByType<com.android.build.gradle.BaseExtension>()?.apply {
+                compileOptions {
+                    sourceCompatibility = JavaVersion.VERSION_17
+                    targetCompatibility = JavaVersion.VERSION_17
+                }
             }
         }
-        Unit
     }
-    pluginManager.withPlugin("com.android.application") { forceJvm17() }
-    pluginManager.withPlugin("com.android.library") { forceJvm17() }
 
     tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {
         compilerOptions {
