@@ -3,19 +3,14 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../core/models/ledger_category.dart';
 import '../../../core/providers/core_providers.dart';
-import '../../../data/db/database.dart';
 import '../../../data/sync/drive_sync_service.dart';
 import '../../../data/widget/home_widget_service.dart';
-import '../../ledger/providers/ledger_providers.dart';
 import '../../networth/providers/asset_providers.dart';
 import '../../networth/providers/home_widget_providers.dart';
 import '../../networth/providers/pricing_providers.dart';
 import '../providers/drive_sync_providers.dart';
 import '../providers/settings_providers.dart';
-import '../providers/sms_capture_providers.dart';
-import '../providers/vendor_rule_providers.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
@@ -32,8 +27,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   bool? _driveSignedIn;
   bool _syncing = false;
   String? _syncMessage;
-  final _vendorPatternController = TextEditingController();
-  late bool _smsCaptureEnabled;
   String _widgetBackgroundPreset = 'default';
 
   @override
@@ -43,7 +36,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final settings = ref.read(settingsRepositoryProvider);
     _desktopClientIdController = TextEditingController(text: settings.desktopClientId ?? '');
     _desktopClientSecretController = TextEditingController(text: settings.desktopClientSecret ?? '');
-    _smsCaptureEnabled = settings.smsCaptureEnabled;
     _checkDriveSignInStatus();
     _loadWidgetBackgroundPreset();
   }
@@ -63,96 +55,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     _metalsKeyController.dispose();
     _desktopClientIdController.dispose();
     _desktopClientSecretController.dispose();
-    _vendorPatternController.dispose();
     super.dispose();
-  }
-
-  Future<void> _toggleSmsCapture(bool enable) async {
-    if (!enable) {
-      await ref.read(settingsRepositoryProvider).setSmsCaptureEnabled(false);
-      setState(() => _smsCaptureEnabled = false);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Turned off. Takes effect next time the app opens.')),
-        );
-      }
-      return;
-    }
-
-    final granted = await requestSmsPermission();
-    ref.read(smsPermissionGrantedProvider.notifier).state = granted;
-    if (!granted) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('SMS permission was not granted.')),
-        );
-      }
-      return;
-    }
-
-    await ref.read(settingsRepositoryProvider).setSmsCaptureEnabled(true);
-    startSmsListener(ref);
-    setState(() => _smsCaptureEnabled = true);
-  }
-
-  Future<void> _showAddVendorRuleDialog(List<Counterparty> counterparties) async {
-    _vendorPatternController.clear();
-    String? counterpartyId = counterparties.isNotEmpty ? counterparties.first.id : null;
-    String category = ledgerExpenseCategories.first;
-
-    await showDialog<void>(
-      context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-          title: const Text('Add vendor rule'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: _vendorPatternController,
-                decoration: const InputDecoration(
-                  labelText: 'Vendor name (as it appears in the SMS)',
-                ),
-              ),
-              const SizedBox(height: 12),
-              DropdownButtonFormField<String>(
-                initialValue: counterpartyId,
-                decoration: const InputDecoration(labelText: 'Ledger'),
-                items: counterparties
-                    .map((c) => DropdownMenuItem(value: c.id, child: Text(c.name)))
-                    .toList(),
-                onChanged: (v) => setDialogState(() => counterpartyId = v),
-              ),
-              const SizedBox(height: 12),
-              DropdownButtonFormField<String>(
-                initialValue: category,
-                decoration: const InputDecoration(labelText: 'Category'),
-                items: ledgerExpenseCategories
-                    .map((c) => DropdownMenuItem(value: c, child: Text(c)))
-                    .toList(),
-                onChanged: (v) => setDialogState(() => category = v!),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-            FilledButton(
-              onPressed: counterpartyId == null || _vendorPatternController.text.trim().isEmpty
-                  ? null
-                  : () async {
-                      await ref.read(vendorRuleRepositoryProvider).addRule(
-                            vendorPattern: _vendorPatternController.text.trim(),
-                            counterpartyId: counterpartyId!,
-                            category: category,
-                          );
-                      if (context.mounted) Navigator.pop(context);
-                    },
-              child: const Text('Add'),
-            ),
-          ],
-        ),
-      ),
-    );
   }
 
   Future<void> _checkDriveSignInStatus() async {
@@ -374,8 +277,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           if (Platform.isAndroid) ...[
             const Divider(height: 40),
             _buildWidgetColorSection(context),
-            const Divider(height: 40),
-            _buildSmsCaptureSection(context),
           ],
         ],
       ),
@@ -421,65 +322,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             );
           }).toList(),
         ),
-      ],
-    );
-  }
-
-  Widget _buildSmsCaptureSection(BuildContext context) {
-    final counterparties = ref.watch(counterpartiesStreamProvider).valueOrNull ?? const [];
-    final rulesAsync = ref.watch(vendorRulesStreamProvider);
-    final counterpartyNames = {for (final c in counterparties) c.id: c.name};
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text('Bank SMS detection', style: Theme.of(context).textTheme.titleMedium),
-        const SizedBox(height: 8),
-        const Text(
-          'When your bank texts you about a charge, shows a notification to add it to a '
-          'ledger — nothing is recorded without you tapping to confirm. If the vendor matches '
-          'a rule below, the notification offers one-tap Add/Ignore; otherwise tap it to pick '
-          'where it goes. Reads incoming SMS in the background, so it needs a sensitive '
-          'Android permission — only grant it if you\'re comfortable with that.',
-        ),
-        const SizedBox(height: 12),
-        SwitchListTile(
-          contentPadding: EdgeInsets.zero,
-          title: const Text('Enabled'),
-          value: _smsCaptureEnabled,
-          onChanged: _toggleSmsCapture,
-        ),
-        if (_smsCaptureEnabled) ...[
-          const SizedBox(height: 8),
-          rulesAsync.when(
-            loading: () => const Center(child: CircularProgressIndicator()),
-            error: (e, st) => Text('Error: $e'),
-            data: (rules) => Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                for (final rule in rules)
-                  ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: Text(rule.vendorPattern),
-                    subtitle: Text(
-                      '${counterpartyNames[rule.counterpartyId] ?? 'Unknown'} · ${rule.category}',
-                    ),
-                    trailing: IconButton(
-                      icon: const Icon(Icons.delete_outline),
-                      onPressed: () => ref.read(vendorRuleRepositoryProvider).deleteRule(rule.id),
-                    ),
-                  ),
-                if (rules.isEmpty) const Text('No vendor rules yet.'),
-              ],
-            ),
-          ),
-          const SizedBox(height: 8),
-          OutlinedButton.icon(
-            icon: const Icon(Icons.add),
-            label: const Text('Add vendor rule'),
-            onPressed: counterparties.isEmpty ? null : () => _showAddVendorRuleDialog(counterparties),
-          ),
-        ],
       ],
     );
   }
