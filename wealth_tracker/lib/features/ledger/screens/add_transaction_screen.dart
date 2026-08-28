@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/models/currency.dart';
@@ -6,9 +7,18 @@ import '../../../core/models/ledger_category.dart';
 import '../providers/ledger_providers.dart';
 
 class AddTransactionScreen extends ConsumerStatefulWidget {
-  const AddTransactionScreen({super.key, required this.counterpartyId});
+  const AddTransactionScreen({
+    super.key,
+    required this.counterpartyId,
+    this.closeAppOnSave = false,
+  });
 
   final String counterpartyId;
+
+  /// True when reached via the home-screen widget's quick-add flow — the
+  /// point there is speed, so saving exits straight back to the home
+  /// screen instead of leaving the app open on some other screen.
+  final bool closeAppOnSave;
 
   @override
   ConsumerState<AddTransactionScreen> createState() => _AddTransactionScreenState();
@@ -17,6 +27,7 @@ class AddTransactionScreen extends ConsumerStatefulWidget {
 class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
   final _formKey = GlobalKey<FormState>();
   final _amountController = TextEditingController();
+  final _amountFocusNode = FocusNode();
   final _customCategoryController = TextEditingController();
   bool _isPayment = true;
   String _category = ledgerExpenseCategories.first;
@@ -24,8 +35,19 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
   DateTime _date = DateTime.now();
 
   @override
+  void initState() {
+    super.initState();
+    // autofocus alone isn't reliable right after a route push — requesting
+    // focus after the first frame reliably brings the keyboard up.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) FocusScope.of(context).requestFocus(_amountFocusNode);
+    });
+  }
+
+  @override
   void dispose() {
     _amountController.dispose();
+    _amountFocusNode.dispose();
     _customCategoryController.dispose();
     super.dispose();
   }
@@ -57,13 +79,18 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
           description: null,
         );
 
-    if (mounted) Navigator.of(context).pop();
+    if (!mounted) return;
+    if (widget.closeAppOnSave) {
+      SystemNavigator.pop();
+    } else {
+      Navigator.of(context).pop();
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Add entry')),
+      appBar: AppBar(title: const Text('Add')),
       body: Form(
         key: _formKey,
         child: ListView(
@@ -76,13 +103,14 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
                   flex: 2,
                   child: TextFormField(
                     controller: _amountController,
-                    autofocus: true,
-                    decoration: const InputDecoration(labelText: 'Amount'),
+                    focusNode: _amountFocusNode,
+                    style: Theme.of(context).textTheme.headlineMedium,
+                    decoration: const InputDecoration(hintText: '0.00'),
                     keyboardType: const TextInputType.numberWithOptions(decimal: true),
                     validator: (v) {
                       if (v == null || v.trim().isEmpty) return 'Required';
                       final n = double.tryParse(v.trim());
-                      if (n == null || n <= 0) return 'Enter a positive number';
+                      if (n == null || n <= 0) return 'Enter a number';
                       return null;
                     },
                   ),
@@ -91,7 +119,6 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
                 Expanded(
                   child: DropdownButtonFormField<String>(
                     initialValue: _currency,
-                    decoration: const InputDecoration(labelText: 'Currency'),
                     items: supportedCurrencies
                         .map((c) => DropdownMenuItem(value: c, child: Text(c)))
                         .toList(),
@@ -116,34 +143,41 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
                 const SizedBox(height: 12),
                 TextFormField(
                   controller: _customCategoryController,
-                  decoration: const InputDecoration(labelText: 'Custom category'),
+                  decoration: const InputDecoration(hintText: 'Category'),
                 ),
               ],
             ],
             const SizedBox(height: 16),
             SegmentedButton<bool>(
               segments: const [
-                ButtonSegment(value: true, label: Text('I paid')),
-                ButtonSegment(value: false, label: Text('They paid me back')),
+                ButtonSegment(value: true, label: Text('Paid')),
+                ButtonSegment(value: false, label: Text('Repaid')),
               ],
               selected: {_isPayment},
               onSelectionChanged: (s) => setState(() => _isPayment = s.first),
             ),
             const SizedBox(height: 16),
-            ListTile(
-              contentPadding: EdgeInsets.zero,
-              title: const Text('Date'),
-              subtitle: Text('${_date.year}-${_date.month.toString().padLeft(2, '0')}-${_date.day.toString().padLeft(2, '0')}'),
-              trailing: const Icon(Icons.calendar_today),
+            InkWell(
               onTap: _pickDate,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                child: Row(
+                  children: [
+                    const Icon(Icons.calendar_today, size: 18),
+                    const SizedBox(width: 12),
+                    Text(
+                      '${_date.year}-${_date.month.toString().padLeft(2, '0')}-${_date.day.toString().padLeft(2, '0')}',
+                    ),
+                  ],
+                ),
+              ),
             ),
           ],
         ),
       ),
-      floatingActionButton: FloatingActionButton.extended(
+      floatingActionButton: FloatingActionButton(
         onPressed: _save,
-        icon: const Icon(Icons.check),
-        label: const Text('Save'),
+        child: const Icon(Icons.check),
       ),
     );
   }

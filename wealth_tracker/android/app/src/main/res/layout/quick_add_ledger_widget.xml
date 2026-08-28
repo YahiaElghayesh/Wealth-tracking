@@ -16,13 +16,28 @@
         android:textStyle="bold"
         android:textColor="#FFFFFF" />
 
-    <TextView
+    <LinearLayout
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginStart="12dp"
-        android:text="Add Payment"
-        android:textSize="15sp"
-        android:textStyle="bold"
-        android:textColor="#FFFFFF" />
+        android:orientation="vertical">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Add Payment"
+            android:textSize="15sp"
+            android:textStyle="bold"
+            android:textColor="#FFFFFF" />
+
+        <TextView
+            android:id="@+id/quick_add_subtitle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text=""
+            android:textSize="12sp"
+            android:textColor="#CCFFFFFF" />
+
+    </LinearLayout>
 
 </LinearLayout>

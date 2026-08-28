@@ -1,4 +1,5 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-permission android:name="android.permission.INTERNET"/>
     <application
         android:label="wealth_tracker"
         android:name="${applicationName}"
@@ -54,6 +55,15 @@
                 android:name="android.appwidget.provider"
                 android:resource="@xml/quick_add_ledger_widget_info" />
         </receiver>
+
+        <activity
+            android:name=".QuickAddLedgerWidgetConfigureActivity"
+            android:exported="true"
+            android:theme="@style/LaunchTheme">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_CONFIGURE" />
+            </intent-filter>
+        </activity>
     </application>
     <!-- Required to query activities that can process text, see:
          https://developer.android.com/training/package-visibility and

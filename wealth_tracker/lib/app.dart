@@ -7,6 +7,7 @@ import 'package:home_widget/home_widget.dart';
 import 'core/navigation/app_navigator.dart';
 import 'core/theme/app_theme.dart';
 import 'features/ledger/providers/quick_add_launch.dart';
+import 'features/ledger/providers/widget_counterparties_sync.dart';
 import 'features/ledger/screens/ledger_home_screen.dart';
 import 'features/ledger/screens/statistics_screen.dart';
 import 'features/networth/providers/home_widget_providers.dart';
@@ -47,7 +48,13 @@ class _RootShellState extends ConsumerState<_RootShell> with WidgetsBindingObser
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _widgetClickSubscription = HomeWidget.widgetClicked.listen((uri) => handleQuickAddLaunch(uri, ref));
-    HomeWidget.initiallyLaunchedFromHomeWidget().then((uri) => handleQuickAddLaunch(uri, ref));
+    // Deferred to after the first frame: called this early, navigatorKey's
+    // Navigator isn't mounted yet, so the cold-start deep link would
+    // silently drop (this was the "sometimes it just opens the app"
+    // report — a timing race, not a deterministic failure).
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      HomeWidget.initiallyLaunchedFromHomeWidget().then((uri) => handleQuickAddLaunch(uri, ref));
+    });
   }
 
   @override
@@ -71,6 +78,7 @@ class _RootShellState extends ConsumerState<_RootShell> with WidgetsBindingObser
   @override
   Widget build(BuildContext context) {
     ref.watch(homeWidgetSyncProvider);
+    ref.watch(widgetCounterpartiesSyncProvider);
 
     return Scaffold(
       body: IndexedStack(

@@ -10,6 +10,7 @@
     android:targetCellHeight="1"
     android:updatePeriodMillis="0"
     android:initialLayout="@layout/quick_add_ledger_widget"
+    android:configure="com.yahiaelghayesh.wealth_tracker.QuickAddLedgerWidgetConfigureActivity"
     android:resizeMode="horizontal|vertical"
     android:widgetCategory="home_screen"
     android:previewLayout="@layout/quick_add_ledger_widget" />
