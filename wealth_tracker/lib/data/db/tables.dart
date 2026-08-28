@@ -89,3 +89,17 @@ class CalculatorInputs extends Table {
   @override
   Set<Column> get primaryKey => {key};
 }
+
+/// A rule matching a bank SMS merchant name to where it should be recorded:
+/// "any charge at a merchant whose name contains [vendorPattern] (case
+/// insensitive) is a payment made on [counterpartyId]'s behalf, categorized
+/// as [category]". Drives the SMS auto-capture feature.
+class VendorRules extends Table {
+  TextColumn get id => text()();
+  TextColumn get vendorPattern => text()();
+  TextColumn get counterpartyId => text().references(Counterparties, #id)();
+  TextColumn get category => text()();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}

@@ -1,10 +1,12 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:home_widget/home_widget.dart';
 
 import 'core/navigation/app_navigator.dart';
+import 'core/providers/core_providers.dart';
 import 'core/theme/app_theme.dart';
 import 'features/calculator/screens/calculator_screen.dart';
 import 'features/ledger/providers/quick_add_launch.dart';
@@ -14,6 +16,8 @@ import 'features/ledger/screens/statistics_screen.dart';
 import 'features/networth/providers/home_widget_providers.dart';
 import 'features/networth/providers/pricing_providers.dart';
 import 'features/networth/screens/dashboard_screen.dart';
+import 'features/settings/providers/sms_capture_providers.dart';
+import 'features/settings/providers/vendor_rule_providers.dart';
 
 class WealthTrackerApp extends StatelessWidget {
   const WealthTrackerApp({super.key});
@@ -56,6 +60,20 @@ class _RootShellState extends ConsumerState<_RootShell> with WidgetsBindingObser
     WidgetsBinding.instance.addPostFrameCallback((_) {
       HomeWidget.initiallyLaunchedFromHomeWidget().then((uri) => handleQuickAddLaunch(uri, ref));
     });
+    _resumeSmsCaptureIfEnabled();
+  }
+
+  /// Re-registers the SMS listener on every app start if the user
+  /// previously turned auto-capture on — the listener itself isn't
+  /// persistent across process restarts, only the permission grant and the
+  /// user's choice are. Requesting a permission that's already granted
+  /// resolves immediately with no dialog, so this is silent.
+  Future<void> _resumeSmsCaptureIfEnabled() async {
+    if (!Platform.isAndroid) return;
+    if (!ref.read(settingsRepositoryProvider).smsCaptureEnabled) return;
+    final granted = await requestSmsPermission();
+    ref.read(smsPermissionGrantedProvider.notifier).state = granted;
+    if (granted) startSmsListener(ref);
   }
 
   @override
@@ -80,6 +98,7 @@ class _RootShellState extends ConsumerState<_RootShell> with WidgetsBindingObser
   Widget build(BuildContext context) {
     ref.watch(homeWidgetSyncProvider);
     ref.watch(widgetCounterpartiesSyncProvider);
+    ref.watch(vendorRuleSeedProvider);
 
     return Scaffold(
       body: IndexedStack(

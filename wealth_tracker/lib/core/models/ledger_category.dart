@@ -2,7 +2,7 @@
 /// made on someone else's behalf. Users can still type a custom category.
 const ledgerExpenseCategories = [
   'Groceries',
-  'Breakfast',
+  'Breadfast',
   'Talabat',
   'Food Delivery',
   'Food Out',

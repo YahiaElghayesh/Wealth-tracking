@@ -2041,6 +2041,334 @@ class CalculatorInputsCompanion extends UpdateCompanion<CalculatorInput> {
   }
 }
 
+class $VendorRulesTable extends VendorRules
+    with TableInfo<$VendorRulesTable, VendorRule> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $VendorRulesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _vendorPatternMeta = const VerificationMeta(
+    'vendorPattern',
+  );
+  @override
+  late final GeneratedColumn<String> vendorPattern = GeneratedColumn<String>(
+    'vendor_pattern',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _counterpartyIdMeta = const VerificationMeta(
+    'counterpartyId',
+  );
+  @override
+  late final GeneratedColumn<String> counterpartyId = GeneratedColumn<String>(
+    'counterparty_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES counterparties (id)',
+    ),
+  );
+  static const VerificationMeta _categoryMeta = const VerificationMeta(
+    'category',
+  );
+  @override
+  late final GeneratedColumn<String> category = GeneratedColumn<String>(
+    'category',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    vendorPattern,
+    counterpartyId,
+    category,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'vendor_rules';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<VendorRule> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('vendor_pattern')) {
+      context.handle(
+        _vendorPatternMeta,
+        vendorPattern.isAcceptableOrUnknown(
+          data['vendor_pattern']!,
+          _vendorPatternMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_vendorPatternMeta);
+    }
+    if (data.containsKey('counterparty_id')) {
+      context.handle(
+        _counterpartyIdMeta,
+        counterpartyId.isAcceptableOrUnknown(
+          data['counterparty_id']!,
+          _counterpartyIdMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_counterpartyIdMeta);
+    }
+    if (data.containsKey('category')) {
+      context.handle(
+        _categoryMeta,
+        category.isAcceptableOrUnknown(data['category']!, _categoryMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_categoryMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  VendorRule map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return VendorRule(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      vendorPattern: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}vendor_pattern'],
+      )!,
+      counterpartyId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}counterparty_id'],
+      )!,
+      category: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}category'],
+      )!,
+    );
+  }
+
+  @override
+  $VendorRulesTable createAlias(String alias) {
+    return $VendorRulesTable(attachedDatabase, alias);
+  }
+}
+
+class VendorRule extends DataClass implements Insertable<VendorRule> {
+  final String id;
+  final String vendorPattern;
+  final String counterpartyId;
+  final String category;
+  const VendorRule({
+    required this.id,
+    required this.vendorPattern,
+    required this.counterpartyId,
+    required this.category,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['vendor_pattern'] = Variable<String>(vendorPattern);
+    map['counterparty_id'] = Variable<String>(counterpartyId);
+    map['category'] = Variable<String>(category);
+    return map;
+  }
+
+  VendorRulesCompanion toCompanion(bool nullToAbsent) {
+    return VendorRulesCompanion(
+      id: Value(id),
+      vendorPattern: Value(vendorPattern),
+      counterpartyId: Value(counterpartyId),
+      category: Value(category),
+    );
+  }
+
+  factory VendorRule.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return VendorRule(
+      id: serializer.fromJson<String>(json['id']),
+      vendorPattern: serializer.fromJson<String>(json['vendorPattern']),
+      counterpartyId: serializer.fromJson<String>(json['counterpartyId']),
+      category: serializer.fromJson<String>(json['category']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'vendorPattern': serializer.toJson<String>(vendorPattern),
+      'counterpartyId': serializer.toJson<String>(counterpartyId),
+      'category': serializer.toJson<String>(category),
+    };
+  }
+
+  VendorRule copyWith({
+    String? id,
+    String? vendorPattern,
+    String? counterpartyId,
+    String? category,
+  }) => VendorRule(
+    id: id ?? this.id,
+    vendorPattern: vendorPattern ?? this.vendorPattern,
+    counterpartyId: counterpartyId ?? this.counterpartyId,
+    category: category ?? this.category,
+  );
+  VendorRule copyWithCompanion(VendorRulesCompanion data) {
+    return VendorRule(
+      id: data.id.present ? data.id.value : this.id,
+      vendorPattern: data.vendorPattern.present
+          ? data.vendorPattern.value
+          : this.vendorPattern,
+      counterpartyId: data.counterpartyId.present
+          ? data.counterpartyId.value
+          : this.counterpartyId,
+      category: data.category.present ? data.category.value : this.category,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('VendorRule(')
+          ..write('id: $id, ')
+          ..write('vendorPattern: $vendorPattern, ')
+          ..write('counterpartyId: $counterpartyId, ')
+          ..write('category: $category')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(id, vendorPattern, counterpartyId, category);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is VendorRule &&
+          other.id == this.id &&
+          other.vendorPattern == this.vendorPattern &&
+          other.counterpartyId == this.counterpartyId &&
+          other.category == this.category);
+}
+
+class VendorRulesCompanion extends UpdateCompanion<VendorRule> {
+  final Value<String> id;
+  final Value<String> vendorPattern;
+  final Value<String> counterpartyId;
+  final Value<String> category;
+  final Value<int> rowid;
+  const VendorRulesCompanion({
+    this.id = const Value.absent(),
+    this.vendorPattern = const Value.absent(),
+    this.counterpartyId = const Value.absent(),
+    this.category = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  VendorRulesCompanion.insert({
+    required String id,
+    required String vendorPattern,
+    required String counterpartyId,
+    required String category,
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       vendorPattern = Value(vendorPattern),
+       counterpartyId = Value(counterpartyId),
+       category = Value(category);
+  static Insertable<VendorRule> custom({
+    Expression<String>? id,
+    Expression<String>? vendorPattern,
+    Expression<String>? counterpartyId,
+    Expression<String>? category,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (vendorPattern != null) 'vendor_pattern': vendorPattern,
+      if (counterpartyId != null) 'counterparty_id': counterpartyId,
+      if (category != null) 'category': category,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  VendorRulesCompanion copyWith({
+    Value<String>? id,
+    Value<String>? vendorPattern,
+    Value<String>? counterpartyId,
+    Value<String>? category,
+    Value<int>? rowid,
+  }) {
+    return VendorRulesCompanion(
+      id: id ?? this.id,
+      vendorPattern: vendorPattern ?? this.vendorPattern,
+      counterpartyId: counterpartyId ?? this.counterpartyId,
+      category: category ?? this.category,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (vendorPattern.present) {
+      map['vendor_pattern'] = Variable<String>(vendorPattern.value);
+    }
+    if (counterpartyId.present) {
+      map['counterparty_id'] = Variable<String>(counterpartyId.value);
+    }
+    if (category.present) {
+      map['category'] = Variable<String>(category.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('VendorRulesCompanion(')
+          ..write('id: $id, ')
+          ..write('vendorPattern: $vendorPattern, ')
+          ..write('counterpartyId: $counterpartyId, ')
+          ..write('category: $category, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -2053,6 +2381,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $CalculatorInputsTable calculatorInputs = $CalculatorInputsTable(
     this,
   );
+  late final $VendorRulesTable vendorRules = $VendorRulesTable(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -2064,6 +2393,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     ledgerTransactions,
     syncMeta,
     calculatorInputs,
+    vendorRules,
   ];
 }
 
@@ -2544,6 +2874,24 @@ final class $$CounterpartiesTableReferences
       manager.$state.copyWith(prefetchedData: cache),
     );
   }
+
+  static MultiTypedResultKey<$VendorRulesTable, List<VendorRule>>
+  _vendorRulesRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.vendorRules,
+    aliasName: 'counterparties__id__vendor_rules__counterparty_id',
+  );
+
+  $$VendorRulesTableProcessedTableManager get vendorRulesRefs {
+    final manager = $$VendorRulesTableTableManager(
+      $_db,
+      $_db.vendorRules,
+    ).filter((f) => f.counterpartyId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(_vendorRulesRefsTable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
 }
 
 class $$CounterpartiesTableFilterComposer
@@ -2581,6 +2929,31 @@ class $$CounterpartiesTableFilterComposer
           }) => $$LedgerTransactionsTableFilterComposer(
             $db: $db,
             $table: $db.ledgerTransactions,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> vendorRulesRefs(
+    Expression<bool> Function($$VendorRulesTableFilterComposer f) f,
+  ) {
+    final $$VendorRulesTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.vendorRules,
+      getReferencedColumn: (t) => t.counterpartyId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$VendorRulesTableFilterComposer(
+            $db: $db,
+            $table: $db.vendorRules,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -2651,6 +3024,31 @@ class $$CounterpartiesTableAnnotationComposer
         );
     return f(composer);
   }
+
+  Expression<T> vendorRulesRefs<T extends Object>(
+    Expression<T> Function($$VendorRulesTableAnnotationComposer a) f,
+  ) {
+    final $$VendorRulesTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.vendorRules,
+      getReferencedColumn: (t) => t.counterpartyId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$VendorRulesTableAnnotationComposer(
+            $db: $db,
+            $table: $db.vendorRules,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
 }
 
 class $$CounterpartiesTableTableManager
@@ -2666,7 +3064,10 @@ class $$CounterpartiesTableTableManager
           $$CounterpartiesTableUpdateCompanionBuilder,
           (Counterparty, $$CounterpartiesTableReferences),
           Counterparty,
-          PrefetchHooks Function({bool ledgerTransactionsRefs})
+          PrefetchHooks Function({
+            bool ledgerTransactionsRefs,
+            bool vendorRulesRefs,
+          })
         > {
   $$CounterpartiesTableTableManager(
     _$AppDatabase db,
@@ -2705,40 +3106,63 @@ class $$CounterpartiesTableTableManager
                 ),
               )
               .toList(),
-          prefetchHooksCallback: ({ledgerTransactionsRefs = false}) {
-            return PrefetchHooks(
-              db: db,
-              explicitlyWatchedTables: [
-                if (ledgerTransactionsRefs) db.ledgerTransactions,
-              ],
-              addJoins: null,
-              getPrefetchedDataCallback: (items) async {
-                return [
-                  if (ledgerTransactionsRefs)
-                    await $_getPrefetchedData<
-                      Counterparty,
-                      $CounterpartiesTable,
-                      LedgerTransaction
-                    >(
-                      currentTable: table,
-                      referencedTable: $$CounterpartiesTableReferences
-                          ._ledgerTransactionsRefsTable(db),
-                      managerFromTypedResult: (p0) =>
-                          $$CounterpartiesTableReferences(
-                            db,
-                            table,
-                            p0,
-                          ).ledgerTransactionsRefs,
-                      referencedItemsForCurrentItem: (item, referencedItems) =>
-                          referencedItems.where(
-                            (e) => e.counterpartyId == item.id,
-                          ),
-                      typedResults: items,
-                    ),
-                ];
+          prefetchHooksCallback:
+              ({ledgerTransactionsRefs = false, vendorRulesRefs = false}) {
+                return PrefetchHooks(
+                  db: db,
+                  explicitlyWatchedTables: [
+                    if (ledgerTransactionsRefs) db.ledgerTransactions,
+                    if (vendorRulesRefs) db.vendorRules,
+                  ],
+                  addJoins: null,
+                  getPrefetchedDataCallback: (items) async {
+                    return [
+                      if (ledgerTransactionsRefs)
+                        await $_getPrefetchedData<
+                          Counterparty,
+                          $CounterpartiesTable,
+                          LedgerTransaction
+                        >(
+                          currentTable: table,
+                          referencedTable: $$CounterpartiesTableReferences
+                              ._ledgerTransactionsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$CounterpartiesTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).ledgerTransactionsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.counterpartyId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                      if (vendorRulesRefs)
+                        await $_getPrefetchedData<
+                          Counterparty,
+                          $CounterpartiesTable,
+                          VendorRule
+                        >(
+                          currentTable: table,
+                          referencedTable: $$CounterpartiesTableReferences
+                              ._vendorRulesRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$CounterpartiesTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).vendorRulesRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.counterpartyId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                    ];
+                  },
+                );
               },
-            );
-          },
         ),
       );
 }
@@ -2755,7 +3179,10 @@ typedef $$CounterpartiesTableProcessedTableManager =
       $$CounterpartiesTableUpdateCompanionBuilder,
       (Counterparty, $$CounterpartiesTableReferences),
       Counterparty,
-      PrefetchHooks Function({bool ledgerTransactionsRefs})
+      PrefetchHooks Function({
+        bool ledgerTransactionsRefs,
+        bool vendorRulesRefs,
+      })
     >;
 typedef $$LedgerTransactionsTableCreateCompanionBuilder =
     LedgerTransactionsCompanion Function({
@@ -3457,6 +3884,307 @@ typedef $$CalculatorInputsTableProcessedTableManager =
       CalculatorInput,
       PrefetchHooks Function()
     >;
+typedef $$VendorRulesTableCreateCompanionBuilder =
+    VendorRulesCompanion Function({
+      required String id,
+      required String vendorPattern,
+      required String counterpartyId,
+      required String category,
+      Value<int> rowid,
+    });
+typedef $$VendorRulesTableUpdateCompanionBuilder =
+    VendorRulesCompanion Function({
+      Value<String> id,
+      Value<String> vendorPattern,
+      Value<String> counterpartyId,
+      Value<String> category,
+      Value<int> rowid,
+    });
+
+final class $$VendorRulesTableReferences
+    extends BaseReferences<_$AppDatabase, $VendorRulesTable, VendorRule> {
+  $$VendorRulesTableReferences(super.$_db, super.$_table, super.$_typedResult);
+
+  static $CounterpartiesTable _counterpartyIdTable(_$AppDatabase db) => db
+      .counterparties
+      .createAlias('vendor_rules__counterparty_id__counterparties__id');
+
+  $$CounterpartiesTableProcessedTableManager get counterpartyId {
+    final $_column = $_itemColumn<String>('counterparty_id')!;
+
+    final manager = $$CounterpartiesTableTableManager(
+      $_db,
+      $_db.counterparties,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_counterpartyIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$VendorRulesTableFilterComposer
+    extends Composer<_$AppDatabase, $VendorRulesTable> {
+  $$VendorRulesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get vendorPattern => $composableBuilder(
+    column: $table.vendorPattern,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get category => $composableBuilder(
+    column: $table.category,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$CounterpartiesTableFilterComposer get counterpartyId {
+    final $$CounterpartiesTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.counterpartyId,
+      referencedTable: $db.counterparties,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$CounterpartiesTableFilterComposer(
+            $db: $db,
+            $table: $db.counterparties,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$VendorRulesTableOrderingComposer
+    extends Composer<_$AppDatabase, $VendorRulesTable> {
+  $$VendorRulesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get vendorPattern => $composableBuilder(
+    column: $table.vendorPattern,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get category => $composableBuilder(
+    column: $table.category,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$CounterpartiesTableOrderingComposer get counterpartyId {
+    final $$CounterpartiesTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.counterpartyId,
+      referencedTable: $db.counterparties,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$CounterpartiesTableOrderingComposer(
+            $db: $db,
+            $table: $db.counterparties,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$VendorRulesTableAnnotationComposer
+    extends Composer<_$AppDatabase, $VendorRulesTable> {
+  $$VendorRulesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get vendorPattern => $composableBuilder(
+    column: $table.vendorPattern,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get category =>
+      $composableBuilder(column: $table.category, builder: (column) => column);
+
+  $$CounterpartiesTableAnnotationComposer get counterpartyId {
+    final $$CounterpartiesTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.counterpartyId,
+      referencedTable: $db.counterparties,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$CounterpartiesTableAnnotationComposer(
+            $db: $db,
+            $table: $db.counterparties,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$VendorRulesTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $VendorRulesTable,
+          VendorRule,
+          $$VendorRulesTableFilterComposer,
+          $$VendorRulesTableOrderingComposer,
+          $$VendorRulesTableAnnotationComposer,
+          $$VendorRulesTableCreateCompanionBuilder,
+          $$VendorRulesTableUpdateCompanionBuilder,
+          (VendorRule, $$VendorRulesTableReferences),
+          VendorRule,
+          PrefetchHooks Function({bool counterpartyId})
+        > {
+  $$VendorRulesTableTableManager(_$AppDatabase db, $VendorRulesTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$VendorRulesTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$VendorRulesTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$VendorRulesTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> vendorPattern = const Value.absent(),
+                Value<String> counterpartyId = const Value.absent(),
+                Value<String> category = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => VendorRulesCompanion(
+                id: id,
+                vendorPattern: vendorPattern,
+                counterpartyId: counterpartyId,
+                category: category,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String vendorPattern,
+                required String counterpartyId,
+                required String category,
+                Value<int> rowid = const Value.absent(),
+              }) => VendorRulesCompanion.insert(
+                id: id,
+                vendorPattern: vendorPattern,
+                counterpartyId: counterpartyId,
+                category: category,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable(table),
+                  $$VendorRulesTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({counterpartyId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (counterpartyId) {
+                      state =
+                          state.withJoin(
+                                currentTable: table,
+                                currentColumn: table.counterpartyId,
+                                referencedTable: $$VendorRulesTableReferences
+                                    ._counterpartyIdTable(db),
+                                referencedColumn: $$VendorRulesTableReferences
+                                    ._counterpartyIdTable(db)
+                                    .id,
+                              )
+                              as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$VendorRulesTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $VendorRulesTable,
+      VendorRule,
+      $$VendorRulesTableFilterComposer,
+      $$VendorRulesTableOrderingComposer,
+      $$VendorRulesTableAnnotationComposer,
+      $$VendorRulesTableCreateCompanionBuilder,
+      $$VendorRulesTableUpdateCompanionBuilder,
+      (VendorRule, $$VendorRulesTableReferences),
+      VendorRule,
+      PrefetchHooks Function({bool counterpartyId})
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -3473,4 +4201,6 @@ class $AppDatabaseManager {
       $$SyncMetaTableTableManager(_db, _db.syncMeta);
   $$CalculatorInputsTableTableManager get calculatorInputs =>
       $$CalculatorInputsTableTableManager(_db, _db.calculatorInputs);
+  $$VendorRulesTableTableManager get vendorRules =>
+      $$VendorRulesTableTableManager(_db, _db.vendorRules);
 }

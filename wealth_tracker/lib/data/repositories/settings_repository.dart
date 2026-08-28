@@ -13,6 +13,7 @@ class SettingsRepository {
   static const _desktopClientSecretKey = 'drive_desktop_client_secret';
   static const _desktopCredentialsKey = 'drive_desktop_credentials_json';
   static const _lastSyncedAtKey = 'drive_last_synced_at';
+  static const _smsCaptureEnabledKey = 'sms_capture_enabled';
 
   String? get metalsApiKey => _prefs.getString(_metalsApiKeyKey);
 
@@ -63,5 +64,14 @@ class SettingsRepository {
 
   Future<void> setLastSyncedAt(DateTime time) {
     return _prefs.setString(_lastSyncedAtKey, time.toUtc().toIso8601String());
+  }
+
+  /// True once the user has granted SMS permission and turned on
+  /// auto-capture from Settings — checked at every app start (Android
+  /// only) to decide whether to re-register the SMS listener.
+  bool get smsCaptureEnabled => _prefs.getBool(_smsCaptureEnabledKey) ?? false;
+
+  Future<void> setSmsCaptureEnabled(bool enabled) {
+    return _prefs.setBool(_smsCaptureEnabledKey, enabled);
   }
 }
