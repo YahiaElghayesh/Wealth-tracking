@@ -4,6 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/format/money_formatter.dart';
 import '../../../core/models/asset_category.dart';
 import '../../../core/models/gold_karat.dart';
+import '../../../core/providers/privacy_providers.dart';
+import '../../../core/widgets/money_text.dart';
 import '../../../data/db/database.dart';
 import '../../../data/net_worth/net_worth_calculator.dart';
 import '../../settings/screens/settings_screen.dart';
@@ -22,11 +24,17 @@ class DashboardScreen extends ConsumerWidget {
     final netWorth = ref.watch(netWorthResultProvider);
     final usdToEgpRate = ref.watch(usdToEgpRateProvider);
     final refreshState = ref.watch(priceRefreshControllerProvider);
+    final hideValues = ref.watch(hideValuesProvider);
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('Net Worth'),
         actions: [
+          IconButton(
+            icon: Icon(hideValues ? Icons.visibility_off : Icons.visibility),
+            tooltip: hideValues ? 'Show values' : 'Hide values',
+            onPressed: () => ref.read(hideValuesProvider.notifier).state = !hideValues,
+          ),
           IconButton(
             icon: refreshState.isRefreshing
                 ? const SizedBox(
@@ -129,7 +137,7 @@ class _AssetTile extends ConsumerWidget {
           subtitle: Text(
             '$categoryLabel · ${category.defaultClass == AssetClass.liquid ? "Liquid" : "Non-liquid"}',
           ),
-          trailing: Text(value == null ? '—' : formatUsd(value)),
+          trailing: value == null ? const Text('—') : MoneyText(formatUsd(value)),
           onTap: () => Navigator.of(context).push(
             MaterialPageRoute(builder: (_) => AddEditAssetScreen(existing: asset)),
           ),

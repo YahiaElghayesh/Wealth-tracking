@@ -116,6 +116,7 @@ class _AddEditAssetScreenState extends ConsumerState<AddEditAssetScreen> {
             ),
             const SizedBox(height: 16),
             DropdownButtonFormField<AssetCategory>(
+              isExpanded: true,
               initialValue: _category,
               decoration: const InputDecoration(labelText: 'Category'),
               items: AssetCategory.values
@@ -155,6 +156,7 @@ class _AddEditAssetScreenState extends ConsumerState<AddEditAssetScreen> {
               const SizedBox(width: 12),
               Expanded(
                 child: DropdownButtonFormField<String>(
+                  isExpanded: true,
                   initialValue: _currency,
                   decoration: const InputDecoration(labelText: 'Currency'),
                   items: supportedCurrencies
@@ -214,6 +216,7 @@ class _AddEditAssetScreenState extends ConsumerState<AddEditAssetScreen> {
         return [
           if (_category == AssetCategory.gold) ...[
             DropdownButtonFormField<GoldKarat>(
+              isExpanded: true,
               initialValue: _goldKarat,
               decoration: const InputDecoration(labelText: 'Karat'),
               items: GoldKarat.values

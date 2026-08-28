@@ -182,6 +182,7 @@ class _CardFormDialogState extends ConsumerState<_CardFormDialog> {
                   const SizedBox(width: 12),
                   Expanded(
                     child: DropdownButtonFormField<String>(
+                      isExpanded: true,
                       initialValue: _currency,
                       decoration: const InputDecoration(labelText: 'Currency'),
                       items: supportedCurrencies

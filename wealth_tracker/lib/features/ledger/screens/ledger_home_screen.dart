@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/format/money_formatter.dart';
 import '../../../core/models/currency.dart';
+import '../../../core/widgets/money_text.dart';
 import '../../../data/db/database.dart';
 import '../../../data/ledger/ledger_calculator.dart';
 import '../../networth/providers/asset_providers.dart' show pricesUsdPerUnitProvider;
@@ -79,15 +80,17 @@ class _CounterpartyTile extends ConsumerWidget {
     return Card(
       child: ListTile(
         title: Text(counterparty.name),
-        subtitle: Text(
-          balance == null
-              ? 'Loading…'
-              : balance == 0
-                  ? 'Settled up'
-                  : balance > 0
-                      ? 'Owes you ${formatMoney(balance, defaultCurrency)}'
-                      : 'You owe ${formatMoney(-balance, defaultCurrency)}',
-        ),
+        subtitle: balance == null
+            ? const Text('Loading…')
+            : balance == 0
+                ? const Text('Settled up')
+                : Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(balance > 0 ? 'Owes you ' : 'You owe '),
+                      MoneyText(formatMoney(balance.abs(), defaultCurrency)),
+                    ],
+                  ),
         trailing: const Icon(Icons.chevron_right),
         onTap: () => Navigator.of(context).push(
           MaterialPageRoute(builder: (_) => CounterpartyDetailScreen(counterparty: counterparty)),

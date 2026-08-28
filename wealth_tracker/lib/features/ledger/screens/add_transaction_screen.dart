@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -30,18 +32,56 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
   final _amountFocusNode = FocusNode();
   final _customCategoryController = TextEditingController();
   bool _isPayment = true;
-  String _category = ledgerExpenseCategories.first;
+  // Null until the user actually taps a chip — defaults to whichever
+  // category is first once the (async, user-managed) list loads, computed
+  // fresh each build rather than seeded once, so a category added or
+  // removed in Settings while this screen is open is reflected immediately.
+  String? _category;
+  List<String> _categoryNames = const ['Other'];
   String _currency = defaultCurrency;
   DateTime _date = DateTime.now();
 
   @override
   void initState() {
     super.initState();
-    // autofocus alone isn't reliable right after a route push — requesting
-    // focus after the first frame reliably brings the keyboard up.
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) FocusScope.of(context).requestFocus(_amountFocusNode);
+    // autofocus alone isn't reliable right after a route push, and a plain
+    // post-frame focus request isn't enough either when this screen is
+    // reached via the quick-add widget's deep link: the enclosing route's
+    // push transition (and, on a cold start, the Activity's own window
+    // transition) can still be animating when the first frame completes,
+    // which silently swallows the focus request and never brings up the
+    // keyboard. Wait for the route transition to finish, then retry once
+    // shortly after as a safety net for the cold-start case.
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) return;
+      await _waitForRouteTransition();
+      if (!mounted) return;
+      FocusScope.of(context).requestFocus(_amountFocusNode);
+      await Future.delayed(const Duration(milliseconds: 150));
+      if (!mounted || _amountFocusNode.hasFocus) return;
+      FocusScope.of(context).requestFocus(_amountFocusNode);
     });
+  }
+
+  Future<void> _waitForRouteTransition() {
+    final animation = ModalRoute.of(context)?.animation;
+    if (animation == null || animation.isCompleted) return Future.value();
+    final completer = Completer<void>();
+    void listener(AnimationStatus status) {
+      if (status == AnimationStatus.completed) {
+        animation.removeStatusListener(listener);
+        if (!completer.isCompleted) completer.complete();
+      }
+    }
+
+    animation.addStatusListener(listener);
+    // Belt-and-suspenders: don't wait forever if the animation never
+    // reports completed for some reason.
+    Future.delayed(const Duration(milliseconds: 500), () {
+      animation.removeStatusListener(listener);
+      if (!completer.isCompleted) completer.complete();
+    });
+    return completer.future;
   }
 
   @override
@@ -66,8 +106,9 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
     if (!_formKey.currentState!.validate()) return;
 
     final amount = double.parse(_amountController.text.trim());
+    final selectedCategory = _category ?? _categoryNames.first;
     final category = _isPayment
-        ? (_category == 'Other' ? _customCategoryController.text.trim() : _category)
+        ? (selectedCategory == 'Other' ? _customCategoryController.text.trim() : selectedCategory)
         : ledgerRepaymentCategory;
 
     await ref.read(ledgerRepositoryProvider).addTransaction(
@@ -89,6 +130,13 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final categoriesAsync = ref.watch(ledgerCategoriesStreamProvider);
+    _categoryNames = [
+      ...categoriesAsync.valueOrNull?.map((c) => c.name) ?? const <String>[],
+      'Other',
+    ];
+    final selectedCategory = _category ?? _categoryNames.first;
+
     return Scaffold(
       appBar: AppBar(title: const Text('Add')),
       body: Form(
@@ -118,6 +166,7 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
                 const SizedBox(width: 12),
                 Expanded(
                   child: DropdownButtonFormField<String>(
+                    isExpanded: true,
                     initialValue: _currency,
                     items: supportedCurrencies
                         .map((c) => DropdownMenuItem(value: c, child: Text(c)))
@@ -131,15 +180,15 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
               const SizedBox(height: 16),
               Wrap(
                 spacing: 8,
-                children: ledgerExpenseCategories.map((c) {
+                children: _categoryNames.map((c) {
                   return ChoiceChip(
                     label: Text(c),
-                    selected: _category == c,
+                    selected: selectedCategory == c,
                     onSelected: (_) => setState(() => _category = c),
                   );
                 }).toList(),
               ),
-              if (_category == 'Other') ...[
+              if (selectedCategory == 'Other') ...[
                 const SizedBox(height: 12),
                 TextFormField(
                   controller: _customCategoryController,
@@ -151,7 +200,7 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
             SegmentedButton<bool>(
               segments: const [
                 ButtonSegment(value: true, label: Text('You Paid')),
-                ButtonSegment(value: false, label: Text('Repaid You')),
+                ButtonSegment(value: false, label: Text('Paid to You')),
               ],
               selected: {_isPayment},
               onSelectionChanged: (s) => setState(() => _isPayment = s.first),

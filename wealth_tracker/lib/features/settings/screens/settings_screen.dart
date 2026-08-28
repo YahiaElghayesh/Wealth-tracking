@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import 'credit_cards_settings_screen.dart';
 import 'drive_sync_settings_screen.dart';
+import 'ledger_categories_settings_screen.dart';
 import 'live_prices_settings_screen.dart';
 import 'widget_appearance_settings_screen.dart';
 
@@ -37,6 +38,12 @@ class SettingsScreen extends StatelessWidget {
             title: 'Credit cards',
             subtitle: 'Add, edit, or remove cards used by the Calculator tab',
             builder: (_) => const CreditCardsSettingsScreen(),
+          ),
+          _SettingsTile(
+            icon: Icons.label,
+            title: 'Ledger categories',
+            subtitle: 'Manage the quick-pick categories for payments',
+            builder: (_) => const LedgerCategoriesSettingsScreen(),
           ),
           if (Platform.isAndroid)
             _SettingsTile(

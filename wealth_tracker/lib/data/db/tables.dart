@@ -146,6 +146,20 @@ class CreditCards extends Table {
   Set<Column> get primaryKey => {id};
 }
 
+/// A user-managed ledger expense category — quick-pick chips on the
+/// add-transaction screen. Editable from Settings instead of a fixed,
+/// hardcoded list; "Other" is not a row here — it's always appended as a
+/// synthetic last choice by the UI, since picking it switches to a free-text
+/// field rather than assigning a category on its own.
+class LedgerCategories extends Table {
+  TextColumn get id => text()();
+  TextColumn get name => text()();
+  IntColumn get sortOrder => integer().withDefault(const Constant(0))();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
 /// A rule matching a bank SMS merchant name to where it should be recorded:
 /// "any charge at a merchant whose name contains [vendorPattern] (case
 /// insensitive) is a payment made on [counterpartyId]'s behalf, categorized

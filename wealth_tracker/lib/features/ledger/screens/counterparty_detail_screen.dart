@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/format/money_formatter.dart';
 import '../../../core/models/currency.dart';
+import '../../../core/widgets/money_text.dart';
 import '../../../data/db/database.dart';
 import '../../../data/ledger/ledger_calculator.dart';
 import '../../networth/providers/asset_providers.dart' show pricesUsdPerUnitProvider;
@@ -49,14 +50,20 @@ class CounterpartyDetailScreen extends ConsumerWidget {
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         const Text('Balance'),
-                        Text(
-                          balance == 0
-                              ? 'Settled up'
-                              : balance > 0
-                                  ? 'Owes you ${formatMoney(balance, defaultCurrency)}'
-                                  : 'You owe ${formatMoney(-balance, defaultCurrency)}',
-                          style: Theme.of(context).textTheme.titleMedium,
-                        ),
+                        balance == 0
+                            ? Text('Settled up', style: Theme.of(context).textTheme.titleMedium)
+                            : Row(
+                                children: [
+                                  Text(
+                                    balance > 0 ? 'Owes you ' : 'You owe ',
+                                    style: Theme.of(context).textTheme.titleMedium,
+                                  ),
+                                  MoneyText(
+                                    formatMoney(balance.abs(), defaultCurrency),
+                                    style: Theme.of(context).textTheme.titleMedium,
+                                  ),
+                                ],
+                              ),
                       ],
                     ),
                   ),
@@ -103,7 +110,7 @@ class CounterpartyDetailScreen extends ConsumerWidget {
                                   '${t.date.year}-${t.date.month.toString().padLeft(2, '0')}-${t.date.day.toString().padLeft(2, '0')}'
                                   '${t.description == null ? '' : ' · ${t.description}'}',
                                 ),
-                                trailing: Text(
+                                trailing: MoneyText(
                                   '${isAddition ? '+' : '−'}${formatMoney(t.amount.abs(), t.currency)}',
                                   style: TextStyle(color: signColor, fontWeight: FontWeight.bold),
                                 ),

@@ -43,6 +43,7 @@ class _StatisticsScreenState extends ConsumerState<StatisticsScreen> {
                 Padding(
                   padding: const EdgeInsets.all(16),
                   child: DropdownButtonFormField<String>(
+                    isExpanded: true,
                     initialValue: selected,
                     decoration: const InputDecoration(labelText: 'Ledger'),
                     items: counterparties

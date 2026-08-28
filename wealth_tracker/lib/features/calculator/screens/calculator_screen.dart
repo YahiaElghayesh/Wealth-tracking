@@ -5,6 +5,7 @@ import '../../../core/format/money_formatter.dart';
 import '../../../core/models/calculator_custom_item.dart';
 import '../../../core/models/card_snapshot_entry.dart';
 import '../../../core/models/currency.dart';
+import '../../../core/widgets/money_text.dart';
 import '../../../data/calculator/current_money_calculator.dart';
 import '../../../data/db/database.dart';
 import '../../../data/ledger/ledger_calculator.dart';
@@ -36,6 +37,7 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
   // already touched.
   final _seededCardIds = <String>{};
   bool _apartmentSeeded = false;
+  bool _saving = false;
 
   @override
   void initState() {
@@ -145,49 +147,73 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
   }
 
   Future<void> _save(double ledgersTotal, List<CreditCard> cards, Map<String, double> prices) async {
-    final apartment = _parse(_apartmentController);
-    final cib = _parse(_cibController);
-    final cardOwedAmounts = [for (final card in cards) _owedInDefaultCurrency(card, prices)];
-    final result = calculateCurrentMoney(
-      ledgersTotal: ledgersTotal,
-      apartmentSavings: apartment,
-      cibAccountBalance: cib,
-      cardOwedAmounts: cardOwedAmounts,
-      customItems: _customItems,
-    );
+    if (_saving) return;
+    setState(() => _saving = true);
 
-    final cardEntries = [
-      for (final card in cards)
-        CardSnapshotEntry(
-          name: card.name,
-          bank: card.bank,
-          currency: card.currency,
-          limit: card.limitAmount,
-          availableBalance: _parse(_controllerFor(card)),
-          owed: _owedFor(card),
+    try {
+      final apartment = _parse(_apartmentController);
+      final cib = _parse(_cibController);
+      final cardOwedAmounts = [for (final card in cards) _owedInDefaultCurrency(card, prices)];
+      final result = calculateCurrentMoney(
+        ledgersTotal: ledgersTotal,
+        apartmentSavings: apartment,
+        cibAccountBalance: cib,
+        cardOwedAmounts: cardOwedAmounts,
+        customItems: _customItems,
+      );
+
+      final cardEntries = [
+        for (final card in cards)
+          CardSnapshotEntry(
+            name: card.name,
+            bank: card.bank,
+            currency: card.currency,
+            limit: card.limitAmount,
+            availableBalance: _parse(_controllerFor(card)),
+            owed: _owedFor(card),
+          ),
+      ];
+
+      await ref.read(calculatorRepositoryProvider).saveSnapshot(
+            resultAmount: result,
+            ledgersTotal: ledgersTotal,
+            apartmentSavings: apartment,
+            cibAccountBalance: cib,
+            cardEntries: cardEntries,
+            customItems: _customItems,
+          );
+
+      _cibController.clear();
+      if (!mounted) return;
+      setState(() {
+        _customItems.clear();
+        _saving = false;
+        // Re-seed on the next build: cards back to their limits, apartment
+        // to what was just saved (now the latest snapshot).
+        _seededCardIds.clear();
+        _apartmentSeeded = false;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: const [
+              Icon(Icons.check_circle, color: Colors.white),
+              SizedBox(width: 12),
+              Text('Saved to history'),
+            ],
+          ),
+          backgroundColor: Colors.green.shade700,
+          duration: const Duration(seconds: 3),
         ),
-    ];
-
-    await ref.read(calculatorRepositoryProvider).saveSnapshot(
-          resultAmount: result,
-          ledgersTotal: ledgersTotal,
-          apartmentSavings: apartment,
-          cibAccountBalance: cib,
-          cardEntries: cardEntries,
-          customItems: _customItems,
-        );
-
-    _cibController.clear();
-    setState(() {
-      _customItems.clear();
-      // Re-seed on the next build: cards back to their limits, apartment
-      // to what was just saved (now the latest snapshot).
-      _seededCardIds.clear();
-      _apartmentSeeded = false;
-    });
-
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Saved to history')));
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _saving = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Save failed: $e'), backgroundColor: Colors.red.shade700),
+      );
+    }
   }
 
   @override
@@ -262,7 +288,7 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
                   _SignedRow(
                     isAddition: true,
                     label: 'All ledgers combined',
-                    trailing: Text(
+                    trailing: MoneyText(
                       formatMoney(ledgersTotal, defaultCurrency),
                       style: Theme.of(context).textTheme.titleMedium,
                     ),
@@ -273,14 +299,14 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
               _Section(
                 title: 'Apartment savings',
                 children: [
-                  _SignedAmountField(isAddition: false, label: 'Apartment savings', controller: _apartmentController),
+                  _SignedAmountField(isAddition: false, label: 'Amount', controller: _apartmentController),
                 ],
               ),
               const SizedBox(height: 16),
               _Section(
                 title: 'CIB Accounts Balance',
                 children: [
-                  _SignedAmountField(isAddition: true, label: 'CIB Accounts Balance', controller: _cibController),
+                  _SignedAmountField(isAddition: true, label: 'Amount', controller: _cibController),
                 ],
               ),
               const SizedBox(height: 16),
@@ -306,7 +332,7 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
                       rateMissing: card.currency != defaultCurrency &&
                           convertToSettlement(0, card.currency, prices) == null,
                     ),
-                    if (card != cards.last) const Divider(height: 28),
+                    if (card != cards.last) const SizedBox(height: 14),
                   ],
                 ],
               ),
@@ -324,7 +350,7 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
                         trailing: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Text(
+                            MoneyText(
                               formatMoney(_customItems[i].amount, defaultCurrency),
                               style: Theme.of(context).textTheme.bodyMedium,
                             ),
@@ -345,9 +371,15 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
               ),
               const SizedBox(height: 24),
               FilledButton.icon(
-                icon: const Icon(Icons.save),
-                label: const Text('Save calculation'),
-                onPressed: () => _save(ledgersTotal, cards, prices),
+                icon: _saving
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                      )
+                    : const Icon(Icons.save),
+                label: Text(_saving ? 'Saving…' : 'Save calculation'),
+                onPressed: _saving ? null : () => _save(ledgersTotal, cards, prices),
               ),
             ],
           );
@@ -372,9 +404,10 @@ class _ResultCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text('Current liquid cash', style: Theme.of(context).textTheme.bodyMedium),
-            Text(
+            MoneyText(
               formatMoney(result, defaultCurrency),
               style: Theme.of(context).textTheme.headlineMedium,
+              maskLength: 9,
             ),
           ],
         ),
@@ -478,13 +511,62 @@ class _SignedAmountField extends StatelessWidget {
         _SignBadge(isAddition: isAddition),
         const SizedBox(width: 12),
         Expanded(
-          child: TextFormField(
+          child: _SelectAllOnFocusField(
             controller: controller,
             decoration: InputDecoration(labelText: label, hintText: '0.00'),
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
           ),
         ),
       ],
+    );
+  }
+}
+
+/// A numeric field that selects its entire current value the moment it
+/// gains focus, so a default-prefilled value (a card's limit, the last
+/// apartment savings figure...) is replaced by simply typing over it —
+/// tapping away without typing leaves the value untouched, since only the
+/// selection highlight changes, not the text itself.
+class _SelectAllOnFocusField extends StatefulWidget {
+  const _SelectAllOnFocusField({required this.controller, this.decoration, this.keyboardType});
+
+  final TextEditingController controller;
+  final InputDecoration? decoration;
+  final TextInputType? keyboardType;
+
+  @override
+  State<_SelectAllOnFocusField> createState() => _SelectAllOnFocusFieldState();
+}
+
+class _SelectAllOnFocusFieldState extends State<_SelectAllOnFocusField> {
+  final _focusNode = FocusNode();
+
+  @override
+  void initState() {
+    super.initState();
+    _focusNode.addListener(_onFocusChange);
+  }
+
+  void _onFocusChange() {
+    if (_focusNode.hasFocus) {
+      widget.controller.selection = TextSelection(baseOffset: 0, extentOffset: widget.controller.text.length);
+    }
+  }
+
+  @override
+  void dispose() {
+    _focusNode.removeListener(_onFocusChange);
+    _focusNode.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return TextFormField(
+      controller: widget.controller,
+      focusNode: _focusNode,
+      decoration: widget.decoration,
+      keyboardType: widget.keyboardType,
     );
   }
 }
@@ -504,33 +586,43 @@ class _CardField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Expanded(
-              child: Text('${card.name} · ${card.bank}', style: Theme.of(context).textTheme.titleSmall),
-            ),
-            Text(
-              'Limit ${formatMoney(card.limitAmount, card.currency)}',
-              style: Theme.of(context).textTheme.bodySmall,
-            ),
-          ],
-        ),
-        const SizedBox(height: 8),
-        TextFormField(
-          controller: controller,
-          decoration: InputDecoration(labelText: 'Available balance (${card.currency})', hintText: '0.00'),
-          keyboardType: const TextInputType.numberWithOptions(decimal: true),
-        ),
-        const SizedBox(height: 6),
-        _SignedRow(
-          isAddition: false,
-          label: rateMissing ? 'Owed (no exchange rate yet, unconverted)' : 'Owed',
-          trailing: Text(formatMoney(owed, card.currency), style: Theme.of(context).textTheme.bodyMedium),
-        ),
-      ],
+    final colorScheme = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.4),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: colorScheme.outlineVariant),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text('${card.name} · ${card.bank}', style: Theme.of(context).textTheme.titleSmall),
+              ),
+              MoneyText(
+                'Limit ${formatMoney(card.limitAmount, card.currency)}',
+                style: Theme.of(context).textTheme.bodySmall,
+                maskLength: 12,
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          _SelectAllOnFocusField(
+            controller: controller,
+            decoration: InputDecoration(labelText: 'Available balance (${card.currency})', hintText: '0.00'),
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          ),
+          const SizedBox(height: 6),
+          _SignedRow(
+            isAddition: false,
+            label: rateMissing ? 'Owed (no exchange rate yet, unconverted)' : 'Owed',
+            trailing: MoneyText(formatMoney(owed, card.currency), style: Theme.of(context).textTheme.bodyMedium),
+          ),
+        ],
+      ),
     );
   }
 }

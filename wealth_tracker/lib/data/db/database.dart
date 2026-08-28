@@ -2,6 +2,7 @@ import 'package:drift/drift.dart';
 import 'package:drift_flutter/drift_flutter.dart';
 import 'package:uuid/uuid.dart';
 
+import '../../core/models/ledger_category.dart';
 import 'tables.dart';
 
 part 'database.g.dart';
@@ -17,6 +18,7 @@ part 'database.g.dart';
     VendorRules,
     CalculatorSnapshots,
     CreditCards,
+    LedgerCategories,
   ],
 )
 class AppDatabase extends _$AppDatabase {
@@ -25,11 +27,25 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 6;
+  int get schemaVersion => 7;
+
+  Future<void> _seedDefaultLedgerCategories() async {
+    // 'Other' isn't seeded — it's always appended as a synthetic last
+    // choice by the add-transaction screen, never a real row.
+    final defaults = ledgerExpenseCategories.where((c) => c != 'Other').toList();
+    for (var i = 0; i < defaults.length; i++) {
+      await into(ledgerCategories).insert(
+        LedgerCategoriesCompanion.insert(id: const Uuid().v4(), name: defaults[i], sortOrder: Value(i)),
+      );
+    }
+  }
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
-        onCreate: (m) => m.createAll(),
+        onCreate: (m) async {
+          await m.createAll();
+          await _seedDefaultLedgerCategories();
+        },
         // IMPORTANT: every step here must be scoped to the specific `from`
         // version it applies to. The assets/ledgerTransactions rebuild
         // below was previously unconditional — it ran on *every* upgrade,
@@ -92,6 +108,14 @@ class AppDatabase extends _$AppDatabase {
                 ),
               );
             }
+          }
+          if (from < 7) {
+            // Ledger categories became user-managed (add/rename/remove
+            // from Settings) instead of a fixed hardcoded list. Seed the
+            // same defaults anyone upgrading already had as quick-pick
+            // chips, so the switch doesn't make categories disappear.
+            await m.createTable(ledgerCategories);
+            await _seedDefaultLedgerCategories();
           }
         },
         // The "Breakfast" quick-pick category was a voice-transcription

@@ -116,6 +116,7 @@ class _SmsReviewScreenState extends ConsumerState<SmsReviewScreen> {
                 const SizedBox(width: 12),
                 Expanded(
                   child: DropdownButtonFormField<String>(
+                    isExpanded: true,
                     initialValue: _currency,
                     items: supportedCurrencies
                         .map((c) => DropdownMenuItem(value: c, child: Text(c)))
@@ -127,6 +128,7 @@ class _SmsReviewScreenState extends ConsumerState<SmsReviewScreen> {
             ),
             const SizedBox(height: 16),
             DropdownButtonFormField<String>(
+              isExpanded: true,
               initialValue: _counterpartyId,
               decoration: const InputDecoration(labelText: 'Ledger'),
               items: counterparties

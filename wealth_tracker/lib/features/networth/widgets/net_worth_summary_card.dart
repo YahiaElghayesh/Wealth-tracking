@@ -2,6 +2,7 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 
 import '../../../core/format/money_formatter.dart';
+import '../../../core/widgets/money_text.dart';
 import '../../../data/net_worth/net_worth_calculator.dart';
 
 class NetWorthSummaryCard extends StatelessWidget {
@@ -30,9 +31,8 @@ class NetWorthSummaryCard extends StatelessWidget {
           children: [
             Text('Total Net Worth', style: theme.textTheme.titleMedium),
             const SizedBox(height: 4),
-            Text(formatUsd(summary.totalUsd), style: theme.textTheme.headlineMedium),
-            if (egpTotal != null)
-              Text(formatEgp(egpTotal), style: theme.textTheme.bodyLarge),
+            MoneyText(formatUsd(summary.totalUsd), style: theme.textTheme.headlineMedium, maskLength: 9),
+            if (egpTotal != null) MoneyText(formatEgp(egpTotal), style: theme.textTheme.bodyLarge),
             const SizedBox(height: 20),
             if (summary.totalUsd > 0)
               SizedBox(
@@ -112,7 +112,7 @@ class _LegendRow extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(label, style: Theme.of(context).textTheme.bodySmall),
-              Text(formatUsd(valueUsd), style: Theme.of(context).textTheme.bodyMedium),
+              MoneyText(formatUsd(valueUsd), style: Theme.of(context).textTheme.bodyMedium),
             ],
           ),
         ),
