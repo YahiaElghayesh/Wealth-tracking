@@ -3,9 +3,6 @@ enum AssetClass { liquid, nonLiquid }
 
 /// How an asset's current value is determined.
 enum ValuationMode {
-  /// User types the current value directly (e.g. a car, an apartment).
-  manual,
-
   /// Priced via a crypto symbol (e.g. BTC, ETH) against [Asset.quantity].
   crypto,
 
@@ -13,9 +10,12 @@ enum ValuationMode {
   /// [Asset.quantity] (grams held).
   metal,
 
-  /// Priced via an FX rate for a fiat currency (e.g. USD, EGP) against
-  /// [Asset.quantity] (units of that currency held).
-  fiatCurrency,
+  /// An amount denominated in a chosen currency (see `core/models/currency.dart`),
+  /// converted to USD via live FX. Covers both literal cash holdings and
+  /// assets the user assigns a value to directly (a car, an apartment) —
+  /// mechanically identical, since "a car worth 500,000 EGP" and "500,000
+  /// EGP in the bank" price the same way.
+  currency,
 }
 
 /// Broad category an asset falls under. Drives the default liquid /
@@ -24,10 +24,10 @@ enum AssetCategory {
   crypto('Crypto', AssetClass.liquid, ValuationMode.crypto),
   gold('Gold', AssetClass.liquid, ValuationMode.metal),
   silver('Silver', AssetClass.liquid, ValuationMode.metal),
-  cash('Cash', AssetClass.liquid, ValuationMode.fiatCurrency),
-  vehicle('Vehicle', AssetClass.nonLiquid, ValuationMode.manual),
-  realEstate('Real Estate', AssetClass.nonLiquid, ValuationMode.manual),
-  other('Other', AssetClass.nonLiquid, ValuationMode.manual);
+  cash('Cash', AssetClass.liquid, ValuationMode.currency),
+  vehicle('Vehicle', AssetClass.nonLiquid, ValuationMode.currency),
+  realEstate('Real Estate', AssetClass.nonLiquid, ValuationMode.currency),
+  other('Other', AssetClass.nonLiquid, ValuationMode.currency);
 
   final String label;
   final AssetClass defaultClass;

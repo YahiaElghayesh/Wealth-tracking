@@ -16,22 +16,18 @@ class NetWorthSummary {
 }
 
 /// Resolves the USD value of a single [Asset] given a lookup of live
-/// per-unit USD prices, keyed by the asset's `symbolOrCurrency`
-/// (crypto ticker, `XAU_GRAM` / `XAG_GRAM`, or a currency code).
+/// per-unit USD prices, keyed by the asset's `symbolOrCurrency` (crypto
+/// ticker, `XAU_GRAM` / `XAG_GRAM`, or a currency code). The formula is the
+/// same regardless of [ValuationMode] — quantity times the live price of
+/// whatever it's denominated in — the mode only determines which price
+/// provider supplies that number.
 ///
 /// Returns `null` (rather than 0) when the asset needs a live price that
 /// isn't in [pricesUsdPerUnit] yet, so callers can distinguish "genuinely
 /// worth zero" from "price unknown" instead of silently under-counting net
 /// worth.
 double? valueUsdForAsset(Asset asset, Map<String, double> pricesUsdPerUnit) {
-  final mode = ValuationMode.values.byName(asset.valuationMode);
-  if (mode == ValuationMode.manual) {
-    return asset.manualValueUsd ?? 0;
-  }
-
-  final symbol = asset.symbolOrCurrency;
-  if (symbol == null) return null;
-  final price = pricesUsdPerUnit[symbol];
+  final price = pricesUsdPerUnit[asset.symbolOrCurrency];
   if (price == null) return null;
   return asset.quantity * price;
 }

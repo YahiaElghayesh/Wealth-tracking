@@ -37,6 +37,7 @@ class LedgerRepository {
     required String counterpartyId,
     required DateTime date,
     required double amount,
+    required String currency,
     required String category,
     String? description,
   }) {
@@ -46,6 +47,7 @@ class LedgerRepository {
             counterpartyId: counterpartyId,
             date: date,
             amount: amount,
+            currency: Value(currency),
             category: category,
             description: Value(description),
             createdAt: DateTime.now(),

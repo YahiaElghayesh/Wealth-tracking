@@ -20,7 +20,7 @@ class _FakeProvider implements PriceProvider {
   }
 }
 
-Asset _asset(String valuationMode, String? symbol) {
+Asset _asset(String valuationMode, String symbol) {
   final now = DateTime(2026, 1, 1);
   return Asset(
     id: 'id',
@@ -29,7 +29,6 @@ Asset _asset(String valuationMode, String? symbol) {
     valuationMode: valuationMode,
     quantity: 1,
     symbolOrCurrency: symbol,
-    manualValueUsd: null,
     notes: null,
     createdAt: now,
     updatedAt: now,

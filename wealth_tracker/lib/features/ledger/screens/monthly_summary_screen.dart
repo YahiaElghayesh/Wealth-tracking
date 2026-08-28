@@ -4,8 +4,10 @@ import 'package:printing/printing.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../../../core/format/money_formatter.dart';
+import '../../../core/models/currency.dart';
 import '../../../data/db/database.dart';
 import '../../../data/ledger/ledger_calculator.dart';
+import '../../networth/providers/asset_providers.dart' show pricesUsdPerUnitProvider;
 import '../pdf/monthly_summary_pdf.dart';
 import '../providers/ledger_providers.dart';
 
@@ -28,6 +30,7 @@ class _MonthlySummaryScreenState extends ConsumerState<MonthlySummaryScreen> {
   @override
   Widget build(BuildContext context) {
     final transactionsAsync = ref.watch(transactionsStreamProvider(widget.counterparty.id));
+    final prices = ref.watch(pricesUsdPerUnitProvider);
 
     return Scaffold(
       appBar: AppBar(title: const Text('Monthly summary')),
@@ -35,9 +38,9 @@ class _MonthlySummaryScreenState extends ConsumerState<MonthlySummaryScreen> {
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, st) => Center(child: Text('Error: $e')),
         data: (transactions) {
-          final categoryTotals = monthlyCategoryTotals(transactions, _month);
-          final total = monthlyExpenseTotal(transactions, _month);
-          final repayments = monthlyRepaymentTotal(transactions, _month);
+          final categoryTotals = monthlyCategoryTotals(transactions, _month, prices);
+          final total = monthlyExpenseTotal(transactions, _month, prices);
+          final repayments = monthlyRepaymentTotal(transactions, _month, prices);
 
           return Column(
             children: [
@@ -61,20 +64,20 @@ class _MonthlySummaryScreenState extends ConsumerState<MonthlySummaryScreen> {
                           for (final entry in categoryTotals.entries)
                             ListTile(
                               title: Text(entry.key),
-                              trailing: Text(formatUsd(entry.value)),
+                              trailing: Text(formatMoney(entry.value, defaultCurrency)),
                             ),
                           const Divider(),
                           ListTile(
                             title: const Text('Total', style: TextStyle(fontWeight: FontWeight.bold)),
                             trailing: Text(
-                              formatUsd(total),
+                              formatMoney(total, defaultCurrency),
                               style: const TextStyle(fontWeight: FontWeight.bold),
                             ),
                           ),
                           if (repayments > 0)
                             ListTile(
                               title: const Text('Repayments received'),
-                              trailing: Text(formatUsd(repayments)),
+                              trailing: Text(formatMoney(repayments, defaultCurrency)),
                             ),
                         ],
                       ),

@@ -66,20 +66,9 @@ class $AssetsTable extends Assets with TableInfo<$AssetsTable, Asset> {
   late final GeneratedColumn<String> symbolOrCurrency = GeneratedColumn<String>(
     'symbol_or_currency',
     aliasedName,
-    true,
+    false,
     type: DriftSqlType.string,
-    requiredDuringInsert: false,
-  );
-  static const VerificationMeta _manualValueUsdMeta = const VerificationMeta(
-    'manualValueUsd',
-  );
-  @override
-  late final GeneratedColumn<double> manualValueUsd = GeneratedColumn<double>(
-    'manual_value_usd',
-    aliasedName,
-    true,
-    type: DriftSqlType.double,
-    requiredDuringInsert: false,
+    requiredDuringInsert: true,
   );
   static const VerificationMeta _notesMeta = const VerificationMeta('notes');
   @override
@@ -120,7 +109,6 @@ class $AssetsTable extends Assets with TableInfo<$AssetsTable, Asset> {
     valuationMode,
     quantity,
     symbolOrCurrency,
-    manualValueUsd,
     notes,
     createdAt,
     updatedAt,
@@ -185,15 +173,8 @@ class $AssetsTable extends Assets with TableInfo<$AssetsTable, Asset> {
           _symbolOrCurrencyMeta,
         ),
       );
-    }
-    if (data.containsKey('manual_value_usd')) {
-      context.handle(
-        _manualValueUsdMeta,
-        manualValueUsd.isAcceptableOrUnknown(
-          data['manual_value_usd']!,
-          _manualValueUsdMeta,
-        ),
-      );
+    } else if (isInserting) {
+      context.missing(_symbolOrCurrencyMeta);
     }
     if (data.containsKey('notes')) {
       context.handle(
@@ -249,11 +230,7 @@ class $AssetsTable extends Assets with TableInfo<$AssetsTable, Asset> {
       symbolOrCurrency: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}symbol_or_currency'],
-      ),
-      manualValueUsd: attachedDatabase.typeMapping.read(
-        DriftSqlType.double,
-        data['${effectivePrefix}manual_value_usd'],
-      ),
+      )!,
       notes: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}notes'],
@@ -281,16 +258,14 @@ class Asset extends DataClass implements Insertable<Asset> {
   final String category;
   final String valuationMode;
 
-  /// Units held: coins for crypto, grams for metals, currency units for
-  /// fiat, or `1` for manually-valued assets.
+  /// Units held: coins for crypto, grams for metals, or an amount
+  /// denominated in [symbolOrCurrency] for the `currency` valuation mode
+  /// (covers both literal cash holdings and a typed-in value like a car's).
   final double quantity;
 
-  /// Crypto symbol (BTC), metal symbol (XAU/XAG) or currency code
-  /// (USD/EGP). Null for manually-valued assets.
-  final String? symbolOrCurrency;
-
-  /// Current value in USD, only used when [valuationMode] is manual.
-  final double? manualValueUsd;
+  /// Crypto symbol (e.g. `bitcoin`), metal symbol (`XAU_GRAM`/`XAG_GRAM`),
+  /// or a currency code (EGP/USD/EUR/SAR/AED/TRY).
+  final String symbolOrCurrency;
   final String? notes;
   final DateTime createdAt;
   final DateTime updatedAt;
@@ -300,8 +275,7 @@ class Asset extends DataClass implements Insertable<Asset> {
     required this.category,
     required this.valuationMode,
     required this.quantity,
-    this.symbolOrCurrency,
-    this.manualValueUsd,
+    required this.symbolOrCurrency,
     this.notes,
     required this.createdAt,
     required this.updatedAt,
@@ -314,12 +288,7 @@ class Asset extends DataClass implements Insertable<Asset> {
     map['category'] = Variable<String>(category);
     map['valuation_mode'] = Variable<String>(valuationMode);
     map['quantity'] = Variable<double>(quantity);
-    if (!nullToAbsent || symbolOrCurrency != null) {
-      map['symbol_or_currency'] = Variable<String>(symbolOrCurrency);
-    }
-    if (!nullToAbsent || manualValueUsd != null) {
-      map['manual_value_usd'] = Variable<double>(manualValueUsd);
-    }
+    map['symbol_or_currency'] = Variable<String>(symbolOrCurrency);
     if (!nullToAbsent || notes != null) {
       map['notes'] = Variable<String>(notes);
     }
@@ -335,12 +304,7 @@ class Asset extends DataClass implements Insertable<Asset> {
       category: Value(category),
       valuationMode: Value(valuationMode),
       quantity: Value(quantity),
-      symbolOrCurrency: symbolOrCurrency == null && nullToAbsent
-          ? const Value.absent()
-          : Value(symbolOrCurrency),
-      manualValueUsd: manualValueUsd == null && nullToAbsent
-          ? const Value.absent()
-          : Value(manualValueUsd),
+      symbolOrCurrency: Value(symbolOrCurrency),
       notes: notes == null && nullToAbsent
           ? const Value.absent()
           : Value(notes),
@@ -360,8 +324,7 @@ class Asset extends DataClass implements Insertable<Asset> {
       category: serializer.fromJson<String>(json['category']),
       valuationMode: serializer.fromJson<String>(json['valuationMode']),
       quantity: serializer.fromJson<double>(json['quantity']),
-      symbolOrCurrency: serializer.fromJson<String?>(json['symbolOrCurrency']),
-      manualValueUsd: serializer.fromJson<double?>(json['manualValueUsd']),
+      symbolOrCurrency: serializer.fromJson<String>(json['symbolOrCurrency']),
       notes: serializer.fromJson<String?>(json['notes']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
       updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
@@ -376,8 +339,7 @@ class Asset extends DataClass implements Insertable<Asset> {
       'category': serializer.toJson<String>(category),
       'valuationMode': serializer.toJson<String>(valuationMode),
       'quantity': serializer.toJson<double>(quantity),
-      'symbolOrCurrency': serializer.toJson<String?>(symbolOrCurrency),
-      'manualValueUsd': serializer.toJson<double?>(manualValueUsd),
+      'symbolOrCurrency': serializer.toJson<String>(symbolOrCurrency),
       'notes': serializer.toJson<String?>(notes),
       'createdAt': serializer.toJson<DateTime>(createdAt),
       'updatedAt': serializer.toJson<DateTime>(updatedAt),
@@ -390,8 +352,7 @@ class Asset extends DataClass implements Insertable<Asset> {
     String? category,
     String? valuationMode,
     double? quantity,
-    Value<String?> symbolOrCurrency = const Value.absent(),
-    Value<double?> manualValueUsd = const Value.absent(),
+    String? symbolOrCurrency,
     Value<String?> notes = const Value.absent(),
     DateTime? createdAt,
     DateTime? updatedAt,
@@ -401,12 +362,7 @@ class Asset extends DataClass implements Insertable<Asset> {
     category: category ?? this.category,
     valuationMode: valuationMode ?? this.valuationMode,
     quantity: quantity ?? this.quantity,
-    symbolOrCurrency: symbolOrCurrency.present
-        ? symbolOrCurrency.value
-        : this.symbolOrCurrency,
-    manualValueUsd: manualValueUsd.present
-        ? manualValueUsd.value
-        : this.manualValueUsd,
+    symbolOrCurrency: symbolOrCurrency ?? this.symbolOrCurrency,
     notes: notes.present ? notes.value : this.notes,
     createdAt: createdAt ?? this.createdAt,
     updatedAt: updatedAt ?? this.updatedAt,
@@ -423,9 +379,6 @@ class Asset extends DataClass implements Insertable<Asset> {
       symbolOrCurrency: data.symbolOrCurrency.present
           ? data.symbolOrCurrency.value
           : this.symbolOrCurrency,
-      manualValueUsd: data.manualValueUsd.present
-          ? data.manualValueUsd.value
-          : this.manualValueUsd,
       notes: data.notes.present ? data.notes.value : this.notes,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
@@ -441,7 +394,6 @@ class Asset extends DataClass implements Insertable<Asset> {
           ..write('valuationMode: $valuationMode, ')
           ..write('quantity: $quantity, ')
           ..write('symbolOrCurrency: $symbolOrCurrency, ')
-          ..write('manualValueUsd: $manualValueUsd, ')
           ..write('notes: $notes, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt')
@@ -457,7 +409,6 @@ class Asset extends DataClass implements Insertable<Asset> {
     valuationMode,
     quantity,
     symbolOrCurrency,
-    manualValueUsd,
     notes,
     createdAt,
     updatedAt,
@@ -472,7 +423,6 @@ class Asset extends DataClass implements Insertable<Asset> {
           other.valuationMode == this.valuationMode &&
           other.quantity == this.quantity &&
           other.symbolOrCurrency == this.symbolOrCurrency &&
-          other.manualValueUsd == this.manualValueUsd &&
           other.notes == this.notes &&
           other.createdAt == this.createdAt &&
           other.updatedAt == this.updatedAt);
@@ -484,8 +434,7 @@ class AssetsCompanion extends UpdateCompanion<Asset> {
   final Value<String> category;
   final Value<String> valuationMode;
   final Value<double> quantity;
-  final Value<String?> symbolOrCurrency;
-  final Value<double?> manualValueUsd;
+  final Value<String> symbolOrCurrency;
   final Value<String?> notes;
   final Value<DateTime> createdAt;
   final Value<DateTime> updatedAt;
@@ -497,7 +446,6 @@ class AssetsCompanion extends UpdateCompanion<Asset> {
     this.valuationMode = const Value.absent(),
     this.quantity = const Value.absent(),
     this.symbolOrCurrency = const Value.absent(),
-    this.manualValueUsd = const Value.absent(),
     this.notes = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
@@ -509,8 +457,7 @@ class AssetsCompanion extends UpdateCompanion<Asset> {
     required String category,
     required String valuationMode,
     required double quantity,
-    this.symbolOrCurrency = const Value.absent(),
-    this.manualValueUsd = const Value.absent(),
+    required String symbolOrCurrency,
     this.notes = const Value.absent(),
     required DateTime createdAt,
     required DateTime updatedAt,
@@ -520,6 +467,7 @@ class AssetsCompanion extends UpdateCompanion<Asset> {
        category = Value(category),
        valuationMode = Value(valuationMode),
        quantity = Value(quantity),
+       symbolOrCurrency = Value(symbolOrCurrency),
        createdAt = Value(createdAt),
        updatedAt = Value(updatedAt);
   static Insertable<Asset> custom({
@@ -529,7 +477,6 @@ class AssetsCompanion extends UpdateCompanion<Asset> {
     Expression<String>? valuationMode,
     Expression<double>? quantity,
     Expression<String>? symbolOrCurrency,
-    Expression<double>? manualValueUsd,
     Expression<String>? notes,
     Expression<DateTime>? createdAt,
     Expression<DateTime>? updatedAt,
@@ -542,7 +489,6 @@ class AssetsCompanion extends UpdateCompanion<Asset> {
       if (valuationMode != null) 'valuation_mode': valuationMode,
       if (quantity != null) 'quantity': quantity,
       if (symbolOrCurrency != null) 'symbol_or_currency': symbolOrCurrency,
-      if (manualValueUsd != null) 'manual_value_usd': manualValueUsd,
       if (notes != null) 'notes': notes,
       if (createdAt != null) 'created_at': createdAt,
       if (updatedAt != null) 'updated_at': updatedAt,
@@ -556,8 +502,7 @@ class AssetsCompanion extends UpdateCompanion<Asset> {
     Value<String>? category,
     Value<String>? valuationMode,
     Value<double>? quantity,
-    Value<String?>? symbolOrCurrency,
-    Value<double?>? manualValueUsd,
+    Value<String>? symbolOrCurrency,
     Value<String?>? notes,
     Value<DateTime>? createdAt,
     Value<DateTime>? updatedAt,
@@ -570,7 +515,6 @@ class AssetsCompanion extends UpdateCompanion<Asset> {
       valuationMode: valuationMode ?? this.valuationMode,
       quantity: quantity ?? this.quantity,
       symbolOrCurrency: symbolOrCurrency ?? this.symbolOrCurrency,
-      manualValueUsd: manualValueUsd ?? this.manualValueUsd,
       notes: notes ?? this.notes,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
@@ -599,9 +543,6 @@ class AssetsCompanion extends UpdateCompanion<Asset> {
     if (symbolOrCurrency.present) {
       map['symbol_or_currency'] = Variable<String>(symbolOrCurrency.value);
     }
-    if (manualValueUsd.present) {
-      map['manual_value_usd'] = Variable<double>(manualValueUsd.value);
-    }
     if (notes.present) {
       map['notes'] = Variable<String>(notes.value);
     }
@@ -626,7 +567,6 @@ class AssetsCompanion extends UpdateCompanion<Asset> {
           ..write('valuationMode: $valuationMode, ')
           ..write('quantity: $quantity, ')
           ..write('symbolOrCurrency: $symbolOrCurrency, ')
-          ..write('manualValueUsd: $manualValueUsd, ')
           ..write('notes: $notes, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
@@ -1153,6 +1093,18 @@ class $LedgerTransactionsTable extends LedgerTransactions
     type: DriftSqlType.double,
     requiredDuringInsert: true,
   );
+  static const VerificationMeta _currencyMeta = const VerificationMeta(
+    'currency',
+  );
+  @override
+  late final GeneratedColumn<String> currency = GeneratedColumn<String>(
+    'currency',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('EGP'),
+  );
   static const VerificationMeta _categoryMeta = const VerificationMeta(
     'category',
   );
@@ -1192,6 +1144,7 @@ class $LedgerTransactionsTable extends LedgerTransactions
     counterpartyId,
     date,
     amount,
+    currency,
     category,
     description,
     createdAt,
@@ -1239,6 +1192,12 @@ class $LedgerTransactionsTable extends LedgerTransactions
       );
     } else if (isInserting) {
       context.missing(_amountMeta);
+    }
+    if (data.containsKey('currency')) {
+      context.handle(
+        _currencyMeta,
+        currency.isAcceptableOrUnknown(data['currency']!, _currencyMeta),
+      );
     }
     if (data.containsKey('category')) {
       context.handle(
@@ -1290,6 +1249,10 @@ class $LedgerTransactionsTable extends LedgerTransactions
         DriftSqlType.double,
         data['${effectivePrefix}amount'],
       )!,
+      currency: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}currency'],
+      )!,
       category: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}category'],
@@ -1317,6 +1280,11 @@ class LedgerTransaction extends DataClass
   final String counterpartyId;
   final DateTime date;
   final double amount;
+
+  /// Currency [amount] was entered in (EGP/USD/EUR/SAR/AED/TRY). Balances
+  /// and monthly totals convert everything to EGP via live FX for a single
+  /// aggregate figure; the original currency is kept for display.
+  final String currency;
   final String category;
   final String? description;
   final DateTime createdAt;
@@ -1325,6 +1293,7 @@ class LedgerTransaction extends DataClass
     required this.counterpartyId,
     required this.date,
     required this.amount,
+    required this.currency,
     required this.category,
     this.description,
     required this.createdAt,
@@ -1336,6 +1305,7 @@ class LedgerTransaction extends DataClass
     map['counterparty_id'] = Variable<String>(counterpartyId);
     map['date'] = Variable<DateTime>(date);
     map['amount'] = Variable<double>(amount);
+    map['currency'] = Variable<String>(currency);
     map['category'] = Variable<String>(category);
     if (!nullToAbsent || description != null) {
       map['description'] = Variable<String>(description);
@@ -1350,6 +1320,7 @@ class LedgerTransaction extends DataClass
       counterpartyId: Value(counterpartyId),
       date: Value(date),
       amount: Value(amount),
+      currency: Value(currency),
       category: Value(category),
       description: description == null && nullToAbsent
           ? const Value.absent()
@@ -1368,6 +1339,7 @@ class LedgerTransaction extends DataClass
       counterpartyId: serializer.fromJson<String>(json['counterpartyId']),
       date: serializer.fromJson<DateTime>(json['date']),
       amount: serializer.fromJson<double>(json['amount']),
+      currency: serializer.fromJson<String>(json['currency']),
       category: serializer.fromJson<String>(json['category']),
       description: serializer.fromJson<String?>(json['description']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
@@ -1381,6 +1353,7 @@ class LedgerTransaction extends DataClass
       'counterpartyId': serializer.toJson<String>(counterpartyId),
       'date': serializer.toJson<DateTime>(date),
       'amount': serializer.toJson<double>(amount),
+      'currency': serializer.toJson<String>(currency),
       'category': serializer.toJson<String>(category),
       'description': serializer.toJson<String?>(description),
       'createdAt': serializer.toJson<DateTime>(createdAt),
@@ -1392,6 +1365,7 @@ class LedgerTransaction extends DataClass
     String? counterpartyId,
     DateTime? date,
     double? amount,
+    String? currency,
     String? category,
     Value<String?> description = const Value.absent(),
     DateTime? createdAt,
@@ -1400,6 +1374,7 @@ class LedgerTransaction extends DataClass
     counterpartyId: counterpartyId ?? this.counterpartyId,
     date: date ?? this.date,
     amount: amount ?? this.amount,
+    currency: currency ?? this.currency,
     category: category ?? this.category,
     description: description.present ? description.value : this.description,
     createdAt: createdAt ?? this.createdAt,
@@ -1412,6 +1387,7 @@ class LedgerTransaction extends DataClass
           : this.counterpartyId,
       date: data.date.present ? data.date.value : this.date,
       amount: data.amount.present ? data.amount.value : this.amount,
+      currency: data.currency.present ? data.currency.value : this.currency,
       category: data.category.present ? data.category.value : this.category,
       description: data.description.present
           ? data.description.value
@@ -1427,6 +1403,7 @@ class LedgerTransaction extends DataClass
           ..write('counterpartyId: $counterpartyId, ')
           ..write('date: $date, ')
           ..write('amount: $amount, ')
+          ..write('currency: $currency, ')
           ..write('category: $category, ')
           ..write('description: $description, ')
           ..write('createdAt: $createdAt')
@@ -1440,6 +1417,7 @@ class LedgerTransaction extends DataClass
     counterpartyId,
     date,
     amount,
+    currency,
     category,
     description,
     createdAt,
@@ -1452,6 +1430,7 @@ class LedgerTransaction extends DataClass
           other.counterpartyId == this.counterpartyId &&
           other.date == this.date &&
           other.amount == this.amount &&
+          other.currency == this.currency &&
           other.category == this.category &&
           other.description == this.description &&
           other.createdAt == this.createdAt);
@@ -1462,6 +1441,7 @@ class LedgerTransactionsCompanion extends UpdateCompanion<LedgerTransaction> {
   final Value<String> counterpartyId;
   final Value<DateTime> date;
   final Value<double> amount;
+  final Value<String> currency;
   final Value<String> category;
   final Value<String?> description;
   final Value<DateTime> createdAt;
@@ -1471,6 +1451,7 @@ class LedgerTransactionsCompanion extends UpdateCompanion<LedgerTransaction> {
     this.counterpartyId = const Value.absent(),
     this.date = const Value.absent(),
     this.amount = const Value.absent(),
+    this.currency = const Value.absent(),
     this.category = const Value.absent(),
     this.description = const Value.absent(),
     this.createdAt = const Value.absent(),
@@ -1481,6 +1462,7 @@ class LedgerTransactionsCompanion extends UpdateCompanion<LedgerTransaction> {
     required String counterpartyId,
     required DateTime date,
     required double amount,
+    this.currency = const Value.absent(),
     required String category,
     this.description = const Value.absent(),
     required DateTime createdAt,
@@ -1496,6 +1478,7 @@ class LedgerTransactionsCompanion extends UpdateCompanion<LedgerTransaction> {
     Expression<String>? counterpartyId,
     Expression<DateTime>? date,
     Expression<double>? amount,
+    Expression<String>? currency,
     Expression<String>? category,
     Expression<String>? description,
     Expression<DateTime>? createdAt,
@@ -1506,6 +1489,7 @@ class LedgerTransactionsCompanion extends UpdateCompanion<LedgerTransaction> {
       if (counterpartyId != null) 'counterparty_id': counterpartyId,
       if (date != null) 'date': date,
       if (amount != null) 'amount': amount,
+      if (currency != null) 'currency': currency,
       if (category != null) 'category': category,
       if (description != null) 'description': description,
       if (createdAt != null) 'created_at': createdAt,
@@ -1518,6 +1502,7 @@ class LedgerTransactionsCompanion extends UpdateCompanion<LedgerTransaction> {
     Value<String>? counterpartyId,
     Value<DateTime>? date,
     Value<double>? amount,
+    Value<String>? currency,
     Value<String>? category,
     Value<String?>? description,
     Value<DateTime>? createdAt,
@@ -1528,6 +1513,7 @@ class LedgerTransactionsCompanion extends UpdateCompanion<LedgerTransaction> {
       counterpartyId: counterpartyId ?? this.counterpartyId,
       date: date ?? this.date,
       amount: amount ?? this.amount,
+      currency: currency ?? this.currency,
       category: category ?? this.category,
       description: description ?? this.description,
       createdAt: createdAt ?? this.createdAt,
@@ -1549,6 +1535,9 @@ class LedgerTransactionsCompanion extends UpdateCompanion<LedgerTransaction> {
     }
     if (amount.present) {
       map['amount'] = Variable<double>(amount.value);
+    }
+    if (currency.present) {
+      map['currency'] = Variable<String>(currency.value);
     }
     if (category.present) {
       map['category'] = Variable<String>(category.value);
@@ -1572,6 +1561,7 @@ class LedgerTransactionsCompanion extends UpdateCompanion<LedgerTransaction> {
           ..write('counterpartyId: $counterpartyId, ')
           ..write('date: $date, ')
           ..write('amount: $amount, ')
+          ..write('currency: $currency, ')
           ..write('category: $category, ')
           ..write('description: $description, ')
           ..write('createdAt: $createdAt, ')
@@ -1818,8 +1808,7 @@ typedef $$AssetsTableCreateCompanionBuilder =
       required String category,
       required String valuationMode,
       required double quantity,
-      Value<String?> symbolOrCurrency,
-      Value<double?> manualValueUsd,
+      required String symbolOrCurrency,
       Value<String?> notes,
       required DateTime createdAt,
       required DateTime updatedAt,
@@ -1832,8 +1821,7 @@ typedef $$AssetsTableUpdateCompanionBuilder =
       Value<String> category,
       Value<String> valuationMode,
       Value<double> quantity,
-      Value<String?> symbolOrCurrency,
-      Value<double?> manualValueUsd,
+      Value<String> symbolOrCurrency,
       Value<String?> notes,
       Value<DateTime> createdAt,
       Value<DateTime> updatedAt,
@@ -1876,11 +1864,6 @@ class $$AssetsTableFilterComposer
 
   ColumnFilters<String> get symbolOrCurrency => $composableBuilder(
     column: $table.symbolOrCurrency,
-    builder: (column) => ColumnFilters(column),
-  );
-
-  ColumnFilters<double> get manualValueUsd => $composableBuilder(
-    column: $table.manualValueUsd,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -1939,11 +1922,6 @@ class $$AssetsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
-  ColumnOrderings<double> get manualValueUsd => $composableBuilder(
-    column: $table.manualValueUsd,
-    builder: (column) => ColumnOrderings(column),
-  );
-
   ColumnOrderings<String> get notes => $composableBuilder(
     column: $table.notes,
     builder: (column) => ColumnOrderings(column),
@@ -1991,11 +1969,6 @@ class $$AssetsTableAnnotationComposer
     builder: (column) => column,
   );
 
-  GeneratedColumn<double> get manualValueUsd => $composableBuilder(
-    column: $table.manualValueUsd,
-    builder: (column) => column,
-  );
-
   GeneratedColumn<String> get notes =>
       $composableBuilder(column: $table.notes, builder: (column) => column);
 
@@ -2039,8 +2012,7 @@ class $$AssetsTableTableManager
                 Value<String> category = const Value.absent(),
                 Value<String> valuationMode = const Value.absent(),
                 Value<double> quantity = const Value.absent(),
-                Value<String?> symbolOrCurrency = const Value.absent(),
-                Value<double?> manualValueUsd = const Value.absent(),
+                Value<String> symbolOrCurrency = const Value.absent(),
                 Value<String?> notes = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
@@ -2052,7 +2024,6 @@ class $$AssetsTableTableManager
                 valuationMode: valuationMode,
                 quantity: quantity,
                 symbolOrCurrency: symbolOrCurrency,
-                manualValueUsd: manualValueUsd,
                 notes: notes,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
@@ -2065,8 +2036,7 @@ class $$AssetsTableTableManager
                 required String category,
                 required String valuationMode,
                 required double quantity,
-                Value<String?> symbolOrCurrency = const Value.absent(),
-                Value<double?> manualValueUsd = const Value.absent(),
+                required String symbolOrCurrency,
                 Value<String?> notes = const Value.absent(),
                 required DateTime createdAt,
                 required DateTime updatedAt,
@@ -2078,7 +2048,6 @@ class $$AssetsTableTableManager
                 valuationMode: valuationMode,
                 quantity: quantity,
                 symbolOrCurrency: symbolOrCurrency,
-                manualValueUsd: manualValueUsd,
                 notes: notes,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
@@ -2528,6 +2497,7 @@ typedef $$LedgerTransactionsTableCreateCompanionBuilder =
       required String counterpartyId,
       required DateTime date,
       required double amount,
+      Value<String> currency,
       required String category,
       Value<String?> description,
       required DateTime createdAt,
@@ -2539,6 +2509,7 @@ typedef $$LedgerTransactionsTableUpdateCompanionBuilder =
       Value<String> counterpartyId,
       Value<DateTime> date,
       Value<double> amount,
+      Value<String> currency,
       Value<String> category,
       Value<String?> description,
       Value<DateTime> createdAt,
@@ -2598,6 +2569,11 @@ class $$LedgerTransactionsTableFilterComposer
 
   ColumnFilters<double> get amount => $composableBuilder(
     column: $table.amount,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get currency => $composableBuilder(
+    column: $table.currency,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -2664,6 +2640,11 @@ class $$LedgerTransactionsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get currency => $composableBuilder(
+    column: $table.currency,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get category => $composableBuilder(
     column: $table.category,
     builder: (column) => ColumnOrderings(column),
@@ -2720,6 +2701,9 @@ class $$LedgerTransactionsTableAnnotationComposer
 
   GeneratedColumn<double> get amount =>
       $composableBuilder(column: $table.amount, builder: (column) => column);
+
+  GeneratedColumn<String> get currency =>
+      $composableBuilder(column: $table.currency, builder: (column) => column);
 
   GeneratedColumn<String> get category =>
       $composableBuilder(column: $table.category, builder: (column) => column);
@@ -2793,6 +2777,7 @@ class $$LedgerTransactionsTableTableManager
                 Value<String> counterpartyId = const Value.absent(),
                 Value<DateTime> date = const Value.absent(),
                 Value<double> amount = const Value.absent(),
+                Value<String> currency = const Value.absent(),
                 Value<String> category = const Value.absent(),
                 Value<String?> description = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
@@ -2802,6 +2787,7 @@ class $$LedgerTransactionsTableTableManager
                 counterpartyId: counterpartyId,
                 date: date,
                 amount: amount,
+                currency: currency,
                 category: category,
                 description: description,
                 createdAt: createdAt,
@@ -2813,6 +2799,7 @@ class $$LedgerTransactionsTableTableManager
                 required String counterpartyId,
                 required DateTime date,
                 required double amount,
+                Value<String> currency = const Value.absent(),
                 required String category,
                 Value<String?> description = const Value.absent(),
                 required DateTime createdAt,
@@ -2822,6 +2809,7 @@ class $$LedgerTransactionsTableTableManager
                 counterpartyId: counterpartyId,
                 date: date,
                 amount: amount,
+                currency: currency,
                 category: category,
                 description: description,
                 createdAt: createdAt,

@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/format/money_formatter.dart';
+import '../../../core/models/currency.dart';
 import '../../../data/db/database.dart';
 import '../../../data/ledger/ledger_calculator.dart';
+import '../../networth/providers/asset_providers.dart' show pricesUsdPerUnitProvider;
 import '../providers/ledger_providers.dart';
 import 'counterparty_detail_screen.dart';
 
@@ -70,9 +72,9 @@ class _CounterpartyTile extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final transactionsAsync = ref.watch(transactionsStreamProvider(counterparty.id));
-    final balance = transactionsAsync.valueOrNull == null
-        ? null
-        : runningBalance(transactionsAsync.valueOrNull!);
+    final prices = ref.watch(pricesUsdPerUnitProvider);
+    final transactions = transactionsAsync.valueOrNull;
+    final balance = transactions == null ? null : runningBalance(transactions, prices).amount;
 
     return Card(
       child: ListTile(
@@ -83,8 +85,8 @@ class _CounterpartyTile extends ConsumerWidget {
               : balance == 0
                   ? 'Settled up'
                   : balance > 0
-                      ? 'Owes you ${formatUsd(balance)}'
-                      : 'You owe ${formatUsd(-balance)}',
+                      ? 'Owes you ${formatMoney(balance, defaultCurrency)}'
+                      : 'You owe ${formatMoney(-balance, defaultCurrency)}',
         ),
         trailing: const Icon(Icons.chevron_right),
         onTap: () => Navigator.of(context).push(

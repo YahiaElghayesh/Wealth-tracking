@@ -14,7 +14,21 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => 2;
+
+  @override
+  MigrationStrategy get migration => MigrationStrategy(
+        onCreate: (m) => m.createAll(),
+        // Pre-release schema churn (asset valuation model + ledger
+        // currency) — no installed base to preserve yet, so the simplest
+        // correct migration is to just rebuild the affected tables.
+        onUpgrade: (m, from, to) async {
+          await m.deleteTable(assets.actualTableName);
+          await m.createTable(assets);
+          await m.deleteTable(ledgerTransactions.actualTableName);
+          await m.createTable(ledgerTransactions);
+        },
+      );
 }
 
 QueryExecutor _openConnection() {

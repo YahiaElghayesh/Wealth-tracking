@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:pdf/widgets.dart' as pw;
 
 import '../../../core/format/money_formatter.dart';
+import '../../../core/models/currency.dart';
 
 Future<Uint8List> buildMonthlySummaryPdf({
   required String counterpartyName,
@@ -30,7 +31,7 @@ Future<Uint8List> buildMonthlySummaryPdf({
               padding: const pw.EdgeInsets.symmetric(vertical: 4),
               child: pw.Row(
                 mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                children: [pw.Text(entry.key), pw.Text(formatUsd(entry.value))],
+                children: [pw.Text(entry.key), pw.Text(formatMoney(entry.value, defaultCurrency))],
               ),
             ),
           pw.Divider(),
@@ -38,12 +39,15 @@ Future<Uint8List> buildMonthlySummaryPdf({
             mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
             children: [
               pw.Text('Total', style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
-              pw.Text(formatUsd(total), style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+              pw.Text(
+                formatMoney(total, defaultCurrency),
+                style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
+              ),
             ],
           ),
           if (repayments > 0) ...[
             pw.SizedBox(height: 12),
-            pw.Text('Repayments received this month: ${formatUsd(repayments)}'),
+            pw.Text('Repayments received this month: ${formatMoney(repayments, defaultCurrency)}'),
           ],
         ],
       ),
@@ -63,11 +67,11 @@ String buildMonthlySummaryText({
   final monthLabel = '${month.year}-${month.month.toString().padLeft(2, '0')}';
   final buffer = StringBuffer('Monthly Summary — $counterpartyName ($monthLabel)\n\n');
   for (final entry in categoryTotals.entries) {
-    buffer.writeln('${entry.key}: ${formatUsd(entry.value)}');
+    buffer.writeln('${entry.key}: ${formatMoney(entry.value, defaultCurrency)}');
   }
-  buffer.writeln('\nTotal: ${formatUsd(total)}');
+  buffer.writeln('\nTotal: ${formatMoney(total, defaultCurrency)}');
   if (repayments > 0) {
-    buffer.writeln('Repayments received this month: ${formatUsd(repayments)}');
+    buffer.writeln('Repayments received this month: ${formatMoney(repayments, defaultCurrency)}');
   }
   return buffer.toString();
 }

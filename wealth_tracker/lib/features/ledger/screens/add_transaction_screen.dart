@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/models/currency.dart';
 import '../../../core/models/ledger_category.dart';
 import '../providers/ledger_providers.dart';
 
@@ -20,6 +21,7 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
   final _customCategoryController = TextEditingController();
   bool _isPayment = true;
   String _category = ledgerExpenseCategories.first;
+  String _currency = defaultCurrency;
   DateTime _date = DateTime.now();
 
   @override
@@ -52,6 +54,7 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
           counterpartyId: widget.counterpartyId,
           date: _date,
           amount: _isPayment ? amount : -amount,
+          currency: _currency,
           category: category.isEmpty ? 'Other' : category,
           description:
               _descriptionController.text.trim().isEmpty ? null : _descriptionController.text.trim(),
@@ -78,16 +81,35 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
               onSelectionChanged: (s) => setState(() => _isPayment = s.first),
             ),
             const SizedBox(height: 16),
-            TextFormField(
-              controller: _amountController,
-              decoration: const InputDecoration(labelText: 'Amount', prefixText: r'$ '),
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
-              validator: (v) {
-                if (v == null || v.trim().isEmpty) return 'Required';
-                final n = double.tryParse(v.trim());
-                if (n == null || n <= 0) return 'Enter a positive number';
-                return null;
-              },
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  flex: 2,
+                  child: TextFormField(
+                    controller: _amountController,
+                    decoration: const InputDecoration(labelText: 'Amount'),
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    validator: (v) {
+                      if (v == null || v.trim().isEmpty) return 'Required';
+                      final n = double.tryParse(v.trim());
+                      if (n == null || n <= 0) return 'Enter a positive number';
+                      return null;
+                    },
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: DropdownButtonFormField<String>(
+                    initialValue: _currency,
+                    decoration: const InputDecoration(labelText: 'Currency'),
+                    items: supportedCurrencies
+                        .map((c) => DropdownMenuItem(value: c, child: Text(c)))
+                        .toList(),
+                    onChanged: (c) => setState(() => _currency = c!),
+                  ),
+                ),
+              ],
             ),
             const SizedBox(height: 16),
             ListTile(

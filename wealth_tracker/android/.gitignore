@@ -12,3 +12,8 @@ GeneratedPluginRegistrant.java
 key.properties
 **/*.keystore
 **/*.jks
+
+# Exception: the debug keystore is intentionally committed (fixed,
+# well-known password, zero security value) so CI signs every debug build
+# identically and updates install in place instead of wiping local data.
+!app/debug.keystore

@@ -1,7 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:home_widget/home_widget.dart';
 
+import 'core/navigation/app_navigator.dart';
 import 'core/theme/app_theme.dart';
+import 'features/ledger/providers/quick_add_launch.dart';
 import 'features/ledger/screens/ledger_home_screen.dart';
 import 'features/networth/providers/home_widget_providers.dart';
 import 'features/networth/screens/dashboard_screen.dart';
@@ -12,6 +17,7 @@ class WealthTrackerApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      navigatorKey: navigatorKey,
       title: 'Wealth Tracker',
       debugShowCheckedModeBanner: false,
       theme: buildAppTheme(Brightness.light),
@@ -30,6 +36,20 @@ class _RootShell extends ConsumerStatefulWidget {
 
 class _RootShellState extends ConsumerState<_RootShell> {
   int _index = 0;
+  StreamSubscription<Uri?>? _widgetClickSubscription;
+
+  @override
+  void initState() {
+    super.initState();
+    _widgetClickSubscription = HomeWidget.widgetClicked.listen((uri) => handleQuickAddLaunch(uri, ref));
+    HomeWidget.initiallyLaunchedFromHomeWidget().then((uri) => handleQuickAddLaunch(uri, ref));
+  }
+
+  @override
+  void dispose() {
+    _widgetClickSubscription?.cancel();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {

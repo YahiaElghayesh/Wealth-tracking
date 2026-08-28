@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/format/money_formatter.dart';
 import '../../../core/models/asset_category.dart';
 import '../../../data/db/database.dart';
+import '../../../data/net_worth/net_worth_calculator.dart';
 import '../../settings/screens/settings_screen.dart';
 import '../providers/asset_providers.dart';
 import '../providers/pricing_providers.dart';
@@ -95,13 +96,7 @@ class _AssetTile extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final category = AssetCategory.values.byName(asset.category);
     final prices = ref.watch(pricesUsdPerUnitProvider);
-    double? value;
-    if (asset.valuationMode == ValuationMode.manual.name) {
-      value = asset.manualValueUsd;
-    } else if (asset.symbolOrCurrency != null) {
-      final price = prices[asset.symbolOrCurrency!];
-      value = price == null ? null : price * asset.quantity;
-    }
+    final value = valueUsdForAsset(asset, prices);
 
     return Dismissible(
       key: ValueKey(asset.id),

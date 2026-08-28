@@ -25,6 +25,22 @@ android {
         versionName = flutter.versionName
     }
 
+    signingConfigs {
+        getByName("debug") {
+            // A committed, stable debug key rather than the machine-local
+            // ~/.android/debug.keystore the Android Gradle Plugin otherwise
+            // auto-generates — on CI that file doesn't persist between
+            // runs, so every build got a different signature and each new
+            // APK required uninstalling the previous one (wiping local
+            // data) before it could install. Same key every time means
+            // updates install in place instead.
+            storeFile = file("debug.keystore")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
+    }
+
     buildTypes {
         release {
             // TODO: Add your own signing config for the release build.

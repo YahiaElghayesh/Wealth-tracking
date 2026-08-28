@@ -1,4 +1,5 @@
 import '../../core/models/asset_category.dart';
+import '../../core/models/currency.dart';
 import '../db/database.dart';
 import 'price_provider.dart';
 
@@ -40,20 +41,19 @@ class PriceRefreshService {
   Future<PriceRefreshResult> refresh(List<Asset> assets) async {
     final cryptoSymbols = <String>{};
     final metalSymbols = <String>{};
-    final fiatSymbols = <String>{'USD', 'EGP'};
+    // Always fetch every supported currency (not just ones assets use) —
+    // it's a single API call regardless, and the ledger's currency
+    // conversion needs the full set too, independent of assets.
+    final fiatSymbols = {'USD', ...supportedCurrencies};
 
     for (final asset in assets) {
-      final symbol = asset.symbolOrCurrency;
-      if (symbol == null) continue;
       switch (ValuationMode.values.byName(asset.valuationMode)) {
         case ValuationMode.crypto:
-          cryptoSymbols.add(symbol);
+          cryptoSymbols.add(asset.symbolOrCurrency);
         case ValuationMode.metal:
-          metalSymbols.add(symbol);
-        case ValuationMode.fiatCurrency:
-          fiatSymbols.add(symbol);
-        case ValuationMode.manual:
-          break;
+          metalSymbols.add(asset.symbolOrCurrency);
+        case ValuationMode.currency:
+          break; // already covered by fiatSymbols above
       }
     }
 

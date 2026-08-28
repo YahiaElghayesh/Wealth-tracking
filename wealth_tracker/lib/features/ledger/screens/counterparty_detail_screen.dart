@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/format/money_formatter.dart';
+import '../../../core/models/currency.dart';
 import '../../../data/db/database.dart';
 import '../../../data/ledger/ledger_calculator.dart';
+import '../../networth/providers/asset_providers.dart' show pricesUsdPerUnitProvider;
 import '../providers/ledger_providers.dart';
 import 'add_transaction_screen.dart';
 import 'monthly_summary_screen.dart';
@@ -16,6 +18,7 @@ class CounterpartyDetailScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final transactionsAsync = ref.watch(transactionsStreamProvider(counterparty.id));
+    final prices = ref.watch(pricesUsdPerUnitProvider);
 
     return Scaffold(
       appBar: AppBar(
@@ -34,7 +37,7 @@ class CounterpartyDetailScreen extends ConsumerWidget {
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, st) => Center(child: Text('Error: $e')),
         data: (transactions) {
-          final balance = runningBalance(transactions);
+          final balance = runningBalance(transactions, prices).amount;
           return Column(
             children: [
               Padding(
@@ -50,8 +53,8 @@ class CounterpartyDetailScreen extends ConsumerWidget {
                           balance == 0
                               ? 'Settled up'
                               : balance > 0
-                                  ? 'Owes you ${formatUsd(balance)}'
-                                  : 'You owe ${formatUsd(-balance)}',
+                                  ? 'Owes you ${formatMoney(balance, defaultCurrency)}'
+                                  : 'You owe ${formatMoney(-balance, defaultCurrency)}',
                           style: Theme.of(context).textTheme.titleMedium,
                         ),
                       ],
@@ -85,7 +88,7 @@ class CounterpartyDetailScreen extends ConsumerWidget {
                                 '${t.description == null ? '' : ' · ${t.description}'}',
                               ),
                               trailing: Text(
-                                '${t.amount >= 0 ? '+' : '-'}${formatUsd(t.amount.abs())}',
+                                '${t.amount >= 0 ? '+' : '-'}${formatMoney(t.amount.abs(), t.currency)}',
                                 style: TextStyle(
                                   color: t.amount >= 0 ? Colors.orange : Colors.green,
                                 ),

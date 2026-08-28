@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/models/asset_category.dart';
+import '../../../core/models/currency.dart';
 import '../../../data/db/database.dart';
 import '../providers/asset_providers.dart';
 
@@ -18,10 +19,10 @@ class AddEditAssetScreen extends ConsumerStatefulWidget {
 class _AddEditAssetScreenState extends ConsumerState<AddEditAssetScreen> {
   final _formKey = GlobalKey<FormState>();
   late AssetCategory _category;
+  late String _currency;
   late final TextEditingController _nameController;
   late final TextEditingController _quantityController;
   late final TextEditingController _symbolController;
-  late final TextEditingController _manualValueController;
 
   bool get _isEditing => widget.existing != null;
 
@@ -32,12 +33,16 @@ class _AddEditAssetScreenState extends ConsumerState<AddEditAssetScreen> {
     _category = existing == null
         ? AssetCategory.cash
         : AssetCategory.values.byName(existing.category);
+    _currency = (existing != null && _category.defaultValuationMode == ValuationMode.currency)
+        ? existing.symbolOrCurrency
+        : defaultCurrency;
     _nameController = TextEditingController(text: existing?.name ?? '');
     _quantityController =
         TextEditingController(text: existing == null ? '' : existing.quantity.toString());
-    _symbolController = TextEditingController(text: existing?.symbolOrCurrency ?? '');
-    _manualValueController = TextEditingController(
-      text: existing?.manualValueUsd == null ? '' : existing!.manualValueUsd.toString(),
+    _symbolController = TextEditingController(
+      text: (existing != null && _category.defaultValuationMode == ValuationMode.crypto)
+          ? existing.symbolOrCurrency
+          : '',
     );
   }
 
@@ -46,11 +51,12 @@ class _AddEditAssetScreenState extends ConsumerState<AddEditAssetScreen> {
     _nameController.dispose();
     _quantityController.dispose();
     _symbolController.dispose();
-    _manualValueController.dispose();
     super.dispose();
   }
 
   ValuationMode get _valuationMode => _category.defaultValuationMode;
+
+  String get _amountLabel => _category == AssetCategory.cash ? 'Amount held' : 'Current value';
 
   @override
   Widget build(BuildContext context) {
@@ -90,13 +96,32 @@ class _AddEditAssetScreenState extends ConsumerState<AddEditAssetScreen> {
 
   List<Widget> _buildValuationFields() {
     switch (_valuationMode) {
-      case ValuationMode.manual:
+      case ValuationMode.currency:
         return [
-          TextFormField(
-            controller: _manualValueController,
-            decoration: const InputDecoration(labelText: 'Current value (USD)', prefixText: r'$ '),
-            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            validator: _requiredNumber,
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                flex: 2,
+                child: TextFormField(
+                  controller: _quantityController,
+                  decoration: InputDecoration(labelText: _amountLabel),
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  validator: _requiredNumber,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: DropdownButtonFormField<String>(
+                  initialValue: _currency,
+                  decoration: const InputDecoration(labelText: 'Currency'),
+                  items: supportedCurrencies
+                      .map((c) => DropdownMenuItem(value: c, child: Text(c)))
+                      .toList(),
+                  onChanged: (c) => setState(() => _currency = c!),
+                ),
+              ),
+            ],
           ),
         ];
       case ValuationMode.crypto:
@@ -126,25 +151,6 @@ class _AddEditAssetScreenState extends ConsumerState<AddEditAssetScreen> {
             validator: _requiredNumber,
           ),
         ];
-      case ValuationMode.fiatCurrency:
-        return [
-          TextFormField(
-            controller: _symbolController,
-            decoration: const InputDecoration(
-              labelText: 'Currency code',
-              hintText: 'e.g. USD, EGP',
-            ),
-            textCapitalization: TextCapitalization.characters,
-            validator: (v) => (v == null || v.trim().isEmpty) ? 'Required' : null,
-          ),
-          const SizedBox(height: 16),
-          TextFormField(
-            controller: _quantityController,
-            decoration: const InputDecoration(labelText: 'Amount held'),
-            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            validator: _requiredNumber,
-          ),
-        ];
     }
   }
 
@@ -161,15 +167,9 @@ class _AddEditAssetScreenState extends ConsumerState<AddEditAssetScreen> {
     final symbol = switch (_valuationMode) {
       ValuationMode.metal => _category == AssetCategory.gold ? 'XAU_GRAM' : 'XAG_GRAM',
       ValuationMode.crypto => _symbolController.text.trim(),
-      ValuationMode.fiatCurrency => _symbolController.text.trim().toUpperCase(),
-      ValuationMode.manual => null,
+      ValuationMode.currency => _currency,
     };
-    final quantity = _valuationMode == ValuationMode.manual
-        ? 1.0
-        : double.parse(_quantityController.text.trim());
-    final manualValue = _valuationMode == ValuationMode.manual
-        ? double.parse(_manualValueController.text.trim())
-        : null;
+    final quantity = double.parse(_quantityController.text.trim());
 
     final companion = AssetsCompanion(
       name: Value(_nameController.text.trim()),
@@ -177,7 +177,6 @@ class _AddEditAssetScreenState extends ConsumerState<AddEditAssetScreen> {
       valuationMode: Value(_valuationMode.name),
       quantity: Value(quantity),
       symbolOrCurrency: Value(symbol),
-      manualValueUsd: Value(manualValue),
     );
 
     if (_isEditing) {

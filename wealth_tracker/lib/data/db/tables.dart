@@ -7,16 +7,14 @@ class Assets extends Table {
   TextColumn get category => text()();
   TextColumn get valuationMode => text()();
 
-  /// Units held: coins for crypto, grams for metals, currency units for
-  /// fiat, or `1` for manually-valued assets.
+  /// Units held: coins for crypto, grams for metals, or an amount
+  /// denominated in [symbolOrCurrency] for the `currency` valuation mode
+  /// (covers both literal cash holdings and a typed-in value like a car's).
   RealColumn get quantity => real()();
 
-  /// Crypto symbol (BTC), metal symbol (XAU/XAG) or currency code
-  /// (USD/EGP). Null for manually-valued assets.
-  TextColumn get symbolOrCurrency => text().nullable()();
-
-  /// Current value in USD, only used when [valuationMode] is manual.
-  RealColumn get manualValueUsd => real().nullable()();
+  /// Crypto symbol (e.g. `bitcoin`), metal symbol (`XAU_GRAM`/`XAG_GRAM`),
+  /// or a currency code (EGP/USD/EUR/SAR/AED/TRY).
+  TextColumn get symbolOrCurrency => text()();
 
   TextColumn get notes => text().nullable()();
   DateTimeColumn get createdAt => dateTime()();
@@ -54,6 +52,12 @@ class LedgerTransactions extends Table {
   TextColumn get counterpartyId => text().references(Counterparties, #id)();
   DateTimeColumn get date => dateTime()();
   RealColumn get amount => real()();
+
+  /// Currency [amount] was entered in (EGP/USD/EUR/SAR/AED/TRY). Balances
+  /// and monthly totals convert everything to EGP via live FX for a single
+  /// aggregate figure; the original currency is kept for display.
+  TextColumn get currency => text().withDefault(const Constant('EGP'))();
+
   TextColumn get category => text()();
   TextColumn get description => text().nullable()();
   DateTimeColumn get createdAt => dateTime()();
