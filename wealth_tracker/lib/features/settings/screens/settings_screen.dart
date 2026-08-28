@@ -2,7 +2,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 
-import 'card_limits_settings_screen.dart';
+import 'credit_cards_settings_screen.dart';
 import 'drive_sync_settings_screen.dart';
 import 'live_prices_settings_screen.dart';
 import 'widget_appearance_settings_screen.dart';
@@ -34,9 +34,9 @@ class SettingsScreen extends StatelessWidget {
           ),
           _SettingsTile(
             icon: Icons.credit_card,
-            title: 'Credit card limits',
-            subtitle: 'Used by the Calculator tab',
-            builder: (_) => const CardLimitsSettingsScreen(),
+            title: 'Credit cards',
+            subtitle: 'Add, edit, or remove cards used by the Calculator tab',
+            builder: (_) => const CreditCardsSettingsScreen(),
           ),
           if (Platform.isAndroid)
             _SettingsTile(

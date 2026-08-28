@@ -1,5 +1,6 @@
 import 'package:drift/drift.dart';
 import 'package:drift_flutter/drift_flutter.dart';
+import 'package:uuid/uuid.dart';
 
 import 'tables.dart';
 
@@ -15,6 +16,7 @@ part 'database.g.dart';
     CalculatorInputs,
     VendorRules,
     CalculatorSnapshots,
+    CreditCards,
   ],
 )
 class AppDatabase extends _$AppDatabase {
@@ -23,7 +25,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 5;
+  int get schemaVersion => 6;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -55,6 +57,41 @@ class AppDatabase extends _$AppDatabase {
           }
           if (from < 5) {
             await m.createTable(calculatorSnapshots);
+          }
+          if (from < 6) {
+            // Credit cards became fully user-managed (name/bank/limit/
+            // currency, added and removed from Settings) instead of a
+            // fixed hardcoded set of three. Anyone upgrading from before
+            // this point already had those three cards, possibly with a
+            // limit they'd customized in the old Settings screen (stored
+            // as a calculator_inputs key/value row) — seed real
+            // CreditCards rows from that so the switch doesn't silently
+            // drop a limit someone already set. A brand-new install never
+            // takes this branch, so it starts with an empty card list, as
+            // it should.
+            await m.createTable(creditCards);
+            await m.addColumn(calculatorSnapshots, calculatorSnapshots.cardEntriesJson);
+
+            const legacyCards = [
+              (key: 'card_nbe_limit', name: 'NBE Wallet', bank: 'NBE', defaultLimit: 500000.0),
+              (key: 'card_cib_explorer_wallet_limit', name: 'CIB Explore World', bank: 'CIB', defaultLimit: 109900.0),
+              (key: 'card_cib_platinum_limit', name: 'CIB Platinum', bank: 'CIB', defaultLimit: 145500.0),
+            ];
+            for (var i = 0; i < legacyCards.length; i++) {
+              final legacy = legacyCards[i];
+              final row =
+                  await (select(calculatorInputs)..where((t) => t.key.equals(legacy.key))).getSingleOrNull();
+              await into(creditCards).insert(
+                CreditCardsCompanion.insert(
+                  id: const Uuid().v4(),
+                  name: legacy.name,
+                  bank: legacy.bank,
+                  limitAmount: row?.value ?? legacy.defaultLimit,
+                  currency: const Value('EGP'),
+                  sortOrder: Value(i),
+                ),
+              );
+            }
           }
         },
         // The "Breakfast" quick-pick category was a voice-transcription

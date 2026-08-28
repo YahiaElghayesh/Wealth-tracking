@@ -71,13 +71,24 @@ class _SnapshotCard extends ConsumerWidget {
             _BreakdownRow(isAddition: true, label: 'Ledgers', amount: snapshot.ledgersTotal),
             _BreakdownRow(isAddition: false, label: 'Apartment savings', amount: snapshot.apartmentSavings),
             _BreakdownRow(isAddition: true, label: 'CIB Accounts Balance', amount: snapshot.cibAccountBalance),
-            _BreakdownRow(isAddition: false, label: 'NBE Wallet owed', amount: snapshot.nbeOwed),
-            _BreakdownRow(
-              isAddition: false,
-              label: 'CIB Explore World owed',
-              amount: snapshot.cibExplorerWalletOwed,
-            ),
-            _BreakdownRow(isAddition: false, label: 'CIB Platinum owed', amount: snapshot.cibPlatinumOwed),
+            if (snapshot.usesLegacyFixedCardColumns) ...[
+              // Saved before cards became user-managed — these three were
+              // the fixed hardcoded set at the time.
+              _BreakdownRow(isAddition: false, label: 'NBE Wallet owed', amount: snapshot.nbeOwed),
+              _BreakdownRow(
+                isAddition: false,
+                label: 'CIB Explore World owed',
+                amount: snapshot.cibExplorerWalletOwed,
+              ),
+              _BreakdownRow(isAddition: false, label: 'CIB Platinum owed', amount: snapshot.cibPlatinumOwed),
+            ] else
+              for (final entry in snapshot.cardEntries)
+                _BreakdownRow(
+                  isAddition: false,
+                  label: '${entry.name} owed',
+                  amount: entry.owed,
+                  currency: entry.currency,
+                ),
             for (final item in customItems)
               _BreakdownRow(isAddition: item.isAddition, label: item.label, amount: item.amount),
           ],
@@ -88,11 +99,17 @@ class _SnapshotCard extends ConsumerWidget {
 }
 
 class _BreakdownRow extends StatelessWidget {
-  const _BreakdownRow({required this.isAddition, required this.label, required this.amount});
+  const _BreakdownRow({
+    required this.isAddition,
+    required this.label,
+    required this.amount,
+    this.currency = defaultCurrency,
+  });
 
   final bool isAddition;
   final String label;
   final double amount;
+  final String currency;
 
   @override
   Widget build(BuildContext context) {
@@ -104,7 +121,7 @@ class _BreakdownRow extends StatelessWidget {
           Text(isAddition ? '+' : '−', style: TextStyle(color: color, fontWeight: FontWeight.bold)),
           const SizedBox(width: 8),
           Expanded(child: Text(label)),
-          Text(formatMoney(amount, defaultCurrency)),
+          Text(formatMoney(amount, currency)),
         ],
       ),
     );

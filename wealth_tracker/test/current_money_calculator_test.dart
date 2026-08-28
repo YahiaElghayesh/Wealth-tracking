@@ -1,6 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:wealth_tracker/core/models/calculator_card.dart';
 import 'package:wealth_tracker/core/models/calculator_custom_item.dart';
 import 'package:wealth_tracker/data/calculator/current_money_calculator.dart';
 
@@ -21,23 +20,19 @@ void main() {
         ledgersTotal: 20000,
         apartmentSavings: 5000,
         cibAccountBalance: 3000,
-        cardOwed: {
-          CalculatorCard.nbe: 1000,
-          CalculatorCard.cibExplorerWallet: 500,
-          CalculatorCard.cibPlatinum: 200,
-        },
+        cardOwedAmounts: [1000, 500, 200],
       );
 
       // 20000 - 5000 - (1000 + 500 + 200) + 3000
       expect(result, closeTo(16300, 0.001));
     });
 
-    test('missing card entries are treated as zero rather than throwing', () {
+    test('no cards is treated as zero owed rather than throwing', () {
       final result = calculateCurrentMoney(
         ledgersTotal: 1000,
         apartmentSavings: 0,
         cibAccountBalance: 0,
-        cardOwed: const {},
+        cardOwedAmounts: const [],
       );
 
       expect(result, closeTo(1000, 0.001));
@@ -48,7 +43,7 @@ void main() {
         ledgersTotal: -500,
         apartmentSavings: 0,
         cibAccountBalance: 200,
-        cardOwed: const {},
+        cardOwedAmounts: const [],
       );
 
       expect(result, closeTo(-300, 0.001));
@@ -59,7 +54,7 @@ void main() {
         ledgersTotal: 1000,
         apartmentSavings: 0,
         cibAccountBalance: 0,
-        cardOwed: const {},
+        cardOwedAmounts: const [],
         customItems: const [
           CustomCalculatorItem(label: 'Bonus', amount: 300, isAddition: true),
           CustomCalculatorItem(label: 'Fine', amount: 100, isAddition: false),

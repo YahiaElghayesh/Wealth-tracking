@@ -2449,7 +2449,8 @@ class $CalculatorSnapshotsTable extends CalculatorSnapshots
     aliasedName,
     false,
     type: DriftSqlType.double,
-    requiredDuringInsert: true,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
   );
   static const VerificationMeta _nbeOwedMeta = const VerificationMeta(
     'nbeOwed',
@@ -2460,7 +2461,8 @@ class $CalculatorSnapshotsTable extends CalculatorSnapshots
     aliasedName,
     false,
     type: DriftSqlType.double,
-    requiredDuringInsert: true,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
   );
   static const VerificationMeta _cibExplorerWalletAvailableMeta =
       const VerificationMeta('cibExplorerWalletAvailable');
@@ -2471,7 +2473,8 @@ class $CalculatorSnapshotsTable extends CalculatorSnapshots
         aliasedName,
         false,
         type: DriftSqlType.double,
-        requiredDuringInsert: true,
+        requiredDuringInsert: false,
+        defaultValue: const Constant(0),
       );
   static const VerificationMeta _cibExplorerWalletOwedMeta =
       const VerificationMeta('cibExplorerWalletOwed');
@@ -2482,7 +2485,8 @@ class $CalculatorSnapshotsTable extends CalculatorSnapshots
         aliasedName,
         false,
         type: DriftSqlType.double,
-        requiredDuringInsert: true,
+        requiredDuringInsert: false,
+        defaultValue: const Constant(0),
       );
   static const VerificationMeta _cibPlatinumAvailableMeta =
       const VerificationMeta('cibPlatinumAvailable');
@@ -2493,7 +2497,8 @@ class $CalculatorSnapshotsTable extends CalculatorSnapshots
         aliasedName,
         false,
         type: DriftSqlType.double,
-        requiredDuringInsert: true,
+        requiredDuringInsert: false,
+        defaultValue: const Constant(0),
       );
   static const VerificationMeta _cibPlatinumOwedMeta = const VerificationMeta(
     'cibPlatinumOwed',
@@ -2504,7 +2509,8 @@ class $CalculatorSnapshotsTable extends CalculatorSnapshots
     aliasedName,
     false,
     type: DriftSqlType.double,
-    requiredDuringInsert: true,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
   );
   static const VerificationMeta _customItemsJsonMeta = const VerificationMeta(
     'customItemsJson',
@@ -2512,6 +2518,18 @@ class $CalculatorSnapshotsTable extends CalculatorSnapshots
   @override
   late final GeneratedColumn<String> customItemsJson = GeneratedColumn<String>(
     'custom_items_json',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('[]'),
+  );
+  static const VerificationMeta _cardEntriesJsonMeta = const VerificationMeta(
+    'cardEntriesJson',
+  );
+  @override
+  late final GeneratedColumn<String> cardEntriesJson = GeneratedColumn<String>(
+    'card_entries_json',
     aliasedName,
     false,
     type: DriftSqlType.string,
@@ -2533,6 +2551,7 @@ class $CalculatorSnapshotsTable extends CalculatorSnapshots
     cibPlatinumAvailable,
     cibPlatinumOwed,
     customItemsJson,
+    cardEntriesJson,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -2611,16 +2630,12 @@ class $CalculatorSnapshotsTable extends CalculatorSnapshots
           _nbeAvailableMeta,
         ),
       );
-    } else if (isInserting) {
-      context.missing(_nbeAvailableMeta);
     }
     if (data.containsKey('nbe_owed')) {
       context.handle(
         _nbeOwedMeta,
         nbeOwed.isAcceptableOrUnknown(data['nbe_owed']!, _nbeOwedMeta),
       );
-    } else if (isInserting) {
-      context.missing(_nbeOwedMeta);
     }
     if (data.containsKey('cib_explorer_wallet_available')) {
       context.handle(
@@ -2630,8 +2645,6 @@ class $CalculatorSnapshotsTable extends CalculatorSnapshots
           _cibExplorerWalletAvailableMeta,
         ),
       );
-    } else if (isInserting) {
-      context.missing(_cibExplorerWalletAvailableMeta);
     }
     if (data.containsKey('cib_explorer_wallet_owed')) {
       context.handle(
@@ -2641,8 +2654,6 @@ class $CalculatorSnapshotsTable extends CalculatorSnapshots
           _cibExplorerWalletOwedMeta,
         ),
       );
-    } else if (isInserting) {
-      context.missing(_cibExplorerWalletOwedMeta);
     }
     if (data.containsKey('cib_platinum_available')) {
       context.handle(
@@ -2652,8 +2663,6 @@ class $CalculatorSnapshotsTable extends CalculatorSnapshots
           _cibPlatinumAvailableMeta,
         ),
       );
-    } else if (isInserting) {
-      context.missing(_cibPlatinumAvailableMeta);
     }
     if (data.containsKey('cib_platinum_owed')) {
       context.handle(
@@ -2663,8 +2672,6 @@ class $CalculatorSnapshotsTable extends CalculatorSnapshots
           _cibPlatinumOwedMeta,
         ),
       );
-    } else if (isInserting) {
-      context.missing(_cibPlatinumOwedMeta);
     }
     if (data.containsKey('custom_items_json')) {
       context.handle(
@@ -2672,6 +2679,15 @@ class $CalculatorSnapshotsTable extends CalculatorSnapshots
         customItemsJson.isAcceptableOrUnknown(
           data['custom_items_json']!,
           _customItemsJsonMeta,
+        ),
+      );
+    }
+    if (data.containsKey('card_entries_json')) {
+      context.handle(
+        _cardEntriesJsonMeta,
+        cardEntriesJson.isAcceptableOrUnknown(
+          data['card_entries_json']!,
+          _cardEntriesJsonMeta,
         ),
       );
     }
@@ -2736,6 +2752,10 @@ class $CalculatorSnapshotsTable extends CalculatorSnapshots
         DriftSqlType.string,
         data['${effectivePrefix}custom_items_json'],
       )!,
+      cardEntriesJson: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}card_entries_json'],
+      )!,
     );
   }
 
@@ -2762,6 +2782,11 @@ class CalculatorSnapshot extends DataClass
 
   /// JSON-encoded list of `{label, amount, isAddition}` custom line items.
   final String customItemsJson;
+
+  /// JSON-encoded list of per-card entries — see class doc. Empty list
+  /// (`'[]'`, the default) on every snapshot saved before user-managed
+  /// cards existed; the fixed nbe/cib* columns above carry those instead.
+  final String cardEntriesJson;
   const CalculatorSnapshot({
     required this.id,
     required this.computedAt,
@@ -2776,6 +2801,7 @@ class CalculatorSnapshot extends DataClass
     required this.cibPlatinumAvailable,
     required this.cibPlatinumOwed,
     required this.customItemsJson,
+    required this.cardEntriesJson,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -2795,6 +2821,7 @@ class CalculatorSnapshot extends DataClass
     map['cib_platinum_available'] = Variable<double>(cibPlatinumAvailable);
     map['cib_platinum_owed'] = Variable<double>(cibPlatinumOwed);
     map['custom_items_json'] = Variable<String>(customItemsJson);
+    map['card_entries_json'] = Variable<String>(cardEntriesJson);
     return map;
   }
 
@@ -2813,6 +2840,7 @@ class CalculatorSnapshot extends DataClass
       cibPlatinumAvailable: Value(cibPlatinumAvailable),
       cibPlatinumOwed: Value(cibPlatinumOwed),
       customItemsJson: Value(customItemsJson),
+      cardEntriesJson: Value(cardEntriesJson),
     );
   }
 
@@ -2841,6 +2869,7 @@ class CalculatorSnapshot extends DataClass
       ),
       cibPlatinumOwed: serializer.fromJson<double>(json['cibPlatinumOwed']),
       customItemsJson: serializer.fromJson<String>(json['customItemsJson']),
+      cardEntriesJson: serializer.fromJson<String>(json['cardEntriesJson']),
     );
   }
   @override
@@ -2862,6 +2891,7 @@ class CalculatorSnapshot extends DataClass
       'cibPlatinumAvailable': serializer.toJson<double>(cibPlatinumAvailable),
       'cibPlatinumOwed': serializer.toJson<double>(cibPlatinumOwed),
       'customItemsJson': serializer.toJson<String>(customItemsJson),
+      'cardEntriesJson': serializer.toJson<String>(cardEntriesJson),
     };
   }
 
@@ -2879,6 +2909,7 @@ class CalculatorSnapshot extends DataClass
     double? cibPlatinumAvailable,
     double? cibPlatinumOwed,
     String? customItemsJson,
+    String? cardEntriesJson,
   }) => CalculatorSnapshot(
     id: id ?? this.id,
     computedAt: computedAt ?? this.computedAt,
@@ -2894,6 +2925,7 @@ class CalculatorSnapshot extends DataClass
     cibPlatinumAvailable: cibPlatinumAvailable ?? this.cibPlatinumAvailable,
     cibPlatinumOwed: cibPlatinumOwed ?? this.cibPlatinumOwed,
     customItemsJson: customItemsJson ?? this.customItemsJson,
+    cardEntriesJson: cardEntriesJson ?? this.cardEntriesJson,
   );
   CalculatorSnapshot copyWithCompanion(CalculatorSnapshotsCompanion data) {
     return CalculatorSnapshot(
@@ -2932,6 +2964,9 @@ class CalculatorSnapshot extends DataClass
       customItemsJson: data.customItemsJson.present
           ? data.customItemsJson.value
           : this.customItemsJson,
+      cardEntriesJson: data.cardEntriesJson.present
+          ? data.cardEntriesJson.value
+          : this.cardEntriesJson,
     );
   }
 
@@ -2950,7 +2985,8 @@ class CalculatorSnapshot extends DataClass
           ..write('cibExplorerWalletOwed: $cibExplorerWalletOwed, ')
           ..write('cibPlatinumAvailable: $cibPlatinumAvailable, ')
           ..write('cibPlatinumOwed: $cibPlatinumOwed, ')
-          ..write('customItemsJson: $customItemsJson')
+          ..write('customItemsJson: $customItemsJson, ')
+          ..write('cardEntriesJson: $cardEntriesJson')
           ..write(')'))
         .toString();
   }
@@ -2970,6 +3006,7 @@ class CalculatorSnapshot extends DataClass
     cibPlatinumAvailable,
     cibPlatinumOwed,
     customItemsJson,
+    cardEntriesJson,
   );
   @override
   bool operator ==(Object other) =>
@@ -2987,7 +3024,8 @@ class CalculatorSnapshot extends DataClass
           other.cibExplorerWalletOwed == this.cibExplorerWalletOwed &&
           other.cibPlatinumAvailable == this.cibPlatinumAvailable &&
           other.cibPlatinumOwed == this.cibPlatinumOwed &&
-          other.customItemsJson == this.customItemsJson);
+          other.customItemsJson == this.customItemsJson &&
+          other.cardEntriesJson == this.cardEntriesJson);
 }
 
 class CalculatorSnapshotsCompanion extends UpdateCompanion<CalculatorSnapshot> {
@@ -3004,6 +3042,7 @@ class CalculatorSnapshotsCompanion extends UpdateCompanion<CalculatorSnapshot> {
   final Value<double> cibPlatinumAvailable;
   final Value<double> cibPlatinumOwed;
   final Value<String> customItemsJson;
+  final Value<String> cardEntriesJson;
   final Value<int> rowid;
   const CalculatorSnapshotsCompanion({
     this.id = const Value.absent(),
@@ -3019,6 +3058,7 @@ class CalculatorSnapshotsCompanion extends UpdateCompanion<CalculatorSnapshot> {
     this.cibPlatinumAvailable = const Value.absent(),
     this.cibPlatinumOwed = const Value.absent(),
     this.customItemsJson = const Value.absent(),
+    this.cardEntriesJson = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   CalculatorSnapshotsCompanion.insert({
@@ -3028,26 +3068,21 @@ class CalculatorSnapshotsCompanion extends UpdateCompanion<CalculatorSnapshot> {
     required double ledgersTotal,
     required double apartmentSavings,
     required double cibAccountBalance,
-    required double nbeAvailable,
-    required double nbeOwed,
-    required double cibExplorerWalletAvailable,
-    required double cibExplorerWalletOwed,
-    required double cibPlatinumAvailable,
-    required double cibPlatinumOwed,
+    this.nbeAvailable = const Value.absent(),
+    this.nbeOwed = const Value.absent(),
+    this.cibExplorerWalletAvailable = const Value.absent(),
+    this.cibExplorerWalletOwed = const Value.absent(),
+    this.cibPlatinumAvailable = const Value.absent(),
+    this.cibPlatinumOwed = const Value.absent(),
     this.customItemsJson = const Value.absent(),
+    this.cardEntriesJson = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
        computedAt = Value(computedAt),
        resultAmount = Value(resultAmount),
        ledgersTotal = Value(ledgersTotal),
        apartmentSavings = Value(apartmentSavings),
-       cibAccountBalance = Value(cibAccountBalance),
-       nbeAvailable = Value(nbeAvailable),
-       nbeOwed = Value(nbeOwed),
-       cibExplorerWalletAvailable = Value(cibExplorerWalletAvailable),
-       cibExplorerWalletOwed = Value(cibExplorerWalletOwed),
-       cibPlatinumAvailable = Value(cibPlatinumAvailable),
-       cibPlatinumOwed = Value(cibPlatinumOwed);
+       cibAccountBalance = Value(cibAccountBalance);
   static Insertable<CalculatorSnapshot> custom({
     Expression<String>? id,
     Expression<DateTime>? computedAt,
@@ -3062,6 +3097,7 @@ class CalculatorSnapshotsCompanion extends UpdateCompanion<CalculatorSnapshot> {
     Expression<double>? cibPlatinumAvailable,
     Expression<double>? cibPlatinumOwed,
     Expression<String>? customItemsJson,
+    Expression<String>? cardEntriesJson,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -3081,6 +3117,7 @@ class CalculatorSnapshotsCompanion extends UpdateCompanion<CalculatorSnapshot> {
         'cib_platinum_available': cibPlatinumAvailable,
       if (cibPlatinumOwed != null) 'cib_platinum_owed': cibPlatinumOwed,
       if (customItemsJson != null) 'custom_items_json': customItemsJson,
+      if (cardEntriesJson != null) 'card_entries_json': cardEntriesJson,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -3099,6 +3136,7 @@ class CalculatorSnapshotsCompanion extends UpdateCompanion<CalculatorSnapshot> {
     Value<double>? cibPlatinumAvailable,
     Value<double>? cibPlatinumOwed,
     Value<String>? customItemsJson,
+    Value<String>? cardEntriesJson,
     Value<int>? rowid,
   }) {
     return CalculatorSnapshotsCompanion(
@@ -3117,6 +3155,7 @@ class CalculatorSnapshotsCompanion extends UpdateCompanion<CalculatorSnapshot> {
       cibPlatinumAvailable: cibPlatinumAvailable ?? this.cibPlatinumAvailable,
       cibPlatinumOwed: cibPlatinumOwed ?? this.cibPlatinumOwed,
       customItemsJson: customItemsJson ?? this.customItemsJson,
+      cardEntriesJson: cardEntriesJson ?? this.cardEntriesJson,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -3169,6 +3208,9 @@ class CalculatorSnapshotsCompanion extends UpdateCompanion<CalculatorSnapshot> {
     if (customItemsJson.present) {
       map['custom_items_json'] = Variable<String>(customItemsJson.value);
     }
+    if (cardEntriesJson.present) {
+      map['card_entries_json'] = Variable<String>(cardEntriesJson.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -3191,6 +3233,417 @@ class CalculatorSnapshotsCompanion extends UpdateCompanion<CalculatorSnapshot> {
           ..write('cibPlatinumAvailable: $cibPlatinumAvailable, ')
           ..write('cibPlatinumOwed: $cibPlatinumOwed, ')
           ..write('customItemsJson: $customItemsJson, ')
+          ..write('cardEntriesJson: $cardEntriesJson, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $CreditCardsTable extends CreditCards
+    with TableInfo<$CreditCardsTable, CreditCard> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $CreditCardsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _nameMeta = const VerificationMeta('name');
+  @override
+  late final GeneratedColumn<String> name = GeneratedColumn<String>(
+    'name',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _bankMeta = const VerificationMeta('bank');
+  @override
+  late final GeneratedColumn<String> bank = GeneratedColumn<String>(
+    'bank',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _limitAmountMeta = const VerificationMeta(
+    'limitAmount',
+  );
+  @override
+  late final GeneratedColumn<double> limitAmount = GeneratedColumn<double>(
+    'limit_amount',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _currencyMeta = const VerificationMeta(
+    'currency',
+  );
+  @override
+  late final GeneratedColumn<String> currency = GeneratedColumn<String>(
+    'currency',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('EGP'),
+  );
+  static const VerificationMeta _sortOrderMeta = const VerificationMeta(
+    'sortOrder',
+  );
+  @override
+  late final GeneratedColumn<int> sortOrder = GeneratedColumn<int>(
+    'sort_order',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    name,
+    bank,
+    limitAmount,
+    currency,
+    sortOrder,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'credit_cards';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<CreditCard> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('name')) {
+      context.handle(
+        _nameMeta,
+        name.isAcceptableOrUnknown(data['name']!, _nameMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_nameMeta);
+    }
+    if (data.containsKey('bank')) {
+      context.handle(
+        _bankMeta,
+        bank.isAcceptableOrUnknown(data['bank']!, _bankMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_bankMeta);
+    }
+    if (data.containsKey('limit_amount')) {
+      context.handle(
+        _limitAmountMeta,
+        limitAmount.isAcceptableOrUnknown(
+          data['limit_amount']!,
+          _limitAmountMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_limitAmountMeta);
+    }
+    if (data.containsKey('currency')) {
+      context.handle(
+        _currencyMeta,
+        currency.isAcceptableOrUnknown(data['currency']!, _currencyMeta),
+      );
+    }
+    if (data.containsKey('sort_order')) {
+      context.handle(
+        _sortOrderMeta,
+        sortOrder.isAcceptableOrUnknown(data['sort_order']!, _sortOrderMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  CreditCard map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return CreditCard(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      name: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}name'],
+      )!,
+      bank: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}bank'],
+      )!,
+      limitAmount: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}limit_amount'],
+      )!,
+      currency: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}currency'],
+      )!,
+      sortOrder: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}sort_order'],
+      )!,
+    );
+  }
+
+  @override
+  $CreditCardsTable createAlias(String alias) {
+    return $CreditCardsTable(attachedDatabase, alias);
+  }
+}
+
+class CreditCard extends DataClass implements Insertable<CreditCard> {
+  final String id;
+  final String name;
+  final String bank;
+  final double limitAmount;
+  final String currency;
+
+  /// Manual ordering for display — set to insertion order by default, but
+  /// not tied to it, so a future "reorder" gesture has somewhere to write.
+  final int sortOrder;
+  const CreditCard({
+    required this.id,
+    required this.name,
+    required this.bank,
+    required this.limitAmount,
+    required this.currency,
+    required this.sortOrder,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['name'] = Variable<String>(name);
+    map['bank'] = Variable<String>(bank);
+    map['limit_amount'] = Variable<double>(limitAmount);
+    map['currency'] = Variable<String>(currency);
+    map['sort_order'] = Variable<int>(sortOrder);
+    return map;
+  }
+
+  CreditCardsCompanion toCompanion(bool nullToAbsent) {
+    return CreditCardsCompanion(
+      id: Value(id),
+      name: Value(name),
+      bank: Value(bank),
+      limitAmount: Value(limitAmount),
+      currency: Value(currency),
+      sortOrder: Value(sortOrder),
+    );
+  }
+
+  factory CreditCard.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return CreditCard(
+      id: serializer.fromJson<String>(json['id']),
+      name: serializer.fromJson<String>(json['name']),
+      bank: serializer.fromJson<String>(json['bank']),
+      limitAmount: serializer.fromJson<double>(json['limitAmount']),
+      currency: serializer.fromJson<String>(json['currency']),
+      sortOrder: serializer.fromJson<int>(json['sortOrder']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'name': serializer.toJson<String>(name),
+      'bank': serializer.toJson<String>(bank),
+      'limitAmount': serializer.toJson<double>(limitAmount),
+      'currency': serializer.toJson<String>(currency),
+      'sortOrder': serializer.toJson<int>(sortOrder),
+    };
+  }
+
+  CreditCard copyWith({
+    String? id,
+    String? name,
+    String? bank,
+    double? limitAmount,
+    String? currency,
+    int? sortOrder,
+  }) => CreditCard(
+    id: id ?? this.id,
+    name: name ?? this.name,
+    bank: bank ?? this.bank,
+    limitAmount: limitAmount ?? this.limitAmount,
+    currency: currency ?? this.currency,
+    sortOrder: sortOrder ?? this.sortOrder,
+  );
+  CreditCard copyWithCompanion(CreditCardsCompanion data) {
+    return CreditCard(
+      id: data.id.present ? data.id.value : this.id,
+      name: data.name.present ? data.name.value : this.name,
+      bank: data.bank.present ? data.bank.value : this.bank,
+      limitAmount: data.limitAmount.present
+          ? data.limitAmount.value
+          : this.limitAmount,
+      currency: data.currency.present ? data.currency.value : this.currency,
+      sortOrder: data.sortOrder.present ? data.sortOrder.value : this.sortOrder,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('CreditCard(')
+          ..write('id: $id, ')
+          ..write('name: $name, ')
+          ..write('bank: $bank, ')
+          ..write('limitAmount: $limitAmount, ')
+          ..write('currency: $currency, ')
+          ..write('sortOrder: $sortOrder')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode =>
+      Object.hash(id, name, bank, limitAmount, currency, sortOrder);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is CreditCard &&
+          other.id == this.id &&
+          other.name == this.name &&
+          other.bank == this.bank &&
+          other.limitAmount == this.limitAmount &&
+          other.currency == this.currency &&
+          other.sortOrder == this.sortOrder);
+}
+
+class CreditCardsCompanion extends UpdateCompanion<CreditCard> {
+  final Value<String> id;
+  final Value<String> name;
+  final Value<String> bank;
+  final Value<double> limitAmount;
+  final Value<String> currency;
+  final Value<int> sortOrder;
+  final Value<int> rowid;
+  const CreditCardsCompanion({
+    this.id = const Value.absent(),
+    this.name = const Value.absent(),
+    this.bank = const Value.absent(),
+    this.limitAmount = const Value.absent(),
+    this.currency = const Value.absent(),
+    this.sortOrder = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  CreditCardsCompanion.insert({
+    required String id,
+    required String name,
+    required String bank,
+    required double limitAmount,
+    this.currency = const Value.absent(),
+    this.sortOrder = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       name = Value(name),
+       bank = Value(bank),
+       limitAmount = Value(limitAmount);
+  static Insertable<CreditCard> custom({
+    Expression<String>? id,
+    Expression<String>? name,
+    Expression<String>? bank,
+    Expression<double>? limitAmount,
+    Expression<String>? currency,
+    Expression<int>? sortOrder,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (name != null) 'name': name,
+      if (bank != null) 'bank': bank,
+      if (limitAmount != null) 'limit_amount': limitAmount,
+      if (currency != null) 'currency': currency,
+      if (sortOrder != null) 'sort_order': sortOrder,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  CreditCardsCompanion copyWith({
+    Value<String>? id,
+    Value<String>? name,
+    Value<String>? bank,
+    Value<double>? limitAmount,
+    Value<String>? currency,
+    Value<int>? sortOrder,
+    Value<int>? rowid,
+  }) {
+    return CreditCardsCompanion(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      bank: bank ?? this.bank,
+      limitAmount: limitAmount ?? this.limitAmount,
+      currency: currency ?? this.currency,
+      sortOrder: sortOrder ?? this.sortOrder,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (name.present) {
+      map['name'] = Variable<String>(name.value);
+    }
+    if (bank.present) {
+      map['bank'] = Variable<String>(bank.value);
+    }
+    if (limitAmount.present) {
+      map['limit_amount'] = Variable<double>(limitAmount.value);
+    }
+    if (currency.present) {
+      map['currency'] = Variable<String>(currency.value);
+    }
+    if (sortOrder.present) {
+      map['sort_order'] = Variable<int>(sortOrder.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('CreditCardsCompanion(')
+          ..write('id: $id, ')
+          ..write('name: $name, ')
+          ..write('bank: $bank, ')
+          ..write('limitAmount: $limitAmount, ')
+          ..write('currency: $currency, ')
+          ..write('sortOrder: $sortOrder, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -3212,6 +3665,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $VendorRulesTable vendorRules = $VendorRulesTable(this);
   late final $CalculatorSnapshotsTable calculatorSnapshots =
       $CalculatorSnapshotsTable(this);
+  late final $CreditCardsTable creditCards = $CreditCardsTable(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -3225,6 +3679,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     calculatorInputs,
     vendorRules,
     calculatorSnapshots,
+    creditCards,
   ];
 }
 
@@ -5024,13 +5479,14 @@ typedef $$CalculatorSnapshotsTableCreateCompanionBuilder =
       required double ledgersTotal,
       required double apartmentSavings,
       required double cibAccountBalance,
-      required double nbeAvailable,
-      required double nbeOwed,
-      required double cibExplorerWalletAvailable,
-      required double cibExplorerWalletOwed,
-      required double cibPlatinumAvailable,
-      required double cibPlatinumOwed,
+      Value<double> nbeAvailable,
+      Value<double> nbeOwed,
+      Value<double> cibExplorerWalletAvailable,
+      Value<double> cibExplorerWalletOwed,
+      Value<double> cibPlatinumAvailable,
+      Value<double> cibPlatinumOwed,
       Value<String> customItemsJson,
+      Value<String> cardEntriesJson,
       Value<int> rowid,
     });
 typedef $$CalculatorSnapshotsTableUpdateCompanionBuilder =
@@ -5048,6 +5504,7 @@ typedef $$CalculatorSnapshotsTableUpdateCompanionBuilder =
       Value<double> cibPlatinumAvailable,
       Value<double> cibPlatinumOwed,
       Value<String> customItemsJson,
+      Value<String> cardEntriesJson,
       Value<int> rowid,
     });
 
@@ -5122,6 +5579,11 @@ class $$CalculatorSnapshotsTableFilterComposer
 
   ColumnFilters<String> get customItemsJson => $composableBuilder(
     column: $table.customItemsJson,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get cardEntriesJson => $composableBuilder(
+    column: $table.cardEntriesJson,
     builder: (column) => ColumnFilters(column),
   );
 }
@@ -5199,6 +5661,11 @@ class $$CalculatorSnapshotsTableOrderingComposer
     column: $table.customItemsJson,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<String> get cardEntriesJson => $composableBuilder(
+    column: $table.cardEntriesJson,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$CalculatorSnapshotsTableAnnotationComposer
@@ -5270,6 +5737,11 @@ class $$CalculatorSnapshotsTableAnnotationComposer
     column: $table.customItemsJson,
     builder: (column) => column,
   );
+
+  GeneratedColumn<String> get cardEntriesJson => $composableBuilder(
+    column: $table.cardEntriesJson,
+    builder: (column) => column,
+  );
 }
 
 class $$CalculatorSnapshotsTableTableManager
@@ -5328,6 +5800,7 @@ class $$CalculatorSnapshotsTableTableManager
                 Value<double> cibPlatinumAvailable = const Value.absent(),
                 Value<double> cibPlatinumOwed = const Value.absent(),
                 Value<String> customItemsJson = const Value.absent(),
+                Value<String> cardEntriesJson = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => CalculatorSnapshotsCompanion(
                 id: id,
@@ -5343,6 +5816,7 @@ class $$CalculatorSnapshotsTableTableManager
                 cibPlatinumAvailable: cibPlatinumAvailable,
                 cibPlatinumOwed: cibPlatinumOwed,
                 customItemsJson: customItemsJson,
+                cardEntriesJson: cardEntriesJson,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -5353,13 +5827,14 @@ class $$CalculatorSnapshotsTableTableManager
                 required double ledgersTotal,
                 required double apartmentSavings,
                 required double cibAccountBalance,
-                required double nbeAvailable,
-                required double nbeOwed,
-                required double cibExplorerWalletAvailable,
-                required double cibExplorerWalletOwed,
-                required double cibPlatinumAvailable,
-                required double cibPlatinumOwed,
+                Value<double> nbeAvailable = const Value.absent(),
+                Value<double> nbeOwed = const Value.absent(),
+                Value<double> cibExplorerWalletAvailable = const Value.absent(),
+                Value<double> cibExplorerWalletOwed = const Value.absent(),
+                Value<double> cibPlatinumAvailable = const Value.absent(),
+                Value<double> cibPlatinumOwed = const Value.absent(),
                 Value<String> customItemsJson = const Value.absent(),
+                Value<String> cardEntriesJson = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => CalculatorSnapshotsCompanion.insert(
                 id: id,
@@ -5375,6 +5850,7 @@ class $$CalculatorSnapshotsTableTableManager
                 cibPlatinumAvailable: cibPlatinumAvailable,
                 cibPlatinumOwed: cibPlatinumOwed,
                 customItemsJson: customItemsJson,
+                cardEntriesJson: cardEntriesJson,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
@@ -5406,6 +5882,227 @@ typedef $$CalculatorSnapshotsTableProcessedTableManager =
       CalculatorSnapshot,
       PrefetchHooks Function()
     >;
+typedef $$CreditCardsTableCreateCompanionBuilder =
+    CreditCardsCompanion Function({
+      required String id,
+      required String name,
+      required String bank,
+      required double limitAmount,
+      Value<String> currency,
+      Value<int> sortOrder,
+      Value<int> rowid,
+    });
+typedef $$CreditCardsTableUpdateCompanionBuilder =
+    CreditCardsCompanion Function({
+      Value<String> id,
+      Value<String> name,
+      Value<String> bank,
+      Value<double> limitAmount,
+      Value<String> currency,
+      Value<int> sortOrder,
+      Value<int> rowid,
+    });
+
+class $$CreditCardsTableFilterComposer
+    extends Composer<_$AppDatabase, $CreditCardsTable> {
+  $$CreditCardsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get bank => $composableBuilder(
+    column: $table.bank,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get limitAmount => $composableBuilder(
+    column: $table.limitAmount,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get currency => $composableBuilder(
+    column: $table.currency,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get sortOrder => $composableBuilder(
+    column: $table.sortOrder,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$CreditCardsTableOrderingComposer
+    extends Composer<_$AppDatabase, $CreditCardsTable> {
+  $$CreditCardsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get bank => $composableBuilder(
+    column: $table.bank,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get limitAmount => $composableBuilder(
+    column: $table.limitAmount,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get currency => $composableBuilder(
+    column: $table.currency,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get sortOrder => $composableBuilder(
+    column: $table.sortOrder,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$CreditCardsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $CreditCardsTable> {
+  $$CreditCardsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get name =>
+      $composableBuilder(column: $table.name, builder: (column) => column);
+
+  GeneratedColumn<String> get bank =>
+      $composableBuilder(column: $table.bank, builder: (column) => column);
+
+  GeneratedColumn<double> get limitAmount => $composableBuilder(
+    column: $table.limitAmount,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get currency =>
+      $composableBuilder(column: $table.currency, builder: (column) => column);
+
+  GeneratedColumn<int> get sortOrder =>
+      $composableBuilder(column: $table.sortOrder, builder: (column) => column);
+}
+
+class $$CreditCardsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $CreditCardsTable,
+          CreditCard,
+          $$CreditCardsTableFilterComposer,
+          $$CreditCardsTableOrderingComposer,
+          $$CreditCardsTableAnnotationComposer,
+          $$CreditCardsTableCreateCompanionBuilder,
+          $$CreditCardsTableUpdateCompanionBuilder,
+          (
+            CreditCard,
+            BaseReferences<_$AppDatabase, $CreditCardsTable, CreditCard>,
+          ),
+          CreditCard,
+          PrefetchHooks Function()
+        > {
+  $$CreditCardsTableTableManager(_$AppDatabase db, $CreditCardsTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$CreditCardsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$CreditCardsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$CreditCardsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> name = const Value.absent(),
+                Value<String> bank = const Value.absent(),
+                Value<double> limitAmount = const Value.absent(),
+                Value<String> currency = const Value.absent(),
+                Value<int> sortOrder = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => CreditCardsCompanion(
+                id: id,
+                name: name,
+                bank: bank,
+                limitAmount: limitAmount,
+                currency: currency,
+                sortOrder: sortOrder,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String name,
+                required String bank,
+                required double limitAmount,
+                Value<String> currency = const Value.absent(),
+                Value<int> sortOrder = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => CreditCardsCompanion.insert(
+                id: id,
+                name: name,
+                bank: bank,
+                limitAmount: limitAmount,
+                currency: currency,
+                sortOrder: sortOrder,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$CreditCardsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $CreditCardsTable,
+      CreditCard,
+      $$CreditCardsTableFilterComposer,
+      $$CreditCardsTableOrderingComposer,
+      $$CreditCardsTableAnnotationComposer,
+      $$CreditCardsTableCreateCompanionBuilder,
+      $$CreditCardsTableUpdateCompanionBuilder,
+      (
+        CreditCard,
+        BaseReferences<_$AppDatabase, $CreditCardsTable, CreditCard>,
+      ),
+      CreditCard,
+      PrefetchHooks Function()
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -5426,4 +6123,6 @@ class $AppDatabaseManager {
       $$VendorRulesTableTableManager(_db, _db.vendorRules);
   $$CalculatorSnapshotsTableTableManager get calculatorSnapshots =>
       $$CalculatorSnapshotsTableTableManager(_db, _db.calculatorSnapshots);
+  $$CreditCardsTableTableManager get creditCards =>
+      $$CreditCardsTableTableManager(_db, _db.creditCards);
 }

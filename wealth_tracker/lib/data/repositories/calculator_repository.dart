@@ -3,8 +3,8 @@ import 'dart:convert';
 import 'package:drift/drift.dart';
 import 'package:uuid/uuid.dart';
 
-import '../../core/models/calculator_card.dart';
 import '../../core/models/calculator_custom_item.dart';
+import '../../core/models/card_snapshot_entry.dart';
 import '../db/database.dart';
 
 class CalculatorRepository {
@@ -13,21 +13,35 @@ class CalculatorRepository {
   final AppDatabase _db;
   static const _uuid = Uuid();
 
-  Stream<Map<CalculatorCard, double>> watchCardLimits() {
-    return _db.select(_db.calculatorInputs).watch().map((rows) {
-      final byKey = {for (final row in rows) row.key: row.value};
-      return {for (final card in CalculatorCard.values) card: byKey[card.storageKey] ?? card.defaultLimit};
-    });
+  Stream<List<CreditCard>> watchCards() {
+    return (_db.select(_db.creditCards)..orderBy([(t) => OrderingTerm.asc(t.sortOrder)])).watch();
   }
 
-  Future<void> setCardLimit(CalculatorCard card, double limit) {
-    return _db.into(_db.calculatorInputs).insertOnConflictUpdate(
-          CalculatorInputsCompanion.insert(
-            key: card.storageKey,
-            value: limit,
-            updatedAt: DateTime.now(),
+  Future<void> addCard({
+    required String name,
+    required String bank,
+    required double limit,
+    required String currency,
+  }) async {
+    final count = await _db.select(_db.creditCards).get();
+    await _db.into(_db.creditCards).insert(
+          CreditCardsCompanion.insert(
+            id: _uuid.v4(),
+            name: name,
+            bank: bank,
+            limitAmount: limit,
+            currency: Value(currency),
+            sortOrder: Value(count.length),
           ),
         );
+  }
+
+  Future<void> updateCard(CreditCard card) {
+    return _db.update(_db.creditCards).replace(card);
+  }
+
+  Future<void> deleteCard(String id) {
+    return (_db.delete(_db.creditCards)..where((t) => t.id.equals(id))).go();
   }
 
   Stream<List<CalculatorSnapshot>> watchSnapshots() {
@@ -41,12 +55,7 @@ class CalculatorRepository {
     required double ledgersTotal,
     required double apartmentSavings,
     required double cibAccountBalance,
-    required double nbeAvailable,
-    required double nbeOwed,
-    required double cibExplorerWalletAvailable,
-    required double cibExplorerWalletOwed,
-    required double cibPlatinumAvailable,
-    required double cibPlatinumOwed,
+    required List<CardSnapshotEntry> cardEntries,
     required List<CustomCalculatorItem> customItems,
   }) {
     return _db.into(_db.calculatorSnapshots).insert(
@@ -57,13 +66,11 @@ class CalculatorRepository {
             ledgersTotal: ledgersTotal,
             apartmentSavings: apartmentSavings,
             cibAccountBalance: cibAccountBalance,
-            nbeAvailable: nbeAvailable,
-            nbeOwed: nbeOwed,
-            cibExplorerWalletAvailable: cibExplorerWalletAvailable,
-            cibExplorerWalletOwed: cibExplorerWalletOwed,
-            cibPlatinumAvailable: cibPlatinumAvailable,
-            cibPlatinumOwed: cibPlatinumOwed,
+            // Fixed legacy columns are only ever populated by pre-upgrade
+            // history; every new snapshot leaves them at their defaults
+            // and carries its cards in cardEntriesJson instead.
             customItemsJson: Value(jsonEncode(customItems.map((c) => c.toJson()).toList())),
+            cardEntriesJson: Value(jsonEncode(cardEntries.map((c) => c.toJson()).toList())),
           ),
         );
   }
@@ -79,4 +86,15 @@ extension CalculatorSnapshotCustomItems on CalculatorSnapshot {
     if (decoded is! List) return const [];
     return decoded.cast<Map<String, dynamic>>().map(CustomCalculatorItem.fromJson).toList();
   }
+
+  List<CardSnapshotEntry> get cardEntries {
+    final decoded = jsonDecode(cardEntriesJson);
+    if (decoded is! List) return const [];
+    return decoded.cast<Map<String, dynamic>>().map(CardSnapshotEntry.fromJson).toList();
+  }
+
+  /// True for a snapshot saved before user-managed cards existed — its
+  /// card data lives in the fixed nbe/cib* columns instead of
+  /// [cardEntries], which the history screen needs to know to render it.
+  bool get usesLegacyFixedCardColumns => cardEntries.isEmpty;
 }

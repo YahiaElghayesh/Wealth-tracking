@@ -2,10 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/format/money_formatter.dart';
-import '../../../core/models/calculator_card.dart';
 import '../../../core/models/calculator_custom_item.dart';
+import '../../../core/models/card_snapshot_entry.dart';
 import '../../../core/models/currency.dart';
 import '../../../data/calculator/current_money_calculator.dart';
+import '../../../data/db/database.dart';
+import '../../../data/ledger/ledger_calculator.dart';
+import '../../networth/providers/asset_providers.dart' show pricesUsdPerUnitProvider;
+import '../../settings/screens/credit_cards_settings_screen.dart';
 import '../providers/calculator_providers.dart';
 import 'calculator_history_screen.dart';
 
@@ -19,7 +23,7 @@ class CalculatorScreen extends ConsumerStatefulWidget {
 class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
   final _apartmentController = TextEditingController();
   final _cibController = TextEditingController();
-  final _cardControllers = {for (final card in CalculatorCard.values) card: TextEditingController()};
+  final _cardControllers = <String, TextEditingController>{};
   final _customItems = <CustomCalculatorItem>[];
 
   // Both default-prefill exactly once, the first time their data arrives —
@@ -27,14 +31,16 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
   // apartment savings to the last saved snapshot's value, so the user only
   // has to adjust rather than re-type every time. A user edit (including
   // clearing the field back to save a snapshot) must not be overwritten on
-  // the next rebuild, hence the one-shot flags.
-  bool _cardsSeeded = false;
+  // the next rebuild, hence the one-shot flags. Cards seed per-card-id, so
+  // a card added later still gets its own default without re-seeding ones
+  // already touched.
+  final _seededCardIds = <String>{};
   bool _apartmentSeeded = false;
 
   @override
   void initState() {
     super.initState();
-    for (final controller in [_apartmentController, _cibController, ..._cardControllers.values]) {
+    for (final controller in [_apartmentController, _cibController]) {
       controller.addListener(_onFieldChanged);
     }
   }
@@ -57,11 +63,29 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
     return value == value.roundToDouble() ? value.toInt().toString() : value.toString();
   }
 
-  Map<CalculatorCard, double> _owedFor(Map<CalculatorCard, double> limits) {
-    return {
-      for (final card in CalculatorCard.values)
-        card: cardOwedAmount(limit: limits[card] ?? card.defaultLimit, availableBalance: _parse(_cardControllers[card]!)),
-    };
+  /// Lazily creates (and wires up) a controller for [card], so newly added
+  /// cards get one without disturbing controllers for cards already on
+  /// screen.
+  TextEditingController _controllerFor(CreditCard card) {
+    return _cardControllers.putIfAbsent(card.id, () {
+      final controller = TextEditingController();
+      controller.addListener(_onFieldChanged);
+      return controller;
+    });
+  }
+
+  /// Owed amount per card, in the card's own currency (not yet converted).
+  double _owedFor(CreditCard card) {
+    return cardOwedAmount(limit: card.limitAmount, availableBalance: _parse(_controllerFor(card)));
+  }
+
+  /// [_owedFor] converted to the app's settlement currency — falls back to
+  /// the raw, unconverted figure if no FX rate is available yet, rather
+  /// than silently dropping the card from the total.
+  double _owedInDefaultCurrency(CreditCard card, Map<String, double> prices) {
+    final owed = _owedFor(card);
+    if (card.currency == defaultCurrency) return owed;
+    return convertToSettlement(owed, card.currency, prices) ?? owed;
   }
 
   Future<void> _addCustomItem() async {
@@ -120,29 +144,36 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
     if (item != null) setState(() => _customItems.add(item));
   }
 
-  Future<void> _save(double ledgersTotal, Map<CalculatorCard, double> limits) async {
-    final owed = _owedFor(limits);
+  Future<void> _save(double ledgersTotal, List<CreditCard> cards, Map<String, double> prices) async {
     final apartment = _parse(_apartmentController);
     final cib = _parse(_cibController);
+    final cardOwedAmounts = [for (final card in cards) _owedInDefaultCurrency(card, prices)];
     final result = calculateCurrentMoney(
       ledgersTotal: ledgersTotal,
       apartmentSavings: apartment,
       cibAccountBalance: cib,
-      cardOwed: owed,
+      cardOwedAmounts: cardOwedAmounts,
       customItems: _customItems,
     );
+
+    final cardEntries = [
+      for (final card in cards)
+        CardSnapshotEntry(
+          name: card.name,
+          bank: card.bank,
+          currency: card.currency,
+          limit: card.limitAmount,
+          availableBalance: _parse(_controllerFor(card)),
+          owed: _owedFor(card),
+        ),
+    ];
 
     await ref.read(calculatorRepositoryProvider).saveSnapshot(
           resultAmount: result,
           ledgersTotal: ledgersTotal,
           apartmentSavings: apartment,
           cibAccountBalance: cib,
-          nbeAvailable: _parse(_cardControllers[CalculatorCard.nbe]!),
-          nbeOwed: owed[CalculatorCard.nbe]!,
-          cibExplorerWalletAvailable: _parse(_cardControllers[CalculatorCard.cibExplorerWallet]!),
-          cibExplorerWalletOwed: owed[CalculatorCard.cibExplorerWallet]!,
-          cibPlatinumAvailable: _parse(_cardControllers[CalculatorCard.cibPlatinum]!),
-          cibPlatinumOwed: owed[CalculatorCard.cibPlatinum]!,
+          cardEntries: cardEntries,
           customItems: _customItems,
         );
 
@@ -151,7 +182,7 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
       _customItems.clear();
       // Re-seed on the next build: cards back to their limits, apartment
       // to what was just saved (now the latest snapshot).
-      _cardsSeeded = false;
+      _seededCardIds.clear();
       _apartmentSeeded = false;
     });
 
@@ -161,13 +192,15 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final limitsAsync = ref.watch(cardLimitsStreamProvider);
+    final cardsAsync = ref.watch(creditCardsStreamProvider);
     final ledgersTotal = ref.watch(ledgersTotalProvider);
     final historyAsync = ref.watch(calculatorHistoryStreamProvider);
+    final prices = ref.watch(pricesUsdPerUnitProvider);
 
     final latestHistory = historyAsync.valueOrNull;
-    final currentLimits = limitsAsync.valueOrNull;
-    if ((!_apartmentSeeded && latestHistory != null) || (!_cardsSeeded && currentLimits != null)) {
+    final currentCards = cardsAsync.valueOrNull;
+    final unseededCards = currentCards?.where((c) => !_seededCardIds.contains(c.id)).toList();
+    if ((!_apartmentSeeded && latestHistory != null) || (unseededCards != null && unseededCards.isNotEmpty)) {
       // Setting controller.text synchronously here would fire the field
       // listener (which calls setState) mid-build, which Flutter forbids —
       // defer the actual seeding to right after this frame.
@@ -180,11 +213,11 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
             }
             _apartmentSeeded = true;
           }
-          if (!_cardsSeeded && currentLimits != null) {
-            for (final card in CalculatorCard.values) {
-              _cardControllers[card]!.text = _formatSeed(currentLimits[card] ?? card.defaultLimit);
+          if (unseededCards != null) {
+            for (final card in unseededCards) {
+              _controllerFor(card).text = _formatSeed(card.limitAmount);
+              _seededCardIds.add(card.id);
             }
-            _cardsSeeded = true;
           }
         });
       });
@@ -203,18 +236,18 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
           ),
         ],
       ),
-      body: limitsAsync.when(
+      body: cardsAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, st) => Center(child: Text('Error: $e')),
-        data: (limits) {
-          final owed = _owedFor(limits);
+        data: (cards) {
           final apartment = _parse(_apartmentController);
           final cib = _parse(_cibController);
+          final cardOwedAmounts = [for (final card in cards) _owedInDefaultCurrency(card, prices)];
           final result = calculateCurrentMoney(
             ledgersTotal: ledgersTotal,
             apartmentSavings: apartment,
             cibAccountBalance: cib,
-            cardOwed: owed,
+            cardOwedAmounts: cardOwedAmounts,
             customItems: _customItems,
           );
 
@@ -253,17 +286,27 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
               const SizedBox(height: 16),
               _Section(
                 title: 'Credit cards',
-                subtitle: 'Enter the balance still available to spend, as shown in your banking '
-                    'app — not what you owe.',
+                subtitle: cards.isEmpty
+                    ? 'No cards yet — add one in Settings.'
+                    : 'Enter the balance still available to spend, as shown in your banking '
+                        'app — not what you owe.',
+                trailing: IconButton(
+                  icon: const Icon(Icons.settings),
+                  tooltip: 'Manage cards',
+                  onPressed: () => Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => const CreditCardsSettingsScreen()),
+                  ),
+                ),
                 children: [
-                  for (final card in CalculatorCard.values) ...[
+                  for (final card in cards) ...[
                     _CardField(
                       card: card,
-                      limit: limits[card] ?? card.defaultLimit,
-                      controller: _cardControllers[card]!,
-                      owed: owed[card]!,
+                      controller: _controllerFor(card),
+                      owed: _owedFor(card),
+                      rateMissing: card.currency != defaultCurrency &&
+                          convertToSettlement(0, card.currency, prices) == null,
                     ),
-                    if (card != CalculatorCard.values.last) const Divider(height: 28),
+                    if (card != cards.last) const Divider(height: 28),
                   ],
                 ],
               ),
@@ -304,7 +347,7 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
               FilledButton.icon(
                 icon: const Icon(Icons.save),
                 label: const Text('Save calculation'),
-                onPressed: () => _save(ledgersTotal, limits),
+                onPressed: () => _save(ledgersTotal, cards, prices),
               ),
             ],
           );
@@ -343,10 +386,11 @@ class _ResultCard extends StatelessWidget {
 /// A titled, bordered group — makes it visually obvious where one set of
 /// inputs ends and the next begins.
 class _Section extends StatelessWidget {
-  const _Section({required this.title, required this.children, this.subtitle});
+  const _Section({required this.title, required this.children, this.subtitle, this.trailing});
 
   final String title;
   final String? subtitle;
+  final Widget? trailing;
   final List<Widget> children;
 
   @override
@@ -357,7 +401,12 @@ class _Section extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(title, style: Theme.of(context).textTheme.titleMedium),
+            Row(
+              children: [
+                Expanded(child: Text(title, style: Theme.of(context).textTheme.titleMedium)),
+                ?trailing,
+              ],
+            ),
             if (subtitle != null) ...[
               const SizedBox(height: 4),
               Text(subtitle!, style: Theme.of(context).textTheme.bodySmall),
@@ -441,12 +490,17 @@ class _SignedAmountField extends StatelessWidget {
 }
 
 class _CardField extends StatelessWidget {
-  const _CardField({required this.card, required this.limit, required this.controller, required this.owed});
+  const _CardField({
+    required this.card,
+    required this.controller,
+    required this.owed,
+    required this.rateMissing,
+  });
 
-  final CalculatorCard card;
-  final double limit;
+  final CreditCard card;
   final TextEditingController controller;
   final double owed;
+  final bool rateMissing;
 
   @override
   Widget build(BuildContext context) {
@@ -456,10 +510,10 @@ class _CardField extends StatelessWidget {
         Row(
           children: [
             Expanded(
-              child: Text(card.label, style: Theme.of(context).textTheme.titleSmall),
+              child: Text('${card.name} · ${card.bank}', style: Theme.of(context).textTheme.titleSmall),
             ),
             Text(
-              'Limit ${formatMoney(limit, defaultCurrency)}',
+              'Limit ${formatMoney(card.limitAmount, card.currency)}',
               style: Theme.of(context).textTheme.bodySmall,
             ),
           ],
@@ -467,14 +521,14 @@ class _CardField extends StatelessWidget {
         const SizedBox(height: 8),
         TextFormField(
           controller: controller,
-          decoration: const InputDecoration(labelText: 'Available balance', hintText: '0.00'),
+          decoration: InputDecoration(labelText: 'Available balance (${card.currency})', hintText: '0.00'),
           keyboardType: const TextInputType.numberWithOptions(decimal: true),
         ),
         const SizedBox(height: 6),
         _SignedRow(
           isAddition: false,
-          label: 'Owed',
-          trailing: Text(formatMoney(owed, defaultCurrency), style: Theme.of(context).textTheme.bodyMedium),
+          label: rateMissing ? 'Owed (no exchange rate yet, unconverted)' : 'Owed',
+          trailing: Text(formatMoney(owed, card.currency), style: Theme.of(context).textTheme.bodyMedium),
         ),
       ],
     );

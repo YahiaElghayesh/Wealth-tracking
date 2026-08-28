@@ -96,6 +96,13 @@ class CalculatorInputs extends Table {
 /// amounts are stored directly (not just the available-balance the user
 /// typed in) so a later change to a card's limit in Settings doesn't
 /// retroactively change past history.
+///
+/// The three fixed nbe/cibExplorerWallet/cibPlatinum columns are the
+/// original, pre-user-managed-cards format — kept as-is (never dropped) so
+/// history saved before credit cards became user-editable still displays.
+/// Every snapshot saved since then instead uses [cardEntriesJson], a
+/// JSON-encoded list of `{name, bank, currency, limit, availableBalance,
+/// owed}` — one per card that existed at save time, how ever many there are.
 class CalculatorSnapshots extends Table {
   TextColumn get id => text()();
   DateTimeColumn get computedAt => dateTime()();
@@ -103,15 +110,37 @@ class CalculatorSnapshots extends Table {
   RealColumn get ledgersTotal => real()();
   RealColumn get apartmentSavings => real()();
   RealColumn get cibAccountBalance => real()();
-  RealColumn get nbeAvailable => real()();
-  RealColumn get nbeOwed => real()();
-  RealColumn get cibExplorerWalletAvailable => real()();
-  RealColumn get cibExplorerWalletOwed => real()();
-  RealColumn get cibPlatinumAvailable => real()();
-  RealColumn get cibPlatinumOwed => real()();
+  RealColumn get nbeAvailable => real().withDefault(const Constant(0))();
+  RealColumn get nbeOwed => real().withDefault(const Constant(0))();
+  RealColumn get cibExplorerWalletAvailable => real().withDefault(const Constant(0))();
+  RealColumn get cibExplorerWalletOwed => real().withDefault(const Constant(0))();
+  RealColumn get cibPlatinumAvailable => real().withDefault(const Constant(0))();
+  RealColumn get cibPlatinumOwed => real().withDefault(const Constant(0))();
 
   /// JSON-encoded list of `{label, amount, isAddition}` custom line items.
   TextColumn get customItemsJson => text().withDefault(const Constant('[]'))();
+
+  /// JSON-encoded list of per-card entries — see class doc. Empty list
+  /// (`'[]'`, the default) on every snapshot saved before user-managed
+  /// cards existed; the fixed nbe/cib* columns above carry those instead.
+  TextColumn get cardEntriesJson => text().withDefault(const Constant('[]'))();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
+/// A credit card the user tracks in the Calculator tab — fully user-managed
+/// (added/edited/removed from Settings) rather than a fixed hardcoded set.
+class CreditCards extends Table {
+  TextColumn get id => text()();
+  TextColumn get name => text()();
+  TextColumn get bank => text()();
+  RealColumn get limitAmount => real()();
+  TextColumn get currency => text().withDefault(const Constant('EGP'))();
+
+  /// Manual ordering for display — set to insertion order by default, but
+  /// not tied to it, so a future "reorder" gesture has somewhere to write.
+  IntColumn get sortOrder => integer().withDefault(const Constant(0))();
 
   @override
   Set<Column> get primaryKey => {id};

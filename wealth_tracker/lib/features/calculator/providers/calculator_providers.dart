@@ -1,6 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../core/models/calculator_card.dart';
 import '../../../data/db/database.dart';
 import '../../../data/ledger/ledger_calculator.dart';
 import '../../../data/repositories/calculator_repository.dart';
@@ -11,8 +10,8 @@ final calculatorRepositoryProvider = Provider<CalculatorRepository>((ref) {
   return CalculatorRepository(ref.watch(databaseProvider));
 });
 
-final cardLimitsStreamProvider = StreamProvider<Map<CalculatorCard, double>>((ref) {
-  return ref.watch(calculatorRepositoryProvider).watchCardLimits();
+final creditCardsStreamProvider = StreamProvider<List<CreditCard>>((ref) {
+  return ref.watch(calculatorRepositoryProvider).watchCards();
 });
 
 final calculatorHistoryStreamProvider = StreamProvider<List<CalculatorSnapshot>>((ref) {
