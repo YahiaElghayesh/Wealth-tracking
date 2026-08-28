@@ -14,6 +14,7 @@ class SettingsRepository {
   static const _desktopCredentialsKey = 'drive_desktop_credentials_json';
   static const _lastSyncedAtKey = 'drive_last_synced_at';
   static const _smsCaptureEnabledKey = 'sms_capture_enabled';
+  static const _androidServerClientIdKey = 'drive_android_server_client_id';
 
   String? get metalsApiKey => _prefs.getString(_metalsApiKeyKey);
 
@@ -75,5 +76,20 @@ class SettingsRepository {
 
   Future<void> setSmsCaptureEnabled(bool enabled) {
     return _prefs.setBool(_smsCaptureEnabledKey, enabled);
+  }
+
+  /// A Google Cloud "Web application" OAuth client ID (not the Android
+  /// client). google_sign_in v7 requires this as `serverClientId` even on
+  /// Android — without it, sign-in fails with "server client ID must be
+  /// provided". Create one in the same Google Cloud project as the Android
+  /// OAuth client — see the README.
+  String? get androidServerClientId => _prefs.getString(_androidServerClientIdKey);
+
+  Future<void> setAndroidServerClientId(String? clientId) async {
+    if (clientId == null || clientId.isEmpty) {
+      await _prefs.remove(_androidServerClientIdKey);
+    } else {
+      await _prefs.setString(_androidServerClientIdKey, clientId);
+    }
   }
 }

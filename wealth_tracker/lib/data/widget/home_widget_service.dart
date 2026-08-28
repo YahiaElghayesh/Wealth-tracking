@@ -25,6 +25,21 @@ class HomeWidgetService {
     await HomeWidget.updateWidget(androidName: _quickAddProviderClassName);
   }
 
+  /// Percent, 0 (fully transparent) to 100 (fully opaque). Keep in sync
+  /// with `WidgetBackground.kt`'s `DEFAULT_OPACITY_PERCENT`.
+  static const defaultBackgroundOpacity = 12;
+
+  Future<int> loadBackgroundOpacity() async {
+    final opacity = await HomeWidget.getWidgetData<int>('widget_background_opacity');
+    return opacity == null ? defaultBackgroundOpacity : opacity.clamp(0, 100);
+  }
+
+  Future<void> setBackgroundOpacity(int percent) async {
+    await HomeWidget.saveWidgetData<int>('widget_background_opacity', percent.clamp(0, 100));
+    await HomeWidget.updateWidget(androidName: _providerClassName);
+    await HomeWidget.updateWidget(androidName: _quickAddProviderClassName);
+  }
+
   Future<void> updateNetWorthWidget({
     required NetWorthSummary summary,
     required double? usdToEgpRate,

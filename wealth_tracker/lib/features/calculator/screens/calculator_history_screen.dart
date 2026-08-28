@@ -70,7 +70,7 @@ class _SnapshotCard extends ConsumerWidget {
           children: [
             _BreakdownRow(isAddition: true, label: 'Ledgers', amount: snapshot.ledgersTotal),
             _BreakdownRow(isAddition: false, label: 'Apartment savings', amount: snapshot.apartmentSavings),
-            _BreakdownRow(isAddition: true, label: 'CIB account balance', amount: snapshot.cibAccountBalance),
+            _BreakdownRow(isAddition: true, label: 'CIB Accounts Balance', amount: snapshot.cibAccountBalance),
             _BreakdownRow(isAddition: false, label: 'NBE Wallet owed', amount: snapshot.nbeOwed),
             _BreakdownRow(
               isAddition: false,

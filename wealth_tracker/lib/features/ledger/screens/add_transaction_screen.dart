@@ -150,8 +150,8 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
             const SizedBox(height: 16),
             SegmentedButton<bool>(
               segments: const [
-                ButtonSegment(value: true, label: Text('Paid')),
-                ButtonSegment(value: false, label: Text('Repaid')),
+                ButtonSegment(value: true, label: Text('You Paid')),
+                ButtonSegment(value: false, label: Text('Repaid You')),
               ],
               selected: {_isPayment},
               onSelectionChanged: (s) => setState(() => _isPayment = s.first),

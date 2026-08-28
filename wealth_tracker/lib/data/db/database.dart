@@ -28,19 +28,25 @@ class AppDatabase extends _$AppDatabase {
   @override
   MigrationStrategy get migration => MigrationStrategy(
         onCreate: (m) => m.createAll(),
-        // Pre-release schema churn — no installed base to preserve yet, so
-        // the simplest correct migration is to just rebuild the affected
-        // tables (version 2: asset valuation model + ledger currency;
-        // version 3: adds the calculator_inputs table; version 4: adds the
-        // vendor_rules table for SMS auto-capture; version 5: adds the
-        // calculator_snapshots history table — calculator_inputs is reused
-        // for the (now few) persisted card-limit settings, no schema
-        // change needed for that part).
+        // IMPORTANT: every step here must be scoped to the specific `from`
+        // version it applies to. The assets/ledgerTransactions rebuild
+        // below was previously unconditional — it ran on *every* upgrade,
+        // silently wiping both tables on every single app update, not just
+        // the one release (version 2) that actually needed a structural
+        // change. That's the "my data disappears when I update" bug.
+        // Anyone already on version 2+ (i.e. everyone with the app
+        // installed today) now upgrades without touching either table.
         onUpgrade: (m, from, to) async {
-          await m.deleteTable(assets.actualTableName);
-          await m.createTable(assets);
-          await m.deleteTable(ledgerTransactions.actualTableName);
-          await m.createTable(ledgerTransactions);
+          if (from < 2) {
+            // version 2: asset valuation model + ledger currency column —
+            // a real structural change, from before this app had any real
+            // installed base, so a destructive rebuild was an accepted
+            // one-time tradeoff at the time.
+            await m.deleteTable(assets.actualTableName);
+            await m.createTable(assets);
+            await m.deleteTable(ledgerTransactions.actualTableName);
+            await m.createTable(ledgerTransactions);
+          }
           if (from < 3) {
             await m.createTable(calculatorInputs);
           }

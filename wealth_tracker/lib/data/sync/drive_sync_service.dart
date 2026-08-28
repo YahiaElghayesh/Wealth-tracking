@@ -43,7 +43,7 @@ class DriveSyncService {
   gapis.AuthClient? _client;
 
   static DriveAuthProvider _authProviderFor(SettingsRepository settings) {
-    if (Platform.isAndroid) return AndroidDriveAuthProvider();
+    if (Platform.isAndroid) return AndroidDriveAuthProvider(settings);
     return DesktopDriveAuthProvider(settings);
   }
 

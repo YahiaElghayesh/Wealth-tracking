@@ -66,31 +66,46 @@ class CounterpartyDetailScreen extends ConsumerWidget {
                 child: transactions.isEmpty
                     ? const Center(child: Text('No entries yet. Tap + to add one.'))
                     : ListView.builder(
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
                         itemCount: transactions.length,
                         itemBuilder: (context, i) {
                           final t = transactions[i];
+                          final isAddition = t.amount >= 0;
+                          final signColor = isAddition ? Colors.green : Colors.red;
                           return Dismissible(
                             key: ValueKey(t.id),
                             direction: DismissDirection.endToStart,
                             background: Container(
-                              color: Theme.of(context).colorScheme.errorContainer,
+                              margin: const EdgeInsets.only(top: 8),
+                              decoration: BoxDecoration(
+                                color: Theme.of(context).colorScheme.errorContainer,
+                                borderRadius: BorderRadius.circular(12),
+                              ),
                               alignment: Alignment.centerRight,
                               padding: const EdgeInsets.symmetric(horizontal: 20),
                               child: const Icon(Icons.delete),
                             ),
                             onDismissed: (_) =>
                                 ref.read(ledgerRepositoryProvider).deleteTransaction(t.id),
-                            child: ListTile(
-                              title: Text(t.category),
-                              subtitle: Text(
-                                '${t.date.year}-${t.date.month.toString().padLeft(2, '0')}-${t.date.day.toString().padLeft(2, '0')}'
-                                '${t.description == null ? '' : ' · ${t.description}'}',
-                              ),
-                              trailing: Text(
-                                '${t.amount >= 0 ? '+' : '-'}${formatMoney(t.amount.abs(), t.currency)}',
-                                style: TextStyle(
-                                  color: t.amount >= 0 ? Colors.orange : Colors.green,
+                            child: Card(
+                              margin: const EdgeInsets.only(top: 8),
+                              child: ListTile(
+                                leading: CircleAvatar(
+                                  backgroundColor: signColor.withValues(alpha: 0.15),
+                                  foregroundColor: signColor,
+                                  child: Text(
+                                    isAddition ? '+' : '−',
+                                    style: const TextStyle(fontWeight: FontWeight.bold),
+                                  ),
+                                ),
+                                title: Text(t.category),
+                                subtitle: Text(
+                                  '${t.date.year}-${t.date.month.toString().padLeft(2, '0')}-${t.date.day.toString().padLeft(2, '0')}'
+                                  '${t.description == null ? '' : ' · ${t.description}'}',
+                                ),
+                                trailing: Text(
+                                  '${isAddition ? '+' : '−'}${formatMoney(t.amount.abs(), t.currency)}',
+                                  style: TextStyle(color: signColor, fontWeight: FontWeight.bold),
                                 ),
                               ),
                             ),

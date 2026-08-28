@@ -44,7 +44,7 @@ class _StatisticsScreenState extends ConsumerState<StatisticsScreen> {
                   padding: const EdgeInsets.all(16),
                   child: DropdownButtonFormField<String>(
                     initialValue: selected,
-                    decoration: const InputDecoration(labelText: 'Person'),
+                    decoration: const InputDecoration(labelText: 'Ledger'),
                     items: counterparties
                         .map((c) => DropdownMenuItem(value: c.id, child: Text(c.name)))
                         .toList(),
@@ -136,10 +136,7 @@ class _StatisticsBodyState extends ConsumerState<_StatisticsBody> {
                 child: Text('No expenses in the selected month(s).'),
               )
             else
-              SizedBox(
-                height: 260,
-                child: _CategoryBarChart(categories: sortedCategories),
-              ),
+              _CategoryPieChart(categories: sortedCategories),
           ],
         );
       },
@@ -234,80 +231,125 @@ class _MonthlyTrendChart extends StatelessWidget {
   }
 }
 
-/// Cost on the Y axis, category on the X axis — horizontally scrollable
-/// once there are enough categories that fixed-width bars would otherwise
-/// get squeezed illegibly.
-class _CategoryBarChart extends StatelessWidget {
-  const _CategoryBarChart({required this.categories});
+/// Category breakdown as a pie chart with a colored legend underneath —
+/// the legend carries the readable category name + amount since slice
+/// labels alone get illegible once there are more than a few categories.
+class _CategoryPieChart extends StatefulWidget {
+  const _CategoryPieChart({required this.categories});
 
   final List<MapEntry<String, double>> categories;
 
-  static const _barWidth = 90.0;
+  @override
+  State<_CategoryPieChart> createState() => _CategoryPieChartState();
+}
+
+class _CategoryPieChartState extends State<_CategoryPieChart> {
+  static const _palette = [
+    Color(0xFF2E7D6B),
+    Color(0xFF1565C0),
+    Color(0xFF6A1B9A),
+    Color(0xFFFF8F00),
+    Color(0xFFC62828),
+    Color(0xFF00838F),
+    Color(0xFF9E9D24),
+    Color(0xFF4527A0),
+    Color(0xFFAD1457),
+    Color(0xFF37474F),
+  ];
+
+  int? _touchedIndex;
 
   @override
   Widget build(BuildContext context) {
-    final color = Theme.of(context).colorScheme.primary;
-    final maxY = categories.map((e) => e.value).fold(0.0, (a, b) => a > b ? a : b);
+    final categories = widget.categories;
+    final total = categories.fold(0.0, (sum, e) => sum + e.value);
 
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final chartWidth = (categories.length * _barWidth).clamp(constraints.maxWidth, double.infinity);
-        return SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: SizedBox(
-            width: chartWidth,
-            child: BarChart(
-              BarChartData(
-                maxY: maxY == 0 ? 1 : maxY * 1.3,
-                alignment: BarChartAlignment.spaceAround,
-                gridData: const FlGridData(show: false),
-                borderData: FlBorderData(show: false),
-                titlesData: FlTitlesData(
-                  topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                  rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                  leftTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                  bottomTitles: AxisTitles(
-                    sideTitles: SideTitles(
-                      showTitles: true,
-                      reservedSize: 56,
-                      getTitlesWidget: (value, meta) {
-                        final index = value.toInt();
-                        if (index < 0 || index >= categories.length) return const SizedBox.shrink();
-                        return Padding(
-                          padding: const EdgeInsets.only(top: 8),
-                          child: Text(
-                            categories[index].key,
-                            style: Theme.of(context).textTheme.bodySmall,
-                            textAlign: TextAlign.center,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-                ),
-                barTouchData: BarTouchData(touchTooltipData: _permanentLabelTooltip(color)),
-                barGroups: [
-                  for (var i = 0; i < categories.length; i++)
-                    BarChartGroupData(
-                      x: i,
-                      barRods: [
-                        BarChartRodData(
-                          toY: categories[i].value,
-                          color: color,
-                          width: 28,
-                          borderRadius: const BorderRadius.vertical(top: Radius.circular(4)),
-                        ),
-                      ],
-                      showingTooltipIndicators: [0],
-                    ),
-                ],
+    return Column(
+      children: [
+        SizedBox(
+          height: 220,
+          child: PieChart(
+            PieChartData(
+              sectionsSpace: 2,
+              centerSpaceRadius: 40,
+              pieTouchData: PieTouchData(
+                touchCallback: (event, response) {
+                  setState(() {
+                    if (!event.isInterestedForInteractions || response?.touchedSection == null) {
+                      _touchedIndex = null;
+                    } else {
+                      _touchedIndex = response!.touchedSection!.touchedSectionIndex;
+                    }
+                  });
+                },
               ),
+              sections: [
+                for (var i = 0; i < categories.length; i++)
+                  PieChartSectionData(
+                    value: categories[i].value,
+                    color: _palette[i % _palette.length],
+                    radius: i == _touchedIndex ? 74 : 66,
+                    showTitle: false,
+                  ),
+              ],
             ),
           ),
-        );
-      },
+        ),
+        const SizedBox(height: 16),
+        Wrap(
+          spacing: 16,
+          runSpacing: 8,
+          children: [
+            for (var i = 0; i < categories.length; i++)
+              _LegendEntry(
+                color: _palette[i % _palette.length],
+                label: categories[i].key,
+                amount: categories[i].value,
+                percent: total == 0 ? 0 : categories[i].value / total,
+                highlighted: i == _touchedIndex,
+              ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class _LegendEntry extends StatelessWidget {
+  const _LegendEntry({
+    required this.color,
+    required this.label,
+    required this.amount,
+    required this.percent,
+    required this.highlighted,
+  });
+
+  final Color color;
+  final String label;
+  final double amount;
+  final double percent;
+  final bool highlighted;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: highlighted ? color.withValues(alpha: 0.12) : null,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(width: 10, height: 10, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+          const SizedBox(width: 8),
+          Text('$label  ', style: Theme.of(context).textTheme.bodyMedium),
+          Text(
+            '${formatMoney(amount, defaultCurrency)} (${(percent * 100).toStringAsFixed(0)}%)',
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+        ],
+      ),
     );
   }
 }

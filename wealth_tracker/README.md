@@ -79,7 +79,11 @@ set up on your behalf, since it's tied to your Google account.
      `keytool -list -v -keystore ~/.android/debug.keystore -alias androiddebugkey -storepass android -keypass android`
      for a debug build, or your release keystore's fingerprint for a release build). No
      further configuration needed in the app itself — the native SDK finds this client
-     automatically once it's registered.
+     automatically once it's registered. **Also create a second client of type "Web
+     application"** in the same project (no redirect URIs needed) — copy its Client ID
+     and paste it into the app's Settings → Google Drive sync → "Google Web Client ID".
+     google_sign_in requires this even on Android; without it, sign-in fails with
+     "server client ID must be provided on Android".
    - **For Windows**: choose "Desktop app". Google will give you a Client ID and Client
      Secret — paste both into the app's Settings screen under "Google Drive sync". (This
      secret isn't meaningfully confidential for installed/desktop apps per Google's own

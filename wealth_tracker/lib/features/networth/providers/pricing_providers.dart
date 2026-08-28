@@ -15,13 +15,13 @@ final priceCacheRepositoryProvider = Provider<PriceCacheRepository>((ref) {
   return PriceCacheRepository(ref.watch(databaseProvider));
 });
 
-final _cryptoProviderProvider = Provider((ref) => CoinGeckoPriceProvider());
+final cryptoPriceProviderProvider = Provider((ref) => CoinGeckoPriceProvider());
 final _fxProviderProvider = Provider((ref) => FxPriceProvider());
 
 final priceRefreshServiceProvider = Provider<PriceRefreshService>((ref) {
   final metalsApiKey = ref.watch(metalsApiKeyProvider);
   return PriceRefreshService(
-    cryptoProvider: ref.watch(_cryptoProviderProvider),
+    cryptoProvider: ref.watch(cryptoPriceProviderProvider),
     fxProvider: ref.watch(_fxProviderProvider),
     metalsProvider: MetalsPriceProvider(apiKey: metalsApiKey),
   );

@@ -38,4 +38,43 @@ class CoinGeckoPriceProvider implements PriceProvider {
       throw PriceFetchException(name, e.message ?? 'network error');
     }
   }
+
+  /// Coin name/symbol search for the asset entry screen's autocomplete, so
+  /// the user picks a coin by name instead of having to know its raw
+  /// CoinGecko ID (e.g. picking "Bitcoin" instead of typing "bitcoin").
+  Future<List<CoinSearchResult>> searchCoins(String query) async {
+    if (query.trim().isEmpty) return [];
+
+    try {
+      final response = await _dio.get<Map<String, dynamic>>(
+        'https://api.coingecko.com/api/v3/search',
+        queryParameters: {'query': query.trim()},
+      );
+      final coins = response.data?['coins'] as List<dynamic>? ?? [];
+      return coins
+          .whereType<Map<String, dynamic>>()
+          .map(
+            (c) => CoinSearchResult(
+              id: c['id'] as String? ?? '',
+              name: c['name'] as String? ?? '',
+              symbol: (c['symbol'] as String? ?? '').toUpperCase(),
+            ),
+          )
+          .where((c) => c.id.isNotEmpty)
+          .toList();
+    } on DioException {
+      return [];
+    }
+  }
+}
+
+class CoinSearchResult {
+  const CoinSearchResult({required this.id, required this.name, required this.symbol});
+
+  final String id;
+  final String name;
+  final String symbol;
+
+  @override
+  String toString() => '$name ($symbol)';
 }

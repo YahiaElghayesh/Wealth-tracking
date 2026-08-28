@@ -22,6 +22,15 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
   final _cardControllers = {for (final card in CalculatorCard.values) card: TextEditingController()};
   final _customItems = <CustomCalculatorItem>[];
 
+  // Both default-prefill exactly once, the first time their data arrives —
+  // cards to "as if nothing's been spent yet" (available == limit), and
+  // apartment savings to the last saved snapshot's value, so the user only
+  // has to adjust rather than re-type every time. A user edit (including
+  // clearing the field back to save a snapshot) must not be overwritten on
+  // the next rebuild, hence the one-shot flags.
+  bool _cardsSeeded = false;
+  bool _apartmentSeeded = false;
+
   @override
   void initState() {
     super.initState();
@@ -43,6 +52,10 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
   }
 
   double _parse(TextEditingController controller) => double.tryParse(controller.text.trim()) ?? 0;
+
+  static String _formatSeed(double value) {
+    return value == value.roundToDouble() ? value.toInt().toString() : value.toString();
+  }
 
   Map<CalculatorCard, double> _owedFor(Map<CalculatorCard, double> limits) {
     return {
@@ -133,12 +146,14 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
           customItems: _customItems,
         );
 
-    _apartmentController.clear();
     _cibController.clear();
-    for (final c in _cardControllers.values) {
-      c.clear();
-    }
-    setState(() => _customItems.clear());
+    setState(() {
+      _customItems.clear();
+      // Re-seed on the next build: cards back to their limits, apartment
+      // to what was just saved (now the latest snapshot).
+      _cardsSeeded = false;
+      _apartmentSeeded = false;
+    });
 
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Saved to history')));
@@ -148,6 +163,32 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
   Widget build(BuildContext context) {
     final limitsAsync = ref.watch(cardLimitsStreamProvider);
     final ledgersTotal = ref.watch(ledgersTotalProvider);
+    final historyAsync = ref.watch(calculatorHistoryStreamProvider);
+
+    final latestHistory = historyAsync.valueOrNull;
+    final currentLimits = limitsAsync.valueOrNull;
+    if ((!_apartmentSeeded && latestHistory != null) || (!_cardsSeeded && currentLimits != null)) {
+      // Setting controller.text synchronously here would fire the field
+      // listener (which calls setState) mid-build, which Flutter forbids —
+      // defer the actual seeding to right after this frame.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        setState(() {
+          if (!_apartmentSeeded && latestHistory != null) {
+            if (latestHistory.isNotEmpty) {
+              _apartmentController.text = _formatSeed(latestHistory.first.apartmentSavings);
+            }
+            _apartmentSeeded = true;
+          }
+          if (!_cardsSeeded && currentLimits != null) {
+            for (final card in CalculatorCard.values) {
+              _cardControllers[card]!.text = _formatSeed(currentLimits[card] ?? card.defaultLimit);
+            }
+            _cardsSeeded = true;
+          }
+        });
+      });
+    }
 
     return Scaffold(
       appBar: AppBar(
@@ -204,9 +245,9 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
               ),
               const SizedBox(height: 16),
               _Section(
-                title: 'CIB account balance',
+                title: 'CIB Accounts Balance',
                 children: [
-                  _SignedAmountField(isAddition: true, label: 'CIB account balance', controller: _cibController),
+                  _SignedAmountField(isAddition: true, label: 'CIB Accounts Balance', controller: _cibController),
                 ],
               ),
               const SizedBox(height: 16),

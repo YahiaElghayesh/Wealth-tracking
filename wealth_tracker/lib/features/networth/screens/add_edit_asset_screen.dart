@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:drift/drift.dart' show Value;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -6,7 +8,9 @@ import '../../../core/models/asset_category.dart';
 import '../../../core/models/currency.dart';
 import '../../../core/models/gold_karat.dart';
 import '../../../data/db/database.dart';
+import '../../../data/pricing/coingecko_price_provider.dart';
 import '../providers/asset_providers.dart';
+import '../providers/pricing_providers.dart';
 
 class AddEditAssetScreen extends ConsumerStatefulWidget {
   const AddEditAssetScreen({super.key, this.existing});
@@ -26,7 +30,18 @@ class _AddEditAssetScreenState extends ConsumerState<AddEditAssetScreen> {
   late final TextEditingController _quantityController;
   late final TextEditingController _symbolController;
 
+  /// The CoinGecko ID actually saved — set when the user picks a search
+  /// result, or falls back to whatever raw text they typed (so pasting a
+  /// known ID directly, e.g. "bitcoin", still works without picking a
+  /// suggestion). Starts at the existing asset's stored ID when editing.
+  String _selectedCoinId = '';
+
   bool get _isEditing => widget.existing != null;
+
+  Timer? _coinSearchDebounce;
+  List<CoinSearchResult> _coinResults = [];
+  String _lastCoinQuery = '';
+  bool _coinFieldListenerAttached = false;
 
   @override
   void initState() {
@@ -49,6 +64,7 @@ class _AddEditAssetScreenState extends ConsumerState<AddEditAssetScreen> {
           ? existing.symbolOrCurrency
           : '',
     );
+    _selectedCoinId = _symbolController.text;
   }
 
   @override
@@ -56,7 +72,28 @@ class _AddEditAssetScreenState extends ConsumerState<AddEditAssetScreen> {
     _nameController.dispose();
     _quantityController.dispose();
     _symbolController.dispose();
+    _coinSearchDebounce?.cancel();
     super.dispose();
+  }
+
+  /// Called synchronously from `Autocomplete`'s `optionsBuilder`, which
+  /// can't itself be async — kicks off a debounced network search and
+  /// caches the results so the *next* build (triggered by the `setState`
+  /// once results land) picks them up.
+  void _scheduleCoinSearch(String query) {
+    if (query == _lastCoinQuery) return;
+    _lastCoinQuery = query;
+    _coinSearchDebounce?.cancel();
+    if (query.trim().isEmpty) {
+      setState(() => _coinResults = []);
+      return;
+    }
+    _coinSearchDebounce = Timer(const Duration(milliseconds: 350), () async {
+      final results = await ref.read(cryptoPriceProviderProvider).searchCoins(query);
+      if (mounted && query == _lastCoinQuery) {
+        setState(() => _coinResults = results);
+      }
+    });
   }
 
   ValuationMode get _valuationMode => _category.defaultValuationMode;
@@ -131,13 +168,39 @@ class _AddEditAssetScreenState extends ConsumerState<AddEditAssetScreen> {
         ];
       case ValuationMode.crypto:
         return [
-          TextFormField(
-            controller: _symbolController,
-            decoration: const InputDecoration(
-              labelText: 'CoinGecko ID',
-              hintText: 'e.g. bitcoin, ethereum, solana',
-            ),
-            validator: (v) => (v == null || v.trim().isEmpty) ? 'Required' : null,
+          Autocomplete<CoinSearchResult>(
+            initialValue: TextEditingValue(text: _symbolController.text),
+            displayStringForOption: (option) => option.toString(),
+            optionsBuilder: (value) {
+              _scheduleCoinSearch(value.text);
+              return _coinResults;
+            },
+            onSelected: (option) {
+              setState(() {
+                _symbolController.text = option.toString();
+                _selectedCoinId = option.id;
+              });
+            },
+            fieldViewBuilder: (context, controller, focusNode, onSubmitted) {
+              // Typing a raw ID directly (without picking a suggestion)
+              // must still work, e.g. pasting a known id like "bitcoin".
+              // fieldViewBuilder reruns on every rebuild but Autocomplete
+              // keeps the same controller instance alive throughout, so
+              // guard against attaching the listener more than once.
+              if (!_coinFieldListenerAttached) {
+                _coinFieldListenerAttached = true;
+                controller.addListener(() => _selectedCoinId = controller.text.trim());
+              }
+              return TextFormField(
+                controller: controller,
+                focusNode: focusNode,
+                decoration: const InputDecoration(
+                  labelText: 'Cryptocurrency',
+                  hintText: 'Start typing a name, e.g. Bitcoin',
+                ),
+                validator: (v) => (v == null || v.trim().isEmpty) ? 'Required' : null,
+              );
+            },
           ),
           const SizedBox(height: 16),
           TextFormField(
@@ -182,7 +245,7 @@ class _AddEditAssetScreenState extends ConsumerState<AddEditAssetScreen> {
     final repo = ref.read(assetRepositoryProvider);
     final symbol = switch (_valuationMode) {
       ValuationMode.metal => _category == AssetCategory.gold ? _goldKarat.priceSymbol : 'XAG_GRAM',
-      ValuationMode.crypto => _symbolController.text.trim(),
+      ValuationMode.crypto => _selectedCoinId.trim().isEmpty ? _symbolController.text.trim() : _selectedCoinId.trim(),
       ValuationMode.currency => _currency,
     };
     final quantity = double.parse(_quantityController.text.trim());
