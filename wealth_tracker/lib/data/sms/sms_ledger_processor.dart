@@ -27,7 +27,12 @@ const _dedupeCap = 200;
 /// a vendor rule when one matches, otherwise left for the user to pick).
 /// Those two outcomes aren't mutually exclusive — a charge on your own
 /// card can *also* be a payment made on someone else's behalf.
-Future<void> processIncomingSms(AppDatabase db, {required String body, required int timestampMillis}) async {
+Future<void> processIncomingSms(
+  AppDatabase db, {
+  required String body,
+  required int timestampMillis,
+  required String profileId,
+}) async {
   if (body.trim().isEmpty) return;
 
   final dedupeId = '$timestampMillis:${body.hashCode}';
@@ -37,9 +42,9 @@ Future<void> processIncomingSms(AppDatabase db, {required String body, required 
   final parsed = parseBankSms(body);
   if (parsed == null) return;
 
-  await updateCardBalanceFromSms(db, parsed);
+  await updateCardBalanceFromSms(db, parsed, profileId: profileId);
 
-  final rules = await db.select(db.vendorRules).get();
+  final rules = await (db.select(db.vendorRules)..where((r) => r.profileId.equals(profileId))).get();
   VendorRule? rule;
   for (final r in rules) {
     if (parsed.vendor.toLowerCase().contains(r.vendorPattern.toLowerCase())) {

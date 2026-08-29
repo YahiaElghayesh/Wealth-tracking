@@ -25,6 +25,7 @@ const categoryIconOptions = [
   '🏠', '💡', '📱', '🎓', '🎁', '✈️',
   '🚗', '🏥', '🎬', '👕', '🐾', '🏋️',
   '📚', '🧾', '💳', '🔧', '☕', '🎮',
+  '🛵', '🥡',
 ];
 
 const fallbackCategoryEmoji = '🧾';

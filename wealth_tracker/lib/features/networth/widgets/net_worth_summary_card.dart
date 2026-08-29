@@ -49,22 +49,16 @@ class NetWorthSummaryCard extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 6),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.baseline,
-            textBaseline: TextBaseline.alphabetic,
-            children: [
-              MoneyText(
-                egpTotal == null ? '—' : formatEgp(egpTotal),
-                style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w700),
-                maskLength: 9,
-              ),
-              const SizedBox(width: 7),
-              MoneyText(
-                '≈ ${formatUsd(summary.totalUsd)}',
-                style: theme.textTheme.bodyMedium?.copyWith(color: colors.textDim),
-                maskLength: 5,
-              ),
-            ],
+          MoneyText(
+            egpTotal == null ? '—' : formatEgp(egpTotal),
+            style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w700),
+            maskLength: 9,
+          ),
+          const SizedBox(height: 2),
+          MoneyText(
+            '≈ ${formatUsd(summary.totalUsd)}',
+            style: theme.textTheme.bodyMedium?.copyWith(color: colors.textDim),
+            maskLength: 5,
           ),
           if (total > 0) ...[
             const SizedBox(height: 14),

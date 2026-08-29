@@ -12,21 +12,27 @@ enum ValuationMode {
 
   /// An amount denominated in a chosen currency (see `core/models/currency.dart`),
   /// converted to USD via live FX. Covers both literal cash holdings and
-  /// assets the user assigns a value to directly (a car, an apartment) —
-  /// mechanically identical, since "a car worth 500,000 EGP" and "500,000
-  /// EGP in the bank" price the same way.
+  /// assets the user assigns a value to directly (a car, an apartment, a
+  /// savings certificate) — mechanically identical, since "a car worth
+  /// 500,000 EGP" and "500,000 EGP in the bank" price the same way.
   currency,
+
+  /// Priced via a stock ticker (`SYMBOL:EXCHANGE`, e.g. `AAPL:NASDAQ` or
+  /// `COMI:EGX`) against [Asset.quantity] (shares held).
+  stock,
 }
 
 /// Broad category an asset falls under. Drives the default liquid /
 /// non-liquid split and the default [ValuationMode].
 enum AssetCategory {
   crypto('Crypto', AssetClass.liquid, ValuationMode.crypto),
+  stock('Stock', AssetClass.liquid, ValuationMode.stock),
   gold('Gold', AssetClass.liquid, ValuationMode.metal),
   silver('Silver', AssetClass.liquid, ValuationMode.metal),
   cash('Cash', AssetClass.liquid, ValuationMode.currency),
   vehicle('Vehicle', AssetClass.nonLiquid, ValuationMode.currency),
   realEstate('Real Estate', AssetClass.nonLiquid, ValuationMode.currency),
+  certificate('Certificate', AssetClass.nonLiquid, ValuationMode.currency),
   other('Other', AssetClass.nonLiquid, ValuationMode.currency);
 
   final String label;

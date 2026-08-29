@@ -5,6 +5,7 @@ import '../../../core/providers/core_providers.dart';
 import '../../../data/db/database.dart';
 import '../../../data/net_worth/net_worth_calculator.dart';
 import '../../../data/repositories/asset_repository.dart';
+import '../../settings/providers/settings_providers.dart' show activeProfileIdProvider;
 
 final databaseProvider = Provider<AppDatabase>((ref) {
   final db = AppDatabase();
@@ -13,7 +14,7 @@ final databaseProvider = Provider<AppDatabase>((ref) {
 });
 
 final assetRepositoryProvider = Provider<AssetRepository>((ref) {
-  return AssetRepository(ref.watch(databaseProvider));
+  return AssetRepository(ref.watch(databaseProvider), ref.watch(activeProfileIdProvider));
 });
 
 final assetsStreamProvider = StreamProvider<List<Asset>>((ref) {

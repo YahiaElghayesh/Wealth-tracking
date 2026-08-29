@@ -8,6 +8,12 @@ import 'tables.dart';
 
 part 'database.g.dart';
 
+/// The profile every fresh install (and every pre-existing installed base
+/// upgrading past v14) starts on -- a fixed, literal id rather than a
+/// generated UUID specifically so the v14 migration can create the row and
+/// backfill every existing table to it in one deterministic pass.
+const defaultProfileId = 'default-profile';
+
 @DriftDatabase(
   tables: [
     Assets,
@@ -21,6 +27,7 @@ part 'database.g.dart';
     CreditCards,
     LedgerCategories,
     ManualInputs,
+    Profiles,
   ],
 )
 class AppDatabase extends _$AppDatabase {
@@ -29,9 +36,14 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 13;
+  int get schemaVersion => 15;
 
-  Future<void> _seedDefaultLedgerCategories() async {
+  /// Public so `ProfileRepository.addProfile` can give a newly created
+  /// profile the same starter categories a fresh install gets -- otherwise
+  /// its add-transaction screen would start with zero quick-pick chips.
+  Future<void> seedDefaultLedgerCategories(String profileId) => _seedDefaultLedgerCategories(profileId: profileId);
+
+  Future<void> _seedDefaultLedgerCategories({String? profileId}) async {
     // 'Other' isn't seeded — it's always appended as a synthetic last
     // choice by the add-transaction screen, never a real row.
     final defaults = ledgerExpenseCategories.where((c) => c != 'Other').toList();
@@ -42,6 +54,7 @@ class AppDatabase extends _$AppDatabase {
           name: defaults[i],
           sortOrder: Value(i),
           icon: Value(defaultCategoryEmoji[defaults[i]]),
+          profileId: Value(profileId),
         ),
       );
     }
@@ -51,7 +64,10 @@ class AppDatabase extends _$AppDatabase {
   MigrationStrategy get migration => MigrationStrategy(
         onCreate: (m) async {
           await m.createAll();
-          await _seedDefaultLedgerCategories();
+          await into(profiles).insert(
+            ProfilesCompanion.insert(id: defaultProfileId, name: 'Default', createdAt: DateTime.now()),
+          );
+          await _seedDefaultLedgerCategories(profileId: defaultProfileId);
         },
         // IMPORTANT: every step here must be scoped to the specific `from`
         // version it applies to. The assets/ledgerTransactions rebuild
@@ -190,6 +206,50 @@ class AppDatabase extends _$AppDatabase {
             // that asset displays; existing vehicle assets fall back to
             // the generic car icon (null) until edited.
             await m.addColumn(assets, assets.vehicleType);
+          }
+          if (from < 14) {
+            // Profiles: every screen (Net Worth, Ledger, Statistics,
+            // Calculator) can now be fully isolated per profile, switched
+            // from a picker beside Settings. Seed one profile carrying the
+            // fixed id every existing row backfills to, so nothing anyone
+            // already had disappears.
+            await m.createTable(profiles);
+            await into(profiles).insert(
+              ProfilesCompanion.insert(id: defaultProfileId, name: 'Default', createdAt: DateTime.now()),
+            );
+            await m.addColumn(assets, assets.profileId);
+            await m.addColumn(counterparties, counterparties.profileId);
+            await m.addColumn(ledgerTransactions, ledgerTransactions.profileId);
+            await m.addColumn(calculatorSnapshots, calculatorSnapshots.profileId);
+            await m.addColumn(creditCards, creditCards.profileId);
+            await m.addColumn(manualInputs, manualInputs.profileId);
+            await m.addColumn(ledgerCategories, ledgerCategories.profileId);
+            await m.addColumn(vendorRules, vendorRules.profileId);
+            const backfill = Value(defaultProfileId);
+            await (update(assets)..where((t) => t.profileId.isNull())).write(AssetsCompanion(profileId: backfill));
+            await (update(counterparties)..where((t) => t.profileId.isNull()))
+                .write(CounterpartiesCompanion(profileId: backfill));
+            await (update(ledgerTransactions)..where((t) => t.profileId.isNull()))
+                .write(LedgerTransactionsCompanion(profileId: backfill));
+            await (update(calculatorSnapshots)..where((t) => t.profileId.isNull()))
+                .write(CalculatorSnapshotsCompanion(profileId: backfill));
+            await (update(creditCards)..where((t) => t.profileId.isNull()))
+                .write(CreditCardsCompanion(profileId: backfill));
+            await (update(manualInputs)..where((t) => t.profileId.isNull()))
+                .write(ManualInputsCompanion(profileId: backfill));
+            await (update(ledgerCategories)..where((t) => t.profileId.isNull()))
+                .write(LedgerCategoriesCompanion(profileId: backfill));
+            await (update(vendorRules)..where((t) => t.profileId.isNull()))
+                .write(VendorRulesCompanion(profileId: backfill));
+          }
+          if (from < 15) {
+            // Gold/silver/real estate can now optionally record what was
+            // originally paid, so the dashboard can show a gain/loss since
+            // purchase. Null (the default for every pre-existing asset)
+            // means "not tracked" -- nothing shows until the user fills it
+            // in via Edit.
+            await m.addColumn(assets, assets.purchasePrice);
+            await m.addColumn(assets, assets.purchaseCurrency);
           }
         },
         // The "Breakfast" quick-pick category was a voice-transcription

@@ -4,9 +4,10 @@ import '../../../data/db/database.dart';
 import '../../../data/repositories/vendor_rule_repository.dart';
 import '../../ledger/providers/ledger_providers.dart';
 import '../../networth/providers/asset_providers.dart' show databaseProvider;
+import 'settings_providers.dart' show activeProfileIdProvider;
 
 final vendorRuleRepositoryProvider = Provider<VendorRuleRepository>((ref) {
-  return VendorRuleRepository(ref.watch(databaseProvider));
+  return VendorRuleRepository(ref.watch(databaseProvider), ref.watch(activeProfileIdProvider));
 });
 
 final vendorRulesStreamProvider = StreamProvider<List<VendorRule>>((ref) {

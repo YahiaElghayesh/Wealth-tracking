@@ -42,6 +42,7 @@ void main() {
         cryptoProvider: _FakeProvider({'bitcoin': 50000}),
         fxProvider: _FakeProvider({'USD': 1.0, 'EGP': 1 / 48.5}),
         metalsProvider: _FakeProvider({'XAU_GRAM': 80.0}),
+        stockProvider: _FakeProvider({}),
       );
       final assets = [
         _asset('crypto', 'bitcoin'),
@@ -61,6 +62,7 @@ void main() {
         cryptoProvider: _FakeProvider({}, error: PriceFetchException('fake', 'boom')),
         fxProvider: _FakeProvider({'USD': 1.0, 'EGP': 1 / 48.5}),
         metalsProvider: _FakeProvider({}),
+        stockProvider: _FakeProvider({}),
       );
       final assets = [_asset('crypto', 'bitcoin')];
 

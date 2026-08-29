@@ -28,7 +28,7 @@ class _StatisticsScreenState extends ConsumerState<StatisticsScreen> {
     final counterpartiesAsync = ref.watch(statisticsCounterpartiesProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Statistics'), actions: const [HideValuesAction()]),
+      appBar: AppBar(title: const Text('Ledger Statistics'), actions: const [HideValuesAction()]),
       body: counterpartiesAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, st) => Center(child: Text('Error: $e')),
@@ -184,7 +184,7 @@ String _shortMoney(double value) {
 /// A permanently-visible label above a bar, using the same tooltip
 /// machinery fl_chart uses for touch — [BarChartGroupData.showingTooltipIndicators]
 /// keeps it displayed without requiring a tap.
-BarTouchTooltipData _permanentLabelTooltip(Color textColor) {
+BarTouchTooltipData _permanentLabelTooltip(Color textColor, {required bool hideValues}) {
   return BarTouchTooltipData(
     getTooltipColor: (_) => Colors.transparent,
     tooltipPadding: EdgeInsets.zero,
@@ -192,20 +192,21 @@ BarTouchTooltipData _permanentLabelTooltip(Color textColor) {
     fitInsideVertically: true,
     getTooltipItem: (group, groupIndex, rod, rodIndex) {
       return BarTooltipItem(
-        _shortMoney(rod.toY),
+        hideValues ? '••••' : _shortMoney(rod.toY),
         TextStyle(color: textColor, fontWeight: FontWeight.bold, fontSize: 11),
       );
     },
   );
 }
 
-class _MonthlyTrendChart extends StatelessWidget {
+class _MonthlyTrendChart extends ConsumerWidget {
   const _MonthlyTrendChart({required this.trend});
 
   final List<MonthlySpend> trend;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final hideValues = ref.watch(hideValuesProvider);
     final color = Theme.of(context).colorScheme.primary;
     final colors = context.appColors;
     final maxY = trend.map((m) => m.amount).fold(0.0, (a, b) => a > b ? a : b);
@@ -243,7 +244,7 @@ class _MonthlyTrendChart extends StatelessWidget {
             ),
           ),
         ),
-        barTouchData: BarTouchData(touchTooltipData: _permanentLabelTooltip(colors.textDim)),
+        barTouchData: BarTouchData(touchTooltipData: _permanentLabelTooltip(colors.textDim, hideValues: hideValues)),
         barGroups: [
           for (var i = 0; i < trend.length; i++)
             BarChartGroupData(
@@ -272,16 +273,16 @@ class _MonthlyTrendChart extends StatelessWidget {
 /// Category breakdown as a pie chart with a colored legend underneath —
 /// the legend carries the readable category name + amount since slice
 /// labels alone get illegible once there are more than a few categories.
-class _CategoryPieChart extends StatefulWidget {
+class _CategoryPieChart extends ConsumerStatefulWidget {
   const _CategoryPieChart({required this.categories});
 
   final List<MapEntry<String, double>> categories;
 
   @override
-  State<_CategoryPieChart> createState() => _CategoryPieChartState();
+  ConsumerState<_CategoryPieChart> createState() => _CategoryPieChartState();
 }
 
-class _CategoryPieChartState extends State<_CategoryPieChart> {
+class _CategoryPieChartState extends ConsumerState<_CategoryPieChart> {
   static const _palette = [
     Color(0xFF2E7D6B),
     Color(0xFF1565C0),
@@ -299,6 +300,7 @@ class _CategoryPieChartState extends State<_CategoryPieChart> {
 
   @override
   Widget build(BuildContext context) {
+    final hideValues = ref.watch(hideValuesProvider);
     final categories = widget.categories;
     final total = categories.fold(0.0, (sum, e) => sum + e.value);
 
@@ -330,7 +332,11 @@ class _CategoryPieChartState extends State<_CategoryPieChart> {
                     value: categories[i].value,
                     color: _palette[i % _palette.length],
                     radius: i == _touchedIndex ? 58 : 52,
-                    title: total == 0 ? '' : '${(categories[i].value / total * 100).round()}%',
+                    title: total == 0
+                        ? ''
+                        : hideValues
+                            ? '••'
+                            : '${(categories[i].value / total * 100).round()}%',
                     titleStyle: const TextStyle(
                       fontSize: 10,
                       fontWeight: FontWeight.w700,

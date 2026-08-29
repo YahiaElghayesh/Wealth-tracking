@@ -32,15 +32,18 @@ class PriceRefreshService {
     required this.cryptoProvider,
     required this.fxProvider,
     required this.metalsProvider,
+    required this.stockProvider,
   });
 
   final PriceProvider cryptoProvider;
   final PriceProvider fxProvider;
   final PriceProvider metalsProvider;
+  final PriceProvider stockProvider;
 
   Future<PriceRefreshResult> refresh(List<Asset> assets) async {
     final cryptoSymbols = <String>{};
     final metalSymbols = <String>{};
+    final stockSymbols = <String>{};
     // Always fetch every supported currency (not just ones assets use) —
     // it's a single API call regardless, and the ledger's currency
     // conversion needs the full set too, independent of assets.
@@ -52,6 +55,8 @@ class PriceRefreshService {
           cryptoSymbols.add(asset.symbolOrCurrency);
         case ValuationMode.metal:
           metalSymbols.add(asset.symbolOrCurrency);
+        case ValuationMode.stock:
+          stockSymbols.add(asset.symbolOrCurrency);
         case ValuationMode.currency:
           break; // already covered by fiatSymbols above
       }
@@ -71,6 +76,7 @@ class PriceRefreshService {
     await run(() => cryptoProvider.fetchPrices(cryptoSymbols));
     await run(() => fxProvider.fetchPrices(fiatSymbols));
     await run(() => metalsProvider.fetchPrices(metalSymbols));
+    await run(() => stockProvider.fetchPrices(stockSymbols));
 
     final egpValueOfOneUsd = merged['EGP'];
     final usdToEgpRate = egpValueOfOneUsd == null ? null : 1 / egpValueOfOneUsd;

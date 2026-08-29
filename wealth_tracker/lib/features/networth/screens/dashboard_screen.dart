@@ -4,13 +4,17 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/format/money_formatter.dart';
 import '../../../core/models/asset_category.dart';
 import '../../../core/models/gold_karat.dart';
+import '../../../core/providers/core_providers.dart';
 import '../../../core/providers/privacy_providers.dart';
+import '../../../core/providers/profile_providers.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/app_icons.dart';
 import '../../../core/widgets/hide_values_action.dart';
 import '../../../core/widgets/money_text.dart';
 import '../../../data/db/database.dart';
 import '../../../data/net_worth/net_worth_calculator.dart';
+import '../../settings/providers/settings_providers.dart';
+import '../../settings/screens/profiles_settings_screen.dart';
 import '../../settings/screens/settings_screen.dart';
 import '../providers/asset_providers.dart';
 import '../providers/pricing_providers.dart';
@@ -45,6 +49,7 @@ class DashboardScreen extends ConsumerWidget {
                 ? null
                 : () => ref.read(priceRefreshControllerProvider.notifier).refresh(),
           ),
+          const _ProfileSwitcherAction(),
           IconButton(
             icon: const Icon(Icons.settings),
             onPressed: () => Navigator.of(context).push(
@@ -128,16 +133,30 @@ class _AssetTile extends ConsumerWidget {
     final colors = context.appColors;
     final (icon, tint) = _iconFor(category, asset.symbolOrCurrency, asset.vehicleType, colors);
 
+    double? gainLossUsd;
+    double? gainLossPct;
+    final purchasePrice = asset.purchasePrice;
+    final purchaseCurrency = asset.purchaseCurrency;
+    if (value != null && purchasePrice != null && purchaseCurrency != null) {
+      final purchasePriceUsd = prices[purchaseCurrency];
+      if (purchasePriceUsd != null && purchasePrice > 0) {
+        final purchaseTotalUsd = purchasePrice * purchasePriceUsd;
+        gainLossUsd = value - purchaseTotalUsd;
+        gainLossPct = gainLossUsd / purchaseTotalUsd * 100;
+      }
+    }
+
     return Dismissible(
       key: ValueKey(asset.id),
       direction: DismissDirection.endToStart,
+      confirmDismiss: (_) => _confirmDeleteAsset(context, asset),
+      onDismissed: (_) => ref.read(assetRepositoryProvider).delete(asset.id),
       background: Container(
         color: theme.colorScheme.errorContainer,
         alignment: Alignment.centerRight,
         padding: const EdgeInsets.symmetric(horizontal: 20),
         child: const Icon(Icons.delete),
       ),
-      onDismissed: (_) => ref.read(assetRepositoryProvider).delete(asset.id),
       child: InkWell(
         borderRadius: BorderRadius.circular(16),
         onTap: () => Navigator.of(context).push(
@@ -192,6 +211,18 @@ class _AssetTile extends ConsumerWidget {
                       formatUsd(value),
                       style: theme.textTheme.labelSmall?.copyWith(color: colors.textDim),
                     ),
+                    if (gainLossUsd != null && gainLossPct != null) ...[
+                      const SizedBox(height: 2),
+                      MoneyText(
+                        '${gainLossUsd >= 0 ? '+' : ''}${gainLossPct.toStringAsFixed(1)}% '
+                        '(${gainLossUsd >= 0 ? '+' : ''}${formatUsd(gainLossUsd)})',
+                        style: theme.textTheme.labelSmall?.copyWith(
+                          color: gainLossUsd >= 0 ? colors.good : colors.bad,
+                          fontWeight: FontWeight.w700,
+                        ),
+                        maskLength: 10,
+                      ),
+                    ],
                   ],
                 )
               else
@@ -202,6 +233,25 @@ class _AssetTile extends ConsumerWidget {
       ),
     );
   }
+}
+
+Future<bool> _confirmDeleteAsset(BuildContext context, Asset asset) async {
+  return await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Delete asset?'),
+          content: Text('This removes "${asset.name}" from your net worth. This can\'t be undone.'),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+            FilledButton(
+              style: FilledButton.styleFrom(backgroundColor: Theme.of(context).colorScheme.error),
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Delete'),
+            ),
+          ],
+        ),
+      ) ??
+      false;
 }
 
 (Widget, Color) _iconFor(AssetCategory category, String symbolOrCurrency, String? vehicleType, AppColors colors) {
@@ -228,5 +278,69 @@ class _AssetTile extends ConsumerWidget {
       return (Icon(Icons.home_work_outlined, size: 18, color: colors.textDim), colors.surface2);
     case AssetCategory.other:
       return (Icon(Icons.inventory_2_outlined, size: 18, color: colors.textDim), colors.surface2);
+    case AssetCategory.certificate:
+      return (Icon(Icons.workspace_premium_outlined, size: 18, color: colors.gold), colors.gold.withValues(alpha: 0.13));
+    case AssetCategory.stock:
+      return (Icon(Icons.show_chart, size: 18, color: colors.good), colors.good.withValues(alpha: 0.1));
+  }
+}
+
+/// Opens a bottom sheet listing every profile (checkmark on the active one)
+/// to switch between them, plus shortcuts to add one or manage the list —
+/// sits beside the Settings gear since switching profiles is a much more
+/// frequent action than editing them.
+class _ProfileSwitcherAction extends ConsumerWidget {
+  const _ProfileSwitcherAction();
+
+  Future<void> _switchTo(BuildContext context, WidgetRef ref, String id) async {
+    await ref.read(settingsRepositoryProvider).setActiveProfileId(id);
+    ref.read(activeProfileIdProvider.notifier).state = id;
+    if (context.mounted) Navigator.pop(context);
+  }
+
+  Future<void> _showSwitcher(BuildContext context, WidgetRef ref) async {
+    final profiles = await ref.read(profilesStreamProvider.future);
+    final activeId = ref.read(activeProfileIdProvider);
+    if (!context.mounted) return;
+    await showModalBottomSheet<void>(
+      context: context,
+      builder: (sheetContext) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Padding(
+              padding: EdgeInsets.fromLTRB(16, 16, 16, 4),
+              child: Align(alignment: Alignment.centerLeft, child: Text('Switch profile')),
+            ),
+            for (final profile in profiles)
+              ListTile(
+                leading: CircleAvatar(child: Text(profile.name.isEmpty ? '?' : profile.name[0].toUpperCase())),
+                title: Text(profile.name),
+                trailing: profile.id == activeId ? const Icon(Icons.check) : null,
+                onTap: () => _switchTo(sheetContext, ref, profile.id),
+              ),
+            ListTile(
+              leading: const Icon(Icons.settings_outlined),
+              title: const Text('Manage profiles'),
+              onTap: () {
+                Navigator.pop(sheetContext);
+                Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const ProfilesSettingsScreen()),
+                );
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return IconButton(
+      icon: const Icon(Icons.people_alt_outlined),
+      tooltip: 'Switch profile',
+      onPressed: () => _showSwitcher(context, ref),
+    );
   }
 }

@@ -10,10 +10,23 @@ final metalsApiKeyProvider = StateProvider<String?>((ref) {
   return ref.watch(settingsRepositoryProvider).metalsApiKey;
 });
 
+final stocksApiKeyProvider = StateProvider<String?>((ref) {
+  return ref.watch(settingsRepositoryProvider).stocksApiKey;
+});
+
 /// Drives `MaterialApp.themeMode` — same seeded-then-optimistically-updated
 /// pattern as [metalsApiKeyProvider]. Write via
 /// `ref.read(settingsRepositoryProvider).setThemeMode(mode)` then
 /// `ref.read(themeModeProvider.notifier).state = mode`.
 final themeModeProvider = StateProvider<ThemeMode>((ref) {
   return ref.watch(settingsRepositoryProvider).themeMode;
+});
+
+/// Which profile every profile-scoped repository provider filters/stamps
+/// its queries with -- same seeded-then-optimistically-updated pattern as
+/// [themeModeProvider]. Write via
+/// `ref.read(settingsRepositoryProvider).setActiveProfileId(id)` then
+/// `ref.read(activeProfileIdProvider.notifier).state = id`.
+final activeProfileIdProvider = StateProvider<String>((ref) {
+  return ref.watch(settingsRepositoryProvider).activeProfileId;
 });

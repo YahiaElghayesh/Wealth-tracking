@@ -4,13 +4,14 @@ import '../../../data/db/database.dart';
 import '../../../data/repositories/ledger_category_repository.dart';
 import '../../../data/repositories/ledger_repository.dart';
 import '../../networth/providers/asset_providers.dart' show databaseProvider;
+import '../../settings/providers/settings_providers.dart' show activeProfileIdProvider;
 
 final ledgerRepositoryProvider = Provider<LedgerRepository>((ref) {
-  return LedgerRepository(ref.watch(databaseProvider));
+  return LedgerRepository(ref.watch(databaseProvider), ref.watch(activeProfileIdProvider));
 });
 
 final ledgerCategoryRepositoryProvider = Provider<LedgerCategoryRepository>((ref) {
-  return LedgerCategoryRepository(ref.watch(databaseProvider));
+  return LedgerCategoryRepository(ref.watch(databaseProvider), ref.watch(activeProfileIdProvider));
 });
 
 final ledgerCategoriesStreamProvider = StreamProvider<List<LedgerCategory>>((ref) {

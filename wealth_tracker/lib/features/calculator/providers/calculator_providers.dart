@@ -5,9 +5,10 @@ import '../../../data/ledger/ledger_calculator.dart';
 import '../../../data/repositories/calculator_repository.dart';
 import '../../ledger/providers/ledger_providers.dart';
 import '../../networth/providers/asset_providers.dart' show pricesUsdPerUnitProvider, databaseProvider;
+import '../../settings/providers/settings_providers.dart' show activeProfileIdProvider;
 
 final calculatorRepositoryProvider = Provider<CalculatorRepository>((ref) {
-  return CalculatorRepository(ref.watch(databaseProvider));
+  return CalculatorRepository(ref.watch(databaseProvider), ref.watch(activeProfileIdProvider));
 });
 
 final creditCardsStreamProvider = StreamProvider<List<CreditCard>>((ref) {

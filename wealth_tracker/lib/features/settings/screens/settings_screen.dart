@@ -13,6 +13,7 @@ import 'drive_sync_settings_screen.dart';
 import 'ledger_categories_settings_screen.dart';
 import 'live_prices_settings_screen.dart';
 import 'manual_inputs_settings_screen.dart';
+import 'profiles_settings_screen.dart';
 import 'widget_appearance_settings_screen.dart';
 
 /// Top-level menu of settings sub-pages, grouped into the sections from the
@@ -33,6 +34,14 @@ class SettingsScreen extends ConsumerWidget {
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
         children: [
+          const _SectionLabel('Profiles'),
+          _SettingsTile(
+            icon: Icons.people_alt_outlined,
+            title: 'Profiles',
+            subtitle: 'Separate, isolated data spaces — add, rename, switch',
+            builder: (_) => const ProfilesSettingsScreen(),
+          ),
+          const SizedBox(height: 10),
           const _SectionLabel('Appearance'),
           Container(
             padding: const EdgeInsets.all(13),
@@ -123,7 +132,7 @@ class SettingsScreen extends ConsumerWidget {
           _SettingsTile(
             icon: Icons.trending_up,
             title: 'Live prices',
-            subtitle: 'Crypto, FX, gold and silver price sources',
+            subtitle: 'Crypto, FX, gold, silver and stock price sources',
             builder: (_) => const LivePricesSettingsScreen(),
           ),
           if (Platform.isAndroid) ...[

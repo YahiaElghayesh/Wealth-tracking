@@ -16,11 +16,11 @@ import 'bank_sms_parser.dart';
 /// one. Returns `null` when there's no matching card or the currencies
 /// don't line up (mixing currencies here would silently corrupt the
 /// balance).
-Future<CreditCard?> updateCardBalanceFromSms(AppDatabase db, ParsedBankSms parsed) async {
+Future<CreditCard?> updateCardBalanceFromSms(AppDatabase db, ParsedBankSms parsed, {required String profileId}) async {
   final lastFour = parsed.lastFourDigits;
   if (lastFour == null) return null;
 
-  final cards = await db.select(db.creditCards).get();
+  final cards = await (db.select(db.creditCards)..where((c) => c.profileId.equals(profileId))).get();
   CreditCard? card;
   for (final c in cards) {
     if (c.lastFourDigits == lastFour) {

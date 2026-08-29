@@ -1,5 +1,22 @@
 import 'package:drift/drift.dart';
 
+/// A separate, fully isolated data space -- its own assets, ledgers,
+/// statistics and calculator, switched from the profile picker beside
+/// Settings. Every other user-data table below carries a [profileId]
+/// stamped at insert time and filtered on every query, so nothing bleeds
+/// between profiles.
+class Profiles extends Table {
+  TextColumn get id => text()();
+  TextColumn get name => text()();
+
+  /// Manual ordering for display — set to insertion order by default.
+  IntColumn get sortOrder => integer().withDefault(const Constant(0))();
+  DateTimeColumn get createdAt => dateTime()();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
 /// A single thing the user owns: crypto, metals, cash, vehicles, property...
 class Assets extends Table {
   TextColumn get id => text()();
@@ -7,13 +24,15 @@ class Assets extends Table {
   TextColumn get category => text()();
   TextColumn get valuationMode => text()();
 
-  /// Units held: coins for crypto, grams for metals, or an amount
-  /// denominated in [symbolOrCurrency] for the `currency` valuation mode
-  /// (covers both literal cash holdings and a typed-in value like a car's).
+  /// Units held: coins for crypto, grams for metals, shares for stocks, or
+  /// an amount denominated in [symbolOrCurrency] for the `currency`
+  /// valuation mode (covers both literal cash holdings and a typed-in value
+  /// like a car's or a certificate's).
   RealColumn get quantity => real()();
 
   /// Crypto symbol (e.g. `bitcoin`), metal symbol (`XAU_GRAM_<karat>K`/`XAG_GRAM`),
-  /// or a currency code (EGP/USD/EUR/SAR/AED/TRY).
+  /// stock ticker (`SYMBOL:EXCHANGE`, e.g. `AAPL:NASDAQ`/`COMI:EGX`), or a
+  /// currency code (EGP/USD/EUR/SAR/AED/TRY).
   TextColumn get symbolOrCurrency => text()();
 
   TextColumn get notes => text().nullable()();
@@ -25,6 +44,19 @@ class Assets extends Table {
   /// displays. Null (including for every non-vehicle asset) falls back to
   /// the generic car icon.
   TextColumn get vehicleType => text().nullable()();
+
+  /// What was originally paid for this asset, in [purchaseCurrency] --
+  /// optional (null means "not tracked"). Only surfaced in the UI for
+  /// gold/silver/real estate today; the column itself is generic so nothing
+  /// stops another category from using it later.
+  RealColumn get purchasePrice => real().nullable()();
+  TextColumn get purchaseCurrency => text().nullable()();
+
+  /// Which [Profiles] row this asset belongs to. Nullable only because
+  /// SQLite can't add a NOT NULL column with a dynamic default -- every
+  /// insert going forward always stamps a real profile id; the migration
+  /// backfills every pre-existing row to the seeded default profile.
+  TextColumn get profileId => text().nullable().references(Profiles, #id)();
 
   @override
   Set<Column> get primaryKey => {id};
@@ -55,6 +87,8 @@ class Counterparties extends Table {
   /// "current liquid cash" total. Defaults to true for the same reason.
   BoolColumn get includeInCalculator => boolean().withDefault(const Constant(true))();
 
+  TextColumn get profileId => text().nullable().references(Profiles, #id)();
+
   @override
   Set<Column> get primaryKey => {id};
 }
@@ -76,6 +110,11 @@ class LedgerTransactions extends Table {
   TextColumn get category => text()();
   TextColumn get description => text().nullable()();
   DateTimeColumn get createdAt => dateTime()();
+
+  /// Denormalized from the owning counterparty's own profile, so "every
+  /// transaction across every counterparty" queries (the calculator's
+  /// combined total) can filter to the active profile without a join.
+  TextColumn get profileId => text().nullable().references(Profiles, #id)();
 
   @override
   Set<Column> get primaryKey => {id};
@@ -148,6 +187,8 @@ class CalculatorSnapshots extends Table {
   /// written to again by any snapshot saved after this point.
   TextColumn get manualInputEntriesJson => text().withDefault(const Constant('[]'))();
 
+  TextColumn get profileId => text().nullable().references(Profiles, #id)();
+
   @override
   Set<Column> get primaryKey => {id};
 }
@@ -180,6 +221,8 @@ class CreditCards extends Table {
   /// it's never been touched by SMS capture (e.g. only ever typed by hand).
   DateTimeColumn get balanceUpdatedAt => dateTime().nullable()();
 
+  TextColumn get profileId => text().nullable().references(Profiles, #id)();
+
   @override
   Set<Column> get primaryKey => {id};
 }
@@ -197,6 +240,8 @@ class ManualInputs extends Table {
   /// Manual ordering for display — set to insertion order by default, but
   /// not tied to it, so a future "reorder" gesture has somewhere to write.
   IntColumn get sortOrder => integer().withDefault(const Constant(0))();
+
+  TextColumn get profileId => text().nullable().references(Profiles, #id)();
 
   @override
   Set<Column> get primaryKey => {id};
@@ -217,6 +262,8 @@ class LedgerCategories extends Table {
   /// glyph wherever it's displayed.
   TextColumn get icon => text().nullable()();
 
+  TextColumn get profileId => text().nullable().references(Profiles, #id)();
+
   @override
   Set<Column> get primaryKey => {id};
 }
@@ -230,6 +277,8 @@ class VendorRules extends Table {
   TextColumn get vendorPattern => text()();
   TextColumn get counterpartyId => text().references(Counterparties, #id)();
   TextColumn get category => text()();
+
+  TextColumn get profileId => text().nullable().references(Profiles, #id)();
 
   @override
   Set<Column> get primaryKey => {id};

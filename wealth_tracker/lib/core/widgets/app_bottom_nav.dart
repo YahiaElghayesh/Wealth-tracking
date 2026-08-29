@@ -17,7 +17,7 @@ class AppBottomNav extends StatelessWidget {
   static const _items = [
     (icon: Icons.account_balance_wallet_outlined, selectedIcon: Icons.account_balance_wallet, label: 'Net Worth'),
     (icon: Icons.receipt_long_outlined, selectedIcon: Icons.receipt_long, label: 'Ledger'),
-    (icon: Icons.bar_chart_outlined, selectedIcon: Icons.bar_chart, label: 'Statistics'),
+    (icon: Icons.bar_chart_outlined, selectedIcon: Icons.bar_chart, label: 'Ledger Statistics'),
     (icon: Icons.calculate_outlined, selectedIcon: Icons.calculate, label: 'Calculator'),
   ];
 
@@ -84,6 +84,8 @@ class _NavItem extends StatelessWidget {
             const SizedBox(height: 3),
             Text(
               item.label,
+              textAlign: TextAlign.center,
+              maxLines: 2,
               style: theme.textTheme.labelSmall?.copyWith(color: color, fontWeight: FontWeight.w700, fontSize: 10.5),
             ),
           ],

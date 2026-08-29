@@ -29,6 +29,7 @@ void main() {
             currency: Value(currency),
             lastFourDigits: Value(lastFourDigits),
             currentAvailableBalance: Value(currentAvailableBalance),
+            profileId: const Value('test-profile'),
           ),
         );
     return (db.select(db.creditCards)..where((c) => c.id.equals(id))).getSingle();
@@ -46,7 +47,7 @@ void main() {
       availableBalanceAfter: 85891.16,
     );
 
-    final updated = await updateCardBalanceFromSms(db, parsed);
+    final updated = await updateCardBalanceFromSms(db, parsed, profileId: 'test-profile');
 
     expect(updated, isNotNull);
     expect(updated!.currentAvailableBalance, 85891.16);
@@ -65,7 +66,7 @@ void main() {
       lastFourDigits: '1234',
     );
 
-    final updated = await updateCardBalanceFromSms(db, parsed);
+    final updated = await updateCardBalanceFromSms(db, parsed, profileId: 'test-profile');
 
     expect(updated!.currentAvailableBalance, 9800);
   });
@@ -81,7 +82,7 @@ void main() {
       lastFourDigits: '1234',
     );
 
-    final updated = await updateCardBalanceFromSms(db, parsed);
+    final updated = await updateCardBalanceFromSms(db, parsed, profileId: 'test-profile');
 
     expect(updated!.currentAvailableBalance, 10500);
   });
@@ -97,7 +98,7 @@ void main() {
       lastFourDigits: '1234',
     );
 
-    final updated = await updateCardBalanceFromSms(db, parsed);
+    final updated = await updateCardBalanceFromSms(db, parsed, profileId: 'test-profile');
 
     expect(updated!.currentAvailableBalance, 4700);
   });
@@ -113,7 +114,7 @@ void main() {
       lastFourDigits: '9999',
     );
 
-    expect(await updateCardBalanceFromSms(db, parsed), isNull);
+    expect(await updateCardBalanceFromSms(db, parsed, profileId: 'test-profile'), isNull);
   });
 
   test('a currency mismatch between the SMS and the card is not applied', () async {
@@ -127,7 +128,7 @@ void main() {
       lastFourDigits: '1234',
     );
 
-    expect(await updateCardBalanceFromSms(db, parsed), isNull);
+    expect(await updateCardBalanceFromSms(db, parsed, profileId: 'test-profile'), isNull);
   });
 
   test('no last-4-digits on the SMS returns null (nothing to match against)', () async {
@@ -140,6 +141,6 @@ void main() {
       isCharge: true,
     );
 
-    expect(await updateCardBalanceFromSms(db, parsed), isNull);
+    expect(await updateCardBalanceFromSms(db, parsed, profileId: 'test-profile'), isNull);
   });
 }

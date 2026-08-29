@@ -3,20 +3,32 @@ import 'package:uuid/uuid.dart';
 
 import '../db/database.dart';
 
+/// Scoped to one [profileId] -- see `AssetRepository`'s doc comment for the
+/// pattern (every query filters to it, every insert stamps it, the provider
+/// rebuilds on profile switch).
 class LedgerCategoryRepository {
-  LedgerCategoryRepository(this._db);
+  LedgerCategoryRepository(this._db, this.profileId);
 
   final AppDatabase _db;
+  final String profileId;
   static const _uuid = Uuid();
 
   Stream<List<LedgerCategory>> watchAll() {
-    return (_db.select(_db.ledgerCategories)..orderBy([(t) => OrderingTerm.asc(t.sortOrder)])).watch();
+    return (_db.select(_db.ledgerCategories)
+          ..where((t) => t.profileId.equals(profileId))
+          ..orderBy([(t) => OrderingTerm.asc(t.sortOrder)]))
+        .watch();
   }
 
   Future<void> add(String name) async {
-    final count = await _db.select(_db.ledgerCategories).get();
+    final count = await (_db.select(_db.ledgerCategories)..where((t) => t.profileId.equals(profileId))).get();
     await _db.into(_db.ledgerCategories).insert(
-          LedgerCategoriesCompanion.insert(id: _uuid.v4(), name: name, sortOrder: Value(count.length)),
+          LedgerCategoriesCompanion.insert(
+            id: _uuid.v4(),
+            name: name,
+            sortOrder: Value(count.length),
+            profileId: Value(profileId),
+          ),
         );
   }
 

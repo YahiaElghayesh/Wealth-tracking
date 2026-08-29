@@ -79,12 +79,22 @@ class _RootShellState extends ConsumerState<_RootShell> with WidgetsBindingObser
   /// brought forward by the tap (`listenForNewSms`).
   void _initSmsCapture() {
     listenForNewSms((sms) {
-      processIncomingSms(ref.read(databaseProvider), body: sms.body, timestampMillis: sms.timestampMillis);
+      processIncomingSms(
+        ref.read(databaseProvider),
+        body: sms.body,
+        timestampMillis: sms.timestampMillis,
+        profileId: ref.read(activeProfileIdProvider),
+      );
     });
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       final pending = await takePendingSms();
       if (pending != null) {
-        await processIncomingSms(ref.read(databaseProvider), body: pending.body, timestampMillis: pending.timestampMillis);
+        await processIncomingSms(
+          ref.read(databaseProvider),
+          body: pending.body,
+          timestampMillis: pending.timestampMillis,
+          profileId: ref.read(activeProfileIdProvider),
+        );
       }
     });
   }

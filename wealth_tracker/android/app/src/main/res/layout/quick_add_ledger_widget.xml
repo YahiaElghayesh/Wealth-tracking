@@ -1,67 +1,133 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/quick_add_root"
     android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:orientation="horizontal"
-    android:gravity="center_vertical"
-    android:padding="12dp">
+    android:layout_height="match_parent">
 
-    <FrameLayout
-        android:layout_width="40dp"
-        android:layout_height="40dp">
+    <!-- True 1x1 layout, matching the mockup's compact "Add Payment · 1x1"
+         widget exactly: just the avatar+badge, centered, with the bound
+         ledger's name below it instead of a separate title line -- shown
+         when the placed/resized widget is roughly square. -->
+    <LinearLayout
+        android:id="@+id/quick_add_compact"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:gravity="center"
+        android:padding="6dp">
 
-        <TextView
-            android:id="@+id/quick_add_avatar"
+        <FrameLayout
             android:layout_width="40dp"
-            android:layout_height="40dp"
-            android:background="@drawable/widget_avatar_circle"
-            android:gravity="center"
-            android:text="+"
-            android:textSize="16sp"
-            android:textStyle="bold"
-            android:textColor="#FFFFFFFF" />
+            android:layout_height="40dp">
+
+            <TextView
+                android:id="@+id/quick_add_avatar_compact"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:background="@drawable/widget_avatar_circle"
+                android:gravity="center"
+                android:text="+"
+                android:textSize="16sp"
+                android:textStyle="bold"
+                android:textColor="#FFFFFFFF" />
+
+            <TextView
+                android:layout_width="16dp"
+                android:layout_height="16dp"
+                android:layout_gravity="bottom|end"
+                android:background="@drawable/widget_badge_circle"
+                android:gravity="center"
+                android:text="+"
+                android:textSize="9sp"
+                android:textStyle="bold"
+                android:textColor="#FFFFFFFF" />
+
+        </FrameLayout>
 
         <TextView
-            android:layout_width="16dp"
-            android:layout_height="16dp"
-            android:layout_gravity="bottom|end"
-            android:background="@drawable/widget_badge_circle"
-            android:gravity="center"
-            android:text="+"
+            android:id="@+id/quick_add_name_compact"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:text="Add Payment"
             android:textSize="9sp"
             android:textStyle="bold"
-            android:textColor="#FFFFFFFF" />
-
-    </FrameLayout>
-
-    <LinearLayout
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:layout_weight="1"
-        android:layout_marginStart="10dp"
-        android:orientation="vertical">
-
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Add Payment"
-            android:textSize="15sp"
-            android:textStyle="bold"
-            android:textColor="#FFFFFF"
-            android:maxLines="1"
-            android:ellipsize="end" />
-
-        <TextView
-            android:id="@+id/quick_add_subtitle"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text=""
-            android:textSize="12sp"
             android:textColor="#CCFFFFFF"
+            android:gravity="center"
             android:maxLines="1"
             android:ellipsize="end" />
 
     </LinearLayout>
 
-</LinearLayout>
+    <!-- Wide layout (avatar + title/subtitle side by side) -- shown once
+         the widget has enough width to spell out "Add Payment" plus the
+         bound ledger's name legibly. -->
+    <LinearLayout
+        android:id="@+id/quick_add_wide"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:padding="12dp"
+        android:visibility="gone">
+
+        <FrameLayout
+            android:layout_width="40dp"
+            android:layout_height="40dp">
+
+            <TextView
+                android:id="@+id/quick_add_avatar"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:background="@drawable/widget_avatar_circle"
+                android:gravity="center"
+                android:text="+"
+                android:textSize="16sp"
+                android:textStyle="bold"
+                android:textColor="#FFFFFFFF" />
+
+            <TextView
+                android:layout_width="16dp"
+                android:layout_height="16dp"
+                android:layout_gravity="bottom|end"
+                android:background="@drawable/widget_badge_circle"
+                android:gravity="center"
+                android:text="+"
+                android:textSize="9sp"
+                android:textStyle="bold"
+                android:textColor="#FFFFFFFF" />
+
+        </FrameLayout>
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:layout_marginStart="10dp"
+            android:orientation="vertical">
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Add Payment"
+                android:textSize="15sp"
+                android:textStyle="bold"
+                android:textColor="#FFFFFF"
+                android:maxLines="1"
+                android:ellipsize="end" />
+
+            <TextView
+                android:id="@+id/quick_add_subtitle"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text=""
+                android:textSize="12sp"
+                android:textColor="#CCFFFFFF"
+                android:maxLines="1"
+                android:ellipsize="end" />
+
+        </LinearLayout>
+
+    </LinearLayout>
+
+</FrameLayout>

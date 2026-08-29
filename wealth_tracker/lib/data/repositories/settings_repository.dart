@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../core/models/asset_category.dart';
+import '../db/database.dart' show defaultProfileId;
 
 /// Small key/value settings backed by [SharedPreferences]. Anything that
 /// belongs in the synced database (assets, ledger) lives in drift instead —
@@ -12,6 +13,7 @@ class SettingsRepository {
   final SharedPreferences _prefs;
 
   static const _metalsApiKeyKey = 'metals_api_key';
+  static const _stocksApiKeyKey = 'stocks_api_key';
   static const _desktopClientIdKey = 'drive_desktop_client_id';
   static const _desktopClientSecretKey = 'drive_desktop_client_secret';
   static const _desktopCredentialsKey = 'drive_desktop_credentials_json';
@@ -20,6 +22,7 @@ class SettingsRepository {
   static const _androidServerClientIdKey = 'drive_android_server_client_id';
   static const _themeModeKey = 'theme_mode';
   static const _hideValuesByDefaultKey = 'hide_values_by_default';
+  static const _activeProfileIdKey = 'active_profile_id';
 
   String? get metalsApiKey => _prefs.getString(_metalsApiKeyKey);
 
@@ -28,6 +31,19 @@ class SettingsRepository {
       await _prefs.remove(_metalsApiKeyKey);
     } else {
       await _prefs.setString(_metalsApiKeyKey, key);
+    }
+  }
+
+  /// Twelve Data API key, used for stock price lookups + symbol search
+  /// (both US and Egyptian Exchange tickers). Free tier, user's own key —
+  /// same reasoning as [metalsApiKey].
+  String? get stocksApiKey => _prefs.getString(_stocksApiKeyKey);
+
+  Future<void> setStocksApiKey(String? key) async {
+    if (key == null || key.isEmpty) {
+      await _prefs.remove(_stocksApiKeyKey);
+    } else {
+      await _prefs.setString(_stocksApiKeyKey, key);
     }
   }
 
@@ -153,5 +169,15 @@ class SettingsRepository {
 
   Future<void> setHideValuesByDefault(bool enabled) {
     return _prefs.setBool(_hideValuesByDefaultKey, enabled);
+  }
+
+  /// Which [Profile] is currently active -- every screen's data (Net Worth,
+  /// Ledger, Statistics, Calculator) is scoped to this. Defaults to the
+  /// profile every install/upgrade always has, so a brand-new user never
+  /// needs to think about profiles until they deliberately add a second one.
+  String get activeProfileId => _prefs.getString(_activeProfileIdKey) ?? defaultProfileId;
+
+  Future<void> setActiveProfileId(String id) {
+    return _prefs.setString(_activeProfileIdKey, id);
   }
 }

@@ -8,14 +8,21 @@ import '../../core/models/card_snapshot_entry.dart';
 import '../../core/models/manual_input_snapshot_entry.dart';
 import '../db/database.dart';
 
+/// Scoped to one [profileId] -- see `AssetRepository`'s doc comment for the
+/// pattern (every query filters to it, every insert stamps it, the provider
+/// rebuilds on profile switch).
 class CalculatorRepository {
-  CalculatorRepository(this._db);
+  CalculatorRepository(this._db, this.profileId);
 
   final AppDatabase _db;
+  final String profileId;
   static const _uuid = Uuid();
 
   Stream<List<CreditCard>> watchCards() {
-    return (_db.select(_db.creditCards)..orderBy([(t) => OrderingTerm.asc(t.sortOrder)])).watch();
+    return (_db.select(_db.creditCards)
+          ..where((t) => t.profileId.equals(profileId))
+          ..orderBy([(t) => OrderingTerm.asc(t.sortOrder)]))
+        .watch();
   }
 
   Future<void> addCard({
@@ -25,7 +32,7 @@ class CalculatorRepository {
     required String currency,
     String? lastFourDigits,
   }) async {
-    final count = await _db.select(_db.creditCards).get();
+    final count = await (_db.select(_db.creditCards)..where((t) => t.profileId.equals(profileId))).get();
     await _db.into(_db.creditCards).insert(
           CreditCardsCompanion.insert(
             id: _uuid.v4(),
@@ -35,6 +42,7 @@ class CalculatorRepository {
             currency: Value(currency),
             sortOrder: Value(count.length),
             lastFourDigits: Value(lastFourDigits),
+            profileId: Value(profileId),
           ),
         );
   }
@@ -48,7 +56,10 @@ class CalculatorRepository {
   }
 
   Stream<List<ManualInput>> watchManualInputs() {
-    return (_db.select(_db.manualInputs)..orderBy([(t) => OrderingTerm.asc(t.sortOrder)])).watch();
+    return (_db.select(_db.manualInputs)
+          ..where((t) => t.profileId.equals(profileId))
+          ..orderBy([(t) => OrderingTerm.asc(t.sortOrder)]))
+        .watch();
   }
 
   Future<void> addManualInput({
@@ -56,7 +67,7 @@ class CalculatorRepository {
     required bool isAddition,
     required String currency,
   }) async {
-    final count = await _db.select(_db.manualInputs).get();
+    final count = await (_db.select(_db.manualInputs)..where((t) => t.profileId.equals(profileId))).get();
     await _db.into(_db.manualInputs).insert(
           ManualInputsCompanion.insert(
             id: _uuid.v4(),
@@ -64,6 +75,7 @@ class CalculatorRepository {
             isAddition: isAddition,
             currency: Value(currency),
             sortOrder: Value(count.length),
+            profileId: Value(profileId),
           ),
         );
   }
@@ -78,6 +90,7 @@ class CalculatorRepository {
 
   Stream<List<CalculatorSnapshot>> watchSnapshots() {
     return (_db.select(_db.calculatorSnapshots)
+          ..where((s) => s.profileId.equals(profileId))
           ..orderBy([(s) => OrderingTerm.desc(s.computedAt)]))
         .watch();
   }
@@ -105,6 +118,7 @@ class CalculatorRepository {
             cardEntriesJson: Value(jsonEncode(cardEntries.map((c) => c.toJson()).toList())),
             manualInputEntriesJson:
                 Value(jsonEncode(manualInputEntries.map((e) => e.toJson()).toList())),
+            profileId: Value(profileId),
           ),
         );
   }

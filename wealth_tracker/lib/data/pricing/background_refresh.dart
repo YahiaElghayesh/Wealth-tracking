@@ -11,6 +11,7 @@ import 'fx_price_provider.dart';
 import 'metals_price_provider.dart';
 import 'price_refresh_orchestrator.dart';
 import 'price_refresh_service.dart';
+import 'twelve_data_price_provider.dart';
 
 const backgroundPriceRefreshUniqueName = 'wealth_tracker_price_refresh';
 const backgroundPriceRefreshTaskName = 'priceRefresh';
@@ -50,6 +51,7 @@ Future<void> runBackgroundPriceRefresh() async {
       cryptoProvider: CoinGeckoPriceProvider(),
       fxProvider: FxPriceProvider(),
       metalsProvider: MetalsPriceProvider(apiKey: settings.metalsApiKey),
+      stockProvider: TwelveDataPriceProvider(apiKey: settings.stocksApiKey),
     );
 
     final outcome = await refreshAndPersistPrices(

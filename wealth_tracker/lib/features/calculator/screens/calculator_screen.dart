@@ -634,7 +634,7 @@ class _SignedRow extends StatelessWidget {
   }
 }
 
-class _SignedAmountField extends StatelessWidget {
+class _SignedAmountField extends ConsumerWidget {
   const _SignedAmountField({
     super.key,
     required this.isAddition,
@@ -649,7 +649,8 @@ class _SignedAmountField extends StatelessWidget {
   final String currency;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final hideValues = ref.watch(hideValuesProvider);
     return Row(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
@@ -661,6 +662,7 @@ class _SignedAmountField extends StatelessWidget {
             controller: controller,
             decoration: InputDecoration(labelText: label, hintText: '0.00', suffixText: currency),
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            obscureText: hideValues,
           ),
         ),
       ],
@@ -673,12 +675,24 @@ class _SignedAmountField extends StatelessWidget {
 /// input's last saved figure...) is replaced by simply typing over it —
 /// tapping away without typing leaves the value untouched, since only the
 /// selection highlight changes, not the text itself.
+///
+/// [obscureText] masks the typed digits behind bullets (same convention as
+/// every other money value in the app under Hide values) without disabling
+/// editing — same trick `TextField.obscureText` already gives password
+/// fields.
 class _SelectAllOnFocusField extends StatefulWidget {
-  const _SelectAllOnFocusField({super.key, required this.controller, this.decoration, this.keyboardType});
+  const _SelectAllOnFocusField({
+    super.key,
+    required this.controller,
+    this.decoration,
+    this.keyboardType,
+    this.obscureText = false,
+  });
 
   final TextEditingController controller;
   final InputDecoration? decoration;
   final TextInputType? keyboardType;
+  final bool obscureText;
 
   @override
   State<_SelectAllOnFocusField> createState() => _SelectAllOnFocusFieldState();
@@ -713,6 +727,8 @@ class _SelectAllOnFocusFieldState extends State<_SelectAllOnFocusField> {
       focusNode: _focusNode,
       decoration: widget.decoration,
       keyboardType: widget.keyboardType,
+      obscureText: widget.obscureText,
+      obscuringCharacter: '•',
     );
   }
 }
@@ -777,6 +793,7 @@ class _CardField extends ConsumerWidget {
             controller: controller,
             decoration: InputDecoration(labelText: 'Available balance (${card.currency})', hintText: '0.00'),
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            obscureText: hideValues,
           ),
           if (card.balanceUpdatedAt != null) ...[
             const SizedBox(height: 2),
