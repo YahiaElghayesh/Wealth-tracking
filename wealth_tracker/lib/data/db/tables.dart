@@ -206,6 +206,11 @@ class LedgerCategories extends Table {
   TextColumn get name => text()();
   IntColumn get sortOrder => integer().withDefault(const Constant(0))();
 
+  /// A single emoji representing this category, picked from a fixed set in
+  /// Settings -> Categories & icons. Null falls back to a generic receipt
+  /// glyph wherever it's displayed.
+  TextColumn get icon => text().nullable()();
+
   @override
   Set<Column> get primaryKey => {id};
 }

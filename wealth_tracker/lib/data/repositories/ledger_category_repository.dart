@@ -25,6 +25,11 @@ class LedgerCategoryRepository {
         .write(LedgerCategoriesCompanion(name: Value(name)));
   }
 
+  Future<void> updateIcon(String id, String icon) {
+    return (_db.update(_db.ledgerCategories)..where((t) => t.id.equals(id)))
+        .write(LedgerCategoriesCompanion(icon: Value(icon)));
+  }
+
   Future<void> delete(String id) {
     return (_db.delete(_db.ledgerCategories)..where((t) => t.id.equals(id))).go();
   }

@@ -4086,8 +4086,17 @@ class $LedgerCategoriesTable extends LedgerCategories
     requiredDuringInsert: false,
     defaultValue: const Constant(0),
   );
+  static const VerificationMeta _iconMeta = const VerificationMeta('icon');
   @override
-  List<GeneratedColumn> get $columns => [id, name, sortOrder];
+  late final GeneratedColumn<String> icon = GeneratedColumn<String>(
+    'icon',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [id, name, sortOrder, icon];
   @override
   String get aliasedName => _alias ?? actualTableName;
   @override
@@ -4119,6 +4128,12 @@ class $LedgerCategoriesTable extends LedgerCategories
         sortOrder.isAcceptableOrUnknown(data['sort_order']!, _sortOrderMeta),
       );
     }
+    if (data.containsKey('icon')) {
+      context.handle(
+        _iconMeta,
+        icon.isAcceptableOrUnknown(data['icon']!, _iconMeta),
+      );
+    }
     return context;
   }
 
@@ -4140,6 +4155,10 @@ class $LedgerCategoriesTable extends LedgerCategories
         DriftSqlType.int,
         data['${effectivePrefix}sort_order'],
       )!,
+      icon: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}icon'],
+      ),
     );
   }
 
@@ -4153,10 +4172,16 @@ class LedgerCategory extends DataClass implements Insertable<LedgerCategory> {
   final String id;
   final String name;
   final int sortOrder;
+
+  /// A single emoji representing this category, picked from a fixed set in
+  /// Settings -> Categories & icons. Null falls back to a generic receipt
+  /// glyph wherever it's displayed.
+  final String? icon;
   const LedgerCategory({
     required this.id,
     required this.name,
     required this.sortOrder,
+    this.icon,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -4164,6 +4189,9 @@ class LedgerCategory extends DataClass implements Insertable<LedgerCategory> {
     map['id'] = Variable<String>(id);
     map['name'] = Variable<String>(name);
     map['sort_order'] = Variable<int>(sortOrder);
+    if (!nullToAbsent || icon != null) {
+      map['icon'] = Variable<String>(icon);
+    }
     return map;
   }
 
@@ -4172,6 +4200,7 @@ class LedgerCategory extends DataClass implements Insertable<LedgerCategory> {
       id: Value(id),
       name: Value(name),
       sortOrder: Value(sortOrder),
+      icon: icon == null && nullToAbsent ? const Value.absent() : Value(icon),
     );
   }
 
@@ -4184,6 +4213,7 @@ class LedgerCategory extends DataClass implements Insertable<LedgerCategory> {
       id: serializer.fromJson<String>(json['id']),
       name: serializer.fromJson<String>(json['name']),
       sortOrder: serializer.fromJson<int>(json['sortOrder']),
+      icon: serializer.fromJson<String?>(json['icon']),
     );
   }
   @override
@@ -4193,20 +4223,27 @@ class LedgerCategory extends DataClass implements Insertable<LedgerCategory> {
       'id': serializer.toJson<String>(id),
       'name': serializer.toJson<String>(name),
       'sortOrder': serializer.toJson<int>(sortOrder),
+      'icon': serializer.toJson<String?>(icon),
     };
   }
 
-  LedgerCategory copyWith({String? id, String? name, int? sortOrder}) =>
-      LedgerCategory(
-        id: id ?? this.id,
-        name: name ?? this.name,
-        sortOrder: sortOrder ?? this.sortOrder,
-      );
+  LedgerCategory copyWith({
+    String? id,
+    String? name,
+    int? sortOrder,
+    Value<String?> icon = const Value.absent(),
+  }) => LedgerCategory(
+    id: id ?? this.id,
+    name: name ?? this.name,
+    sortOrder: sortOrder ?? this.sortOrder,
+    icon: icon.present ? icon.value : this.icon,
+  );
   LedgerCategory copyWithCompanion(LedgerCategoriesCompanion data) {
     return LedgerCategory(
       id: data.id.present ? data.id.value : this.id,
       name: data.name.present ? data.name.value : this.name,
       sortOrder: data.sortOrder.present ? data.sortOrder.value : this.sortOrder,
+      icon: data.icon.present ? data.icon.value : this.icon,
     );
   }
 
@@ -4215,37 +4252,42 @@ class LedgerCategory extends DataClass implements Insertable<LedgerCategory> {
     return (StringBuffer('LedgerCategory(')
           ..write('id: $id, ')
           ..write('name: $name, ')
-          ..write('sortOrder: $sortOrder')
+          ..write('sortOrder: $sortOrder, ')
+          ..write('icon: $icon')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(id, name, sortOrder);
+  int get hashCode => Object.hash(id, name, sortOrder, icon);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
       (other is LedgerCategory &&
           other.id == this.id &&
           other.name == this.name &&
-          other.sortOrder == this.sortOrder);
+          other.sortOrder == this.sortOrder &&
+          other.icon == this.icon);
 }
 
 class LedgerCategoriesCompanion extends UpdateCompanion<LedgerCategory> {
   final Value<String> id;
   final Value<String> name;
   final Value<int> sortOrder;
+  final Value<String?> icon;
   final Value<int> rowid;
   const LedgerCategoriesCompanion({
     this.id = const Value.absent(),
     this.name = const Value.absent(),
     this.sortOrder = const Value.absent(),
+    this.icon = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   LedgerCategoriesCompanion.insert({
     required String id,
     required String name,
     this.sortOrder = const Value.absent(),
+    this.icon = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
        name = Value(name);
@@ -4253,12 +4295,14 @@ class LedgerCategoriesCompanion extends UpdateCompanion<LedgerCategory> {
     Expression<String>? id,
     Expression<String>? name,
     Expression<int>? sortOrder,
+    Expression<String>? icon,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
       if (name != null) 'name': name,
       if (sortOrder != null) 'sort_order': sortOrder,
+      if (icon != null) 'icon': icon,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -4267,12 +4311,14 @@ class LedgerCategoriesCompanion extends UpdateCompanion<LedgerCategory> {
     Value<String>? id,
     Value<String>? name,
     Value<int>? sortOrder,
+    Value<String?>? icon,
     Value<int>? rowid,
   }) {
     return LedgerCategoriesCompanion(
       id: id ?? this.id,
       name: name ?? this.name,
       sortOrder: sortOrder ?? this.sortOrder,
+      icon: icon ?? this.icon,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -4289,6 +4335,9 @@ class LedgerCategoriesCompanion extends UpdateCompanion<LedgerCategory> {
     if (sortOrder.present) {
       map['sort_order'] = Variable<int>(sortOrder.value);
     }
+    if (icon.present) {
+      map['icon'] = Variable<String>(icon.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -4301,6 +4350,7 @@ class LedgerCategoriesCompanion extends UpdateCompanion<LedgerCategory> {
           ..write('id: $id, ')
           ..write('name: $name, ')
           ..write('sortOrder: $sortOrder, ')
+          ..write('icon: $icon, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -7265,6 +7315,7 @@ typedef $$LedgerCategoriesTableCreateCompanionBuilder =
       required String id,
       required String name,
       Value<int> sortOrder,
+      Value<String?> icon,
       Value<int> rowid,
     });
 typedef $$LedgerCategoriesTableUpdateCompanionBuilder =
@@ -7272,6 +7323,7 @@ typedef $$LedgerCategoriesTableUpdateCompanionBuilder =
       Value<String> id,
       Value<String> name,
       Value<int> sortOrder,
+      Value<String?> icon,
       Value<int> rowid,
     });
 
@@ -7296,6 +7348,11 @@ class $$LedgerCategoriesTableFilterComposer
 
   ColumnFilters<int> get sortOrder => $composableBuilder(
     column: $table.sortOrder,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get icon => $composableBuilder(
+    column: $table.icon,
     builder: (column) => ColumnFilters(column),
   );
 }
@@ -7323,6 +7380,11 @@ class $$LedgerCategoriesTableOrderingComposer
     column: $table.sortOrder,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<String> get icon => $composableBuilder(
+    column: $table.icon,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$LedgerCategoriesTableAnnotationComposer
@@ -7342,6 +7404,9 @@ class $$LedgerCategoriesTableAnnotationComposer
 
   GeneratedColumn<int> get sortOrder =>
       $composableBuilder(column: $table.sortOrder, builder: (column) => column);
+
+  GeneratedColumn<String> get icon =>
+      $composableBuilder(column: $table.icon, builder: (column) => column);
 }
 
 class $$LedgerCategoriesTableTableManager
@@ -7384,11 +7449,13 @@ class $$LedgerCategoriesTableTableManager
                 Value<String> id = const Value.absent(),
                 Value<String> name = const Value.absent(),
                 Value<int> sortOrder = const Value.absent(),
+                Value<String?> icon = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => LedgerCategoriesCompanion(
                 id: id,
                 name: name,
                 sortOrder: sortOrder,
+                icon: icon,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -7396,11 +7463,13 @@ class $$LedgerCategoriesTableTableManager
                 required String id,
                 required String name,
                 Value<int> sortOrder = const Value.absent(),
+                Value<String?> icon = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => LedgerCategoriesCompanion.insert(
                 id: id,
                 name: name,
                 sortOrder: sortOrder,
+                icon: icon,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0

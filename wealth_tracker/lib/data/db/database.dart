@@ -3,6 +3,7 @@ import 'package:drift_flutter/drift_flutter.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../core/models/ledger_category.dart';
+import '../../core/models/ledger_category_icons.dart';
 import 'tables.dart';
 
 part 'database.g.dart';
@@ -28,7 +29,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 11;
+  int get schemaVersion => 12;
 
   Future<void> _seedDefaultLedgerCategories() async {
     // 'Other' isn't seeded — it's always appended as a synthetic last
@@ -36,7 +37,12 @@ class AppDatabase extends _$AppDatabase {
     final defaults = ledgerExpenseCategories.where((c) => c != 'Other').toList();
     for (var i = 0; i < defaults.length; i++) {
       await into(ledgerCategories).insert(
-        LedgerCategoriesCompanion.insert(id: const Uuid().v4(), name: defaults[i], sortOrder: Value(i)),
+        LedgerCategoriesCompanion.insert(
+          id: const Uuid().v4(),
+          name: defaults[i],
+          sortOrder: Value(i),
+          icon: Value(defaultCategoryEmoji[defaults[i]]),
+        ),
       );
     }
   }
@@ -164,6 +170,19 @@ class AppDatabase extends _$AppDatabase {
             // typed into the Calculator for one session.
             await m.addColumn(creditCards, creditCards.currentAvailableBalance);
             await m.addColumn(creditCards, creditCards.balanceUpdatedAt);
+          }
+          if (from < 12) {
+            // Ledger categories gained a user-managed icon (Settings ->
+            // Categories & icons) instead of always rendering a generic
+            // glyph. Backfill the same sensible defaults a fresh install
+            // seeds, by name, so existing categories don't show up blank;
+            // anyone whose category name isn't in the default map (a
+            // custom-typed one) just keeps the null fallback icon.
+            await m.addColumn(ledgerCategories, ledgerCategories.icon);
+            for (final entry in defaultCategoryEmoji.entries) {
+              await (update(ledgerCategories)..where((c) => c.name.equals(entry.key)))
+                  .write(LedgerCategoriesCompanion(icon: Value(entry.value)));
+            }
           }
         },
         // The "Breakfast" quick-pick category was a voice-transcription

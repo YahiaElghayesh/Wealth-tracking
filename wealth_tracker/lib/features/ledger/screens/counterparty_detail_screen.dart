@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/format/money_formatter.dart';
 import '../../../core/models/currency.dart';
+import '../../../core/models/ledger_category_icons.dart';
 import '../../../core/providers/privacy_providers.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/hide_values_action.dart';
@@ -14,27 +15,14 @@ import '../providers/ledger_providers.dart';
 import 'add_transaction_screen.dart';
 import 'monthly_summary_screen.dart';
 
-/// Stopgap emoji-per-category lookup for the ledger row icon chip, matching
-/// the mockup's row-card pattern -- a real user-managed icon picker (see
-/// the "Categories & icons" screen task) will replace this later. Unknown
-/// categories fall back to a generic receipt glyph.
-const _categoryEmoji = <String, String>{
-  'Groceries': '🛒',
-  'Fuel': '⛽',
-  'Food Delivery': '🍽️',
-  'Delivery': '🍽️',
-  'Food Out': '🍽️',
-  'Talabat': '🍽️',
-  'Breakfast': '🥐',
-  'Amazon': '📦',
-  'Electrical': '💡',
-  'Gas': '🔥',
-  'Telecom': '📱',
-  'Pharmacy': '💊',
-  'Mother': '👵',
-};
-
-String _emojiFor(String category, bool isAddition) => isAddition ? (_categoryEmoji[category] ?? '🧾') : '↩︎';
+/// A repayment always shows the same "money came back" glyph; a charge
+/// shows its category's real user-managed icon (Settings -> Categories &
+/// icons), falling back to a generic receipt glyph for a category that was
+/// deleted or free-typed without ever getting an icon.
+String _emojiFor(String category, bool isAddition, Map<String, String> categoryIcons) {
+  if (!isAddition) return '↩︎';
+  return categoryIcons[category] ?? fallbackCategoryEmoji;
+}
 
 class CounterpartyDetailScreen extends ConsumerWidget {
   const CounterpartyDetailScreen({super.key, required this.counterparty});
@@ -46,6 +34,11 @@ class CounterpartyDetailScreen extends ConsumerWidget {
     final transactionsAsync = ref.watch(transactionsStreamProvider(counterparty.id));
     final prices = ref.watch(pricesUsdPerUnitProvider);
     final hideValues = ref.watch(hideValuesProvider);
+    final categories = ref.watch(ledgerCategoriesStreamProvider).valueOrNull ?? const [];
+    final categoryIcons = {
+      for (final c in categories)
+        if (c.icon != null) c.name: c.icon!,
+    };
 
     return Scaffold(
       appBar: AppBar(
@@ -155,7 +148,10 @@ class CounterpartyDetailScreen extends ConsumerWidget {
                                     alignment: Alignment.center,
                                     child: hideValues
                                         ? Icon(Icons.lock_outline, size: 15, color: colors.textDim)
-                                        : Text(_emojiFor(t.category, isAddition), style: const TextStyle(fontSize: 16)),
+                                        : Text(
+                                            _emojiFor(t.category, isAddition, categoryIcons),
+                                            style: const TextStyle(fontSize: 16),
+                                          ),
                                   ),
                                   const SizedBox(width: 12),
                                   Expanded(
