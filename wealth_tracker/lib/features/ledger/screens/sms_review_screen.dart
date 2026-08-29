@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/models/currency.dart';
 import '../../../core/models/ledger_category.dart';
+import '../../../core/theme/app_colors.dart';
 import '../../../data/sms/bank_charge_payload.dart';
 import '../providers/ledger_providers.dart';
 
@@ -81,56 +82,111 @@ class _SmsReviewScreenState extends ConsumerState<SmsReviewScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = context.appColors;
     final counterparties = ref.watch(counterpartiesStreamProvider).valueOrNull ?? const [];
+    final matchedByRule = widget.payload.counterpartyId != null;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Add from SMS')),
+      appBar: AppBar(title: const Text('Confirm payment')),
       body: Form(
         key: _formKey,
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            Text(
-              'From SMS: ${widget.payload.vendor}',
-              style: Theme.of(context).textTheme.bodyMedium,
-            ),
-            const SizedBox(height: 16),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  flex: 2,
-                  child: TextFormField(
-                    controller: _amountController,
-                    style: Theme.of(context).textTheme.headlineMedium,
-                    decoration: const InputDecoration(hintText: '0.00'),
-                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                    validator: (v) {
-                      if (v == null || v.trim().isEmpty) return 'Required';
-                      final n = double.tryParse(v.trim());
-                      if (n == null || n <= 0) return 'Enter a number';
-                      return null;
-                    },
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: theme.colorScheme.surface,
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(color: colors.border),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+                    decoration: BoxDecoration(color: colors.surface2, borderRadius: BorderRadius.circular(99)),
+                    child: Text(
+                      'From SMS · ${_date.year}-${_date.month.toString().padLeft(2, '0')}-${_date.day.toString().padLeft(2, '0')}',
+                      style: theme.textTheme.labelSmall?.copyWith(color: colors.textDim, fontWeight: FontWeight.w700),
+                    ),
                   ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: DropdownButtonFormField<String>(
-                    isExpanded: true,
-                    initialValue: _currency,
-                    items: supportedCurrencies
-                        .map((c) => DropdownMenuItem(value: c, child: Text(c)))
-                        .toList(),
-                    onChanged: (c) => setState(() => _currency = c!),
+                  const SizedBox(height: 10),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        flex: 2,
+                        child: TextFormField(
+                          controller: _amountController,
+                          style: theme.textTheme.headlineSmall,
+                          decoration: const InputDecoration(hintText: '0.00'),
+                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                          validator: (v) {
+                            if (v == null || v.trim().isEmpty) return 'Required';
+                            final n = double.tryParse(v.trim());
+                            if (n == null || n <= 0) return 'Enter a number';
+                            return null;
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: DropdownButtonFormField<String>(
+                          isExpanded: true,
+                          initialValue: _currency,
+                          items: supportedCurrencies
+                              .map((c) => DropdownMenuItem(value: c, child: Text(c)))
+                              .toList(),
+                          onChanged: (c) => setState(() => _currency = c!),
+                        ),
+                      ),
+                    ],
                   ),
-                ),
-              ],
+                  const SizedBox(height: 4),
+                  Text.rich(
+                    TextSpan(
+                      style: theme.textTheme.bodySmall?.copyWith(color: colors.textDim),
+                      children: [
+                        const TextSpan(text: 'at '),
+                        TextSpan(
+                          text: widget.payload.vendor,
+                          style: TextStyle(color: colors.textBody, fontWeight: FontWeight.w700),
+                        ),
+                      ],
+                    ),
+                  ),
+                  if (matchedByRule) ...[
+                    const SizedBox(height: 9),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: colors.good.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(99),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.check_circle, size: 12, color: colors.good),
+                          const SizedBox(width: 4),
+                          Text(
+                            'Matched by vendor rule',
+                            style: theme.textTheme.labelSmall?.copyWith(color: colors.good, fontWeight: FontWeight.w700),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ],
+              ),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 20),
+            Text('Add to which ledger?', style: theme.textTheme.labelSmall?.copyWith(color: colors.textDim, fontWeight: FontWeight.w800)),
+            const SizedBox(height: 8),
             DropdownButtonFormField<String>(
               isExpanded: true,
               initialValue: _counterpartyId,
-              decoration: const InputDecoration(labelText: 'Ledger'),
               items: counterparties
                   .map((c) => DropdownMenuItem(value: c.id, child: Text(c.name)))
                   .toList(),
@@ -138,6 +194,8 @@ class _SmsReviewScreenState extends ConsumerState<SmsReviewScreen> {
               validator: (v) => v == null ? 'Pick a ledger' : null,
             ),
             const SizedBox(height: 16),
+            Text('Category', style: theme.textTheme.labelSmall?.copyWith(color: colors.textDim, fontWeight: FontWeight.w800)),
+            const SizedBox(height: 8),
             Wrap(
               spacing: 8,
               children: ledgerExpenseCategories.map((c) {
@@ -158,11 +216,12 @@ class _SmsReviewScreenState extends ConsumerState<SmsReviewScreen> {
             const SizedBox(height: 16),
             InkWell(
               onTap: _pickDate,
+              borderRadius: BorderRadius.circular(12),
               child: Padding(
                 padding: const EdgeInsets.symmetric(vertical: 8),
                 child: Row(
                   children: [
-                    const Icon(Icons.calendar_today, size: 18),
+                    Icon(Icons.calendar_today, size: 18, color: colors.textDim),
                     const SizedBox(width: 12),
                     Text(
                       '${_date.year}-${_date.month.toString().padLeft(2, '0')}-${_date.day.toString().padLeft(2, '0')}',
@@ -171,12 +230,31 @@ class _SmsReviewScreenState extends ConsumerState<SmsReviewScreen> {
                 ),
               ),
             ),
+            const SizedBox(height: 90),
           ],
         ),
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _save,
-        child: const Icon(Icons.check),
+      bottomSheet: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+          child: Row(
+            children: [
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: const Text('Not a payment'),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: FilledButton(
+                  onPressed: _save,
+                  child: const Text('Confirm & add'),
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

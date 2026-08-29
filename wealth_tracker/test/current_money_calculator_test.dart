@@ -15,24 +15,22 @@ void main() {
   });
 
   group('calculateCurrentMoney', () {
-    test('applies the full formula: ledgers - apartment - cards owed + CIB balance', () {
+    test('applies the full formula: ledgers - cards owed + manual inputs', () {
       final result = calculateCurrentMoney(
         ledgersTotal: 20000,
-        apartmentSavings: 5000,
-        cibAccountBalance: 3000,
         cardOwedAmounts: [1000, 500, 200],
+        manualInputAmounts: [-5000, 3000],
       );
 
-      // 20000 - 5000 - (1000 + 500 + 200) + 3000
+      // 20000 - (1000 + 500 + 200) + (-5000 + 3000)
       expect(result, closeTo(16300, 0.001));
     });
 
     test('no cards is treated as zero owed rather than throwing', () {
       final result = calculateCurrentMoney(
         ledgersTotal: 1000,
-        apartmentSavings: 0,
-        cibAccountBalance: 0,
         cardOwedAmounts: const [],
+        manualInputAmounts: const [],
       );
 
       expect(result, closeTo(1000, 0.001));
@@ -41,9 +39,8 @@ void main() {
     test('negative ledgers total (user owes overall) still works', () {
       final result = calculateCurrentMoney(
         ledgersTotal: -500,
-        apartmentSavings: 0,
-        cibAccountBalance: 200,
         cardOwedAmounts: const [],
+        manualInputAmounts: const [200],
       );
 
       expect(result, closeTo(-300, 0.001));
@@ -52,9 +49,8 @@ void main() {
     test('custom items apply their sign to the total', () {
       final result = calculateCurrentMoney(
         ledgersTotal: 1000,
-        apartmentSavings: 0,
-        cibAccountBalance: 0,
         cardOwedAmounts: const [],
+        manualInputAmounts: const [],
         customItems: const [
           CustomCalculatorItem(label: 'Bonus', amount: 300, isAddition: true),
           CustomCalculatorItem(label: 'Fine', amount: 100, isAddition: false),
@@ -63,6 +59,17 @@ void main() {
 
       // 1000 + 300 - 100
       expect(result, closeTo(1200, 0.001));
+    });
+
+    test('a mixed-sign manual inputs list sums correctly', () {
+      final result = calculateCurrentMoney(
+        ledgersTotal: 0,
+        cardOwedAmounts: const [],
+        manualInputAmounts: const [-1000, 500, -250, 4000],
+      );
+
+      // -1000 + 500 - 250 + 4000
+      expect(result, closeTo(3250, 0.001));
     });
   });
 }

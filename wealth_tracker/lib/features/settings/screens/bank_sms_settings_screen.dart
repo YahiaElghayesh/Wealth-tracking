@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 import '../../../core/providers/core_providers.dart';
+import '../../../core/theme/app_colors.dart';
 import '../../../data/db/database.dart';
 import '../../ledger/providers/ledger_providers.dart';
 import '../providers/vendor_rule_providers.dart';
@@ -70,23 +71,37 @@ class _BankSmsSettingsScreenState extends ConsumerState<BankSmsSettingsScreen> {
     final counterparties = ref.watch(counterpartiesStreamProvider).valueOrNull ?? const [];
     final counterpartyNames = {for (final c in counterparties) c.id: c.name};
 
+    final colors = context.appColors;
+    final rowDecoration = BoxDecoration(
+      color: Theme.of(context).colorScheme.surface,
+      borderRadius: BorderRadius.circular(14),
+      border: Border.all(color: colors.border),
+    );
+
     return Scaffold(
       appBar: AppBar(title: const Text('Bank SMS detection')),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          Card(
+          Container(
+            decoration: rowDecoration,
             child: SwitchListTile(
-              title: const Text('Detect bank SMS'),
-              subtitle: const Text(
-                'When your bank texts you about a card charge or payment, this opens a '
-                'quick review screen so you can add it to a ledger — nothing is added '
-                'without you confirming. Also keeps a matching credit card\'s balance in '
-                'Settings > Credit cards up to date automatically, with no confirmation '
-                'needed for that part. Needs the sensitive "read SMS" permission to work.',
-              ),
+              secondary: _IconChip(Icons.sms_outlined),
+              title: const Text('Read bank SMS'),
+              subtitle: const Text('Notifies you — never adds automatically'),
               value: _enabled,
               onChanged: _requesting ? null : _toggle,
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(4, 10, 4, 0),
+            child: Text(
+              'When your bank texts you about a card charge or payment, this opens a quick '
+              'review screen so you can add it to a ledger — nothing is added without you '
+              'confirming. Also keeps a matching credit card\'s balance in Settings > Credit '
+              'cards up to date automatically, with no confirmation needed for that part. '
+              'Needs the sensitive "read SMS" permission to work.',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(color: colors.textDim),
             ),
           ),
           const SizedBox(height: 24),
@@ -105,7 +120,7 @@ class _BankSmsSettingsScreenState extends ConsumerState<BankSmsSettingsScreen> {
           Text(
             'When a detected charge\'s merchant matches one of these, the review screen '
             'pre-fills the ledger and category below instead of asking you to pick.',
-            style: Theme.of(context).textTheme.bodySmall,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(color: colors.textDim),
           ),
           const SizedBox(height: 12),
           rulesAsync.when(
@@ -128,22 +143,24 @@ class _BankSmsSettingsScreenState extends ConsumerState<BankSmsSettingsScreen> {
                       key: ValueKey(rule.id),
                       direction: DismissDirection.endToStart,
                       background: Container(
-                        margin: const EdgeInsets.only(bottom: 12),
+                        margin: const EdgeInsets.only(bottom: 10),
                         decoration: BoxDecoration(
                           color: Theme.of(context).colorScheme.errorContainer,
-                          borderRadius: BorderRadius.circular(16),
+                          borderRadius: BorderRadius.circular(14),
                         ),
                         alignment: Alignment.centerRight,
                         padding: const EdgeInsets.symmetric(horizontal: 20),
                         child: const Icon(Icons.delete),
                       ),
                       onDismissed: (_) => ref.read(vendorRuleRepositoryProvider).deleteRule(rule.id),
-                      child: Card(
-                        margin: const EdgeInsets.only(bottom: 12),
+                      child: Container(
+                        margin: const EdgeInsets.only(bottom: 10),
+                        decoration: rowDecoration,
                         child: ListTile(
+                          leading: _IconChip(Icons.sms_outlined),
                           title: Text(rule.vendorPattern),
                           subtitle: Text(
-                            '${counterpartyNames[rule.counterpartyId] ?? 'Unknown ledger'} · ${rule.category}',
+                            '→ ${counterpartyNames[rule.counterpartyId] ?? 'Unknown ledger'}  ·  ${rule.category}',
                           ),
                           trailing: const Icon(Icons.chevron_right),
                           onTap: () => _openRuleForm(context, existing: rule),
@@ -156,6 +173,26 @@ class _BankSmsSettingsScreenState extends ConsumerState<BankSmsSettingsScreen> {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _IconChip extends StatelessWidget {
+  const _IconChip(this.icon);
+
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 34,
+      height: 34,
+      decoration: BoxDecoration(
+        color: context.appColors.accentSoft,
+        borderRadius: BorderRadius.circular(10),
+      ),
+      alignment: Alignment.center,
+      child: Icon(icon, size: 17, color: Theme.of(context).colorScheme.primary),
     );
   }
 }

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/format/money_formatter.dart';
 import '../../../core/models/currency.dart';
+import '../../../core/theme/app_colors.dart';
 import '../../../data/db/database.dart';
 import '../../../data/repositories/calculator_repository.dart';
 import '../providers/calculator_providers.dart';
@@ -69,8 +70,19 @@ class _SnapshotCard extends ConsumerWidget {
           childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
           children: [
             _BreakdownRow(isAddition: true, label: 'Ledgers', amount: snapshot.ledgersTotal),
-            _BreakdownRow(isAddition: false, label: 'Apartment savings', amount: snapshot.apartmentSavings),
-            _BreakdownRow(isAddition: true, label: 'CIB Accounts Balance', amount: snapshot.cibAccountBalance),
+            if (snapshot.usesLegacyFixedManualInputs) ...[
+              // Saved before manual inputs became user-managed — these two
+              // were the fixed hardcoded pair at the time.
+              _BreakdownRow(isAddition: false, label: 'Apartment savings', amount: snapshot.apartmentSavings),
+              _BreakdownRow(isAddition: true, label: 'CIB Accounts Balance', amount: snapshot.cibAccountBalance),
+            ] else
+              for (final entry in snapshot.manualInputEntries)
+                _BreakdownRow(
+                  isAddition: entry.isAddition,
+                  label: entry.name,
+                  amount: entry.amount,
+                  currency: entry.currency,
+                ),
             if (snapshot.usesLegacyFixedCardColumns) ...[
               // Saved before cards became user-managed — these three were
               // the fixed hardcoded set at the time.
@@ -113,7 +125,8 @@ class _BreakdownRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = isAddition ? Colors.green : Colors.red;
+    final colors = context.appColors;
+    final color = isAddition ? colors.good : colors.bad;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(

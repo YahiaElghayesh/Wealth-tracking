@@ -5,6 +5,7 @@ import 'package:uuid/uuid.dart';
 
 import '../../core/models/calculator_custom_item.dart';
 import '../../core/models/card_snapshot_entry.dart';
+import '../../core/models/manual_input_snapshot_entry.dart';
 import '../db/database.dart';
 
 class CalculatorRepository {
@@ -46,6 +47,35 @@ class CalculatorRepository {
     return (_db.delete(_db.creditCards)..where((t) => t.id.equals(id))).go();
   }
 
+  Stream<List<ManualInput>> watchManualInputs() {
+    return (_db.select(_db.manualInputs)..orderBy([(t) => OrderingTerm.asc(t.sortOrder)])).watch();
+  }
+
+  Future<void> addManualInput({
+    required String name,
+    required bool isAddition,
+    required String currency,
+  }) async {
+    final count = await _db.select(_db.manualInputs).get();
+    await _db.into(_db.manualInputs).insert(
+          ManualInputsCompanion.insert(
+            id: _uuid.v4(),
+            name: name,
+            isAddition: isAddition,
+            currency: Value(currency),
+            sortOrder: Value(count.length),
+          ),
+        );
+  }
+
+  Future<void> updateManualInput(ManualInput input) {
+    return _db.update(_db.manualInputs).replace(input);
+  }
+
+  Future<void> deleteManualInput(String id) {
+    return (_db.delete(_db.manualInputs)..where((t) => t.id.equals(id))).go();
+  }
+
   Stream<List<CalculatorSnapshot>> watchSnapshots() {
     return (_db.select(_db.calculatorSnapshots)
           ..orderBy([(s) => OrderingTerm.desc(s.computedAt)]))
@@ -55,9 +85,8 @@ class CalculatorRepository {
   Future<void> saveSnapshot({
     required double resultAmount,
     required double ledgersTotal,
-    required double apartmentSavings,
-    required double cibAccountBalance,
     required List<CardSnapshotEntry> cardEntries,
+    required List<ManualInputSnapshotEntry> manualInputEntries,
     required List<CustomCalculatorItem> customItems,
   }) {
     return _db.into(_db.calculatorSnapshots).insert(
@@ -66,13 +95,16 @@ class CalculatorRepository {
             computedAt: DateTime.now(),
             resultAmount: resultAmount,
             ledgersTotal: ledgersTotal,
-            apartmentSavings: apartmentSavings,
-            cibAccountBalance: cibAccountBalance,
-            // Fixed legacy columns are only ever populated by pre-upgrade
-            // history; every new snapshot leaves them at their defaults
-            // and carries its cards in cardEntriesJson instead.
+            // Fixed legacy columns (apartmentSavings/cibAccountBalance) are
+            // only ever populated by pre-upgrade history; every new
+            // snapshot leaves them at their defaults and carries its data
+            // in cardEntriesJson/manualInputEntriesJson instead.
+            apartmentSavings: 0.0,
+            cibAccountBalance: 0.0,
             customItemsJson: Value(jsonEncode(customItems.map((c) => c.toJson()).toList())),
             cardEntriesJson: Value(jsonEncode(cardEntries.map((c) => c.toJson()).toList())),
+            manualInputEntriesJson:
+                Value(jsonEncode(manualInputEntries.map((e) => e.toJson()).toList())),
           ),
         );
   }
@@ -95,8 +127,19 @@ extension CalculatorSnapshotCustomItems on CalculatorSnapshot {
     return decoded.cast<Map<String, dynamic>>().map(CardSnapshotEntry.fromJson).toList();
   }
 
+  List<ManualInputSnapshotEntry> get manualInputEntries {
+    final decoded = jsonDecode(manualInputEntriesJson);
+    if (decoded is! List) return const [];
+    return decoded.cast<Map<String, dynamic>>().map(ManualInputSnapshotEntry.fromJson).toList();
+  }
+
   /// True for a snapshot saved before user-managed cards existed — its
   /// card data lives in the fixed nbe/cib* columns instead of
   /// [cardEntries], which the history screen needs to know to render it.
   bool get usesLegacyFixedCardColumns => cardEntries.isEmpty;
+
+  /// True for a snapshot saved before manual inputs became user-managed —
+  /// its apartment/CIB numbers live in the fixed apartmentSavings/
+  /// cibAccountBalance columns instead of [manualInputEntries].
+  bool get usesLegacyFixedManualInputs => manualInputEntries.isEmpty;
 }

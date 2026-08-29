@@ -17,15 +17,19 @@ double cardOwedAmount({required double limit, required double availableBalance})
 /// every other argument here — cards can be tracked in any currency, so
 /// that conversion happens at the call site (same pattern the ledger uses),
 /// not in this currency-agnostic pure function.
+///
+/// [manualInputAmounts] are each already signed and converted by the caller
+/// (same convention as [cardOwedAmounts]) -- e.g. apartment savings
+/// (subtracted) comes in negative, a balance to add comes in positive.
 double calculateCurrentMoney({
   required double ledgersTotal,
-  required double apartmentSavings,
-  required double cibAccountBalance,
   required List<double> cardOwedAmounts,
+  required List<double> manualInputAmounts,
   List<CustomCalculatorItem> customItems = const [],
 }) {
   final cardsOwedTotal = cardOwedAmounts.fold(0.0, (sum, owed) => sum + owed);
+  final manualInputsTotal = manualInputAmounts.fold(0.0, (sum, amt) => sum + amt);
   final customTotal = customItems.fold(0.0, (sum, item) => sum + item.signedAmount);
 
-  return ledgersTotal - apartmentSavings - cardsOwedTotal + cibAccountBalance + customTotal;
+  return ledgersTotal - cardsOwedTotal + manualInputsTotal + customTotal;
 }

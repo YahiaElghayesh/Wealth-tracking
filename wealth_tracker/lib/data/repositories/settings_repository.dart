@@ -19,6 +19,7 @@ class SettingsRepository {
   static const _smsCaptureEnabledKey = 'sms_capture_enabled';
   static const _androidServerClientIdKey = 'drive_android_server_client_id';
   static const _themeModeKey = 'theme_mode';
+  static const _hideValuesByDefaultKey = 'hide_values_by_default';
 
   String? get metalsApiKey => _prefs.getString(_metalsApiKeyKey);
 
@@ -143,5 +144,14 @@ class SettingsRepository {
 
   Future<void> setThemeMode(ThemeMode mode) {
     return _prefs.setString(_themeModeKey, mode.name);
+  }
+
+  /// Whether values start masked on every fresh app launch. The Dashboard's
+  /// app-bar toggle still flips the in-memory state for the current
+  /// session regardless of this -- this only decides the starting point.
+  bool get hideValuesByDefault => _prefs.getBool(_hideValuesByDefaultKey) ?? false;
+
+  Future<void> setHideValuesByDefault(bool enabled) {
+    return _prefs.setBool(_hideValuesByDefaultKey, enabled);
   }
 }

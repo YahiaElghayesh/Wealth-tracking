@@ -5,7 +5,10 @@ import 'package:intl/intl.dart';
 
 import '../../../core/format/money_formatter.dart';
 import '../../../core/models/currency.dart';
+import '../../../core/providers/privacy_providers.dart';
+import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/hide_values_action.dart';
+import '../../../core/widgets/money_text.dart';
 import '../../../data/ledger/ledger_calculator.dart';
 import '../../networth/providers/asset_providers.dart' show pricesUsdPerUnitProvider;
 import '../providers/ledger_providers.dart';
@@ -22,7 +25,7 @@ class _StatisticsScreenState extends ConsumerState<StatisticsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final counterpartiesAsync = ref.watch(counterpartiesStreamProvider);
+    final counterpartiesAsync = ref.watch(statisticsCounterpartiesProvider);
 
     return Scaffold(
       appBar: AppBar(title: const Text('Statistics'), actions: const [HideValuesAction()]),
@@ -31,7 +34,9 @@ class _StatisticsScreenState extends ConsumerState<StatisticsScreen> {
         error: (e, st) => Center(child: Text('Error: $e')),
         data: (counterparties) {
           if (counterparties.isEmpty) {
-            return const Center(child: Text('Add a person in the Ledger tab to see statistics.'));
+            return const Center(
+              child: Text('Add a ledger in the Ledger tab to see statistics.'),
+            );
           }
 
           final selected = counterparties.any((c) => c.id == _selectedCounterpartyId)
@@ -93,7 +98,7 @@ class _StatisticsBodyState extends ConsumerState<_StatisticsBody> {
           return const Center(child: Text('No entries yet.'));
         }
 
-        final trend = monthlySpendTrend(transactions, prices, months: 6);
+        final trend = monthlySpendTrend(transactions, prices, months: 12);
         final categoryTotals = categoryTotalsForMonths(transactions, _selectedMonths, prices);
         final sortedCategories = categoryTotals.entries.toList()
           ..sort((a, b) => b.value.compareTo(a.value));
@@ -202,11 +207,17 @@ class _MonthlyTrendChart extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color = Theme.of(context).colorScheme.primary;
+    final colors = context.appColors;
     final maxY = trend.map((m) => m.amount).fold(0.0, (a, b) => a > b ? a : b);
+    final track = maxY == 0 ? 1.0 : maxY * 1.3;
+    // Only the current (last, right-most) month gets a permanent value
+    // label -- every month still shows a visible track slot underneath its
+    // bar so future/empty months don't read as literal gaps in the chart.
+    final currentIndex = trend.length - 1;
 
     return BarChart(
       BarChartData(
-        maxY: maxY == 0 ? 1 : maxY * 1.3,
+        maxY: track,
         alignment: BarChartAlignment.spaceAround,
         gridData: const FlGridData(show: false),
         borderData: FlBorderData(show: false),
@@ -217,22 +228,22 @@ class _MonthlyTrendChart extends StatelessWidget {
           bottomTitles: AxisTitles(
             sideTitles: SideTitles(
               showTitles: true,
-              reservedSize: 28,
+              reservedSize: 24,
               getTitlesWidget: (value, meta) {
                 final index = value.toInt();
                 if (index < 0 || index >= trend.length) return const SizedBox.shrink();
                 return Padding(
-                  padding: const EdgeInsets.only(top: 8),
+                  padding: const EdgeInsets.only(top: 6),
                   child: Text(
                     DateFormat.MMM().format(trend[index].month),
-                    style: Theme.of(context).textTheme.bodySmall,
+                    style: Theme.of(context).textTheme.labelSmall?.copyWith(color: colors.textDim),
                   ),
                 );
               },
             ),
           ),
         ),
-        barTouchData: BarTouchData(touchTooltipData: _permanentLabelTooltip(color)),
+        barTouchData: BarTouchData(touchTooltipData: _permanentLabelTooltip(colors.textDim)),
         barGroups: [
           for (var i = 0; i < trend.length; i++)
             BarChartGroupData(
@@ -240,12 +251,17 @@ class _MonthlyTrendChart extends StatelessWidget {
               barRods: [
                 BarChartRodData(
                   toY: trend[i].amount,
-                  color: color,
-                  width: 18,
-                  borderRadius: const BorderRadius.vertical(top: Radius.circular(4)),
+                  color: i == currentIndex ? color : color.withValues(alpha: 0.3),
+                  width: 12,
+                  borderRadius: const BorderRadius.vertical(top: Radius.circular(3)),
+                  backDrawRodData: BackgroundBarChartRodData(
+                    show: true,
+                    toY: track,
+                    color: colors.surface2,
+                  ),
                 ),
               ],
-              showingTooltipIndicators: trend[i].amount > 0 ? [0] : [],
+              showingTooltipIndicators: i == currentIndex && trend[i].amount > 0 ? [0] : [],
             ),
         ],
       ),
@@ -288,8 +304,11 @@ class _CategoryPieChartState extends State<_CategoryPieChart> {
 
     return Column(
       children: [
-        SizedBox(
-          height: 220,
+        // AspectRatio(1) forces a true circle -- PieChart otherwise fills
+        // whatever box it's given, which renders as an oval whenever the
+        // available width and height don't happen to match.
+        AspectRatio(
+          aspectRatio: 1,
           child: PieChart(
             PieChartData(
               sectionsSpace: 2,
@@ -310,8 +329,14 @@ class _CategoryPieChartState extends State<_CategoryPieChart> {
                   PieChartSectionData(
                     value: categories[i].value,
                     color: _palette[i % _palette.length],
-                    radius: i == _touchedIndex ? 74 : 66,
-                    showTitle: false,
+                    radius: i == _touchedIndex ? 58 : 52,
+                    title: total == 0 ? '' : '${(categories[i].value / total * 100).round()}%',
+                    titleStyle: const TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.white,
+                    ),
+                    titlePositionPercentageOffset: 0.62,
                   ),
               ],
             ),
@@ -337,7 +362,7 @@ class _CategoryPieChartState extends State<_CategoryPieChart> {
   }
 }
 
-class _LegendEntry extends StatelessWidget {
+class _LegendEntry extends ConsumerWidget {
   const _LegendEntry({
     required this.color,
     required this.label,
@@ -353,7 +378,8 @@ class _LegendEntry extends StatelessWidget {
   final bool highlighted;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final hideValues = ref.watch(hideValuesProvider);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
@@ -365,10 +391,11 @@ class _LegendEntry extends StatelessWidget {
         children: [
           Container(width: 10, height: 10, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
           const SizedBox(width: 8),
-          Text('$label  ', style: Theme.of(context).textTheme.bodyMedium),
-          Text(
+          Text(hideValues ? '••••••  ' : '$label  ', style: Theme.of(context).textTheme.bodyMedium),
+          MoneyText(
             '${formatMoney(amount, defaultCurrency)} (${(percent * 100).toStringAsFixed(0)}%)',
             style: Theme.of(context).textTheme.bodySmall,
+            maskLength: 8,
           ),
         ],
       ),

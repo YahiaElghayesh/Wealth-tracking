@@ -17,26 +17,51 @@ class LedgerHomeScreen extends ConsumerWidget {
 
   Future<void> _addCounterparty(BuildContext context, WidgetRef ref) async {
     final controller = TextEditingController();
+    var includeInStatistics = true;
+    var includeInCalculator = true;
     final name = await showDialog<String>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Add ledger'),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          decoration: const InputDecoration(labelText: 'Name', hintText: 'e.g. Dad'),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, controller.text.trim()),
-            child: const Text('Add'),
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Add ledger'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: controller,
+                autofocus: true,
+                decoration: const InputDecoration(labelText: 'Name', hintText: 'e.g. Dad'),
+              ),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Include in Statistics'),
+                value: includeInStatistics,
+                onChanged: (v) => setDialogState(() => includeInStatistics = v),
+              ),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Include in Calculator'),
+                value: includeInCalculator,
+                onChanged: (v) => setDialogState(() => includeInCalculator = v),
+              ),
+            ],
           ),
-        ],
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, controller.text.trim()),
+              child: const Text('Add'),
+            ),
+          ],
+        ),
       ),
     );
     if (name != null && name.isNotEmpty) {
-      await ref.read(ledgerRepositoryProvider).addCounterparty(name);
+      await ref.read(ledgerRepositoryProvider).addCounterparty(
+            name,
+            includeInStatistics: includeInStatistics,
+            includeInCalculator: includeInCalculator,
+          );
     }
   }
 
@@ -72,24 +97,49 @@ class _CounterpartyTile extends ConsumerWidget {
 
   final Counterparty counterparty;
 
-  Future<void> _rename(BuildContext context, WidgetRef ref) async {
+  Future<void> _edit(BuildContext context, WidgetRef ref) async {
     final controller = TextEditingController(text: counterparty.name);
-    final name = await showDialog<String>(
+    var includeInStatistics = counterparty.includeInStatistics;
+    var includeInCalculator = counterparty.includeInCalculator;
+    final save = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Rename ledger'),
-        content: TextField(controller: controller, autofocus: true),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, controller.text.trim()),
-            child: const Text('Save'),
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Edit ledger'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(controller: controller, autofocus: true, decoration: const InputDecoration(labelText: 'Name')),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Include in Statistics'),
+                value: includeInStatistics,
+                onChanged: (v) => setDialogState(() => includeInStatistics = v),
+              ),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Include in Calculator'),
+                value: includeInCalculator,
+                onChanged: (v) => setDialogState(() => includeInCalculator = v),
+              ),
+            ],
           ),
-        ],
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+            FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Save')),
+          ],
+        ),
       ),
     );
-    if (name != null && name.isNotEmpty && name != counterparty.name) {
-      await ref.read(ledgerRepositoryProvider).renameCounterparty(counterparty.id, name);
+    final name = controller.text.trim();
+    if (save == true && name.isNotEmpty) {
+      await ref.read(ledgerRepositoryProvider).updateCounterparty(
+            counterparty.copyWith(
+              name: name,
+              includeInStatistics: includeInStatistics,
+              includeInCalculator: includeInCalculator,
+            ),
+          );
     }
   }
 
@@ -163,8 +213,8 @@ class _CounterpartyTile extends ConsumerWidget {
             children: [
               IconButton(
                 icon: const Icon(Icons.edit_outlined, size: 20),
-                tooltip: 'Rename',
-                onPressed: () => _rename(context, ref),
+                tooltip: 'Edit',
+                onPressed: () => _edit(context, ref),
               ),
               const Icon(Icons.chevron_right),
             ],

@@ -15,9 +15,18 @@ class LedgerRepository {
         .watch();
   }
 
-  Future<void> addCounterparty(String name) {
+  Future<void> addCounterparty(
+    String name, {
+    bool includeInStatistics = true,
+    bool includeInCalculator = true,
+  }) {
     return _db.into(_db.counterparties).insert(
-          CounterpartiesCompanion.insert(id: _uuid.v4(), name: name),
+          CounterpartiesCompanion.insert(
+            id: _uuid.v4(),
+            name: name,
+            includeInStatistics: Value(includeInStatistics),
+            includeInCalculator: Value(includeInCalculator),
+          ),
         );
   }
 
@@ -26,9 +35,8 @@ class LedgerRepository {
     await (_db.delete(_db.counterparties)..where((c) => c.id.equals(id))).go();
   }
 
-  Future<void> renameCounterparty(String id, String name) {
-    return (_db.update(_db.counterparties)..where((c) => c.id.equals(id)))
-        .write(CounterpartiesCompanion(name: Value(name)));
+  Future<void> updateCounterparty(Counterparty counterparty) {
+    return _db.update(_db.counterparties).replace(counterparty);
   }
 
   Stream<List<LedgerTransaction>> watchTransactions(String counterpartyId) {
