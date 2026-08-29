@@ -867,8 +867,41 @@ class $CounterpartiesTable extends Counterparties
     type: DriftSqlType.string,
     requiredDuringInsert: true,
   );
+  static const VerificationMeta _includeInStatisticsMeta =
+      const VerificationMeta('includeInStatistics');
   @override
-  List<GeneratedColumn> get $columns => [id, name];
+  late final GeneratedColumn<bool> includeInStatistics = GeneratedColumn<bool>(
+    'include_in_statistics',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("include_in_statistics" IN (0, 1))',
+    ),
+    defaultValue: const Constant(true),
+  );
+  static const VerificationMeta _includeInCalculatorMeta =
+      const VerificationMeta('includeInCalculator');
+  @override
+  late final GeneratedColumn<bool> includeInCalculator = GeneratedColumn<bool>(
+    'include_in_calculator',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("include_in_calculator" IN (0, 1))',
+    ),
+    defaultValue: const Constant(true),
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    name,
+    includeInStatistics,
+    includeInCalculator,
+  ];
   @override
   String get aliasedName => _alias ?? actualTableName;
   @override
@@ -894,6 +927,24 @@ class $CounterpartiesTable extends Counterparties
     } else if (isInserting) {
       context.missing(_nameMeta);
     }
+    if (data.containsKey('include_in_statistics')) {
+      context.handle(
+        _includeInStatisticsMeta,
+        includeInStatistics.isAcceptableOrUnknown(
+          data['include_in_statistics']!,
+          _includeInStatisticsMeta,
+        ),
+      );
+    }
+    if (data.containsKey('include_in_calculator')) {
+      context.handle(
+        _includeInCalculatorMeta,
+        includeInCalculator.isAcceptableOrUnknown(
+          data['include_in_calculator']!,
+          _includeInCalculatorMeta,
+        ),
+      );
+    }
     return context;
   }
 
@@ -911,6 +962,14 @@ class $CounterpartiesTable extends Counterparties
         DriftSqlType.string,
         data['${effectivePrefix}name'],
       )!,
+      includeInStatistics: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}include_in_statistics'],
+      )!,
+      includeInCalculator: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}include_in_calculator'],
+      )!,
     );
   }
 
@@ -923,17 +982,38 @@ class $CounterpartiesTable extends Counterparties
 class Counterparty extends DataClass implements Insertable<Counterparty> {
   final String id;
   final String name;
-  const Counterparty({required this.id, required this.name});
+
+  /// Whether this ledger's data appears in the Statistics tab. Defaults to
+  /// true so existing ledgers keep behaving exactly as before until the
+  /// user explicitly opts one out.
+  final bool includeInStatistics;
+
+  /// Whether this ledger's balance is summed into the Calculator tab's
+  /// "current liquid cash" total. Defaults to true for the same reason.
+  final bool includeInCalculator;
+  const Counterparty({
+    required this.id,
+    required this.name,
+    required this.includeInStatistics,
+    required this.includeInCalculator,
+  });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
     map['id'] = Variable<String>(id);
     map['name'] = Variable<String>(name);
+    map['include_in_statistics'] = Variable<bool>(includeInStatistics);
+    map['include_in_calculator'] = Variable<bool>(includeInCalculator);
     return map;
   }
 
   CounterpartiesCompanion toCompanion(bool nullToAbsent) {
-    return CounterpartiesCompanion(id: Value(id), name: Value(name));
+    return CounterpartiesCompanion(
+      id: Value(id),
+      name: Value(name),
+      includeInStatistics: Value(includeInStatistics),
+      includeInCalculator: Value(includeInCalculator),
+    );
   }
 
   factory Counterparty.fromJson(
@@ -944,6 +1024,12 @@ class Counterparty extends DataClass implements Insertable<Counterparty> {
     return Counterparty(
       id: serializer.fromJson<String>(json['id']),
       name: serializer.fromJson<String>(json['name']),
+      includeInStatistics: serializer.fromJson<bool>(
+        json['includeInStatistics'],
+      ),
+      includeInCalculator: serializer.fromJson<bool>(
+        json['includeInCalculator'],
+      ),
     );
   }
   @override
@@ -952,15 +1038,32 @@ class Counterparty extends DataClass implements Insertable<Counterparty> {
     return <String, dynamic>{
       'id': serializer.toJson<String>(id),
       'name': serializer.toJson<String>(name),
+      'includeInStatistics': serializer.toJson<bool>(includeInStatistics),
+      'includeInCalculator': serializer.toJson<bool>(includeInCalculator),
     };
   }
 
-  Counterparty copyWith({String? id, String? name}) =>
-      Counterparty(id: id ?? this.id, name: name ?? this.name);
+  Counterparty copyWith({
+    String? id,
+    String? name,
+    bool? includeInStatistics,
+    bool? includeInCalculator,
+  }) => Counterparty(
+    id: id ?? this.id,
+    name: name ?? this.name,
+    includeInStatistics: includeInStatistics ?? this.includeInStatistics,
+    includeInCalculator: includeInCalculator ?? this.includeInCalculator,
+  );
   Counterparty copyWithCompanion(CounterpartiesCompanion data) {
     return Counterparty(
       id: data.id.present ? data.id.value : this.id,
       name: data.name.present ? data.name.value : this.name,
+      includeInStatistics: data.includeInStatistics.present
+          ? data.includeInStatistics.value
+          : this.includeInStatistics,
+      includeInCalculator: data.includeInCalculator.present
+          ? data.includeInCalculator.value
+          : this.includeInCalculator,
     );
   }
 
@@ -968,42 +1071,61 @@ class Counterparty extends DataClass implements Insertable<Counterparty> {
   String toString() {
     return (StringBuffer('Counterparty(')
           ..write('id: $id, ')
-          ..write('name: $name')
+          ..write('name: $name, ')
+          ..write('includeInStatistics: $includeInStatistics, ')
+          ..write('includeInCalculator: $includeInCalculator')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(id, name);
+  int get hashCode =>
+      Object.hash(id, name, includeInStatistics, includeInCalculator);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
-      (other is Counterparty && other.id == this.id && other.name == this.name);
+      (other is Counterparty &&
+          other.id == this.id &&
+          other.name == this.name &&
+          other.includeInStatistics == this.includeInStatistics &&
+          other.includeInCalculator == this.includeInCalculator);
 }
 
 class CounterpartiesCompanion extends UpdateCompanion<Counterparty> {
   final Value<String> id;
   final Value<String> name;
+  final Value<bool> includeInStatistics;
+  final Value<bool> includeInCalculator;
   final Value<int> rowid;
   const CounterpartiesCompanion({
     this.id = const Value.absent(),
     this.name = const Value.absent(),
+    this.includeInStatistics = const Value.absent(),
+    this.includeInCalculator = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   CounterpartiesCompanion.insert({
     required String id,
     required String name,
+    this.includeInStatistics = const Value.absent(),
+    this.includeInCalculator = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
        name = Value(name);
   static Insertable<Counterparty> custom({
     Expression<String>? id,
     Expression<String>? name,
+    Expression<bool>? includeInStatistics,
+    Expression<bool>? includeInCalculator,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
       if (name != null) 'name': name,
+      if (includeInStatistics != null)
+        'include_in_statistics': includeInStatistics,
+      if (includeInCalculator != null)
+        'include_in_calculator': includeInCalculator,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -1011,11 +1133,15 @@ class CounterpartiesCompanion extends UpdateCompanion<Counterparty> {
   CounterpartiesCompanion copyWith({
     Value<String>? id,
     Value<String>? name,
+    Value<bool>? includeInStatistics,
+    Value<bool>? includeInCalculator,
     Value<int>? rowid,
   }) {
     return CounterpartiesCompanion(
       id: id ?? this.id,
       name: name ?? this.name,
+      includeInStatistics: includeInStatistics ?? this.includeInStatistics,
+      includeInCalculator: includeInCalculator ?? this.includeInCalculator,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -1029,6 +1155,12 @@ class CounterpartiesCompanion extends UpdateCompanion<Counterparty> {
     if (name.present) {
       map['name'] = Variable<String>(name.value);
     }
+    if (includeInStatistics.present) {
+      map['include_in_statistics'] = Variable<bool>(includeInStatistics.value);
+    }
+    if (includeInCalculator.present) {
+      map['include_in_calculator'] = Variable<bool>(includeInCalculator.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -1040,6 +1172,8 @@ class CounterpartiesCompanion extends UpdateCompanion<Counterparty> {
     return (StringBuffer('CounterpartiesCompanion(')
           ..write('id: $id, ')
           ..write('name: $name, ')
+          ..write('includeInStatistics: $includeInStatistics, ')
+          ..write('includeInCalculator: $includeInCalculator, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -2536,6 +2670,18 @@ class $CalculatorSnapshotsTable extends CalculatorSnapshots
     requiredDuringInsert: false,
     defaultValue: const Constant('[]'),
   );
+  static const VerificationMeta _manualInputEntriesJsonMeta =
+      const VerificationMeta('manualInputEntriesJson');
+  @override
+  late final GeneratedColumn<String> manualInputEntriesJson =
+      GeneratedColumn<String>(
+        'manual_input_entries_json',
+        aliasedName,
+        false,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+        defaultValue: const Constant('[]'),
+      );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -2552,6 +2698,7 @@ class $CalculatorSnapshotsTable extends CalculatorSnapshots
     cibPlatinumOwed,
     customItemsJson,
     cardEntriesJson,
+    manualInputEntriesJson,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -2691,6 +2838,15 @@ class $CalculatorSnapshotsTable extends CalculatorSnapshots
         ),
       );
     }
+    if (data.containsKey('manual_input_entries_json')) {
+      context.handle(
+        _manualInputEntriesJsonMeta,
+        manualInputEntriesJson.isAcceptableOrUnknown(
+          data['manual_input_entries_json']!,
+          _manualInputEntriesJsonMeta,
+        ),
+      );
+    }
     return context;
   }
 
@@ -2756,6 +2912,10 @@ class $CalculatorSnapshotsTable extends CalculatorSnapshots
         DriftSqlType.string,
         data['${effectivePrefix}card_entries_json'],
       )!,
+      manualInputEntriesJson: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}manual_input_entries_json'],
+      )!,
     );
   }
 
@@ -2787,6 +2947,14 @@ class CalculatorSnapshot extends DataClass
   /// (`'[]'`, the default) on every snapshot saved before user-managed
   /// cards existed; the fixed nbe/cib* columns above carry those instead.
   final String cardEntriesJson;
+
+  /// JSON-encoded list of per-manual-input entries — one per ManualInput
+  /// row that existed at save time (see ManualInputSnapshotEntry). Empty
+  /// list (`'[]'`, the default) on every snapshot saved before manual
+  /// inputs became user-managed; the fixed apartmentSavings/
+  /// cibAccountBalance columns above carry those instead, and are never
+  /// written to again by any snapshot saved after this point.
+  final String manualInputEntriesJson;
   const CalculatorSnapshot({
     required this.id,
     required this.computedAt,
@@ -2802,6 +2970,7 @@ class CalculatorSnapshot extends DataClass
     required this.cibPlatinumOwed,
     required this.customItemsJson,
     required this.cardEntriesJson,
+    required this.manualInputEntriesJson,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -2822,6 +2991,7 @@ class CalculatorSnapshot extends DataClass
     map['cib_platinum_owed'] = Variable<double>(cibPlatinumOwed);
     map['custom_items_json'] = Variable<String>(customItemsJson);
     map['card_entries_json'] = Variable<String>(cardEntriesJson);
+    map['manual_input_entries_json'] = Variable<String>(manualInputEntriesJson);
     return map;
   }
 
@@ -2841,6 +3011,7 @@ class CalculatorSnapshot extends DataClass
       cibPlatinumOwed: Value(cibPlatinumOwed),
       customItemsJson: Value(customItemsJson),
       cardEntriesJson: Value(cardEntriesJson),
+      manualInputEntriesJson: Value(manualInputEntriesJson),
     );
   }
 
@@ -2870,6 +3041,9 @@ class CalculatorSnapshot extends DataClass
       cibPlatinumOwed: serializer.fromJson<double>(json['cibPlatinumOwed']),
       customItemsJson: serializer.fromJson<String>(json['customItemsJson']),
       cardEntriesJson: serializer.fromJson<String>(json['cardEntriesJson']),
+      manualInputEntriesJson: serializer.fromJson<String>(
+        json['manualInputEntriesJson'],
+      ),
     );
   }
   @override
@@ -2892,6 +3066,9 @@ class CalculatorSnapshot extends DataClass
       'cibPlatinumOwed': serializer.toJson<double>(cibPlatinumOwed),
       'customItemsJson': serializer.toJson<String>(customItemsJson),
       'cardEntriesJson': serializer.toJson<String>(cardEntriesJson),
+      'manualInputEntriesJson': serializer.toJson<String>(
+        manualInputEntriesJson,
+      ),
     };
   }
 
@@ -2910,6 +3087,7 @@ class CalculatorSnapshot extends DataClass
     double? cibPlatinumOwed,
     String? customItemsJson,
     String? cardEntriesJson,
+    String? manualInputEntriesJson,
   }) => CalculatorSnapshot(
     id: id ?? this.id,
     computedAt: computedAt ?? this.computedAt,
@@ -2926,6 +3104,8 @@ class CalculatorSnapshot extends DataClass
     cibPlatinumOwed: cibPlatinumOwed ?? this.cibPlatinumOwed,
     customItemsJson: customItemsJson ?? this.customItemsJson,
     cardEntriesJson: cardEntriesJson ?? this.cardEntriesJson,
+    manualInputEntriesJson:
+        manualInputEntriesJson ?? this.manualInputEntriesJson,
   );
   CalculatorSnapshot copyWithCompanion(CalculatorSnapshotsCompanion data) {
     return CalculatorSnapshot(
@@ -2967,6 +3147,9 @@ class CalculatorSnapshot extends DataClass
       cardEntriesJson: data.cardEntriesJson.present
           ? data.cardEntriesJson.value
           : this.cardEntriesJson,
+      manualInputEntriesJson: data.manualInputEntriesJson.present
+          ? data.manualInputEntriesJson.value
+          : this.manualInputEntriesJson,
     );
   }
 
@@ -2986,7 +3169,8 @@ class CalculatorSnapshot extends DataClass
           ..write('cibPlatinumAvailable: $cibPlatinumAvailable, ')
           ..write('cibPlatinumOwed: $cibPlatinumOwed, ')
           ..write('customItemsJson: $customItemsJson, ')
-          ..write('cardEntriesJson: $cardEntriesJson')
+          ..write('cardEntriesJson: $cardEntriesJson, ')
+          ..write('manualInputEntriesJson: $manualInputEntriesJson')
           ..write(')'))
         .toString();
   }
@@ -3007,6 +3191,7 @@ class CalculatorSnapshot extends DataClass
     cibPlatinumOwed,
     customItemsJson,
     cardEntriesJson,
+    manualInputEntriesJson,
   );
   @override
   bool operator ==(Object other) =>
@@ -3025,7 +3210,8 @@ class CalculatorSnapshot extends DataClass
           other.cibPlatinumAvailable == this.cibPlatinumAvailable &&
           other.cibPlatinumOwed == this.cibPlatinumOwed &&
           other.customItemsJson == this.customItemsJson &&
-          other.cardEntriesJson == this.cardEntriesJson);
+          other.cardEntriesJson == this.cardEntriesJson &&
+          other.manualInputEntriesJson == this.manualInputEntriesJson);
 }
 
 class CalculatorSnapshotsCompanion extends UpdateCompanion<CalculatorSnapshot> {
@@ -3043,6 +3229,7 @@ class CalculatorSnapshotsCompanion extends UpdateCompanion<CalculatorSnapshot> {
   final Value<double> cibPlatinumOwed;
   final Value<String> customItemsJson;
   final Value<String> cardEntriesJson;
+  final Value<String> manualInputEntriesJson;
   final Value<int> rowid;
   const CalculatorSnapshotsCompanion({
     this.id = const Value.absent(),
@@ -3059,6 +3246,7 @@ class CalculatorSnapshotsCompanion extends UpdateCompanion<CalculatorSnapshot> {
     this.cibPlatinumOwed = const Value.absent(),
     this.customItemsJson = const Value.absent(),
     this.cardEntriesJson = const Value.absent(),
+    this.manualInputEntriesJson = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   CalculatorSnapshotsCompanion.insert({
@@ -3076,6 +3264,7 @@ class CalculatorSnapshotsCompanion extends UpdateCompanion<CalculatorSnapshot> {
     this.cibPlatinumOwed = const Value.absent(),
     this.customItemsJson = const Value.absent(),
     this.cardEntriesJson = const Value.absent(),
+    this.manualInputEntriesJson = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
        computedAt = Value(computedAt),
@@ -3098,6 +3287,7 @@ class CalculatorSnapshotsCompanion extends UpdateCompanion<CalculatorSnapshot> {
     Expression<double>? cibPlatinumOwed,
     Expression<String>? customItemsJson,
     Expression<String>? cardEntriesJson,
+    Expression<String>? manualInputEntriesJson,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -3118,6 +3308,8 @@ class CalculatorSnapshotsCompanion extends UpdateCompanion<CalculatorSnapshot> {
       if (cibPlatinumOwed != null) 'cib_platinum_owed': cibPlatinumOwed,
       if (customItemsJson != null) 'custom_items_json': customItemsJson,
       if (cardEntriesJson != null) 'card_entries_json': cardEntriesJson,
+      if (manualInputEntriesJson != null)
+        'manual_input_entries_json': manualInputEntriesJson,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -3137,6 +3329,7 @@ class CalculatorSnapshotsCompanion extends UpdateCompanion<CalculatorSnapshot> {
     Value<double>? cibPlatinumOwed,
     Value<String>? customItemsJson,
     Value<String>? cardEntriesJson,
+    Value<String>? manualInputEntriesJson,
     Value<int>? rowid,
   }) {
     return CalculatorSnapshotsCompanion(
@@ -3156,6 +3349,8 @@ class CalculatorSnapshotsCompanion extends UpdateCompanion<CalculatorSnapshot> {
       cibPlatinumOwed: cibPlatinumOwed ?? this.cibPlatinumOwed,
       customItemsJson: customItemsJson ?? this.customItemsJson,
       cardEntriesJson: cardEntriesJson ?? this.cardEntriesJson,
+      manualInputEntriesJson:
+          manualInputEntriesJson ?? this.manualInputEntriesJson,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -3211,6 +3406,11 @@ class CalculatorSnapshotsCompanion extends UpdateCompanion<CalculatorSnapshot> {
     if (cardEntriesJson.present) {
       map['card_entries_json'] = Variable<String>(cardEntriesJson.value);
     }
+    if (manualInputEntriesJson.present) {
+      map['manual_input_entries_json'] = Variable<String>(
+        manualInputEntriesJson.value,
+      );
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -3234,6 +3434,7 @@ class CalculatorSnapshotsCompanion extends UpdateCompanion<CalculatorSnapshot> {
           ..write('cibPlatinumOwed: $cibPlatinumOwed, ')
           ..write('customItemsJson: $customItemsJson, ')
           ..write('cardEntriesJson: $cardEntriesJson, ')
+          ..write('manualInputEntriesJson: $manualInputEntriesJson, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -3974,6 +4175,370 @@ class LedgerCategoriesCompanion extends UpdateCompanion<LedgerCategory> {
   }
 }
 
+class $ManualInputsTable extends ManualInputs
+    with TableInfo<$ManualInputsTable, ManualInput> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $ManualInputsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _nameMeta = const VerificationMeta('name');
+  @override
+  late final GeneratedColumn<String> name = GeneratedColumn<String>(
+    'name',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _isAdditionMeta = const VerificationMeta(
+    'isAddition',
+  );
+  @override
+  late final GeneratedColumn<bool> isAddition = GeneratedColumn<bool>(
+    'is_addition',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("is_addition" IN (0, 1))',
+    ),
+  );
+  static const VerificationMeta _currencyMeta = const VerificationMeta(
+    'currency',
+  );
+  @override
+  late final GeneratedColumn<String> currency = GeneratedColumn<String>(
+    'currency',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('EGP'),
+  );
+  static const VerificationMeta _sortOrderMeta = const VerificationMeta(
+    'sortOrder',
+  );
+  @override
+  late final GeneratedColumn<int> sortOrder = GeneratedColumn<int>(
+    'sort_order',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    name,
+    isAddition,
+    currency,
+    sortOrder,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'manual_inputs';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<ManualInput> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('name')) {
+      context.handle(
+        _nameMeta,
+        name.isAcceptableOrUnknown(data['name']!, _nameMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_nameMeta);
+    }
+    if (data.containsKey('is_addition')) {
+      context.handle(
+        _isAdditionMeta,
+        isAddition.isAcceptableOrUnknown(data['is_addition']!, _isAdditionMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_isAdditionMeta);
+    }
+    if (data.containsKey('currency')) {
+      context.handle(
+        _currencyMeta,
+        currency.isAcceptableOrUnknown(data['currency']!, _currencyMeta),
+      );
+    }
+    if (data.containsKey('sort_order')) {
+      context.handle(
+        _sortOrderMeta,
+        sortOrder.isAcceptableOrUnknown(data['sort_order']!, _sortOrderMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  ManualInput map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return ManualInput(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      name: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}name'],
+      )!,
+      isAddition: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}is_addition'],
+      )!,
+      currency: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}currency'],
+      )!,
+      sortOrder: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}sort_order'],
+      )!,
+    );
+  }
+
+  @override
+  $ManualInputsTable createAlias(String alias) {
+    return $ManualInputsTable(attachedDatabase, alias);
+  }
+}
+
+class ManualInput extends DataClass implements Insertable<ManualInput> {
+  final String id;
+  final String name;
+  final bool isAddition;
+  final String currency;
+
+  /// Manual ordering for display — set to insertion order by default, but
+  /// not tied to it, so a future "reorder" gesture has somewhere to write.
+  final int sortOrder;
+  const ManualInput({
+    required this.id,
+    required this.name,
+    required this.isAddition,
+    required this.currency,
+    required this.sortOrder,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['name'] = Variable<String>(name);
+    map['is_addition'] = Variable<bool>(isAddition);
+    map['currency'] = Variable<String>(currency);
+    map['sort_order'] = Variable<int>(sortOrder);
+    return map;
+  }
+
+  ManualInputsCompanion toCompanion(bool nullToAbsent) {
+    return ManualInputsCompanion(
+      id: Value(id),
+      name: Value(name),
+      isAddition: Value(isAddition),
+      currency: Value(currency),
+      sortOrder: Value(sortOrder),
+    );
+  }
+
+  factory ManualInput.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return ManualInput(
+      id: serializer.fromJson<String>(json['id']),
+      name: serializer.fromJson<String>(json['name']),
+      isAddition: serializer.fromJson<bool>(json['isAddition']),
+      currency: serializer.fromJson<String>(json['currency']),
+      sortOrder: serializer.fromJson<int>(json['sortOrder']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'name': serializer.toJson<String>(name),
+      'isAddition': serializer.toJson<bool>(isAddition),
+      'currency': serializer.toJson<String>(currency),
+      'sortOrder': serializer.toJson<int>(sortOrder),
+    };
+  }
+
+  ManualInput copyWith({
+    String? id,
+    String? name,
+    bool? isAddition,
+    String? currency,
+    int? sortOrder,
+  }) => ManualInput(
+    id: id ?? this.id,
+    name: name ?? this.name,
+    isAddition: isAddition ?? this.isAddition,
+    currency: currency ?? this.currency,
+    sortOrder: sortOrder ?? this.sortOrder,
+  );
+  ManualInput copyWithCompanion(ManualInputsCompanion data) {
+    return ManualInput(
+      id: data.id.present ? data.id.value : this.id,
+      name: data.name.present ? data.name.value : this.name,
+      isAddition: data.isAddition.present
+          ? data.isAddition.value
+          : this.isAddition,
+      currency: data.currency.present ? data.currency.value : this.currency,
+      sortOrder: data.sortOrder.present ? data.sortOrder.value : this.sortOrder,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ManualInput(')
+          ..write('id: $id, ')
+          ..write('name: $name, ')
+          ..write('isAddition: $isAddition, ')
+          ..write('currency: $currency, ')
+          ..write('sortOrder: $sortOrder')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(id, name, isAddition, currency, sortOrder);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is ManualInput &&
+          other.id == this.id &&
+          other.name == this.name &&
+          other.isAddition == this.isAddition &&
+          other.currency == this.currency &&
+          other.sortOrder == this.sortOrder);
+}
+
+class ManualInputsCompanion extends UpdateCompanion<ManualInput> {
+  final Value<String> id;
+  final Value<String> name;
+  final Value<bool> isAddition;
+  final Value<String> currency;
+  final Value<int> sortOrder;
+  final Value<int> rowid;
+  const ManualInputsCompanion({
+    this.id = const Value.absent(),
+    this.name = const Value.absent(),
+    this.isAddition = const Value.absent(),
+    this.currency = const Value.absent(),
+    this.sortOrder = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  ManualInputsCompanion.insert({
+    required String id,
+    required String name,
+    required bool isAddition,
+    this.currency = const Value.absent(),
+    this.sortOrder = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       name = Value(name),
+       isAddition = Value(isAddition);
+  static Insertable<ManualInput> custom({
+    Expression<String>? id,
+    Expression<String>? name,
+    Expression<bool>? isAddition,
+    Expression<String>? currency,
+    Expression<int>? sortOrder,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (name != null) 'name': name,
+      if (isAddition != null) 'is_addition': isAddition,
+      if (currency != null) 'currency': currency,
+      if (sortOrder != null) 'sort_order': sortOrder,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  ManualInputsCompanion copyWith({
+    Value<String>? id,
+    Value<String>? name,
+    Value<bool>? isAddition,
+    Value<String>? currency,
+    Value<int>? sortOrder,
+    Value<int>? rowid,
+  }) {
+    return ManualInputsCompanion(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      isAddition: isAddition ?? this.isAddition,
+      currency: currency ?? this.currency,
+      sortOrder: sortOrder ?? this.sortOrder,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (name.present) {
+      map['name'] = Variable<String>(name.value);
+    }
+    if (isAddition.present) {
+      map['is_addition'] = Variable<bool>(isAddition.value);
+    }
+    if (currency.present) {
+      map['currency'] = Variable<String>(currency.value);
+    }
+    if (sortOrder.present) {
+      map['sort_order'] = Variable<int>(sortOrder.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ManualInputsCompanion(')
+          ..write('id: $id, ')
+          ..write('name: $name, ')
+          ..write('isAddition: $isAddition, ')
+          ..write('currency: $currency, ')
+          ..write('sortOrder: $sortOrder, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -3993,6 +4558,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $LedgerCategoriesTable ledgerCategories = $LedgerCategoriesTable(
     this,
   );
+  late final $ManualInputsTable manualInputs = $ManualInputsTable(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -4008,6 +4574,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     calculatorSnapshots,
     creditCards,
     ledgerCategories,
+    manualInputs,
   ];
 }
 
@@ -4451,12 +5018,16 @@ typedef $$CounterpartiesTableCreateCompanionBuilder =
     CounterpartiesCompanion Function({
       required String id,
       required String name,
+      Value<bool> includeInStatistics,
+      Value<bool> includeInCalculator,
       Value<int> rowid,
     });
 typedef $$CounterpartiesTableUpdateCompanionBuilder =
     CounterpartiesCompanion Function({
       Value<String> id,
       Value<String> name,
+      Value<bool> includeInStatistics,
+      Value<bool> includeInCalculator,
       Value<int> rowid,
     });
 
@@ -4524,6 +5095,16 @@ class $$CounterpartiesTableFilterComposer
 
   ColumnFilters<String> get name => $composableBuilder(
     column: $table.name,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get includeInStatistics => $composableBuilder(
+    column: $table.includeInStatistics,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get includeInCalculator => $composableBuilder(
+    column: $table.includeInCalculator,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -4596,6 +5177,16 @@ class $$CounterpartiesTableOrderingComposer
     column: $table.name,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<bool> get includeInStatistics => $composableBuilder(
+    column: $table.includeInStatistics,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get includeInCalculator => $composableBuilder(
+    column: $table.includeInCalculator,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$CounterpartiesTableAnnotationComposer
@@ -4612,6 +5203,16 @@ class $$CounterpartiesTableAnnotationComposer
 
   GeneratedColumn<String> get name =>
       $composableBuilder(column: $table.name, builder: (column) => column);
+
+  GeneratedColumn<bool> get includeInStatistics => $composableBuilder(
+    column: $table.includeInStatistics,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get includeInCalculator => $composableBuilder(
+    column: $table.includeInCalculator,
+    builder: (column) => column,
+  );
 
   Expression<T> ledgerTransactionsRefs<T extends Object>(
     Expression<T> Function($$LedgerTransactionsTableAnnotationComposer a) f,
@@ -4700,16 +5301,28 @@ class $$CounterpartiesTableTableManager
               ({
                 Value<String> id = const Value.absent(),
                 Value<String> name = const Value.absent(),
+                Value<bool> includeInStatistics = const Value.absent(),
+                Value<bool> includeInCalculator = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
-              }) => CounterpartiesCompanion(id: id, name: name, rowid: rowid),
+              }) => CounterpartiesCompanion(
+                id: id,
+                name: name,
+                includeInStatistics: includeInStatistics,
+                includeInCalculator: includeInCalculator,
+                rowid: rowid,
+              ),
           createCompanionCallback:
               ({
                 required String id,
                 required String name,
+                Value<bool> includeInStatistics = const Value.absent(),
+                Value<bool> includeInCalculator = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => CounterpartiesCompanion.insert(
                 id: id,
                 name: name,
+                includeInStatistics: includeInStatistics,
+                includeInCalculator: includeInCalculator,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
@@ -5815,6 +6428,7 @@ typedef $$CalculatorSnapshotsTableCreateCompanionBuilder =
       Value<double> cibPlatinumOwed,
       Value<String> customItemsJson,
       Value<String> cardEntriesJson,
+      Value<String> manualInputEntriesJson,
       Value<int> rowid,
     });
 typedef $$CalculatorSnapshotsTableUpdateCompanionBuilder =
@@ -5833,6 +6447,7 @@ typedef $$CalculatorSnapshotsTableUpdateCompanionBuilder =
       Value<double> cibPlatinumOwed,
       Value<String> customItemsJson,
       Value<String> cardEntriesJson,
+      Value<String> manualInputEntriesJson,
       Value<int> rowid,
     });
 
@@ -5912,6 +6527,11 @@ class $$CalculatorSnapshotsTableFilterComposer
 
   ColumnFilters<String> get cardEntriesJson => $composableBuilder(
     column: $table.cardEntriesJson,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get manualInputEntriesJson => $composableBuilder(
+    column: $table.manualInputEntriesJson,
     builder: (column) => ColumnFilters(column),
   );
 }
@@ -5994,6 +6614,11 @@ class $$CalculatorSnapshotsTableOrderingComposer
     column: $table.cardEntriesJson,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<String> get manualInputEntriesJson => $composableBuilder(
+    column: $table.manualInputEntriesJson,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$CalculatorSnapshotsTableAnnotationComposer
@@ -6070,6 +6695,11 @@ class $$CalculatorSnapshotsTableAnnotationComposer
     column: $table.cardEntriesJson,
     builder: (column) => column,
   );
+
+  GeneratedColumn<String> get manualInputEntriesJson => $composableBuilder(
+    column: $table.manualInputEntriesJson,
+    builder: (column) => column,
+  );
 }
 
 class $$CalculatorSnapshotsTableTableManager
@@ -6129,6 +6759,7 @@ class $$CalculatorSnapshotsTableTableManager
                 Value<double> cibPlatinumOwed = const Value.absent(),
                 Value<String> customItemsJson = const Value.absent(),
                 Value<String> cardEntriesJson = const Value.absent(),
+                Value<String> manualInputEntriesJson = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => CalculatorSnapshotsCompanion(
                 id: id,
@@ -6145,6 +6776,7 @@ class $$CalculatorSnapshotsTableTableManager
                 cibPlatinumOwed: cibPlatinumOwed,
                 customItemsJson: customItemsJson,
                 cardEntriesJson: cardEntriesJson,
+                manualInputEntriesJson: manualInputEntriesJson,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -6163,6 +6795,7 @@ class $$CalculatorSnapshotsTableTableManager
                 Value<double> cibPlatinumOwed = const Value.absent(),
                 Value<String> customItemsJson = const Value.absent(),
                 Value<String> cardEntriesJson = const Value.absent(),
+                Value<String> manualInputEntriesJson = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => CalculatorSnapshotsCompanion.insert(
                 id: id,
@@ -6179,6 +6812,7 @@ class $$CalculatorSnapshotsTableTableManager
                 cibPlatinumOwed: cibPlatinumOwed,
                 customItemsJson: customItemsJson,
                 cardEntriesJson: cardEntriesJson,
+                manualInputEntriesJson: manualInputEntriesJson,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
@@ -6620,6 +7254,208 @@ typedef $$LedgerCategoriesTableProcessedTableManager =
       LedgerCategory,
       PrefetchHooks Function()
     >;
+typedef $$ManualInputsTableCreateCompanionBuilder =
+    ManualInputsCompanion Function({
+      required String id,
+      required String name,
+      required bool isAddition,
+      Value<String> currency,
+      Value<int> sortOrder,
+      Value<int> rowid,
+    });
+typedef $$ManualInputsTableUpdateCompanionBuilder =
+    ManualInputsCompanion Function({
+      Value<String> id,
+      Value<String> name,
+      Value<bool> isAddition,
+      Value<String> currency,
+      Value<int> sortOrder,
+      Value<int> rowid,
+    });
+
+class $$ManualInputsTableFilterComposer
+    extends Composer<_$AppDatabase, $ManualInputsTable> {
+  $$ManualInputsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get isAddition => $composableBuilder(
+    column: $table.isAddition,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get currency => $composableBuilder(
+    column: $table.currency,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get sortOrder => $composableBuilder(
+    column: $table.sortOrder,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$ManualInputsTableOrderingComposer
+    extends Composer<_$AppDatabase, $ManualInputsTable> {
+  $$ManualInputsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get isAddition => $composableBuilder(
+    column: $table.isAddition,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get currency => $composableBuilder(
+    column: $table.currency,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get sortOrder => $composableBuilder(
+    column: $table.sortOrder,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$ManualInputsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $ManualInputsTable> {
+  $$ManualInputsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get name =>
+      $composableBuilder(column: $table.name, builder: (column) => column);
+
+  GeneratedColumn<bool> get isAddition => $composableBuilder(
+    column: $table.isAddition,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get currency =>
+      $composableBuilder(column: $table.currency, builder: (column) => column);
+
+  GeneratedColumn<int> get sortOrder =>
+      $composableBuilder(column: $table.sortOrder, builder: (column) => column);
+}
+
+class $$ManualInputsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $ManualInputsTable,
+          ManualInput,
+          $$ManualInputsTableFilterComposer,
+          $$ManualInputsTableOrderingComposer,
+          $$ManualInputsTableAnnotationComposer,
+          $$ManualInputsTableCreateCompanionBuilder,
+          $$ManualInputsTableUpdateCompanionBuilder,
+          (
+            ManualInput,
+            BaseReferences<_$AppDatabase, $ManualInputsTable, ManualInput>,
+          ),
+          ManualInput,
+          PrefetchHooks Function()
+        > {
+  $$ManualInputsTableTableManager(_$AppDatabase db, $ManualInputsTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$ManualInputsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$ManualInputsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$ManualInputsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> name = const Value.absent(),
+                Value<bool> isAddition = const Value.absent(),
+                Value<String> currency = const Value.absent(),
+                Value<int> sortOrder = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => ManualInputsCompanion(
+                id: id,
+                name: name,
+                isAddition: isAddition,
+                currency: currency,
+                sortOrder: sortOrder,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String name,
+                required bool isAddition,
+                Value<String> currency = const Value.absent(),
+                Value<int> sortOrder = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => ManualInputsCompanion.insert(
+                id: id,
+                name: name,
+                isAddition: isAddition,
+                currency: currency,
+                sortOrder: sortOrder,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$ManualInputsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $ManualInputsTable,
+      ManualInput,
+      $$ManualInputsTableFilterComposer,
+      $$ManualInputsTableOrderingComposer,
+      $$ManualInputsTableAnnotationComposer,
+      $$ManualInputsTableCreateCompanionBuilder,
+      $$ManualInputsTableUpdateCompanionBuilder,
+      (
+        ManualInput,
+        BaseReferences<_$AppDatabase, $ManualInputsTable, ManualInput>,
+      ),
+      ManualInput,
+      PrefetchHooks Function()
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -6644,4 +7480,6 @@ class $AppDatabaseManager {
       $$CreditCardsTableTableManager(_db, _db.creditCards);
   $$LedgerCategoriesTableTableManager get ledgerCategories =>
       $$LedgerCategoriesTableTableManager(_db, _db.ledgerCategories);
+  $$ManualInputsTableTableManager get manualInputs =>
+      $$ManualInputsTableTableManager(_db, _db.manualInputs);
 }

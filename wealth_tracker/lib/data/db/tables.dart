@@ -40,6 +40,15 @@ class Counterparties extends Table {
   TextColumn get id => text()();
   TextColumn get name => text()();
 
+  /// Whether this ledger's data appears in the Statistics tab. Defaults to
+  /// true so existing ledgers keep behaving exactly as before until the
+  /// user explicitly opts one out.
+  BoolColumn get includeInStatistics => boolean().withDefault(const Constant(true))();
+
+  /// Whether this ledger's balance is summed into the Calculator tab's
+  /// "current liquid cash" total. Defaults to true for the same reason.
+  BoolColumn get includeInCalculator => boolean().withDefault(const Constant(true))();
+
   @override
   Set<Column> get primaryKey => {id};
 }
@@ -125,6 +134,14 @@ class CalculatorSnapshots extends Table {
   /// cards existed; the fixed nbe/cib* columns above carry those instead.
   TextColumn get cardEntriesJson => text().withDefault(const Constant('[]'))();
 
+  /// JSON-encoded list of per-manual-input entries — one per ManualInput
+  /// row that existed at save time (see ManualInputSnapshotEntry). Empty
+  /// list (`'[]'`, the default) on every snapshot saved before manual
+  /// inputs became user-managed; the fixed apartmentSavings/
+  /// cibAccountBalance columns above carry those instead, and are never
+  /// written to again by any snapshot saved after this point.
+  TextColumn get manualInputEntriesJson => text().withDefault(const Constant('[]'))();
+
   @override
   Set<Column> get primaryKey => {id};
 }
@@ -147,6 +164,24 @@ class CreditCards extends Table {
   /// update know which card a given message is about. Optional; nothing
   /// reads this yet.
   TextColumn get lastFourDigits => text().nullable()();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
+/// A user-managed signed line item for the Calculator tab (e.g. "Apartment
+/// savings", "CIB Accounts Balance") — fully user-managed (added/edited/
+/// removed from Settings), replacing the old fixed two-field setup the same
+/// way CreditCards replaced the old fixed three-card setup.
+class ManualInputs extends Table {
+  TextColumn get id => text()();
+  TextColumn get name => text()();
+  BoolColumn get isAddition => boolean()();
+  TextColumn get currency => text().withDefault(const Constant('EGP'))();
+
+  /// Manual ordering for display — set to insertion order by default, but
+  /// not tied to it, so a future "reorder" gesture has somewhere to write.
+  IntColumn get sortOrder => integer().withDefault(const Constant(0))();
 
   @override
   Set<Column> get primaryKey => {id};

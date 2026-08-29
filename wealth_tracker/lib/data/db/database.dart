@@ -19,6 +19,7 @@ part 'database.g.dart';
     CalculatorSnapshots,
     CreditCards,
     LedgerCategories,
+    ManualInputs,
   ],
 )
 class AppDatabase extends _$AppDatabase {
@@ -27,7 +28,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 8;
+  int get schemaVersion => 10;
 
   Future<void> _seedDefaultLedgerCategories() async {
     // 'Other' isn't seeded — it's always appended as a synthetic last
@@ -119,6 +120,43 @@ class AppDatabase extends _$AppDatabase {
           }
           if (from < 8) {
             await m.addColumn(creditCards, creditCards.lastFourDigits);
+          }
+          if (from < 9) {
+            // Ledgers gained per-ledger "include in Statistics" / "include
+            // in Calculator" toggles. Both default to true via the column
+            // default, so every existing ledger keeps behaving exactly as
+            // before until the user explicitly opts one out.
+            await m.addColumn(counterparties, counterparties.includeInStatistics);
+            await m.addColumn(counterparties, counterparties.includeInCalculator);
+          }
+          if (from < 10) {
+            // Apartment savings / CIB Accounts Balance became user-managed
+            // manual inputs (name/sign/currency, added and removed from
+            // Settings) instead of a fixed hardcoded pair. Seed the same two
+            // starter rows anyone upgrading already had, so the switch
+            // doesn't present an empty list — same spirit as the
+            // credit-cards migration at from < 6.
+            await m.createTable(manualInputs);
+            await m.addColumn(calculatorSnapshots, calculatorSnapshots.manualInputEntriesJson);
+
+            await into(manualInputs).insert(
+              ManualInputsCompanion.insert(
+                id: const Uuid().v4(),
+                name: 'Apartment savings',
+                isAddition: false,
+                currency: const Value('EGP'),
+                sortOrder: const Value(0),
+              ),
+            );
+            await into(manualInputs).insert(
+              ManualInputsCompanion.insert(
+                id: const Uuid().v4(),
+                name: 'CIB Accounts Balance',
+                isAddition: true,
+                currency: const Value('EGP'),
+                sortOrder: const Value(1),
+              ),
+            );
           }
         },
         // The "Breakfast" quick-pick category was a voice-transcription
