@@ -6,7 +6,7 @@
 
     <!-- True 1x1 layout, matching the mockup's compact "Add Payment · 1x1"
          widget exactly: just the avatar+badge, centered, with the bound
-         ledger's name below it instead of a separate title line -- shown
+         ledger's name below it instead of a separate title line — shown
          when the placed/resized widget is roughly square. -->
     <LinearLayout
         android:id="@+id/quick_add_compact"
@@ -59,7 +59,7 @@
 
     </LinearLayout>
 
-    <!-- Wide layout (avatar + title/subtitle side by side) -- shown once
+    <!-- Wide layout (avatar + title/subtitle side by side) — shown once
          the widget has enough width to spell out "Add Payment" plus the
          bound ledger's name legibly. -->
     <LinearLayout
