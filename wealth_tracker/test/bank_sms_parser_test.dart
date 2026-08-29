@@ -16,6 +16,29 @@ void main() {
       expect(result.currency, 'EGP');
       expect(result.amount, 959.0);
       expect(result.occurredAt, DateTime(2026, 8, 27, 13, 30));
+      expect(result.isCharge, isTrue);
+      expect(result.lastFourDigits, '4912');
+      expect(result.availableBalanceAfter, 85891.16);
+    });
+
+    test('a charge SMS missing the last-4-digits or available-limit portions still parses', () {
+      const body = 'Your credit card was charged for EGP 100 at Somewhere on 01/01/26 at 09:05.';
+
+      final result = parseBankSms(body);
+
+      expect(result, isNotNull);
+      expect(result!.vendor, 'Somewhere');
+      expect(result.lastFourDigits, isNull);
+      expect(result.availableBalanceAfter, isNull);
+    });
+
+    test('an available-limit figure in a different currency is not trusted', () {
+      const body = 'Your credit card ending with#4912 was charged for EGP 100 at Somewhere '
+          'on 01/01/26 at 09:05. Card available limit is USD 500.';
+
+      final result = parseBankSms(body);
+
+      expect(result!.availableBalanceAfter, isNull);
     });
 
     test('a whole-number charge is not altered', () {

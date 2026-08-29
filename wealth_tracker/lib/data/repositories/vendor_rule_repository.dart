@@ -31,6 +31,10 @@ class VendorRuleRepository {
         );
   }
 
+  Future<void> updateRule(VendorRule rule) {
+    return _db.update(_db.vendorRules).replace(rule);
+  }
+
   Future<void> deleteRule(String id) {
     return (_db.delete(_db.vendorRules)..where((r) => r.id.equals(id))).go();
   }

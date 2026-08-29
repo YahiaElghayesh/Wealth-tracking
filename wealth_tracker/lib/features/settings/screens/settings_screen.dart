@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 
 import 'asset_classification_settings_screen.dart';
+import 'bank_sms_settings_screen.dart';
 import 'credit_cards_settings_screen.dart';
 import 'drive_sync_settings_screen.dart';
 import 'ledger_categories_settings_screen.dart';
@@ -46,6 +47,13 @@ class SettingsScreen extends StatelessWidget {
             subtitle: 'Manage the quick-pick categories for payments',
             builder: (_) => const LedgerCategoriesSettingsScreen(),
           ),
+          if (Platform.isAndroid)
+            _SettingsTile(
+              icon: Icons.sms_outlined,
+              title: 'Bank SMS detection',
+              subtitle: 'Detect card charges/payments, and vendor rules',
+              builder: (_) => const BankSmsSettingsScreen(),
+            ),
           _SettingsTile(
             icon: Icons.water_drop_outlined,
             title: 'Liquid / non-liquid',

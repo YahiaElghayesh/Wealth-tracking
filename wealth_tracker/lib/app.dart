@@ -2,22 +2,23 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
-import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:home_widget/home_widget.dart';
 
 import 'core/navigation/app_navigator.dart';
 import 'core/theme/app_theme.dart';
-import 'data/sms/notification_action_handler.dart';
+import 'data/sms/native_sms_channel.dart';
+import 'data/sms/sms_ledger_processor.dart';
 import 'features/calculator/screens/calculator_screen.dart';
 import 'features/ledger/providers/quick_add_launch.dart';
-import 'features/ledger/providers/sms_review_launch.dart';
 import 'features/ledger/providers/widget_counterparties_sync.dart';
 import 'features/ledger/screens/ledger_home_screen.dart';
 import 'features/ledger/screens/statistics_screen.dart';
+import 'features/networth/providers/asset_providers.dart' show databaseProvider;
 import 'features/networth/providers/home_widget_providers.dart';
 import 'features/networth/providers/pricing_providers.dart';
 import 'features/networth/screens/dashboard_screen.dart';
+import 'features/settings/providers/vendor_rule_providers.dart';
 
 class WealthTrackerApp extends StatelessWidget {
   const WealthTrackerApp({super.key});
@@ -60,26 +61,28 @@ class _RootShellState extends ConsumerState<_RootShell> with WidgetsBindingObser
     WidgetsBinding.instance.addPostFrameCallback((_) {
       HomeWidget.initiallyLaunchedFromHomeWidget().then((uri) => handleQuickAddLaunch(uri, ref));
     });
-    if (Platform.isAndroid) _initNotifications();
+    if (Platform.isAndroid) _initSmsCapture();
   }
 
-  /// Registers the notification response callbacks (must happen once,
-  /// early — this is also where the top-level background handler for the
-  /// "Add"/"Ignore" quick actions gets wired up) and checks whether this
-  /// app start was itself triggered by tapping a bank-charge notification.
-  Future<void> _initNotifications() async {
-    final plugin = FlutterLocalNotificationsPlugin();
-    await plugin.initialize(
-      settings: const InitializationSettings(
-        android: AndroidInitializationSettings('@mipmap/ic_launcher'),
-      ),
-      onDidReceiveNotificationResponse: (response) => handleNotificationResponse(response, ref),
-      onDidReceiveBackgroundNotificationResponse: bankChargeNotificationBackgroundHandler,
-    );
-    final launchDetails = await plugin.getNotificationAppLaunchDetails();
-    if (launchDetails?.didNotificationLaunchApp ?? false) {
-      await handleNotificationResponse(launchDetails!.notificationResponse, ref);
-    }
+  /// Bank SMS detection never uses a background Dart isolate or a
+  /// third-party SMS-reading plugin (a previous attempt at this broke the
+  /// Android build outright — see native_sms_channel.dart) — a plain,
+  /// manifest-registered Kotlin BroadcastReceiver posts a system
+  /// notification on its own, and this only ever runs once the user has
+  /// tapped that notification and the app is in the foreground. Covers
+  /// both a cold start (`takePendingSms`, checked once after the first
+  /// frame like the widget-tap launch above) and an already-running app
+  /// brought forward by the tap (`listenForNewSms`).
+  void _initSmsCapture() {
+    listenForNewSms((sms) {
+      processIncomingSms(ref.read(databaseProvider), body: sms.body, timestampMillis: sms.timestampMillis);
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      final pending = await takePendingSms();
+      if (pending != null) {
+        await processIncomingSms(ref.read(databaseProvider), body: pending.body, timestampMillis: pending.timestampMillis);
+      }
+    });
   }
 
   @override
@@ -104,6 +107,7 @@ class _RootShellState extends ConsumerState<_RootShell> with WidgetsBindingObser
   Widget build(BuildContext context) {
     ref.watch(homeWidgetSyncProvider);
     ref.watch(widgetCounterpartiesSyncProvider);
+    ref.watch(vendorRuleSeedProvider);
 
     return Scaffold(
       body: IndexedStack(

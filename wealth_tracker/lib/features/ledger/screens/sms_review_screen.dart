@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/models/currency.dart';
 import '../../../core/models/ledger_category.dart';
-import '../../../data/sms/bank_charge_notifications.dart';
+import '../../../data/sms/bank_charge_payload.dart';
 import '../providers/ledger_providers.dart';
 
 /// Opened when a bank-charge notification's body is tapped — either there

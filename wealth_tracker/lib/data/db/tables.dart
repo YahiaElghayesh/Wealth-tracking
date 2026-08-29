@@ -160,10 +160,19 @@ class CreditCards extends Table {
   IntColumn get sortOrder => integer().withDefault(const Constant(0))();
 
   /// The last 4 digits printed on the card, as they appear in bank SMS
-  /// alerts (e.g. "...ending in 4912") — lets a future SMS-based balance
-  /// update know which card a given message is about. Optional; nothing
-  /// reads this yet.
+  /// alerts (e.g. "...ending in 4912") — lets SMS-based balance tracking
+  /// know which card a given message is about.
   TextColumn get lastFourDigits => text().nullable()();
+
+  /// Available-to-spend balance, kept current by SMS capture (or left null
+  /// until the user first types one into the Calculator). Separate from any
+  /// particular Calculator session's typed value — this is the card's own
+  /// remembered state, in [currency].
+  RealColumn get currentAvailableBalance => real().nullable()();
+
+  /// When [currentAvailableBalance] was last set by a parsed SMS — null if
+  /// it's never been touched by SMS capture (e.g. only ever typed by hand).
+  DateTimeColumn get balanceUpdatedAt => dateTime().nullable()();
 
   @override
   Set<Column> get primaryKey => {id};

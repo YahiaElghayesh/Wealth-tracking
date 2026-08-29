@@ -28,7 +28,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 10;
+  int get schemaVersion => 11;
 
   Future<void> _seedDefaultLedgerCategories() async {
     // 'Other' isn't seeded — it's always appended as a synthetic last
@@ -157,6 +157,13 @@ class AppDatabase extends _$AppDatabase {
                 sortOrder: const Value(1),
               ),
             );
+          }
+          if (from < 11) {
+            // Credit cards gained a remembered available-to-spend balance,
+            // kept current by SMS capture instead of only ever a value
+            // typed into the Calculator for one session.
+            await m.addColumn(creditCards, creditCards.currentAvailableBalance);
+            await m.addColumn(creditCards, creditCards.balanceUpdatedAt);
           }
         },
         // The "Breakfast" quick-pick category was a voice-transcription

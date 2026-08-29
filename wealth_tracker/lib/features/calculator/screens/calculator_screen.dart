@@ -29,11 +29,13 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
   final _customItems = <CustomCalculatorItem>[];
 
   // Both default-prefill exactly once, the first time their data arrives —
-  // cards to "as if nothing's been spent yet" (available == limit), and
-  // apartment savings to the last saved snapshot's value, so the user only
-  // has to adjust rather than re-type every time. A user edit (including
-  // clearing the field back to save a snapshot) must not be overwritten on
-  // the next rebuild, hence the one-shot flags. Cards seed per-card-id, so
+  // cards to their last known available balance (SMS-tracked, if bank SMS
+  // detection is on; otherwise the card's own limit, "as if nothing's been
+  // spent yet"), and apartment savings to the last saved snapshot's value,
+  // so the user only has to adjust rather than re-type every time. A user
+  // edit (including clearing the field back to save a snapshot) must not
+  // be overwritten on the next rebuild, hence the one-shot flags. Cards
+  // seed per-card-id, so
   // a card added later still gets its own default without re-seeding ones
   // already touched.
   final _seededCardIds = <String>{};
@@ -242,7 +244,7 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
           }
           if (unseededCards != null) {
             for (final card in unseededCards) {
-              _controllerFor(card).text = _formatSeed(card.limitAmount);
+              _controllerFor(card).text = _formatSeed(card.currentAvailableBalance ?? card.limitAmount);
               _seededCardIds.add(card.id);
             }
           }
@@ -585,6 +587,16 @@ class _SelectAllOnFocusFieldState extends State<_SelectAllOnFocusField> {
   }
 }
 
+/// A short, human "how long ago" label for a card's SMS-tracked balance —
+/// e.g. "just now" / "12m ago" / "3h ago" / "2d ago".
+String _relativeTime(DateTime time) {
+  final diff = DateTime.now().difference(time);
+  if (diff.inMinutes < 1) return 'just now';
+  if (diff.inHours < 1) return '${diff.inMinutes}m ago';
+  if (diff.inDays < 1) return '${diff.inHours}h ago';
+  return '${diff.inDays}d ago';
+}
+
 class _CardField extends StatelessWidget {
   const _CardField({
     required this.card,
@@ -629,6 +641,13 @@ class _CardField extends StatelessWidget {
             decoration: InputDecoration(labelText: 'Available balance (${card.currency})', hintText: '0.00'),
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
           ),
+          if (card.balanceUpdatedAt != null) ...[
+            const SizedBox(height: 2),
+            Text(
+              'Updated from SMS ${_relativeTime(card.balanceUpdatedAt!)}',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(color: colorScheme.primary),
+            ),
+          ],
           const SizedBox(height: 6),
           _SignedRow(
             isAddition: false,

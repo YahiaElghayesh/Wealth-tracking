@@ -1,41 +1,43 @@
 import 'dart:convert';
 
-import 'package:drift/drift.dart';
-import 'package:flutter_local_notifications/flutter_local_notifications.dart';
-import 'package:uuid/uuid.dart';
+import 'package:flutter/material.dart';
 
+import '../../core/navigation/app_navigator.dart';
+import '../../features/ledger/screens/sms_review_screen.dart';
 import '../db/database.dart';
-import 'bank_charge_notifications.dart';
+import 'bank_charge_payload.dart';
 import 'bank_sms_parser.dart';
+import 'card_balance_updater.dart';
 
 const _dedupeKey = 'sms_processed_ids';
 const _dedupeCap = 200;
-const _uuid = Uuid();
 
-/// One incoming SMS: parsed, matched against the vendor rules, and — if it
-/// looks like a bank charge — surfaced as a notification for the user to
-/// act on. Never writes a ledger entry itself; that only happens once the
-/// user taps "Add" (see [recordBankCharge]), since the whole point of this
-/// flow (as opposed to the earlier silent auto-capture) is that nothing
-/// gets recorded without the user seeing and confirming it.
+/// One incoming SMS, already known to be from the app's own SMS-detected
+/// launch path (see `native_sms_channel.dart` / `app.dart`) — so the app is
+/// guaranteed to be in the foreground by the time this runs, which is why
+/// this can push straight to the review screen instead of going through a
+/// system notification and a background isolate the way the very first
+/// version of this feature did.
 ///
-/// Shared by the foreground listener and the headless background isolate,
-/// so the two can't drift apart — each just supplies its own
-/// [AppDatabase] and its own initialized notifications plugin.
-Future<void> handleIncomingBankSms(
-  AppDatabase db,
-  FlutterLocalNotificationsPlugin notifications, {
-  required String? body,
-  required int? timestampMillis,
-}) async {
-  if (body == null || body.trim().isEmpty) return;
+/// Does two independent things with a parsed charge: silently keeps a
+/// matching credit card's tracked balance current (see
+/// [updateCardBalanceFromSms] — nothing to confirm, it's just a number),
+/// and separately opens [SmsReviewScreen] so the user can decide whether
+/// this specific charge should also become a ledger entry (pre-filled from
+/// a vendor rule when one matches, otherwise left for the user to pick).
+/// Those two outcomes aren't mutually exclusive — a charge on your own
+/// card can *also* be a payment made on someone else's behalf.
+Future<void> processIncomingSms(AppDatabase db, {required String body, required int timestampMillis}) async {
+  if (body.trim().isEmpty) return;
 
-  final dedupeId = '${timestampMillis ?? 0}:${body.hashCode}';
+  final dedupeId = '$timestampMillis:${body.hashCode}';
   if (await _alreadyProcessed(db, dedupeId)) return;
   await _markProcessed(db, dedupeId);
 
   final parsed = parseBankSms(body);
   if (parsed == null) return;
+
+  await updateCardBalanceFromSms(db, parsed);
 
   final rules = await db.select(db.vendorRules).get();
   VendorRule? rule;
@@ -56,33 +58,21 @@ Future<void> handleIncomingBankSms(
     category: rule?.category,
   );
 
-  await showBankChargeNotification(notifications, payload);
+  final navigator = await _awaitNavigator();
+  navigator?.push(MaterialPageRoute(builder: (_) => SmsReviewScreen(payload: payload)));
 }
 
-/// Records a ledger entry for a detected charge — called when the user taps
-/// the notification's "Add" action (a matched vendor rule's counterparty
-/// and category, taken from the payload) or saves from the review screen
-/// (a manually picked counterparty and category).
-Future<void> recordBankCharge(
-  AppDatabase db, {
-  required String counterpartyId,
-  required String category,
-  required double amount,
-  required String currency,
-  required DateTime occurredAt,
-}) {
-  return db.into(db.ledgerTransactions).insert(
-        LedgerTransactionsCompanion.insert(
-          id: _uuid.v4(),
-          counterpartyId: counterpartyId,
-          date: occurredAt,
-          amount: amount,
-          currency: Value(currency),
-          category: category,
-          description: const Value('Added from SMS'),
-          createdAt: DateTime.now(),
-        ),
-      );
+/// [navigatorKey]'s Navigator is usually already mounted by the time this
+/// runs (callers wait for the first frame), but polls briefly rather than
+/// giving up immediately, as a safety net against rarer timing races —
+/// same pattern used for widget-tap launches (`quick_add_launch.dart`).
+Future<NavigatorState?> _awaitNavigator() async {
+  for (var attempt = 0; attempt < 10; attempt++) {
+    final navigator = navigatorKey.currentState;
+    if (navigator != null) return navigator;
+    await Future.delayed(const Duration(milliseconds: 100));
+  }
+  return null;
 }
 
 Future<bool> _alreadyProcessed(AppDatabase db, String dedupeId) async {
