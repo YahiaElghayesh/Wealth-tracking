@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/format/money_formatter.dart';
 import '../../../core/models/currency.dart';
 import '../../../core/providers/privacy_providers.dart';
+import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/hide_values_action.dart';
 import '../../../core/widgets/money_text.dart';
 import '../../../data/db/database.dart';
@@ -12,6 +13,28 @@ import '../../networth/providers/asset_providers.dart' show pricesUsdPerUnitProv
 import '../providers/ledger_providers.dart';
 import 'add_transaction_screen.dart';
 import 'monthly_summary_screen.dart';
+
+/// Stopgap emoji-per-category lookup for the ledger row icon chip, matching
+/// the mockup's row-card pattern -- a real user-managed icon picker (see
+/// the "Categories & icons" screen task) will replace this later. Unknown
+/// categories fall back to a generic receipt glyph.
+const _categoryEmoji = <String, String>{
+  'Groceries': '🛒',
+  'Fuel': '⛽',
+  'Food Delivery': '🍽️',
+  'Delivery': '🍽️',
+  'Food Out': '🍽️',
+  'Talabat': '🍽️',
+  'Breakfast': '🥐',
+  'Amazon': '📦',
+  'Electrical': '💡',
+  'Gas': '🔥',
+  'Telecom': '📱',
+  'Pharmacy': '💊',
+  'Mother': '👵',
+};
+
+String _emojiFor(String category, bool isAddition) => isAddition ? (_categoryEmoji[category] ?? '🧾') : '↩︎';
 
 class CounterpartyDetailScreen extends ConsumerWidget {
   const CounterpartyDetailScreen({super.key, required this.counterparty});
@@ -42,34 +65,44 @@ class CounterpartyDetailScreen extends ConsumerWidget {
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, st) => Center(child: Text('Error: $e')),
         data: (transactions) {
+          final theme = Theme.of(context);
+          final colors = context.appColors;
           final balance = runningBalance(transactions, prices).amount;
           return Column(
             children: [
               Padding(
                 padding: const EdgeInsets.all(16),
-                child: Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        const Text('Balance'),
-                        balance == 0
-                            ? Text('Settled up', style: Theme.of(context).textTheme.titleMedium)
-                            : Row(
-                                children: [
-                                  Text(
-                                    balance > 0 ? 'Owes you ' : 'You owe ',
-                                    style: Theme.of(context).textTheme.titleMedium,
-                                  ),
-                                  MoneyText(
-                                    formatMoney(balance.abs(), defaultCurrency),
-                                    style: Theme.of(context).textTheme.titleMedium,
-                                  ),
-                                ],
+                child: Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.surface,
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: colors.border),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        hideValues ? '••••••' : (balance >= 0 ? '${counterparty.name} owes you' : 'You owe ${counterparty.name}'),
+                        style: theme.textTheme.labelSmall?.copyWith(color: colors.textDim, fontWeight: FontWeight.w700),
+                      ),
+                      const SizedBox(height: 6),
+                      balance == 0
+                          ? Text('Settled up', style: theme.textTheme.headlineSmall)
+                          : MoneyText(
+                              formatMoney(balance.abs(), defaultCurrency),
+                              style: theme.textTheme.headlineSmall?.copyWith(
+                                fontWeight: FontWeight.w700,
+                                color: balance > 0 ? colors.bad : colors.good,
                               ),
-                      ],
-                    ),
+                              maskLength: 7,
+                            ),
+                      const SizedBox(height: 6),
+                      Text(
+                        '${transactions.length} entries',
+                        style: theme.textTheme.labelSmall?.copyWith(color: colors.textDim),
+                      ),
+                    ],
                   ),
                 ),
               ),
@@ -81,16 +114,20 @@ class CounterpartyDetailScreen extends ConsumerWidget {
                         itemCount: transactions.length,
                         itemBuilder: (context, i) {
                           final t = transactions[i];
+                          // A charge (you paid on their behalf) grows what
+                          // they owe you -- shown "+" and in the bad/red
+                          // tone, same convention as a bill growing; a
+                          // repayment shrinks it -- shown "−" and good/green.
                           final isAddition = t.amount >= 0;
-                          final signColor = isAddition ? Colors.green : Colors.red;
+                          final signColor = isAddition ? colors.bad : colors.good;
                           return Dismissible(
                             key: ValueKey(t.id),
                             direction: DismissDirection.endToStart,
                             background: Container(
-                              margin: const EdgeInsets.only(top: 8),
+                              margin: const EdgeInsets.only(top: 10),
                               decoration: BoxDecoration(
-                                color: Theme.of(context).colorScheme.errorContainer,
-                                borderRadius: BorderRadius.circular(12),
+                                color: theme.colorScheme.errorContainer,
+                                borderRadius: BorderRadius.circular(16),
                               ),
                               alignment: Alignment.centerRight,
                               padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -98,26 +135,53 @@ class CounterpartyDetailScreen extends ConsumerWidget {
                             ),
                             onDismissed: (_) =>
                                 ref.read(ledgerRepositoryProvider).deleteTransaction(t.id),
-                            child: Card(
-                              margin: const EdgeInsets.only(top: 8),
-                              child: ListTile(
-                                leading: CircleAvatar(
-                                  backgroundColor: signColor.withValues(alpha: 0.15),
-                                  foregroundColor: signColor,
-                                  child: Text(
-                                    isAddition ? '+' : '−',
-                                    style: const TextStyle(fontWeight: FontWeight.bold),
+                            child: Container(
+                              margin: const EdgeInsets.only(top: 10),
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: theme.colorScheme.surface,
+                                borderRadius: BorderRadius.circular(16),
+                                border: Border.all(color: colors.border),
+                              ),
+                              child: Row(
+                                children: [
+                                  Container(
+                                    width: 36,
+                                    height: 36,
+                                    decoration: BoxDecoration(
+                                      color: signColor.withValues(alpha: 0.12),
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    alignment: Alignment.center,
+                                    child: hideValues
+                                        ? Icon(Icons.lock_outline, size: 15, color: colors.textDim)
+                                        : Text(_emojiFor(t.category, isAddition), style: const TextStyle(fontSize: 16)),
                                   ),
-                                ),
-                                title: Text(t.category),
-                                subtitle: Text(
-                                  '${t.date.year}-${t.date.month.toString().padLeft(2, '0')}-${t.date.day.toString().padLeft(2, '0')}'
-                                  '${t.description == null ? '' : ' · ${t.description}'}',
-                                ),
-                                trailing: MoneyText(
-                                  '${isAddition ? '+' : '−'}${formatMoney(t.amount.abs(), t.currency)}',
-                                  style: TextStyle(color: signColor, fontWeight: FontWeight.bold),
-                                ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          hideValues ? '••••••' : t.category,
+                                          style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w700),
+                                        ),
+                                        const SizedBox(height: 2),
+                                        Text(
+                                          hideValues
+                                              ? '••••••'
+                                              : '${t.date.year}-${t.date.month.toString().padLeft(2, '0')}-${t.date.day.toString().padLeft(2, '0')}'
+                                                  '${t.description == null ? '' : ' · ${t.description}'}',
+                                          style: theme.textTheme.labelSmall?.copyWith(color: colors.textDim),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  MoneyText(
+                                    '${isAddition ? '+' : '−'}${formatMoney(t.amount.abs(), t.currency)}',
+                                    style: TextStyle(color: signColor, fontWeight: FontWeight.w700, fontSize: 13),
+                                  ),
+                                ],
                               ),
                             ),
                           );

@@ -1,10 +1,14 @@
-import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 
 import '../../../core/format/money_formatter.dart';
+import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/money_text.dart';
 import '../../../data/net_worth/net_worth_calculator.dart';
 
+/// The mockup's "hero-total" card: label, big EGP/USD total on one
+/// baseline, a liquid/non-liquid split bar, and a two-sided legend showing
+/// both the percent and the actual value on each side -- replacing the
+/// previous pie-chart layout, which the approved redesign doesn't use here.
 class NetWorthSummaryCard extends StatelessWidget {
   const NetWorthSummaryCard({
     super.key,
@@ -21,118 +25,146 @@ class NetWorthSummaryCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final colors = context.appColors;
     final egpTotal = usdToEgpRate == null ? null : summary.totalUsd * usdToEgpRate!;
+    final total = summary.liquidUsd + summary.nonLiquidUsd;
+    final liquidFraction = total <= 0 ? 0.0 : summary.liquidUsd / total;
 
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Total Net Worth', style: theme.textTheme.titleMedium),
-            const SizedBox(height: 4),
-            // EGP is the primary figure (bigger, first), USD secondary —
-            // matches the home-screen widget.
-            MoneyText(
-              egpTotal == null ? '—' : formatEgp(egpTotal),
-              style: theme.textTheme.headlineMedium,
-              maskLength: 9,
+    return Container(
+      padding: const EdgeInsets.fromLTRB(18, 18, 18, 16),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: colors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'TOTAL NET WORTH',
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: colors.textDim,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.6,
             ),
-            MoneyText(formatUsd(summary.totalUsd), style: theme.textTheme.bodyLarge),
-            const SizedBox(height: 20),
-            if (summary.totalUsd > 0)
-              SizedBox(
-                height: 120,
+          ),
+          const SizedBox(height: 6),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.baseline,
+            textBaseline: TextBaseline.alphabetic,
+            children: [
+              MoneyText(
+                egpTotal == null ? '—' : formatEgp(egpTotal),
+                style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w700),
+                maskLength: 9,
+              ),
+              const SizedBox(width: 7),
+              MoneyText(
+                '≈ ${formatUsd(summary.totalUsd)}',
+                style: theme.textTheme.bodyMedium?.copyWith(color: colors.textDim),
+                maskLength: 5,
+              ),
+            ],
+          ),
+          if (total > 0) ...[
+            const SizedBox(height: 14),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(99),
+              child: SizedBox(
+                height: 6,
                 child: Row(
                   children: [
                     Expanded(
-                      child: PieChart(
-                        PieChartData(
-                          sectionsSpace: 2,
-                          centerSpaceRadius: 28,
-                          sections: [
-                            PieChartSectionData(
-                              value: summary.liquidUsd,
-                              color: theme.colorScheme.primary,
-                              title: '',
-                              radius: 20,
-                            ),
-                            PieChartSectionData(
-                              value: summary.nonLiquidUsd,
-                              color: theme.colorScheme.tertiary,
-                              title: '',
-                              radius: 20,
-                            ),
-                          ],
-                        ),
-                      ),
+                      flex: (liquidFraction * 1000).round().clamp(1, 999),
+                      child: Container(color: theme.colorScheme.primary),
                     ),
-                    const SizedBox(width: 16),
                     Expanded(
-                      flex: 2,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          _LegendRow(
-                            color: theme.colorScheme.primary,
-                            label: 'Liquid',
-                            valueUsd: summary.liquidUsd,
-                            usdToEgpRate: usdToEgpRate,
-                          ),
-                          const SizedBox(height: 8),
-                          _LegendRow(
-                            color: theme.colorScheme.tertiary,
-                            label: 'Non-liquid',
-                            valueUsd: summary.nonLiquidUsd,
-                            usdToEgpRate: usdToEgpRate,
-                          ),
-                        ],
-                      ),
+                      flex: ((1 - liquidFraction) * 1000).round().clamp(1, 999),
+                      child: Container(color: colors.gold),
                     ),
                   ],
                 ),
-              )
-            else
-              const Text('Add an asset to see your net worth breakdown.'),
+              ),
+            ),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Expanded(
+                  child: _SplitSide(
+                    label: 'Liquid',
+                    fraction: liquidFraction,
+                    valueUsd: summary.liquidUsd,
+                    usdToEgpRate: usdToEgpRate,
+                    alignEnd: false,
+                  ),
+                ),
+                Expanded(
+                  child: _SplitSide(
+                    label: 'Non-liquid',
+                    fraction: 1 - liquidFraction,
+                    valueUsd: summary.nonLiquidUsd,
+                    usdToEgpRate: usdToEgpRate,
+                    alignEnd: true,
+                  ),
+                ),
+              ],
+            ),
+          ] else ...[
+            const SizedBox(height: 14),
+            Text(
+              'Add an asset to see your net worth breakdown.',
+              style: theme.textTheme.bodySmall?.copyWith(color: colors.textDim),
+            ),
           ],
-        ),
+        ],
       ),
     );
   }
 }
 
-class _LegendRow extends StatelessWidget {
-  const _LegendRow({
-    required this.color,
+class _SplitSide extends StatelessWidget {
+  const _SplitSide({
     required this.label,
+    required this.fraction,
     required this.valueUsd,
     required this.usdToEgpRate,
+    required this.alignEnd,
   });
 
-  final Color color;
   final String label;
+  final double fraction;
   final double valueUsd;
   final double? usdToEgpRate;
+  final bool alignEnd;
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = context.appColors;
     final egpValue = usdToEgpRate == null ? null : valueUsd * usdToEgpRate!;
-    return Row(
+    final pct = '${(fraction * 100).round()}%';
+    return Column(
+      crossAxisAlignment: alignEnd ? CrossAxisAlignment.end : CrossAxisAlignment.start,
       children: [
-        Container(width: 12, height: 12, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(label, style: Theme.of(context).textTheme.bodySmall),
-              MoneyText(
-                egpValue == null ? '—' : formatEgp(egpValue),
-                style: Theme.of(context).textTheme.bodyMedium,
-              ),
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (!alignEnd) ...[
+              Text(label, style: theme.textTheme.bodySmall?.copyWith(color: colors.textDim)),
+              const SizedBox(width: 4),
             ],
-          ),
+            MoneyText(pct, style: theme.textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w700), maskLength: 3),
+            if (alignEnd) ...[
+              const SizedBox(width: 4),
+              Text(label, style: theme.textTheme.bodySmall?.copyWith(color: colors.textDim)),
+            ],
+          ],
+        ),
+        const SizedBox(height: 1),
+        MoneyText(
+          egpValue == null ? '—' : formatEgp(egpValue),
+          style: theme.textTheme.labelSmall?.copyWith(color: colors.textDim),
+          maskLength: 7,
         ),
       ],
     );

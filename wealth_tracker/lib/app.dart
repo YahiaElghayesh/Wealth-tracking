@@ -7,6 +7,7 @@ import 'package:home_widget/home_widget.dart';
 
 import 'core/navigation/app_navigator.dart';
 import 'core/theme/app_theme.dart';
+import 'core/widgets/app_bottom_nav.dart';
 import 'data/sms/native_sms_channel.dart';
 import 'data/sms/sms_ledger_processor.dart';
 import 'features/calculator/screens/calculator_screen.dart';
@@ -18,19 +19,22 @@ import 'features/networth/providers/asset_providers.dart' show databaseProvider;
 import 'features/networth/providers/home_widget_providers.dart';
 import 'features/networth/providers/pricing_providers.dart';
 import 'features/networth/screens/dashboard_screen.dart';
+import 'features/settings/providers/settings_providers.dart';
 import 'features/settings/providers/vendor_rule_providers.dart';
 
-class WealthTrackerApp extends StatelessWidget {
+class WealthTrackerApp extends ConsumerWidget {
   const WealthTrackerApp({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final themeMode = ref.watch(themeModeProvider);
     return MaterialApp(
       navigatorKey: navigatorKey,
       title: 'Money Hub',
       debugShowCheckedModeBanner: false,
       theme: buildAppTheme(Brightness.light),
       darkTheme: buildAppTheme(Brightness.dark),
+      themeMode: themeMode,
       home: const _RootShell(),
     );
   }
@@ -119,15 +123,9 @@ class _RootShellState extends ConsumerState<_RootShell> with WidgetsBindingObser
           CalculatorScreen(),
         ],
       ),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _index,
-        onDestinationSelected: (i) => setState(() => _index = i),
-        destinations: const [
-          NavigationDestination(icon: Icon(Icons.account_balance_wallet), label: 'Net Worth'),
-          NavigationDestination(icon: Icon(Icons.receipt_long), label: 'Ledger'),
-          NavigationDestination(icon: Icon(Icons.bar_chart), label: 'Statistics'),
-          NavigationDestination(icon: Icon(Icons.calculate), label: 'Calculator'),
-        ],
+      bottomNavigationBar: AppBottomNav(
+        index: _index,
+        onChanged: (i) => setState(() => _index = i),
       ),
     );
   }

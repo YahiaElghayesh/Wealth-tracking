@@ -1,7 +1,10 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/providers/core_providers.dart';
+import '../providers/settings_providers.dart';
 import 'asset_classification_settings_screen.dart';
 import 'bank_sms_settings_screen.dart';
 import 'credit_cards_settings_screen.dart';
@@ -13,16 +16,38 @@ import 'widget_appearance_settings_screen.dart';
 /// Top-level menu of settings sub-pages — kept short and un-scrolled on
 /// purpose so it doesn't turn back into one long list; each destination
 /// owns its own scrolling content.
-class SettingsScreen extends StatelessWidget {
+class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final themeMode = ref.watch(themeModeProvider);
     return Scaffold(
       appBar: AppBar(title: const Text('Settings')),
       body: ListView(
         padding: const EdgeInsets.symmetric(vertical: 8),
         children: [
+          const Padding(
+            padding: EdgeInsets.fromLTRB(16, 8, 16, 4),
+            child: Text('Appearance', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+            child: SegmentedButton<ThemeMode>(
+              segments: const [
+                ButtonSegment(value: ThemeMode.light, label: Text('Light')),
+                ButtonSegment(value: ThemeMode.system, label: Text('System')),
+                ButtonSegment(value: ThemeMode.dark, label: Text('Dark')),
+              ],
+              selected: {themeMode},
+              onSelectionChanged: (selection) {
+                final mode = selection.first;
+                ref.read(settingsRepositoryProvider).setThemeMode(mode);
+                ref.read(themeModeProvider.notifier).state = mode;
+              },
+            ),
+          ),
+          const Divider(height: 24),
           _SettingsTile(
             icon: Icons.trending_up,
             title: 'Live prices',

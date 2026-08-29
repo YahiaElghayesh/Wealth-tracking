@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../core/models/asset_category.dart';
@@ -17,6 +18,7 @@ class SettingsRepository {
   static const _lastSyncedAtKey = 'drive_last_synced_at';
   static const _smsCaptureEnabledKey = 'sms_capture_enabled';
   static const _androidServerClientIdKey = 'drive_android_server_client_id';
+  static const _themeModeKey = 'theme_mode';
 
   String? get metalsApiKey => _prefs.getString(_metalsApiKeyKey);
 
@@ -124,5 +126,22 @@ class SettingsRepository {
     } else {
       await _prefs.setString(key, assetClass.name);
     }
+  }
+
+  /// Defaults to following the OS setting, same as before this was
+  /// user-configurable.
+  ThemeMode get themeMode {
+    switch (_prefs.getString(_themeModeKey)) {
+      case 'light':
+        return ThemeMode.light;
+      case 'dark':
+        return ThemeMode.dark;
+      default:
+        return ThemeMode.system;
+    }
+  }
+
+  Future<void> setThemeMode(ThemeMode mode) {
+    return _prefs.setString(_themeModeKey, mode.name);
   }
 }

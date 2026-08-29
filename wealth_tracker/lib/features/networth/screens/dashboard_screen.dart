@@ -5,6 +5,8 @@ import '../../../core/format/money_formatter.dart';
 import '../../../core/models/asset_category.dart';
 import '../../../core/models/gold_karat.dart';
 import '../../../core/providers/privacy_providers.dart';
+import '../../../core/theme/app_colors.dart';
+import '../../../core/widgets/app_icons.dart';
 import '../../../core/widgets/hide_values_action.dart';
 import '../../../core/widgets/money_text.dart';
 import '../../../data/db/database.dart';
@@ -122,42 +124,104 @@ class _AssetTile extends ConsumerWidget {
         : null;
     final categoryLabel = karat == null ? category.label : '${category.label} (${karat.label})';
 
+    final theme = Theme.of(context);
+    final colors = context.appColors;
+    final (icon, tint) = _iconFor(category, asset.symbolOrCurrency, colors);
+
     return Dismissible(
       key: ValueKey(asset.id),
       direction: DismissDirection.endToStart,
       background: Container(
-        color: Theme.of(context).colorScheme.errorContainer,
+        color: theme.colorScheme.errorContainer,
         alignment: Alignment.centerRight,
         padding: const EdgeInsets.symmetric(horizontal: 20),
         child: const Icon(Icons.delete),
       ),
       onDismissed: (_) => ref.read(assetRepositoryProvider).delete(asset.id),
-      child: Card(
-        child: ListTile(
-          title: Text(hideValues ? '••••••' : asset.name),
-          subtitle: Text(
-            hideValues
-                ? '••••••'
-                : '$categoryLabel · ${assetClass == AssetClass.liquid ? "Liquid" : "Non-liquid"}',
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: () => Navigator.of(context).push(
+          MaterialPageRoute(builder: (_) => AddEditAssetScreen(existing: asset)),
+        ),
+        child: Container(
+          margin: const EdgeInsets.only(bottom: 10),
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: theme.colorScheme.surface,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: colors.border),
           ),
-          trailing: value == null
-              ? const Text('—')
-              : Column(
+          child: Row(
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(color: tint, borderRadius: BorderRadius.circular(12)),
+                alignment: Alignment.center,
+                child: hideValues ? Icon(Icons.lock_outline, size: 16, color: colors.textDim) : icon,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      hideValues ? '••••••' : asset.name,
+                      style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w700),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      hideValues
+                          ? '••••••'
+                          : '$categoryLabel · ${assetClass == AssetClass.liquid ? "Liquid" : "Non-liquid"}',
+                      style: theme.textTheme.labelSmall?.copyWith(color: colors.textDim),
+                    ),
+                  ],
+                ),
+              ),
+              if (value != null)
+                Column(
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
                     MoneyText(
                       egpValue == null ? '—' : formatEgp(egpValue),
-                      style: Theme.of(context).textTheme.bodyMedium,
+                      style: theme.textTheme.bodyMedium,
                     ),
-                    MoneyText(formatUsd(value), style: Theme.of(context).textTheme.bodySmall),
+                    MoneyText(
+                      formatUsd(value),
+                      style: theme.textTheme.labelSmall?.copyWith(color: colors.textDim),
+                    ),
                   ],
-                ),
-          onTap: () => Navigator.of(context).push(
-            MaterialPageRoute(builder: (_) => AddEditAssetScreen(existing: asset)),
+                )
+              else
+                const Text('—'),
+            ],
           ),
         ),
       ),
     );
+  }
+}
+
+(Widget, Color) _iconFor(AssetCategory category, String symbolOrCurrency, AppColors colors) {
+  switch (category) {
+    case AssetCategory.crypto:
+      final isBtc = symbolOrCurrency.toLowerCase() == 'bitcoin';
+      return isBtc
+          ? (AppIcon.btc(size: 20), colors.btc.withValues(alpha: 0.12))
+          : (Icon(Icons.currency_exchange, size: 18, color: colors.textDim), colors.surface2);
+    case AssetCategory.gold:
+      return (AppIcon.goldBar(size: 20), colors.gold.withValues(alpha: 0.13));
+    case AssetCategory.silver:
+      return (AppIcon.silverBar(size: 20), colors.silver.withValues(alpha: 0.16));
+    case AssetCategory.cash:
+      return (AppIcon.cash(size: 18, color: colors.good), colors.good.withValues(alpha: 0.13));
+    case AssetCategory.vehicle:
+      return (AppIcon.car(size: 18, color: colors.bad, holeColor: colors.surface2), colors.bad.withValues(alpha: 0.1));
+    case AssetCategory.realEstate:
+      return (Icon(Icons.home_work_outlined, size: 18, color: colors.textDim), colors.surface2);
+    case AssetCategory.other:
+      return (Icon(Icons.inventory_2_outlined, size: 18, color: colors.textDim), colors.surface2);
   }
 }
