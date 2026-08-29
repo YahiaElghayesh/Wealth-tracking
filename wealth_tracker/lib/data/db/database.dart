@@ -29,7 +29,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 12;
+  int get schemaVersion => 13;
 
   Future<void> _seedDefaultLedgerCategories() async {
     // 'Other' isn't seeded — it's always appended as a synthetic last
@@ -183,6 +183,13 @@ class AppDatabase extends _$AppDatabase {
               await (update(ledgerCategories)..where((c) => c.name.equals(entry.key)))
                   .write(LedgerCategoriesCompanion(icon: Value(entry.value)));
             }
+          }
+          if (from < 13) {
+            // Picking "Vehicle" in Add Asset now asks which kind (car,
+            // motorcycle, or scooter) so the right icon shows everywhere
+            // that asset displays; existing vehicle assets fall back to
+            // the generic car icon (null) until edited.
+            await m.addColumn(assets, assets.vehicleType);
           }
         },
         // The "Breakfast" quick-pick category was a voice-transcription

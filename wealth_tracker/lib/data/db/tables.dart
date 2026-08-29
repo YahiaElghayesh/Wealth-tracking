@@ -20,6 +20,12 @@ class Assets extends Table {
   DateTimeColumn get createdAt => dateTime()();
   DateTimeColumn get updatedAt => dateTime()();
 
+  /// 'car' / 'motorcycle' / 'scooter' -- only meaningful when [category] is
+  /// AssetCategory.vehicle, picks which icon shows everywhere this asset
+  /// displays. Null (including for every non-vehicle asset) falls back to
+  /// the generic car icon.
+  TextColumn get vehicleType => text().nullable()();
+
   @override
   Set<Column> get primaryKey => {id};
 }

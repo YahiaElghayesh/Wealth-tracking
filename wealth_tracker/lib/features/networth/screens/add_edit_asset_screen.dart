@@ -7,6 +7,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/models/asset_category.dart';
 import '../../../core/models/currency.dart';
 import '../../../core/models/gold_karat.dart';
+import '../../../core/theme/app_colors.dart';
+import '../../../core/widgets/app_icons.dart';
 import '../../../data/db/database.dart';
 import '../../../data/pricing/coingecko_price_provider.dart';
 import '../providers/asset_providers.dart';
@@ -26,6 +28,7 @@ class _AddEditAssetScreenState extends ConsumerState<AddEditAssetScreen> {
   late AssetCategory _category;
   late String _currency;
   late GoldKarat _goldKarat;
+  late String _vehicleType;
   late final TextEditingController _nameController;
   late final TextEditingController _quantityController;
   late final TextEditingController _symbolController;
@@ -56,6 +59,7 @@ class _AddEditAssetScreenState extends ConsumerState<AddEditAssetScreen> {
     _goldKarat = (existing != null && _category == AssetCategory.gold)
         ? GoldKarat.fromPriceSymbol(existing.symbolOrCurrency) ?? defaultGoldKarat
         : defaultGoldKarat;
+    _vehicleType = existing?.vehicleType ?? 'car';
     _nameController = TextEditingController(text: existing?.name ?? '');
     _quantityController =
         TextEditingController(text: existing == null ? '' : existing.quantity.toString());
@@ -141,6 +145,27 @@ class _AddEditAssetScreenState extends ConsumerState<AddEditAssetScreen> {
     switch (_valuationMode) {
       case ValuationMode.currency:
         return [
+          if (_category == AssetCategory.vehicle) ...[
+            Text('Vehicle type', style: Theme.of(context).textTheme.labelSmall?.copyWith(color: context.appColors.textDim, fontWeight: FontWeight.w800)),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                for (final option in const [('car', 'Car'), ('motorcycle', 'Motorcycle'), ('scooter', 'Scooter')])
+                  Expanded(
+                    child: Padding(
+                      padding: EdgeInsets.only(right: option.$1 == 'scooter' ? 0 : 8),
+                      child: _VehicleTypeOption(
+                        type: option.$1,
+                        label: option.$2,
+                        selected: _vehicleType == option.$1,
+                        onTap: () => setState(() => _vehicleType = option.$1),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 16),
+          ],
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -259,6 +284,7 @@ class _AddEditAssetScreenState extends ConsumerState<AddEditAssetScreen> {
       valuationMode: Value(_valuationMode.name),
       quantity: Value(quantity),
       symbolOrCurrency: Value(symbol),
+      vehicleType: Value(_category == AssetCategory.vehicle ? _vehicleType : null),
     );
 
     if (_isEditing) {
@@ -268,5 +294,59 @@ class _AddEditAssetScreenState extends ConsumerState<AddEditAssetScreen> {
     }
 
     if (mounted) Navigator.of(context).pop();
+  }
+}
+
+/// One choice in the vehicle-type picker: car / motorcycle / scooter, each
+/// with its own icon -- used everywhere the asset displays afterward, not
+/// just here.
+class _VehicleTypeOption extends StatelessWidget {
+  const _VehicleTypeOption({
+    required this.type,
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String type;
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  Widget _icon(Color color) {
+    switch (type) {
+      case 'motorcycle':
+        return AppIcon.motorcycle(size: 22, color: color);
+      case 'scooter':
+        return AppIcon.scooter(size: 22, color: color);
+      default:
+        return AppIcon.car(size: 22, color: color, holeColor: Colors.transparent);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = context.appColors;
+    final color = selected ? theme.colorScheme.primary : colors.textDim;
+    return InkWell(
+      borderRadius: BorderRadius.circular(14),
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
+        decoration: BoxDecoration(
+          color: selected ? colors.accentSoft : theme.colorScheme.surface,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: selected ? theme.colorScheme.primary : colors.border, width: selected ? 1.5 : 1),
+        ),
+        child: Column(
+          children: [
+            _icon(color),
+            const SizedBox(height: 8),
+            Text(label, style: theme.textTheme.labelSmall?.copyWith(color: color, fontWeight: FontWeight.w700)),
+          ],
+        ),
+      ),
+    );
   }
 }

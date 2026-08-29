@@ -126,7 +126,7 @@ class _AssetTile extends ConsumerWidget {
 
     final theme = Theme.of(context);
     final colors = context.appColors;
-    final (icon, tint) = _iconFor(category, asset.symbolOrCurrency, colors);
+    final (icon, tint) = _iconFor(category, asset.symbolOrCurrency, asset.vehicleType, colors);
 
     return Dismissible(
       key: ValueKey(asset.id),
@@ -204,7 +204,7 @@ class _AssetTile extends ConsumerWidget {
   }
 }
 
-(Widget, Color) _iconFor(AssetCategory category, String symbolOrCurrency, AppColors colors) {
+(Widget, Color) _iconFor(AssetCategory category, String symbolOrCurrency, String? vehicleType, AppColors colors) {
   switch (category) {
     case AssetCategory.crypto:
       final isBtc = symbolOrCurrency.toLowerCase() == 'bitcoin';
@@ -218,7 +218,12 @@ class _AssetTile extends ConsumerWidget {
     case AssetCategory.cash:
       return (AppIcon.cash(size: 18, color: colors.good), colors.good.withValues(alpha: 0.13));
     case AssetCategory.vehicle:
-      return (AppIcon.car(size: 18, color: colors.bad, holeColor: colors.surface2), colors.bad.withValues(alpha: 0.1));
+      final vehicleIcon = switch (vehicleType) {
+        'motorcycle' => AppIcon.motorcycle(size: 18, color: colors.bad),
+        'scooter' => AppIcon.scooter(size: 18, color: colors.bad),
+        _ => AppIcon.car(size: 18, color: colors.bad, holeColor: colors.surface2),
+      };
+      return (vehicleIcon, colors.bad.withValues(alpha: 0.1));
     case AssetCategory.realEstate:
       return (Icon(Icons.home_work_outlined, size: 18, color: colors.textDim), colors.surface2);
     case AssetCategory.other:

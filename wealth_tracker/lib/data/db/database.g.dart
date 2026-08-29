@@ -101,6 +101,17 @@ class $AssetsTable extends Assets with TableInfo<$AssetsTable, Asset> {
     type: DriftSqlType.dateTime,
     requiredDuringInsert: true,
   );
+  static const VerificationMeta _vehicleTypeMeta = const VerificationMeta(
+    'vehicleType',
+  );
+  @override
+  late final GeneratedColumn<String> vehicleType = GeneratedColumn<String>(
+    'vehicle_type',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -112,6 +123,7 @@ class $AssetsTable extends Assets with TableInfo<$AssetsTable, Asset> {
     notes,
     createdAt,
     updatedAt,
+    vehicleType,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -198,6 +210,15 @@ class $AssetsTable extends Assets with TableInfo<$AssetsTable, Asset> {
     } else if (isInserting) {
       context.missing(_updatedAtMeta);
     }
+    if (data.containsKey('vehicle_type')) {
+      context.handle(
+        _vehicleTypeMeta,
+        vehicleType.isAcceptableOrUnknown(
+          data['vehicle_type']!,
+          _vehicleTypeMeta,
+        ),
+      );
+    }
     return context;
   }
 
@@ -243,6 +264,10 @@ class $AssetsTable extends Assets with TableInfo<$AssetsTable, Asset> {
         DriftSqlType.dateTime,
         data['${effectivePrefix}updated_at'],
       )!,
+      vehicleType: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}vehicle_type'],
+      ),
     );
   }
 
@@ -269,6 +294,12 @@ class Asset extends DataClass implements Insertable<Asset> {
   final String? notes;
   final DateTime createdAt;
   final DateTime updatedAt;
+
+  /// 'car' / 'motorcycle' / 'scooter' -- only meaningful when [category] is
+  /// AssetCategory.vehicle, picks which icon shows everywhere this asset
+  /// displays. Null (including for every non-vehicle asset) falls back to
+  /// the generic car icon.
+  final String? vehicleType;
   const Asset({
     required this.id,
     required this.name,
@@ -279,6 +310,7 @@ class Asset extends DataClass implements Insertable<Asset> {
     this.notes,
     required this.createdAt,
     required this.updatedAt,
+    this.vehicleType,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -294,6 +326,9 @@ class Asset extends DataClass implements Insertable<Asset> {
     }
     map['created_at'] = Variable<DateTime>(createdAt);
     map['updated_at'] = Variable<DateTime>(updatedAt);
+    if (!nullToAbsent || vehicleType != null) {
+      map['vehicle_type'] = Variable<String>(vehicleType);
+    }
     return map;
   }
 
@@ -310,6 +345,9 @@ class Asset extends DataClass implements Insertable<Asset> {
           : Value(notes),
       createdAt: Value(createdAt),
       updatedAt: Value(updatedAt),
+      vehicleType: vehicleType == null && nullToAbsent
+          ? const Value.absent()
+          : Value(vehicleType),
     );
   }
 
@@ -328,6 +366,7 @@ class Asset extends DataClass implements Insertable<Asset> {
       notes: serializer.fromJson<String?>(json['notes']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
       updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
+      vehicleType: serializer.fromJson<String?>(json['vehicleType']),
     );
   }
   @override
@@ -343,6 +382,7 @@ class Asset extends DataClass implements Insertable<Asset> {
       'notes': serializer.toJson<String?>(notes),
       'createdAt': serializer.toJson<DateTime>(createdAt),
       'updatedAt': serializer.toJson<DateTime>(updatedAt),
+      'vehicleType': serializer.toJson<String?>(vehicleType),
     };
   }
 
@@ -356,6 +396,7 @@ class Asset extends DataClass implements Insertable<Asset> {
     Value<String?> notes = const Value.absent(),
     DateTime? createdAt,
     DateTime? updatedAt,
+    Value<String?> vehicleType = const Value.absent(),
   }) => Asset(
     id: id ?? this.id,
     name: name ?? this.name,
@@ -366,6 +407,7 @@ class Asset extends DataClass implements Insertable<Asset> {
     notes: notes.present ? notes.value : this.notes,
     createdAt: createdAt ?? this.createdAt,
     updatedAt: updatedAt ?? this.updatedAt,
+    vehicleType: vehicleType.present ? vehicleType.value : this.vehicleType,
   );
   Asset copyWithCompanion(AssetsCompanion data) {
     return Asset(
@@ -382,6 +424,9 @@ class Asset extends DataClass implements Insertable<Asset> {
       notes: data.notes.present ? data.notes.value : this.notes,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+      vehicleType: data.vehicleType.present
+          ? data.vehicleType.value
+          : this.vehicleType,
     );
   }
 
@@ -396,7 +441,8 @@ class Asset extends DataClass implements Insertable<Asset> {
           ..write('symbolOrCurrency: $symbolOrCurrency, ')
           ..write('notes: $notes, ')
           ..write('createdAt: $createdAt, ')
-          ..write('updatedAt: $updatedAt')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('vehicleType: $vehicleType')
           ..write(')'))
         .toString();
   }
@@ -412,6 +458,7 @@ class Asset extends DataClass implements Insertable<Asset> {
     notes,
     createdAt,
     updatedAt,
+    vehicleType,
   );
   @override
   bool operator ==(Object other) =>
@@ -425,7 +472,8 @@ class Asset extends DataClass implements Insertable<Asset> {
           other.symbolOrCurrency == this.symbolOrCurrency &&
           other.notes == this.notes &&
           other.createdAt == this.createdAt &&
-          other.updatedAt == this.updatedAt);
+          other.updatedAt == this.updatedAt &&
+          other.vehicleType == this.vehicleType);
 }
 
 class AssetsCompanion extends UpdateCompanion<Asset> {
@@ -438,6 +486,7 @@ class AssetsCompanion extends UpdateCompanion<Asset> {
   final Value<String?> notes;
   final Value<DateTime> createdAt;
   final Value<DateTime> updatedAt;
+  final Value<String?> vehicleType;
   final Value<int> rowid;
   const AssetsCompanion({
     this.id = const Value.absent(),
@@ -449,6 +498,7 @@ class AssetsCompanion extends UpdateCompanion<Asset> {
     this.notes = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
+    this.vehicleType = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   AssetsCompanion.insert({
@@ -461,6 +511,7 @@ class AssetsCompanion extends UpdateCompanion<Asset> {
     this.notes = const Value.absent(),
     required DateTime createdAt,
     required DateTime updatedAt,
+    this.vehicleType = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
        name = Value(name),
@@ -480,6 +531,7 @@ class AssetsCompanion extends UpdateCompanion<Asset> {
     Expression<String>? notes,
     Expression<DateTime>? createdAt,
     Expression<DateTime>? updatedAt,
+    Expression<String>? vehicleType,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -492,6 +544,7 @@ class AssetsCompanion extends UpdateCompanion<Asset> {
       if (notes != null) 'notes': notes,
       if (createdAt != null) 'created_at': createdAt,
       if (updatedAt != null) 'updated_at': updatedAt,
+      if (vehicleType != null) 'vehicle_type': vehicleType,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -506,6 +559,7 @@ class AssetsCompanion extends UpdateCompanion<Asset> {
     Value<String?>? notes,
     Value<DateTime>? createdAt,
     Value<DateTime>? updatedAt,
+    Value<String?>? vehicleType,
     Value<int>? rowid,
   }) {
     return AssetsCompanion(
@@ -518,6 +572,7 @@ class AssetsCompanion extends UpdateCompanion<Asset> {
       notes: notes ?? this.notes,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
+      vehicleType: vehicleType ?? this.vehicleType,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -552,6 +607,9 @@ class AssetsCompanion extends UpdateCompanion<Asset> {
     if (updatedAt.present) {
       map['updated_at'] = Variable<DateTime>(updatedAt.value);
     }
+    if (vehicleType.present) {
+      map['vehicle_type'] = Variable<String>(vehicleType.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -570,6 +628,7 @@ class AssetsCompanion extends UpdateCompanion<Asset> {
           ..write('notes: $notes, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
+          ..write('vehicleType: $vehicleType, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -4771,6 +4830,7 @@ typedef $$AssetsTableCreateCompanionBuilder =
       Value<String?> notes,
       required DateTime createdAt,
       required DateTime updatedAt,
+      Value<String?> vehicleType,
       Value<int> rowid,
     });
 typedef $$AssetsTableUpdateCompanionBuilder =
@@ -4784,6 +4844,7 @@ typedef $$AssetsTableUpdateCompanionBuilder =
       Value<String?> notes,
       Value<DateTime> createdAt,
       Value<DateTime> updatedAt,
+      Value<String?> vehicleType,
       Value<int> rowid,
     });
 
@@ -4838,6 +4899,11 @@ class $$AssetsTableFilterComposer
 
   ColumnFilters<DateTime> get updatedAt => $composableBuilder(
     column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get vehicleType => $composableBuilder(
+    column: $table.vehicleType,
     builder: (column) => ColumnFilters(column),
   );
 }
@@ -4895,6 +4961,11 @@ class $$AssetsTableOrderingComposer
     column: $table.updatedAt,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<String> get vehicleType => $composableBuilder(
+    column: $table.vehicleType,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$AssetsTableAnnotationComposer
@@ -4936,6 +5007,11 @@ class $$AssetsTableAnnotationComposer
 
   GeneratedColumn<DateTime> get updatedAt =>
       $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+
+  GeneratedColumn<String> get vehicleType => $composableBuilder(
+    column: $table.vehicleType,
+    builder: (column) => column,
+  );
 }
 
 class $$AssetsTableTableManager
@@ -4975,6 +5051,7 @@ class $$AssetsTableTableManager
                 Value<String?> notes = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
+                Value<String?> vehicleType = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => AssetsCompanion(
                 id: id,
@@ -4986,6 +5063,7 @@ class $$AssetsTableTableManager
                 notes: notes,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
+                vehicleType: vehicleType,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -4999,6 +5077,7 @@ class $$AssetsTableTableManager
                 Value<String?> notes = const Value.absent(),
                 required DateTime createdAt,
                 required DateTime updatedAt,
+                Value<String?> vehicleType = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => AssetsCompanion.insert(
                 id: id,
@@ -5010,6 +5089,7 @@ class $$AssetsTableTableManager
                 notes: notes,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
+                vehicleType: vehicleType,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
