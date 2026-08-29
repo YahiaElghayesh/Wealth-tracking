@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Fixed "good" green badge circle overlaid on the quick-add widget's
+     avatar -- same fixed widget palette as widget_avatar_circle.xml. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="oval">
+    <solid android:color="#FF17A673" />
+    <stroke android:width="2dp" android:color="#FFFFFFFF" />
+</shape>

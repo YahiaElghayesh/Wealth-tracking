@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Fixed accent circle behind the quick-add widget's avatar initial —
+     part of the widget palette, which stays constant regardless of the
+     in-app Light/Dark theme (see WidgetBackground.kt's doc comment). -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="oval">
+    <solid android:color="#FF2F5FE0" />
+</shape>

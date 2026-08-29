@@ -45,10 +45,18 @@ class HomeWidgetService {
     required double? usdToEgpRate,
   }) async {
     await HomeWidget.saveWidgetData<String>('net_worth_total_usd', formatUsd(summary.totalUsd));
-    await HomeWidget.saveWidgetData<String>('net_worth_liquid_usd', formatUsd(summary.liquidUsd));
+    // Widget rows show both the percent and the actual value on each side
+    // (e.g. "68% · $14,120"), not just a bare amount -- matches the
+    // approved redesign's wpill pattern.
+    final splitTotal = summary.liquidUsd + summary.nonLiquidUsd;
+    final liquidPct = splitTotal <= 0 ? 0 : (summary.liquidUsd / splitTotal * 100).round();
+    await HomeWidget.saveWidgetData<String>(
+      'net_worth_liquid_usd',
+      '$liquidPct% · ${formatUsd(summary.liquidUsd)}',
+    );
     await HomeWidget.saveWidgetData<String>(
       'net_worth_nonliquid_usd',
-      formatUsd(summary.nonLiquidUsd),
+      '${100 - liquidPct}% · ${formatUsd(summary.nonLiquidUsd)}',
     );
     await HomeWidget.saveWidgetData<String>(
       'net_worth_total_egp',

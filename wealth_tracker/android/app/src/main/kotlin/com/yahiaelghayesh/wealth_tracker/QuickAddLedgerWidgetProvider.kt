@@ -38,9 +38,18 @@ class QuickAddLedgerWidgetProvider : AppWidgetProvider() {
                 uriBuilder.build(),
             )
 
+            // The avatar shows the bound ledger's initial (matching the
+            // mockup's w1x1 pattern); an unconfigured widget just keeps
+            // the "+" it's inflated with, since there's no name yet to
+            // take an initial from.
+            val initial = configured?.second?.trim()?.firstOrNull()?.uppercaseChar()?.toString()
+
             val views = RemoteViews(context.packageName, R.layout.quick_add_ledger_widget).apply {
                 setOnClickPendingIntent(R.id.quick_add_root, pendingIntent)
                 setTextViewText(R.id.quick_add_subtitle, configured?.second ?: "")
+                if (initial != null) {
+                    setTextViewText(R.id.quick_add_avatar, initial)
+                }
             }
             WidgetBackground.applyTo(views, R.id.quick_add_root, widgetData)
             appWidgetManager.updateAppWidget(widgetId, views)

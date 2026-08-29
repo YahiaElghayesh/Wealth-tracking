@@ -7,6 +7,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
 import android.os.SystemClock
+import android.util.TypedValue
 import android.widget.RemoteViews
 import es.antonborri.home_widget.HomeWidgetPlugin
 import es.antonborri.home_widget.HomeWidgetProvider
@@ -58,11 +59,23 @@ class NetWorthWidgetProvider : HomeWidgetProvider() {
 
             val options = appWidgetManager.getAppWidgetOptions(widgetId)
             val heightDp = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, Int.MAX_VALUE)
+            val widthDp = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, Int.MAX_VALUE)
             val showBreakdown = heightDp >= 90
             val showUpdatedAt = heightDp >= 130
+            // Classic RemoteViews text is a fixed sp size that doesn't
+            // reflow to fit a resized widget -- a compact-width widget
+            // showing a large EGP total (e.g. "EGP 1,842,300") would
+            // otherwise clip with an ellipsis instead of just rendering
+            // smaller. Step the size down as the granted width shrinks.
+            val totalTextSizeSp = when {
+                widthDp < 110 -> 15f
+                widthDp < 150 -> 18f
+                else -> 22f
+            }
 
             val views = RemoteViews(context.packageName, R.layout.net_worth_widget).apply {
                 setOnClickPendingIntent(R.id.widget_root, revealPendingIntent)
+                setTextViewTextSize(R.id.widget_total_egp, TypedValue.COMPLEX_UNIT_SP, totalTextSizeSp)
                 // Primary figure is EGP (bigger, first) with USD secondary —
                 // matches how the rest of the app now orders the two.
                 setTextViewText(

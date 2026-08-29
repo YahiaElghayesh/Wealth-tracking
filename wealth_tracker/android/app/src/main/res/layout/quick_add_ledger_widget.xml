@@ -7,13 +7,33 @@
     android:gravity="center_vertical"
     android:padding="12dp">
 
-    <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="+"
-        android:textSize="28sp"
-        android:textStyle="bold"
-        android:textColor="#FFFFFF" />
+    <FrameLayout
+        android:layout_width="40dp"
+        android:layout_height="40dp">
+
+        <TextView
+            android:id="@+id/quick_add_avatar"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:background="@drawable/widget_avatar_circle"
+            android:gravity="center"
+            android:text="+"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:textColor="#FFFFFFFF" />
+
+        <TextView
+            android:layout_width="16dp"
+            android:layout_height="16dp"
+            android:layout_gravity="bottom|end"
+            android:background="@drawable/widget_badge_circle"
+            android:gravity="center"
+            android:text="+"
+            android:textSize="9sp"
+            android:textStyle="bold"
+            android:textColor="#FFFFFFFF" />
+
+    </FrameLayout>
 
     <LinearLayout
         android:layout_width="0dp"
