@@ -60,7 +60,12 @@ class _AddEditAssetScreenState extends ConsumerState<AddEditAssetScreen> {
 
   /// Which categories currently support recording a purchase price for a
   /// gain/loss-since-purchase display on the dashboard.
-  static const _purchasePriceCategories = {AssetCategory.gold, AssetCategory.silver, AssetCategory.realEstate};
+  static const _purchasePriceCategories = {
+    AssetCategory.gold,
+    AssetCategory.silver,
+    AssetCategory.realEstate,
+    AssetCategory.stock,
+  };
 
   @override
   void initState() {
@@ -279,6 +284,7 @@ class _AddEditAssetScreenState extends ConsumerState<AddEditAssetScreen> {
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
             validator: _requiredNumber,
           ),
+          ..._purchasePriceFields(),
         ];
       case ValuationMode.crypto:
         return [
