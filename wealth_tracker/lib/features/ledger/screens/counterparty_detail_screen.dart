@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/format/money_formatter.dart';
 import '../../../core/models/currency.dart';
+import '../../../core/providers/privacy_providers.dart';
+import '../../../core/widgets/hide_values_action.dart';
 import '../../../core/widgets/money_text.dart';
 import '../../../data/db/database.dart';
 import '../../../data/ledger/ledger_calculator.dart';
@@ -20,11 +22,13 @@ class CounterpartyDetailScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final transactionsAsync = ref.watch(transactionsStreamProvider(counterparty.id));
     final prices = ref.watch(pricesUsdPerUnitProvider);
+    final hideValues = ref.watch(hideValuesProvider);
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(counterparty.name),
+        title: Text(hideValues ? '••••••' : counterparty.name),
         actions: [
+          const HideValuesAction(),
           IconButton(
             icon: const Icon(Icons.summarize),
             tooltip: 'Monthly summary',

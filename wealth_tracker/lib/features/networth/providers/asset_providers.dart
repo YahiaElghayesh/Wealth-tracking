@@ -1,5 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/models/asset_category.dart';
+import '../../../core/providers/core_providers.dart';
 import '../../../data/db/database.dart';
 import '../../../data/net_worth/net_worth_calculator.dart';
 import '../../../data/repositories/asset_repository.dart';
@@ -27,8 +29,15 @@ final pricesUsdPerUnitProvider = StateProvider<Map<String, double>>((ref) => {})
 /// totals net worth is computed in.
 final usdToEgpRateProvider = StateProvider<double?>((ref) => null);
 
+/// Re-read after every write so widgets watching this rebuild with the
+/// latest overrides — same pattern as [metalsApiKeyProvider].
+final assetClassOverridesProvider = StateProvider<Map<AssetCategory, AssetClass>>((ref) {
+  return ref.watch(settingsRepositoryProvider).assetClassOverrides;
+});
+
 final netWorthResultProvider = Provider<NetWorthResult>((ref) {
   final assets = ref.watch(assetsStreamProvider).valueOrNull ?? const [];
   final prices = ref.watch(pricesUsdPerUnitProvider);
-  return calculateNetWorth(assets, prices);
+  final classOverrides = ref.watch(assetClassOverridesProvider);
+  return calculateNetWorth(assets, prices, classOverrides: classOverrides);
 });

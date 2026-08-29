@@ -4,30 +4,38 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    android:padding="16dp">
+    android:gravity="center_vertical"
+    android:padding="14dp">
+
+    <!-- EGP is the primary figure (bigger, first) with USD secondary,
+         matching the rest of the app. -->
+    <TextView
+        android:id="@+id/widget_total_egp"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="—"
+        android:textSize="22sp"
+        android:textStyle="bold"
+        android:textColor="#FFFFFF"
+        android:maxLines="1"
+        android:ellipsize="end" />
 
     <TextView
         android:id="@+id/widget_total_usd"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="—"
-        android:textSize="24sp"
-        android:textStyle="bold"
-        android:textColor="#FFFFFF" />
-
-    <TextView
-        android:id="@+id/widget_total_egp"
-        android:layout_width="wrap_content"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="2dp"
         android:text=""
-        android:textSize="14sp"
-        android:textColor="#CCFFFFFF" />
+        android:textSize="13sp"
+        android:textColor="#CCFFFFFF"
+        android:maxLines="1"
+        android:ellipsize="end" />
 
     <LinearLayout
+        android:id="@+id/widget_breakdown_row"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="12dp"
+        android:layout_marginTop="10dp"
         android:orientation="horizontal">
 
         <LinearLayout
@@ -45,12 +53,14 @@
 
             <TextView
                 android:id="@+id/widget_liquid"
-                android:layout_width="wrap_content"
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:text="—"
-                android:textSize="14sp"
+                android:textSize="13sp"
                 android:textStyle="bold"
-                android:textColor="#FFFFFF" />
+                android:textColor="#FFFFFF"
+                android:maxLines="1"
+                android:ellipsize="end" />
         </LinearLayout>
 
         <LinearLayout
@@ -68,22 +78,26 @@
 
             <TextView
                 android:id="@+id/widget_nonliquid"
-                android:layout_width="wrap_content"
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:text="—"
-                android:textSize="14sp"
+                android:textSize="13sp"
                 android:textStyle="bold"
-                android:textColor="#FFFFFF" />
+                android:textColor="#FFFFFF"
+                android:maxLines="1"
+                android:ellipsize="end" />
         </LinearLayout>
     </LinearLayout>
 
     <TextView
         android:id="@+id/widget_updated_at"
-        android:layout_width="wrap_content"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="10dp"
+        android:layout_marginTop="8dp"
         android:text=""
         android:textSize="10sp"
-        android:textColor="#80FFFFFF" />
+        android:textColor="#80FFFFFF"
+        android:maxLines="1"
+        android:ellipsize="end" />
 
 </LinearLayout>

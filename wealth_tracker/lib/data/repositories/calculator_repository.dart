@@ -22,6 +22,7 @@ class CalculatorRepository {
     required String bank,
     required double limit,
     required String currency,
+    String? lastFourDigits,
   }) async {
     final count = await _db.select(_db.creditCards).get();
     await _db.into(_db.creditCards).insert(
@@ -32,6 +33,7 @@ class CalculatorRepository {
             limitAmount: limit,
             currency: Value(currency),
             sortOrder: Value(count.length),
+            lastFourDigits: Value(lastFourDigits),
           ),
         );
   }

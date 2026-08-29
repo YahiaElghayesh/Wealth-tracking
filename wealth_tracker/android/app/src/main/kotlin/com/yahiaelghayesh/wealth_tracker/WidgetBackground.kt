@@ -1,19 +1,16 @@
 package com.yahiaelghayesh.wealth_tracker
 
 import android.content.SharedPreferences
+import android.content.res.ColorStateList
+import android.os.Build
+import android.widget.RemoteViews
 
 /**
  * Resolves the user's chosen widget background preset + opacity (both set
  * from the app's Settings screen, mirrored into home_widget's shared prefs)
- * to a single ARGB color — shared by both widget providers so they always
- * agree on the available presets and the fallback.
- *
- * This is applied via `RemoteViews.setInt(id, "setBackgroundColor", ...)`
- * rather than a preset drawable, so opacity is a plain alpha channel on a
- * flat fill rather than a fixed value baked into an XML shape. Modern
- * Android (12+) launchers already round every widget's outer corners
- * themselves, so losing the drawable's own corner radius isn't a visible
- * regression there.
+ * and applies it to a widget's root view — shared by both widget providers
+ * so they always agree on the available presets, the fallback, and how the
+ * color actually gets painted.
  */
 object WidgetBackground {
     private const val PRESET_KEY = "widget_background_preset"
@@ -29,7 +26,7 @@ object WidgetBackground {
     /** Matches the pre-opacity-control default look (~12% alpha). */
     private const val DEFAULT_OPACITY_PERCENT = 12
 
-    fun resolveColor(widgetData: SharedPreferences): Int {
+    private fun resolveColor(widgetData: SharedPreferences): Int {
         val base = when (widgetData.getString(PRESET_KEY, "default")) {
             "blue" -> COLOR_BLUE
             "purple" -> COLOR_PURPLE
@@ -40,5 +37,25 @@ object WidgetBackground {
         val percent = widgetData.getInt(OPACITY_KEY, DEFAULT_OPACITY_PERCENT).coerceIn(0, 100)
         val alpha = percent * 255 / 100
         return (alpha shl 24) or (base and 0x00FFFFFF)
+    }
+
+    /**
+     * Paints [rootId] with the user's chosen color + opacity, rounded where
+     * the platform allows it. RemoteViews has no direct "rounded rect with
+     * an arbitrary runtime color" primitive: `setBackgroundColor` always
+     * paints a flat, square-cornered fill, and tinting a shape drawable's
+     * color at runtime (`setColorStateList` -> `setBackgroundTintList`)
+     * only exists from Android 12 onward. So: 12+ gets the real rounded
+     * shape, tinted; everything older falls back to the previous flat,
+     * square-cornered fill so color/opacity still work everywhere.
+     */
+    fun applyTo(views: RemoteViews, rootId: Int, widgetData: SharedPreferences) {
+        val argb = resolveColor(widgetData)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            views.setInt(rootId, "setBackgroundResource", R.drawable.widget_rounded_shape)
+            views.setColorStateList(rootId, "setBackgroundTintList", ColorStateList.valueOf(argb))
+        } else {
+            views.setInt(rootId, "setBackgroundColor", argb)
+        }
     }
 }

@@ -142,6 +142,12 @@ class CreditCards extends Table {
   /// not tied to it, so a future "reorder" gesture has somewhere to write.
   IntColumn get sortOrder => integer().withDefault(const Constant(0))();
 
+  /// The last 4 digits printed on the card, as they appear in bank SMS
+  /// alerts (e.g. "...ending in 4912") — lets a future SMS-based balance
+  /// update know which card a given message is about. Optional; nothing
+  /// reads this yet.
+  TextColumn get lastFourDigits => text().nullable()();
+
   @override
   Set<Column> get primaryKey => {id};
 }

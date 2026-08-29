@@ -26,6 +26,11 @@ class LedgerRepository {
     await (_db.delete(_db.counterparties)..where((c) => c.id.equals(id))).go();
   }
 
+  Future<void> renameCounterparty(String id, String name) {
+    return (_db.update(_db.counterparties)..where((c) => c.id.equals(id)))
+        .write(CounterpartiesCompanion(name: Value(name)));
+  }
+
   Stream<List<LedgerTransaction>> watchTransactions(String counterpartyId) {
     return (_db.select(_db.ledgerTransactions)
           ..where((t) => t.counterpartyId.equals(counterpartyId))

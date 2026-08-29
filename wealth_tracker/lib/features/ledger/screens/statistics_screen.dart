@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 
 import '../../../core/format/money_formatter.dart';
 import '../../../core/models/currency.dart';
+import '../../../core/widgets/hide_values_action.dart';
 import '../../../data/ledger/ledger_calculator.dart';
 import '../../networth/providers/asset_providers.dart' show pricesUsdPerUnitProvider;
 import '../providers/ledger_providers.dart';
@@ -24,7 +25,7 @@ class _StatisticsScreenState extends ConsumerState<StatisticsScreen> {
     final counterpartiesAsync = ref.watch(counterpartiesStreamProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Statistics')),
+      appBar: AppBar(title: const Text('Statistics'), actions: const [HideValuesAction()]),
       body: counterpartiesAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, st) => Center(child: Text('Error: $e')),
@@ -100,44 +101,64 @@ class _StatisticsBodyState extends ConsumerState<_StatisticsBody> {
         return ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            Text('Spend by month', style: Theme.of(context).textTheme.titleMedium),
-            const SizedBox(height: 8),
-            SizedBox(height: 220, child: _MonthlyTrendChart(trend: trend)),
-            const SizedBox(height: 32),
-            Text('By category', style: Theme.of(context).textTheme.titleMedium),
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: _recentMonths().map((month) {
-                final selected = _selectedMonths.any(
-                  (m) => m.year == month.year && m.month == month.month,
-                );
-                return FilterChip(
-                  label: Text(DateFormat.MMM().format(month)),
-                  selected: selected,
-                  onSelected: (isSelected) {
-                    setState(() {
-                      if (isSelected) {
-                        _selectedMonths = {..._selectedMonths, month};
-                      } else {
-                        _selectedMonths = _selectedMonths
-                            .where((m) => !(m.year == month.year && m.month == month.month))
-                            .toSet();
-                      }
-                    });
-                  },
-                );
-              }).toList(),
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Spend by month', style: Theme.of(context).textTheme.titleMedium),
+                    const SizedBox(height: 12),
+                    SizedBox(height: 220, child: _MonthlyTrendChart(trend: trend)),
+                  ],
+                ),
+              ),
             ),
             const SizedBox(height: 16),
-            if (sortedCategories.isEmpty)
-              const Padding(
-                padding: EdgeInsets.symmetric(vertical: 16),
-                child: Text('No expenses in the selected month(s).'),
-              )
-            else
-              _CategoryPieChart(categories: sortedCategories),
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('By category', style: Theme.of(context).textTheme.titleMedium),
+                    const SizedBox(height: 12),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: _recentMonths().map((month) {
+                        final selected = _selectedMonths.any(
+                          (m) => m.year == month.year && m.month == month.month,
+                        );
+                        return FilterChip(
+                          label: Text(DateFormat.MMM().format(month)),
+                          selected: selected,
+                          onSelected: (isSelected) {
+                            setState(() {
+                              if (isSelected) {
+                                _selectedMonths = {..._selectedMonths, month};
+                              } else {
+                                _selectedMonths = _selectedMonths
+                                    .where((m) => !(m.year == month.year && m.month == month.month))
+                                    .toSet();
+                              }
+                            });
+                          },
+                        );
+                      }).toList(),
+                    ),
+                    const SizedBox(height: 16),
+                    if (sortedCategories.isEmpty)
+                      const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 16),
+                        child: Text('No expenses in the selected month(s).'),
+                      )
+                    else
+                      _CategoryPieChart(categories: sortedCategories),
+                  ],
+                ),
+              ),
+            ),
           ],
         );
       },

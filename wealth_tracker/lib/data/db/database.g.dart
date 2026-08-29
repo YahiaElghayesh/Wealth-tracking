@@ -3308,6 +3308,17 @@ class $CreditCardsTable extends CreditCards
     requiredDuringInsert: false,
     defaultValue: const Constant(0),
   );
+  static const VerificationMeta _lastFourDigitsMeta = const VerificationMeta(
+    'lastFourDigits',
+  );
+  @override
+  late final GeneratedColumn<String> lastFourDigits = GeneratedColumn<String>(
+    'last_four_digits',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -3316,6 +3327,7 @@ class $CreditCardsTable extends CreditCards
     limitAmount,
     currency,
     sortOrder,
+    lastFourDigits,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -3373,6 +3385,15 @@ class $CreditCardsTable extends CreditCards
         sortOrder.isAcceptableOrUnknown(data['sort_order']!, _sortOrderMeta),
       );
     }
+    if (data.containsKey('last_four_digits')) {
+      context.handle(
+        _lastFourDigitsMeta,
+        lastFourDigits.isAcceptableOrUnknown(
+          data['last_four_digits']!,
+          _lastFourDigitsMeta,
+        ),
+      );
+    }
     return context;
   }
 
@@ -3406,6 +3427,10 @@ class $CreditCardsTable extends CreditCards
         DriftSqlType.int,
         data['${effectivePrefix}sort_order'],
       )!,
+      lastFourDigits: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}last_four_digits'],
+      ),
     );
   }
 
@@ -3425,6 +3450,12 @@ class CreditCard extends DataClass implements Insertable<CreditCard> {
   /// Manual ordering for display — set to insertion order by default, but
   /// not tied to it, so a future "reorder" gesture has somewhere to write.
   final int sortOrder;
+
+  /// The last 4 digits printed on the card, as they appear in bank SMS
+  /// alerts (e.g. "...ending in 4912") — lets a future SMS-based balance
+  /// update know which card a given message is about. Optional; nothing
+  /// reads this yet.
+  final String? lastFourDigits;
   const CreditCard({
     required this.id,
     required this.name,
@@ -3432,6 +3463,7 @@ class CreditCard extends DataClass implements Insertable<CreditCard> {
     required this.limitAmount,
     required this.currency,
     required this.sortOrder,
+    this.lastFourDigits,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -3442,6 +3474,9 @@ class CreditCard extends DataClass implements Insertable<CreditCard> {
     map['limit_amount'] = Variable<double>(limitAmount);
     map['currency'] = Variable<String>(currency);
     map['sort_order'] = Variable<int>(sortOrder);
+    if (!nullToAbsent || lastFourDigits != null) {
+      map['last_four_digits'] = Variable<String>(lastFourDigits);
+    }
     return map;
   }
 
@@ -3453,6 +3488,9 @@ class CreditCard extends DataClass implements Insertable<CreditCard> {
       limitAmount: Value(limitAmount),
       currency: Value(currency),
       sortOrder: Value(sortOrder),
+      lastFourDigits: lastFourDigits == null && nullToAbsent
+          ? const Value.absent()
+          : Value(lastFourDigits),
     );
   }
 
@@ -3468,6 +3506,7 @@ class CreditCard extends DataClass implements Insertable<CreditCard> {
       limitAmount: serializer.fromJson<double>(json['limitAmount']),
       currency: serializer.fromJson<String>(json['currency']),
       sortOrder: serializer.fromJson<int>(json['sortOrder']),
+      lastFourDigits: serializer.fromJson<String?>(json['lastFourDigits']),
     );
   }
   @override
@@ -3480,6 +3519,7 @@ class CreditCard extends DataClass implements Insertable<CreditCard> {
       'limitAmount': serializer.toJson<double>(limitAmount),
       'currency': serializer.toJson<String>(currency),
       'sortOrder': serializer.toJson<int>(sortOrder),
+      'lastFourDigits': serializer.toJson<String?>(lastFourDigits),
     };
   }
 
@@ -3490,6 +3530,7 @@ class CreditCard extends DataClass implements Insertable<CreditCard> {
     double? limitAmount,
     String? currency,
     int? sortOrder,
+    Value<String?> lastFourDigits = const Value.absent(),
   }) => CreditCard(
     id: id ?? this.id,
     name: name ?? this.name,
@@ -3497,6 +3538,9 @@ class CreditCard extends DataClass implements Insertable<CreditCard> {
     limitAmount: limitAmount ?? this.limitAmount,
     currency: currency ?? this.currency,
     sortOrder: sortOrder ?? this.sortOrder,
+    lastFourDigits: lastFourDigits.present
+        ? lastFourDigits.value
+        : this.lastFourDigits,
   );
   CreditCard copyWithCompanion(CreditCardsCompanion data) {
     return CreditCard(
@@ -3508,6 +3552,9 @@ class CreditCard extends DataClass implements Insertable<CreditCard> {
           : this.limitAmount,
       currency: data.currency.present ? data.currency.value : this.currency,
       sortOrder: data.sortOrder.present ? data.sortOrder.value : this.sortOrder,
+      lastFourDigits: data.lastFourDigits.present
+          ? data.lastFourDigits.value
+          : this.lastFourDigits,
     );
   }
 
@@ -3519,14 +3566,22 @@ class CreditCard extends DataClass implements Insertable<CreditCard> {
           ..write('bank: $bank, ')
           ..write('limitAmount: $limitAmount, ')
           ..write('currency: $currency, ')
-          ..write('sortOrder: $sortOrder')
+          ..write('sortOrder: $sortOrder, ')
+          ..write('lastFourDigits: $lastFourDigits')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode =>
-      Object.hash(id, name, bank, limitAmount, currency, sortOrder);
+  int get hashCode => Object.hash(
+    id,
+    name,
+    bank,
+    limitAmount,
+    currency,
+    sortOrder,
+    lastFourDigits,
+  );
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -3536,7 +3591,8 @@ class CreditCard extends DataClass implements Insertable<CreditCard> {
           other.bank == this.bank &&
           other.limitAmount == this.limitAmount &&
           other.currency == this.currency &&
-          other.sortOrder == this.sortOrder);
+          other.sortOrder == this.sortOrder &&
+          other.lastFourDigits == this.lastFourDigits);
 }
 
 class CreditCardsCompanion extends UpdateCompanion<CreditCard> {
@@ -3546,6 +3602,7 @@ class CreditCardsCompanion extends UpdateCompanion<CreditCard> {
   final Value<double> limitAmount;
   final Value<String> currency;
   final Value<int> sortOrder;
+  final Value<String?> lastFourDigits;
   final Value<int> rowid;
   const CreditCardsCompanion({
     this.id = const Value.absent(),
@@ -3554,6 +3611,7 @@ class CreditCardsCompanion extends UpdateCompanion<CreditCard> {
     this.limitAmount = const Value.absent(),
     this.currency = const Value.absent(),
     this.sortOrder = const Value.absent(),
+    this.lastFourDigits = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   CreditCardsCompanion.insert({
@@ -3563,6 +3621,7 @@ class CreditCardsCompanion extends UpdateCompanion<CreditCard> {
     required double limitAmount,
     this.currency = const Value.absent(),
     this.sortOrder = const Value.absent(),
+    this.lastFourDigits = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
        name = Value(name),
@@ -3575,6 +3634,7 @@ class CreditCardsCompanion extends UpdateCompanion<CreditCard> {
     Expression<double>? limitAmount,
     Expression<String>? currency,
     Expression<int>? sortOrder,
+    Expression<String>? lastFourDigits,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -3584,6 +3644,7 @@ class CreditCardsCompanion extends UpdateCompanion<CreditCard> {
       if (limitAmount != null) 'limit_amount': limitAmount,
       if (currency != null) 'currency': currency,
       if (sortOrder != null) 'sort_order': sortOrder,
+      if (lastFourDigits != null) 'last_four_digits': lastFourDigits,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -3595,6 +3656,7 @@ class CreditCardsCompanion extends UpdateCompanion<CreditCard> {
     Value<double>? limitAmount,
     Value<String>? currency,
     Value<int>? sortOrder,
+    Value<String?>? lastFourDigits,
     Value<int>? rowid,
   }) {
     return CreditCardsCompanion(
@@ -3604,6 +3666,7 @@ class CreditCardsCompanion extends UpdateCompanion<CreditCard> {
       limitAmount: limitAmount ?? this.limitAmount,
       currency: currency ?? this.currency,
       sortOrder: sortOrder ?? this.sortOrder,
+      lastFourDigits: lastFourDigits ?? this.lastFourDigits,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -3629,6 +3692,9 @@ class CreditCardsCompanion extends UpdateCompanion<CreditCard> {
     if (sortOrder.present) {
       map['sort_order'] = Variable<int>(sortOrder.value);
     }
+    if (lastFourDigits.present) {
+      map['last_four_digits'] = Variable<String>(lastFourDigits.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -3644,6 +3710,7 @@ class CreditCardsCompanion extends UpdateCompanion<CreditCard> {
           ..write('limitAmount: $limitAmount, ')
           ..write('currency: $currency, ')
           ..write('sortOrder: $sortOrder, ')
+          ..write('lastFourDigits: $lastFourDigits, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -6151,6 +6218,7 @@ typedef $$CreditCardsTableCreateCompanionBuilder =
       required double limitAmount,
       Value<String> currency,
       Value<int> sortOrder,
+      Value<String?> lastFourDigits,
       Value<int> rowid,
     });
 typedef $$CreditCardsTableUpdateCompanionBuilder =
@@ -6161,6 +6229,7 @@ typedef $$CreditCardsTableUpdateCompanionBuilder =
       Value<double> limitAmount,
       Value<String> currency,
       Value<int> sortOrder,
+      Value<String?> lastFourDigits,
       Value<int> rowid,
     });
 
@@ -6200,6 +6269,11 @@ class $$CreditCardsTableFilterComposer
 
   ColumnFilters<int> get sortOrder => $composableBuilder(
     column: $table.sortOrder,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get lastFourDigits => $composableBuilder(
+    column: $table.lastFourDigits,
     builder: (column) => ColumnFilters(column),
   );
 }
@@ -6242,6 +6316,11 @@ class $$CreditCardsTableOrderingComposer
     column: $table.sortOrder,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<String> get lastFourDigits => $composableBuilder(
+    column: $table.lastFourDigits,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$CreditCardsTableAnnotationComposer
@@ -6272,6 +6351,11 @@ class $$CreditCardsTableAnnotationComposer
 
   GeneratedColumn<int> get sortOrder =>
       $composableBuilder(column: $table.sortOrder, builder: (column) => column);
+
+  GeneratedColumn<String> get lastFourDigits => $composableBuilder(
+    column: $table.lastFourDigits,
+    builder: (column) => column,
+  );
 }
 
 class $$CreditCardsTableTableManager
@@ -6311,6 +6395,7 @@ class $$CreditCardsTableTableManager
                 Value<double> limitAmount = const Value.absent(),
                 Value<String> currency = const Value.absent(),
                 Value<int> sortOrder = const Value.absent(),
+                Value<String?> lastFourDigits = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => CreditCardsCompanion(
                 id: id,
@@ -6319,6 +6404,7 @@ class $$CreditCardsTableTableManager
                 limitAmount: limitAmount,
                 currency: currency,
                 sortOrder: sortOrder,
+                lastFourDigits: lastFourDigits,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -6329,6 +6415,7 @@ class $$CreditCardsTableTableManager
                 required double limitAmount,
                 Value<String> currency = const Value.absent(),
                 Value<int> sortOrder = const Value.absent(),
+                Value<String?> lastFourDigits = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => CreditCardsCompanion.insert(
                 id: id,
@@ -6337,6 +6424,7 @@ class $$CreditCardsTableTableManager
                 limitAmount: limitAmount,
                 currency: currency,
                 sortOrder: sortOrder,
+                lastFourDigits: lastFourDigits,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0

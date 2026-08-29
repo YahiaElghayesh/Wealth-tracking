@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Adaptive-icon background — matches the flat legacy launcher icon's
+         top-of-gradient teal, so the two look consistent across Android
+         versions old and new. -->
+    <color name="ic_launcher_background">#2E7D6B</color>
+</resources>

@@ -5,6 +5,7 @@ import '../../../core/format/money_formatter.dart';
 import '../../../core/models/calculator_custom_item.dart';
 import '../../../core/models/card_snapshot_entry.dart';
 import '../../../core/models/currency.dart';
+import '../../../core/widgets/hide_values_action.dart';
 import '../../../core/widgets/money_text.dart';
 import '../../../data/calculator/current_money_calculator.dart';
 import '../../../data/db/database.dart';
@@ -253,6 +254,7 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
       appBar: AppBar(
         title: const Text('Calculator'),
         actions: [
+          const HideValuesAction(),
           IconButton(
             icon: const Icon(Icons.history),
             tooltip: 'History',
@@ -299,7 +301,18 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
               _Section(
                 title: 'Apartment savings',
                 children: [
-                  _SignedAmountField(isAddition: false, label: 'Amount', controller: _apartmentController),
+                  _SignedAmountField(
+                    // Rebuilds this field's element fresh the instant it's
+                    // seeded with the last saved value — reusing the same
+                    // element across "goes from empty to programmatically
+                    // filled" left the floating label stuck overlapping the
+                    // value instead of settling above the box the way it
+                    // does for a field the user types into normally.
+                    key: ValueKey('apartment-$_apartmentSeeded'),
+                    isAddition: false,
+                    label: 'Amount',
+                    controller: _apartmentController,
+                  ),
                 ],
               ),
               const SizedBox(height: 16),
@@ -497,7 +510,7 @@ class _SignedRow extends StatelessWidget {
 }
 
 class _SignedAmountField extends StatelessWidget {
-  const _SignedAmountField({required this.isAddition, required this.label, required this.controller});
+  const _SignedAmountField({super.key, required this.isAddition, required this.label, required this.controller});
 
   final bool isAddition;
   final String label;
@@ -512,8 +525,9 @@ class _SignedAmountField extends StatelessWidget {
         const SizedBox(width: 12),
         Expanded(
           child: _SelectAllOnFocusField(
+            key: key,
             controller: controller,
-            decoration: InputDecoration(labelText: label, hintText: '0.00'),
+            decoration: InputDecoration(labelText: label, hintText: '0.00', suffixText: defaultCurrency),
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
           ),
         ),
@@ -528,7 +542,7 @@ class _SignedAmountField extends StatelessWidget {
 /// tapping away without typing leaves the value untouched, since only the
 /// selection highlight changes, not the text itself.
 class _SelectAllOnFocusField extends StatefulWidget {
-  const _SelectAllOnFocusField({required this.controller, this.decoration, this.keyboardType});
+  const _SelectAllOnFocusField({super.key, required this.controller, this.decoration, this.keyboardType});
 
   final TextEditingController controller;
   final InputDecoration? decoration;

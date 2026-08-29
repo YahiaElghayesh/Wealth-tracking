@@ -31,8 +31,14 @@ class NetWorthSummaryCard extends StatelessWidget {
           children: [
             Text('Total Net Worth', style: theme.textTheme.titleMedium),
             const SizedBox(height: 4),
-            MoneyText(formatUsd(summary.totalUsd), style: theme.textTheme.headlineMedium, maskLength: 9),
-            if (egpTotal != null) MoneyText(formatEgp(egpTotal), style: theme.textTheme.bodyLarge),
+            // EGP is the primary figure (bigger, first), USD secondary —
+            // matches the home-screen widget.
+            MoneyText(
+              egpTotal == null ? '—' : formatEgp(egpTotal),
+              style: theme.textTheme.headlineMedium,
+              maskLength: 9,
+            ),
+            MoneyText(formatUsd(summary.totalUsd), style: theme.textTheme.bodyLarge),
             const SizedBox(height: 20),
             if (summary.totalUsd > 0)
               SizedBox(
@@ -72,12 +78,14 @@ class NetWorthSummaryCard extends StatelessWidget {
                             color: theme.colorScheme.primary,
                             label: 'Liquid',
                             valueUsd: summary.liquidUsd,
+                            usdToEgpRate: usdToEgpRate,
                           ),
                           const SizedBox(height: 8),
                           _LegendRow(
                             color: theme.colorScheme.tertiary,
                             label: 'Non-liquid',
                             valueUsd: summary.nonLiquidUsd,
+                            usdToEgpRate: usdToEgpRate,
                           ),
                         ],
                       ),
@@ -95,14 +103,21 @@ class NetWorthSummaryCard extends StatelessWidget {
 }
 
 class _LegendRow extends StatelessWidget {
-  const _LegendRow({required this.color, required this.label, required this.valueUsd});
+  const _LegendRow({
+    required this.color,
+    required this.label,
+    required this.valueUsd,
+    required this.usdToEgpRate,
+  });
 
   final Color color;
   final String label;
   final double valueUsd;
+  final double? usdToEgpRate;
 
   @override
   Widget build(BuildContext context) {
+    final egpValue = usdToEgpRate == null ? null : valueUsd * usdToEgpRate!;
     return Row(
       children: [
         Container(width: 12, height: 12, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
@@ -112,7 +127,10 @@ class _LegendRow extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(label, style: Theme.of(context).textTheme.bodySmall),
-              MoneyText(formatUsd(valueUsd), style: Theme.of(context).textTheme.bodyMedium),
+              MoneyText(
+                egpValue == null ? '—' : formatEgp(egpValue),
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
             ],
           ),
         ),

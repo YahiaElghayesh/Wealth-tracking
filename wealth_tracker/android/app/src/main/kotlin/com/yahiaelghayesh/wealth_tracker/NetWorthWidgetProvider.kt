@@ -33,6 +33,11 @@ class NetWorthWidgetProvider : HomeWidgetProvider() {
         private const val REVEAL_DURATION_MS = 5000L
         private const val MASK = "••••••"
 
+        // Classic RemoteViews text doesn't reflow or auto-shrink to fit the
+        // space a launcher actually grants a resized widget — fixed sp
+        // sizes at a 1-cell height just overlap/clip instead. Rather than
+        // let that happen, hide progressively more of the secondary rows
+        // as the granted height shrinks, so what *is* shown always fits.
         private fun renderOne(
             context: Context,
             appWidgetManager: AppWidgetManager,
@@ -51,16 +56,22 @@ class NetWorthWidgetProvider : HomeWidgetProvider() {
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
             )
 
+            val options = appWidgetManager.getAppWidgetOptions(widgetId)
+            val heightDp = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, Int.MAX_VALUE)
+            val showBreakdown = heightDp >= 90
+            val showUpdatedAt = heightDp >= 130
+
             val views = RemoteViews(context.packageName, R.layout.net_worth_widget).apply {
-                setInt(R.id.widget_root, "setBackgroundColor", WidgetBackground.resolveColor(widgetData))
                 setOnClickPendingIntent(R.id.widget_root, revealPendingIntent)
-                setTextViewText(
-                    R.id.widget_total_usd,
-                    if (revealed) widgetData.getString("net_worth_total_usd", "—") ?: "—" else MASK,
-                )
+                // Primary figure is EGP (bigger, first) with USD secondary —
+                // matches how the rest of the app now orders the two.
                 setTextViewText(
                     R.id.widget_total_egp,
-                    if (revealed) widgetData.getString("net_worth_total_egp", "") ?: "" else MASK,
+                    if (revealed) widgetData.getString("net_worth_total_egp", "—")?.ifBlank { "—" } ?: "—" else MASK,
+                )
+                setTextViewText(
+                    R.id.widget_total_usd,
+                    if (revealed) widgetData.getString("net_worth_total_usd", "") ?: "" else MASK,
                 )
                 setTextViewText(
                     R.id.widget_liquid,
@@ -74,7 +85,10 @@ class NetWorthWidgetProvider : HomeWidgetProvider() {
                     R.id.widget_updated_at,
                     if (revealed) widgetData.getString("net_worth_updated_at", "") ?: "" else "Tap to reveal",
                 )
+                setViewVisibility(R.id.widget_breakdown_row, if (showBreakdown) android.view.View.VISIBLE else android.view.View.GONE)
+                setViewVisibility(R.id.widget_updated_at, if (showUpdatedAt) android.view.View.VISIBLE else android.view.View.GONE)
             }
+            WidgetBackground.applyTo(views, R.id.widget_root, widgetData)
             appWidgetManager.updateAppWidget(widgetId, views)
         }
     }
@@ -90,6 +104,18 @@ class NetWorthWidgetProvider : HomeWidgetProvider() {
         appWidgetIds.forEach { widgetId ->
             renderOne(context, appWidgetManager, widgetData, widgetId, revealed = false)
         }
+    }
+
+    // Fired whenever the user resizes the widget — re-render so the
+    // breakdown/updated-at rows show or hide to match the new size
+    // immediately, instead of waiting for the next periodic update.
+    override fun onAppWidgetOptionsChanged(
+        context: Context,
+        appWidgetManager: AppWidgetManager,
+        appWidgetId: Int,
+        newOptions: android.os.Bundle,
+    ) {
+        renderOne(context, appWidgetManager, HomeWidgetPlugin.getData(context), appWidgetId, revealed = false)
     }
 
     override fun onReceive(context: Context, intent: Intent) {

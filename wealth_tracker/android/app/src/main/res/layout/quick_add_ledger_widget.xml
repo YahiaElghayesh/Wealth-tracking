@@ -5,7 +5,7 @@
     android:layout_height="match_parent"
     android:orientation="horizontal"
     android:gravity="center_vertical"
-    android:padding="16dp">
+    android:padding="12dp">
 
     <TextView
         android:layout_width="wrap_content"
@@ -16,26 +16,31 @@
         android:textColor="#FFFFFF" />
 
     <LinearLayout
-        android:layout_width="wrap_content"
+        android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:layout_marginStart="12dp"
+        android:layout_weight="1"
+        android:layout_marginStart="10dp"
         android:orientation="vertical">
 
         <TextView
-            android:layout_width="wrap_content"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="Add Payment"
             android:textSize="15sp"
             android:textStyle="bold"
-            android:textColor="#FFFFFF" />
+            android:textColor="#FFFFFF"
+            android:maxLines="1"
+            android:ellipsize="end" />
 
         <TextView
             android:id="@+id/quick_add_subtitle"
-            android:layout_width="wrap_content"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text=""
             android:textSize="12sp"
-            android:textColor="#CCFFFFFF" />
+            android:textColor="#CCFFFFFF"
+            android:maxLines="1"
+            android:ellipsize="end" />
 
     </LinearLayout>
 

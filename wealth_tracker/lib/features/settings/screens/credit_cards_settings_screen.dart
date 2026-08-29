@@ -1,3 +1,4 @@
+import 'package:drift/drift.dart' show Value;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -60,7 +61,11 @@ class CreditCardsSettingsScreen extends ConsumerWidget {
                   margin: const EdgeInsets.only(bottom: 12),
                   child: ListTile(
                     title: Text(card.name),
-                    subtitle: Text('${card.bank} · Limit ${formatMoney(card.limitAmount, card.currency)}'),
+                    subtitle: Text(
+                      '${card.bank}'
+                      '${card.lastFourDigits == null ? '' : ' ••${card.lastFourDigits}'}'
+                      ' · Limit ${formatMoney(card.limitAmount, card.currency)}',
+                    ),
                     trailing: const Icon(Icons.chevron_right),
                     onTap: () => _openCardForm(context, ref, existing: card),
                   ),
@@ -92,6 +97,7 @@ class _CardFormDialogState extends ConsumerState<_CardFormDialog> {
   late final TextEditingController _nameController;
   late final TextEditingController _bankController;
   late final TextEditingController _limitController;
+  late final TextEditingController _lastFourController;
   late String _currency;
 
   bool get _isEditing => widget.existing != null;
@@ -103,6 +109,7 @@ class _CardFormDialogState extends ConsumerState<_CardFormDialog> {
     _nameController = TextEditingController(text: existing?.name ?? '');
     _bankController = TextEditingController(text: existing?.bank ?? '');
     _limitController = TextEditingController(text: existing == null ? '' : _formatValue(existing.limitAmount));
+    _lastFourController = TextEditingController(text: existing?.lastFourDigits ?? '');
     _currency = existing?.currency ?? defaultCurrency;
   }
 
@@ -115,6 +122,7 @@ class _CardFormDialogState extends ConsumerState<_CardFormDialog> {
     _nameController.dispose();
     _bankController.dispose();
     _limitController.dispose();
+    _lastFourController.dispose();
     super.dispose();
   }
 
@@ -123,14 +131,27 @@ class _CardFormDialogState extends ConsumerState<_CardFormDialog> {
     final name = _nameController.text.trim();
     final bank = _bankController.text.trim();
     final limit = double.parse(_limitController.text.trim());
+    final lastFour = _lastFourController.text.trim();
 
     final repo = ref.read(calculatorRepositoryProvider);
     if (_isEditing) {
       await repo.updateCard(
-        widget.existing!.copyWith(name: name, bank: bank, limitAmount: limit, currency: _currency),
+        widget.existing!.copyWith(
+          name: name,
+          bank: bank,
+          limitAmount: limit,
+          currency: _currency,
+          lastFourDigits: Value(lastFour.isEmpty ? null : lastFour),
+        ),
       );
     } else {
-      await repo.addCard(name: name, bank: bank, limit: limit, currency: _currency);
+      await repo.addCard(
+        name: name,
+        bank: bank,
+        limit: limit,
+        currency: _currency,
+        lastFourDigits: lastFour.isEmpty ? null : lastFour,
+      );
     }
 
     if (mounted) Navigator.of(context).pop();
@@ -192,6 +213,22 @@ class _CardFormDialogState extends ConsumerState<_CardFormDialog> {
                     ),
                   ),
                 ],
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: _lastFourController,
+                decoration: const InputDecoration(
+                  labelText: 'Last 4 digits (optional)',
+                  hintText: 'e.g. 4912',
+                  helperText: 'As shown in your bank\'s SMS alerts — "...ending in 4912".',
+                ),
+                keyboardType: TextInputType.number,
+                maxLength: 4,
+                validator: (v) {
+                  if (v == null || v.trim().isEmpty) return null;
+                  if (!RegExp(r'^\d{4}$').hasMatch(v.trim())) return 'Enter exactly 4 digits';
+                  return null;
+                },
               ),
             ],
           ),

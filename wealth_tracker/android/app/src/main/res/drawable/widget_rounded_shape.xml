@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Neutral rounded-rect shape, tinted at runtime via
+     RemoteViews.setColorStateList (Android 12+) to the user's chosen
+     preset color + opacity — see WidgetBackground.kt. Pre-12 devices can't
+     tint a RemoteViews background this way, so they fall back to a flat,
+     unrounded setBackgroundColor fill instead (still respects color and
+     opacity, just without the rounded corners). -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android">
+    <solid android:color="#FFFFFFFF" />
+    <corners android:radius="20dp" />
+</shape>

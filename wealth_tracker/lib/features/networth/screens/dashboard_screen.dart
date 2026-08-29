@@ -5,6 +5,7 @@ import '../../../core/format/money_formatter.dart';
 import '../../../core/models/asset_category.dart';
 import '../../../core/models/gold_karat.dart';
 import '../../../core/providers/privacy_providers.dart';
+import '../../../core/widgets/hide_values_action.dart';
 import '../../../core/widgets/money_text.dart';
 import '../../../data/db/database.dart';
 import '../../../data/net_worth/net_worth_calculator.dart';
@@ -24,17 +25,12 @@ class DashboardScreen extends ConsumerWidget {
     final netWorth = ref.watch(netWorthResultProvider);
     final usdToEgpRate = ref.watch(usdToEgpRateProvider);
     final refreshState = ref.watch(priceRefreshControllerProvider);
-    final hideValues = ref.watch(hideValuesProvider);
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('Net Worth'),
         actions: [
-          IconButton(
-            icon: Icon(hideValues ? Icons.visibility_off : Icons.visibility),
-            tooltip: hideValues ? 'Show values' : 'Hide values',
-            onPressed: () => ref.read(hideValuesProvider.notifier).state = !hideValues,
-          ),
+          const HideValuesAction(),
           IconButton(
             icon: refreshState.isRefreshing
                 ? const SizedBox(
@@ -115,7 +111,12 @@ class _AssetTile extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final category = AssetCategory.values.byName(asset.category);
     final prices = ref.watch(pricesUsdPerUnitProvider);
+    final usdToEgpRate = ref.watch(usdToEgpRateProvider);
+    final hideValues = ref.watch(hideValuesProvider);
+    final classOverrides = ref.watch(assetClassOverridesProvider);
+    final assetClass = classOverrides[category] ?? category.defaultClass;
     final value = valueUsdForAsset(asset, prices);
+    final egpValue = value == null || usdToEgpRate == null ? null : value * usdToEgpRate;
     final karat = category == AssetCategory.gold
         ? GoldKarat.fromPriceSymbol(asset.symbolOrCurrency)
         : null;
@@ -133,11 +134,25 @@ class _AssetTile extends ConsumerWidget {
       onDismissed: (_) => ref.read(assetRepositoryProvider).delete(asset.id),
       child: Card(
         child: ListTile(
-          title: Text(asset.name),
+          title: Text(hideValues ? '••••••' : asset.name),
           subtitle: Text(
-            '$categoryLabel · ${category.defaultClass == AssetClass.liquid ? "Liquid" : "Non-liquid"}',
+            hideValues
+                ? '••••••'
+                : '$categoryLabel · ${assetClass == AssetClass.liquid ? "Liquid" : "Non-liquid"}',
           ),
-          trailing: value == null ? const Text('—') : MoneyText(formatUsd(value)),
+          trailing: value == null
+              ? const Text('—')
+              : Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    MoneyText(
+                      egpValue == null ? '—' : formatEgp(egpValue),
+                      style: Theme.of(context).textTheme.bodyMedium,
+                    ),
+                    MoneyText(formatUsd(value), style: Theme.of(context).textTheme.bodySmall),
+                  ],
+                ),
           onTap: () => Navigator.of(context).push(
             MaterialPageRoute(builder: (_) => AddEditAssetScreen(existing: asset)),
           ),

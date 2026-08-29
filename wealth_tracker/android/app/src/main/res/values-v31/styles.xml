@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android 12+ (API 31) uses its own system Splash Screen API instead of
+     the legacy windowBackground drawable — without this override it still
+     picks up the launcher icon automatically, but as a plain static badge
+     with no explicit background color of its own. This makes both
+     explicit: the brand teal behind it, and the launcher icon itself as
+     the animated icon, so the OS's built-in splash entrance animation
+     (scale + fade) plays against a color that matches the app instead of
+     whatever default the OS falls back to. -->
+<resources>
+    <style name="LaunchTheme" parent="@android:style/Theme.Light.NoTitleBar">
+        <item name="android:windowSplashScreenBackground">@color/ic_launcher_background</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@mipmap/ic_launcher</item>
+        <item name="android:windowBackground">@drawable/launch_background</item>
+    </style>
+</resources>

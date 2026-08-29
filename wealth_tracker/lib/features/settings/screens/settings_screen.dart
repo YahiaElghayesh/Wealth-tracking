@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 
+import 'asset_classification_settings_screen.dart';
 import 'credit_cards_settings_screen.dart';
 import 'drive_sync_settings_screen.dart';
 import 'ledger_categories_settings_screen.dart';
@@ -44,6 +45,12 @@ class SettingsScreen extends StatelessWidget {
             title: 'Ledger categories',
             subtitle: 'Manage the quick-pick categories for payments',
             builder: (_) => const LedgerCategoriesSettingsScreen(),
+          ),
+          _SettingsTile(
+            icon: Icons.water_drop_outlined,
+            title: 'Liquid / non-liquid',
+            subtitle: 'Which asset categories count as liquid',
+            builder: (_) => const AssetClassificationSettingsScreen(),
           ),
           if (Platform.isAndroid)
             _SettingsTile(

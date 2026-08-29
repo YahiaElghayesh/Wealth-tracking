@@ -1,5 +1,7 @@
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../core/models/asset_category.dart';
+
 /// Small key/value settings backed by [SharedPreferences]. Anything that
 /// belongs in the synced database (assets, ledger) lives in drift instead —
 /// this is strictly per-device app configuration (API keys, tokens).
@@ -90,6 +92,37 @@ class SettingsRepository {
       await _prefs.remove(_androidServerClientIdKey);
     } else {
       await _prefs.setString(_androidServerClientIdKey, clientId);
+    }
+  }
+
+  /// User overrides of which [AssetClass] a category counts as for the
+  /// liquid/non-liquid split — e.g. treating "Vehicle" as liquid. Stored as
+  /// one bool-ish string key per category so a future category doesn't
+  /// need a migration; a category with no stored override just falls back
+  /// to its own [AssetCategory.defaultClass].
+  static String _classOverrideKey(AssetCategory category) => 'asset_class_override_${category.name}';
+
+  Map<AssetCategory, AssetClass> get assetClassOverrides {
+    final overrides = <AssetCategory, AssetClass>{};
+    for (final category in AssetCategory.values) {
+      final stored = _prefs.getString(_classOverrideKey(category));
+      if (stored == AssetClass.liquid.name) {
+        overrides[category] = AssetClass.liquid;
+      } else if (stored == AssetClass.nonLiquid.name) {
+        overrides[category] = AssetClass.nonLiquid;
+      }
+    }
+    return overrides;
+  }
+
+  Future<void> setAssetClassOverride(AssetCategory category, AssetClass? assetClass) async {
+    final key = _classOverrideKey(category);
+    if (assetClass == null || assetClass == category.defaultClass) {
+      // Matches the built-in default again — clear the override instead of
+      // storing a redundant value.
+      await _prefs.remove(key);
+    } else {
+      await _prefs.setString(key, assetClass.name);
     }
   }
 }

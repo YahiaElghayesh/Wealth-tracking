@@ -43,10 +43,14 @@ class NetWorthResult {
   const NetWorthResult(this.summary, this.unpricedAssets);
 }
 
+/// [classOverrides] lets the user reclassify a whole category (e.g. treat
+/// "Vehicle" as liquid) from Settings instead of being stuck with each
+/// category's built-in default forever.
 NetWorthResult calculateNetWorth(
   List<Asset> assets,
-  Map<String, double> pricesUsdPerUnit,
-) {
+  Map<String, double> pricesUsdPerUnit, {
+  Map<AssetCategory, AssetClass> classOverrides = const {},
+}) {
   var liquid = 0.0;
   var nonLiquid = 0.0;
   final unpriced = <Asset>[];
@@ -57,7 +61,8 @@ NetWorthResult calculateNetWorth(
       unpriced.add(asset);
       continue;
     }
-    final assetClass = AssetCategory.values.byName(asset.category).defaultClass;
+    final category = AssetCategory.values.byName(asset.category);
+    final assetClass = classOverrides[category] ?? category.defaultClass;
     if (assetClass == AssetClass.liquid) {
       liquid += value;
     } else {

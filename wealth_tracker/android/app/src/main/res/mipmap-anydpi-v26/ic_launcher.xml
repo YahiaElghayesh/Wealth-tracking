@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Adaptive icon (Android 8+): the OS applies its own mask shape (circle,
+     squircle, rounded-square...) to this background+foreground pair rather
+     than to a flat PNG, which is what actually fixes a launcher icon
+     looking soft/cropped/pixelated on modern Android — a plain mipmap PNG
+     gets scaled and masked by the launcher with no say from the app. -->
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+    <background android:drawable="@color/ic_launcher_background" />
+    <foreground android:drawable="@mipmap/ic_launcher_foreground" />
+</adaptive-icon>

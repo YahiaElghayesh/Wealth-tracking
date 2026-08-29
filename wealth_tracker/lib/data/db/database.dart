@@ -27,7 +27,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 7;
+  int get schemaVersion => 8;
 
   Future<void> _seedDefaultLedgerCategories() async {
     // 'Other' isn't seeded — it's always appended as a synthetic last
@@ -116,6 +116,9 @@ class AppDatabase extends _$AppDatabase {
             // chips, so the switch doesn't make categories disappear.
             await m.createTable(ledgerCategories);
             await _seedDefaultLedgerCategories();
+          }
+          if (from < 8) {
+            await m.addColumn(creditCards, creditCards.lastFourDigits);
           }
         },
         // The "Breakfast" quick-pick category was a voice-transcription

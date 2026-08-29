@@ -39,10 +39,10 @@ class QuickAddLedgerWidgetProvider : AppWidgetProvider() {
             )
 
             val views = RemoteViews(context.packageName, R.layout.quick_add_ledger_widget).apply {
-                setInt(R.id.quick_add_root, "setBackgroundColor", WidgetBackground.resolveColor(widgetData))
                 setOnClickPendingIntent(R.id.quick_add_root, pendingIntent)
                 setTextViewText(R.id.quick_add_subtitle, configured?.second ?: "")
             }
+            WidgetBackground.applyTo(views, R.id.quick_add_root, widgetData)
             appWidgetManager.updateAppWidget(widgetId, views)
         }
     }
