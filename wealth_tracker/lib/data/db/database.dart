@@ -257,12 +257,41 @@ class AppDatabase extends _$AppDatabase {
         // its real bank SMS merchant name) — fix up any rows saved under
         // the old spelling on every open, not just once at migration time,
         // since it's a cheap no-op once there's nothing left to fix.
+        //
+        // Wrapped defensively: a failure here (e.g. a transient lock from
+        // another isolate opening the same database at the same moment --
+        // see _openConnection's WAL/busy_timeout setup for the general
+        // fix) would otherwise abort opening the database at all, taking
+        // down every screen instead of just leaving one stale row
+        // unrenamed until the next open retries it.
         beforeOpen: (details) async {
-          await customStatement("UPDATE ledger_transactions SET category = 'Breadfast' WHERE category = 'Breakfast'");
+          try {
+            await customStatement("UPDATE ledger_transactions SET category = 'Breadfast' WHERE category = 'Breakfast'");
+          } catch (_) {
+            // Swallow -- see comment above.
+          }
         },
       );
 }
 
 QueryExecutor _openConnection() {
-  return driftDatabase(name: 'wealth_tracker');
+  return driftDatabase(
+    name: 'wealth_tracker',
+    native: DriftNativeOptions(
+      // The foreground app and a background WorkManager isolate (bank-SMS
+      // auto-update, the periodic price refresh, ...) can now both hold
+      // this database open at the same time. SQLite's default rollback-
+      // journal mode needs an exclusive lock for any write, which two
+      // genuinely separate connections collide on easily -- this is what
+      // was producing "database is locked" errors. WAL lets readers and
+      // writers coexist instead; busy_timeout makes an actual writer-vs-
+      // writer collision (WAL still only allows one at a time) wait and
+      // retry briefly rather than fail immediately.
+      setup: (db) {
+        db.execute('PRAGMA journal_mode=WAL;');
+        db.execute('PRAGMA busy_timeout=5000;');
+      },
+      shareAcrossIsolates: true,
+    ),
+  );
 }

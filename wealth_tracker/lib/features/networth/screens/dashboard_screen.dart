@@ -403,13 +403,22 @@ class _AssetTile extends ConsumerWidget {
                 child: hideValues ? Icon(Icons.lock_outline, size: 16, color: colors.textDim) : icon,
               ),
               const SizedBox(width: 12),
+              // Both sides are flex-constrained (rather than the trailing
+              // side sizing to its own unbounded natural width) so a very
+              // long gain/loss string -- an outsized gain % is a single
+              // unbreakable run with no spaces to wrap at -- can never
+              // shrink the name column down to almost nothing and force it
+              // into character-by-character wrapping instead.
               Expanded(
+                flex: 3,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
                       hideValues ? '••••••' : asset.name,
                       style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w700),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
                     const SizedBox(height: 2),
                     Text(
@@ -417,44 +426,57 @@ class _AssetTile extends ConsumerWidget {
                           ? '••••••'
                           : '$categoryLabel · ${assetClass == AssetClass.liquid ? "Liquid" : "Non-liquid"}',
                       style: theme.textTheme.labelSmall?.copyWith(color: colors.textDim),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
                     if (quantityLabel != null && !hideValues) ...[
                       const SizedBox(height: 3),
                       MoneyText(
                         quantityLabel,
                         style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700, color: colors.textBody),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ],
                   ],
                 ),
               ),
               if (value != null)
-                Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    MoneyText(
-                      egpValue == null ? '—' : formatEgpWhole(egpValue),
-                      style: theme.textTheme.bodyMedium,
-                    ),
-                    MoneyText(
-                      formatUsdWhole(value),
-                      style: theme.textTheme.labelSmall?.copyWith(color: colors.textDim),
-                    ),
-                    if (gainLossUsd != null && gainLossPct != null) ...[
-                      const SizedBox(height: 2),
+                Expanded(
+                  flex: 2,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
                       MoneyText(
-                        '${gainLossUsd >= 0 ? '+' : ''}${gainLossPct.toStringAsFixed(1)}%'
-                        '${gainLossEgp == null ? '' : ' · ${gainLossUsd >= 0 ? '+' : ''}${formatEgpWhole(gainLossEgp)}'}'
-                        ' · ${gainLossUsd >= 0 ? '+' : ''}${formatUsdWhole(gainLossUsd)}',
-                        style: theme.textTheme.labelSmall?.copyWith(
-                          color: gainLossUsd >= 0 ? colors.good : colors.bad,
-                          fontWeight: FontWeight.w700,
-                        ),
-                        maskLength: 10,
+                        egpValue == null ? '—' : formatEgpWhole(egpValue),
+                        style: theme.textTheme.bodyMedium,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
+                      MoneyText(
+                        formatUsdWhole(value),
+                        style: theme.textTheme.labelSmall?.copyWith(color: colors.textDim),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      if (gainLossUsd != null && gainLossPct != null) ...[
+                        const SizedBox(height: 2),
+                        MoneyText(
+                          '${gainLossUsd >= 0 ? '+' : ''}${gainLossPct.toStringAsFixed(1)}%'
+                          '${gainLossEgp == null ? '' : ' · ${gainLossUsd >= 0 ? '+' : ''}${formatEgpWhole(gainLossEgp)}'}'
+                          ' · ${gainLossUsd >= 0 ? '+' : ''}${formatUsdWhole(gainLossUsd)}',
+                          style: theme.textTheme.labelSmall?.copyWith(
+                            color: gainLossUsd >= 0 ? colors.good : colors.bad,
+                            fontWeight: FontWeight.w700,
+                          ),
+                          maskLength: 10,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
                     ],
-                  ],
+                  ),
                 )
               else
                 const Text('—'),
