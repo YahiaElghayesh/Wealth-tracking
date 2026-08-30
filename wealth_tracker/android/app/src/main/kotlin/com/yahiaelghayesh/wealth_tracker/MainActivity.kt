@@ -7,6 +7,7 @@ import io.flutter.plugin.common.MethodChannel
 
 class MainActivity : FlutterActivity() {
     private var smsChannel: MethodChannel? = null
+    private var shortcutsChannel: MethodChannel? = null
 
     // home_widget's click detection reads the launch Intent both from the
     // "was I cold-started by a widget tap" check (activity.intent, i.e.
@@ -32,6 +33,25 @@ class MainActivity : FlutterActivity() {
         smsChannel?.setMethodCallHandler { call, result ->
             when (call.method) {
                 "takePendingSms" -> result.success(extractPendingSms(intent))
+                else -> result.notImplemented()
+            }
+        }
+
+        // Dart's counterpart lives in lib/features/ledger/providers/ledger_shortcut_channel.dart --
+        // see LedgerShortcuts.kt for why this exists instead of the old
+        // static <shortcuts.xml> entry.
+        shortcutsChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "money_hub/shortcuts")
+        shortcutsChannel?.setMethodCallHandler { call, result ->
+            when (call.method) {
+                "pinLedgerShortcut" -> {
+                    val counterpartyId = call.argument<String>("counterpartyId")
+                    val name = call.argument<String>("name")
+                    if (counterpartyId == null || name == null) {
+                        result.error("invalid_args", "counterpartyId and name are required", null)
+                    } else {
+                        result.success(LedgerShortcuts.pin(this, counterpartyId, name))
+                    }
+                }
                 else -> result.notImplemented()
             }
         }

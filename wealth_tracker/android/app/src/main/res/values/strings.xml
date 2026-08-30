@@ -1,5 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<resources>
-    <string name="shortcut_add_payment_short">Add Payment</string>
-    <string name="shortcut_add_payment_long">Add a ledger payment</string>
-</resources>

@@ -11,6 +11,7 @@ import '../../../data/db/database.dart';
 import '../../../data/ledger/ledger_calculator.dart';
 import '../../networth/providers/asset_providers.dart' show pricesUsdPerUnitProvider;
 import '../providers/ledger_providers.dart';
+import '../providers/ledger_shortcut_channel.dart';
 import 'counterparty_detail_screen.dart';
 
 class LedgerHomeScreen extends ConsumerWidget {
@@ -147,6 +148,26 @@ class _CounterpartyTile extends ConsumerWidget {
     }
   }
 
+  /// Requests a pinned home-screen shortcut for this specific ledger --
+  /// see ledger_shortcut_channel.dart / LedgerShortcuts.kt. A user can tap
+  /// this on as many ledger rows as they want, building up one icon per
+  /// ledger, each opening straight to that ledger's add-payment form
+  /// instead of the "which ledger?" picker a single generic shortcut can't
+  /// avoid.
+  Future<void> _pinShortcut(BuildContext context) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final requested = await pinLedgerShortcut(counterpartyId: counterparty.id, name: counterparty.name);
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text(
+          requested
+              ? 'Check your home screen to confirm adding "${counterparty.name}".'
+              : "Couldn't request a home-screen icon on this device.",
+        ),
+      ),
+    );
+  }
+
   Future<bool> _confirmDelete(BuildContext context, WidgetRef ref) async {
     final confirmed = await showDialog<bool>(
           context: context,
@@ -220,6 +241,11 @@ class _CounterpartyTile extends ConsumerWidget {
           trailing: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
+              IconButton(
+                icon: const Icon(Icons.add_to_home_screen_outlined, size: 20),
+                tooltip: 'Pin to home screen',
+                onPressed: () => _pinShortcut(context),
+              ),
               IconButton(
                 icon: const Icon(Icons.edit_outlined, size: 20),
                 tooltip: 'Edit',
