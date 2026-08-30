@@ -6,6 +6,7 @@ import '../../../core/providers/core_providers.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../data/db/database.dart';
 import '../../ledger/providers/ledger_providers.dart';
+import '../providers/settings_providers.dart';
 import '../providers/vendor_rule_providers.dart';
 
 /// Enable/disable bank SMS detection and manage the vendor rules that
@@ -174,6 +175,27 @@ class _BankSmsSettingsScreenState extends ConsumerState<BankSmsSettingsScreen> {
               'cards up to date automatically, with no confirmation needed for that part. '
               'Needs the sensitive "read SMS" permission to work.',
               style: Theme.of(context).textTheme.bodySmall?.copyWith(color: colors.textDim),
+            ),
+          ),
+          const SizedBox(height: 16),
+          Container(
+            decoration: rowDecoration,
+            child: ListTile(
+              leading: _IconChip(Icons.account_balance_wallet_outlined),
+              title: const Text('Default ledger'),
+              subtitle: const Text('Pre-selected on Confirm payment when no vendor rule matches'),
+              trailing: DropdownButton<String>(
+                value: counterparties.any((c) => c.id == ref.watch(defaultLedgerCounterpartyIdProvider))
+                    ? ref.watch(defaultLedgerCounterpartyIdProvider)
+                    : null,
+                hint: const Text('None'),
+                underline: const SizedBox.shrink(),
+                items: counterparties.map((c) => DropdownMenuItem(value: c.id, child: Text(c.name))).toList(),
+                onChanged: (id) async {
+                  await ref.read(settingsRepositoryProvider).setDefaultLedgerCounterpartyId(id);
+                  ref.read(defaultLedgerCounterpartyIdProvider.notifier).state = id;
+                },
+              ),
             ),
           ),
           const SizedBox(height: 24),

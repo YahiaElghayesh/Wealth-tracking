@@ -94,5 +94,35 @@ void main() {
       expect(result, isNotNull);
       expect(result!.occurredAt.isAfter(DateTime.now()), isFalse);
     });
+
+    test('parses the real CIB Arabic payment-alert format (paying down the card)', () {
+      const body = 'نشكركم على سداد مبلغ 8860.36 جم لبطاقة رقم 8455 يوم 28/08';
+
+      final result = parseBankSms(body);
+
+      expect(result, isNotNull);
+      expect(result!.currency, 'EGP');
+      // NOT rounded up, unlike a charge -- this never becomes a ledger
+      // entry, only feeds the card balance's add-the-amount math, where
+      // rounding up would overstate the real balance.
+      expect(result.amount, 8860.36);
+      expect(result.isCharge, isFalse);
+      expect(result.lastFourDigits, '8455');
+      expect(result.availableBalanceAfter, isNull);
+    });
+
+    test('parses the real NBE Arabic payment-alert format (paying down the card)', () {
+      const body = 'تم سداد مبلغ 100000.00 جم فى بطاقتكم الائتمانية المنتهية بـ 4912 بتاريخ 21-08-26';
+
+      final result = parseBankSms(body);
+
+      expect(result, isNotNull);
+      expect(result!.currency, 'EGP');
+      expect(result.amount, 100000.0);
+      expect(result.isCharge, isFalse);
+      expect(result.lastFourDigits, '4912');
+      expect(result.occurredAt, DateTime(2026, 8, 21));
+      expect(result.availableBalanceAfter, isNull);
+    });
   });
 }

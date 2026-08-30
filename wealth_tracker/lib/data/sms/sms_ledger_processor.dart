@@ -51,6 +51,11 @@ Future<void> processIncomingSms(
   if (parsed == null) return;
 
   await updateCardBalanceFromSms(db, parsed, profileId: profileId);
+  // A payment/settlement SMS (paying down the card, isCharge == false)
+  // only ever updates that tracked balance -- it's not a purchase and
+  // isn't a candidate for "who was this for", so it never opens the
+  // review screen the way an actual charge does.
+  if (!parsed.isCharge) return;
 
   final rules = await (db.select(db.vendorRules)..where((r) => r.profileId.equals(profileId))).get();
   VendorRule? rule;
@@ -104,6 +109,9 @@ Future<bool> commitSmsQuickAdd(
   if (parsed == null) return false;
 
   await updateCardBalanceFromSms(db, parsed, profileId: profileId);
+  // See the matching comment in processIncomingSms -- a payment/settlement
+  // SMS never becomes a ledger entry, so there's nothing further to commit.
+  if (!parsed.isCharge) return false;
 
   final rules = await (db.select(db.vendorRules)..where((r) => r.profileId.equals(profileId))).get();
   VendorRule? rule;

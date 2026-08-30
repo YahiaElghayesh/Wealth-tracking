@@ -187,11 +187,95 @@ final _nbeChargePattern = _BankSmsPattern(
   },
 );
 
+/// Matches CIB's Arabic card-*payment* alert (settling/paying down the
+/// card, the opposite of a charge), e.g.:
+/// "نشكركم على سداد مبلغ 8860.36 جم لبطاقة رقم 8455 يوم 28/08"
+/// ("Thank you for paying 8860.36 EGP toward card number 8455 on 28/08.")
+///
+/// Neither an available-balance figure nor a year is ever stated in this
+/// format, unlike the charge alert -- the year uses the same "assume
+/// current, roll back if that would be in the future" logic as
+/// [_nbeChargePattern]. [ParsedBankSms.amount] is deliberately NOT rounded
+/// up the way a charge's is: that rounding exists so an auto-captured
+/// *ledger entry* doesn't carry an ugly fraction, but a payment alert never
+/// becomes a ledger entry (see [parseBankSms] callers) -- it only ever
+/// feeds the card balance's fallback add-the-amount math, where rounding
+/// up would silently overstate the real balance.
+final _cibPaymentPattern = _BankSmsPattern(
+  RegExp(
+    r'نشكركم\s*على\s*سداد\s*مبلغ\s*([\d,]+(?:\.\d+)?)\s*جم\s*لبطاقة\s*رقم\s*(\d{4})\s*يوم\s*(\d{1,2})/(\d{1,2})',
+    dotAll: true,
+  ),
+  (match, body) {
+    final amountStr = match.group(1)!.replaceAll(',', '');
+    final amount = double.tryParse(amountStr);
+    if (amount == null) return null;
+
+    final lastFour = match.group(2);
+    final day = int.parse(match.group(3)!);
+    final month = int.parse(match.group(4)!);
+
+    final now = DateTime.now();
+    var occurredAt = DateTime(now.year, month, day);
+    if (occurredAt.isAfter(now.add(const Duration(days: 1)))) {
+      occurredAt = DateTime(now.year - 1, month, day);
+    }
+
+    return ParsedBankSms(
+      vendor: 'Card payment',
+      amount: amount,
+      currency: 'EGP',
+      occurredAt: occurredAt,
+      isCharge: false,
+      lastFourDigits: lastFour,
+    );
+  },
+);
+
+/// Matches NBE's Arabic card-*payment* alert, e.g.:
+/// "تم سداد مبلغ 100000.00 جم فى بطاقتكم الائتمانية المنتهية بـ 4912
+/// بتاريخ 21-08-26"
+/// ("100000.00 EGP has been paid into your credit card ending with 4912
+/// on 21-08-26.")
+///
+/// Unlike [_nbeChargePattern]'s two-segment month-day date, this states a
+/// full day-month-year date and no time -- occurredAt is set to midnight
+/// on that date. No available-balance figure is stated either, so (like
+/// [_cibPaymentPattern]) this only feeds the card balance's fallback
+/// add-the-amount math, hence the same un-rounded [amount].
+final _nbePaymentPattern = _BankSmsPattern(
+  RegExp(
+    r'تم\s*سداد\s*مبلغ\s*([\d,]+(?:\.\d+)?)\s*جم\s*فى\s*بطاقتكم\s*الائتمانية\s*المنتهية\s*بـ\s*(\d{4})\s*'
+    r'بتاريخ\s*(\d{1,2})-(\d{1,2})-(\d{2,4})',
+    dotAll: true,
+  ),
+  (match, body) {
+    final amountStr = match.group(1)!.replaceAll(',', '');
+    final amount = double.tryParse(amountStr);
+    if (amount == null) return null;
+
+    final lastFour = match.group(2);
+    final day = int.parse(match.group(3)!);
+    final month = int.parse(match.group(4)!);
+    var year = int.parse(match.group(5)!);
+    if (year < 100) year += 2000;
+
+    return ParsedBankSms(
+      vendor: 'Card payment',
+      amount: amount,
+      currency: 'EGP',
+      occurredAt: DateTime(year, month, day),
+      isCharge: false,
+      lastFourDigits: lastFour,
+    );
+  },
+);
+
 /// Every recognized bank format, tried in order — add a new bank or a new
 /// message type (e.g. a payment/refund alert) here once a real sample of
 /// its exact wording is available. Guessing at wording without one risks a
 /// pattern that silently never matches the real thing.
-final _patterns = [_cibChargePattern, _nbeChargePattern];
+final _patterns = [_cibChargePattern, _cibPaymentPattern, _nbeChargePattern, _nbePaymentPattern];
 
 /// Parses a bank SMS body into a card transaction, or `null` if it doesn't
 /// match any known bank format.

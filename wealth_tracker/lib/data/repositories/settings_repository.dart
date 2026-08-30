@@ -22,6 +22,7 @@ class SettingsRepository {
   static const _themeModeKey = 'theme_mode';
   static const _hideValuesByDefaultKey = 'hide_values_by_default';
   static const _activeProfileIdKey = 'active_profile_id';
+  static const _defaultLedgerCounterpartyIdKey = 'default_ledger_counterparty_id';
 
   String? get metalsApiKey => _prefs.getString(_metalsApiKeyKey);
 
@@ -165,5 +166,20 @@ class SettingsRepository {
 
   Future<void> setActiveProfileId(String id) {
     return _prefs.setString(_activeProfileIdKey, id);
+  }
+
+  /// The ledger a detected bank charge's "Confirm payment" review screen
+  /// pre-selects when no Vendor Rule already matches the sender -- set from
+  /// Settings > Bank SMS detection, but always still changeable per-charge
+  /// on the review screen itself. Null means "no default, ask every time"
+  /// (the behavior before this existed).
+  String? get defaultLedgerCounterpartyId => _prefs.getString(_defaultLedgerCounterpartyIdKey);
+
+  Future<void> setDefaultLedgerCounterpartyId(String? counterpartyId) async {
+    if (counterpartyId == null) {
+      await _prefs.remove(_defaultLedgerCounterpartyIdKey);
+    } else {
+      await _prefs.setString(_defaultLedgerCounterpartyIdKey, counterpartyId);
+    }
   }
 }

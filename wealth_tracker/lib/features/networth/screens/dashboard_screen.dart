@@ -106,6 +106,10 @@ class DashboardScreen extends ConsumerWidget {
                         ...entry.value.map((asset) => _AssetTile(asset: asset)),
                       ],
                     ),
+              // Clears the FAB, which otherwise sits directly over the
+              // last row's value -- the FAB floats at a fixed screen
+              // position, not accounted for by the ListView's own layout.
+              const SizedBox(height: 80),
             ],
           );
         },

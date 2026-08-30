@@ -26,3 +26,12 @@ final themeModeProvider = StateProvider<ThemeMode>((ref) {
 final activeProfileIdProvider = StateProvider<String>((ref) {
   return ref.watch(settingsRepositoryProvider).activeProfileId;
 });
+
+/// The ledger the "Confirm payment" review screen pre-selects when no
+/// Vendor Rule already matches -- same seeded-then-optimistically-updated
+/// pattern as [themeModeProvider]. Write via
+/// `ref.read(settingsRepositoryProvider).setDefaultLedgerCounterpartyId(id)`
+/// then `ref.read(defaultLedgerCounterpartyIdProvider.notifier).state = id`.
+final defaultLedgerCounterpartyIdProvider = StateProvider<String?>((ref) {
+  return ref.watch(settingsRepositoryProvider).defaultLedgerCounterpartyId;
+});

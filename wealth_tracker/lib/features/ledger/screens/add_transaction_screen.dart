@@ -34,7 +34,8 @@ class AddTransactionScreen extends ConsumerStatefulWidget {
       _AddTransactionScreenState();
 }
 
-class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
+class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen>
+    with WidgetsBindingObserver {
   final _formKey = GlobalKey<FormState>();
   final _amountController = TextEditingController();
   final _amountFocusNode = FocusNode();
@@ -62,11 +63,22 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
   bool _closing = false;
   bool _modalOpen = false;
 
+  /// The last-seen keyboard height, for [didChangeMetrics] to compare
+  /// against -- Android's back button (and some launchers'/keyboards' own
+  /// "hide" affordances) can close the IME without the amount field's
+  /// [FocusNode] ever reporting a focus change, since the platform side of
+  /// the text-input connection just closes while Flutter's own focus tree
+  /// stays exactly as it was. Watching the actual bottom view inset catches
+  /// that case regardless of *why* the keyboard went away, where the
+  /// focus-loss listener alone (see [_onAmountFocusChange]) cannot.
+  double _lastBottomInset = 0;
+
   bool get _isEditing => widget.existing != null;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _amountFocusNode.addListener(_onAmountFocusChange);
     final existing = widget.existing;
     if (existing != null) {
@@ -120,11 +132,32 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _amountFocusNode.removeListener(_onAmountFocusChange);
     _amountController.dispose();
     _amountFocusNode.dispose();
     _customCategoryController.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeMetrics() {
+    final bottomInset = WidgetsBinding.instance.platformDispatcher.views.first.viewInsets.bottom;
+    final wasOpen = _lastBottomInset > 0;
+    final isOpen = bottomInset > 0;
+    _lastBottomInset = bottomInset;
+    if (!wasOpen || isOpen || _closing || _modalOpen) return;
+    // The keyboard just closed without this screen asking for that (back
+    // button, a keyboard's own "hide" icon, ...) -- force it back open.
+    // Re-requesting focus alone isn't enough here: the FocusNode likely
+    // never actually lost focus (see the field doc comment above), so
+    // Flutter sees nothing to act on unless the platform's own "show
+    // keyboard" channel call is also made directly.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _closing || _modalOpen) return;
+      FocusScope.of(context).requestFocus(_amountFocusNode);
+      SystemChannels.textInput.invokeMethod<void>('TextInput.show');
+    });
   }
 
   /// Fires on *any* loss of focus, including ones nothing on this screen
@@ -270,6 +303,15 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
                 tooltip: 'Delete',
                 onPressed: _delete,
               ),
+            // Lives in the AppBar rather than a FloatingActionButton so it's
+            // never at risk of sitting behind the keyboard, which is now
+            // permanently open on this screen -- the AppBar is the one part
+            // of the layout the keyboard can never cover.
+            IconButton(
+              icon: const Icon(Icons.check),
+              tooltip: 'Save',
+              onPressed: _save,
+            ),
           ],
         ),
         body: Form(
@@ -371,15 +413,9 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
                   ),
                 ],
               ],
-              // Keeps this content clear of the FAB when the list is short
-              // enough that it would otherwise sit right underneath it.
-              const SizedBox(height: 72),
+              const SizedBox(height: 24),
             ],
           ),
-        ),
-        floatingActionButton: FloatingActionButton(
-          onPressed: _save,
-          child: const Icon(Icons.check),
         ),
       ),
     );

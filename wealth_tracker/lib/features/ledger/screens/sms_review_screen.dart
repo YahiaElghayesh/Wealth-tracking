@@ -2,9 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/models/currency.dart';
-import '../../../core/models/ledger_category.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../data/sms/bank_charge_payload.dart';
+import '../../settings/providers/settings_providers.dart';
 import '../providers/ledger_providers.dart';
 
 /// Opened when a bank-charge notification's body is tapped — either there
@@ -25,9 +25,16 @@ class _SmsReviewScreenState extends ConsumerState<SmsReviewScreen> {
   late final TextEditingController _amountController;
   final _customCategoryController = TextEditingController();
   String? _counterpartyId;
-  late String _category;
+  // Null until the user taps a chip or a Vendor Rule matched -- defaults to
+  // whichever category is first once the (async, user-managed) list loads,
+  // computed fresh each build rather than seeded once, same pattern as
+  // add_transaction_screen.dart. Fixes categories added/renamed in Settings
+  // after this screen was already showing a stale hardcoded list.
+  String? _category;
+  List<String> _categoryNames = const ['Other'];
   late String _currency;
   late DateTime _date;
+  bool _defaultLedgerApplied = false;
 
   @override
   void initState() {
@@ -36,10 +43,7 @@ class _SmsReviewScreenState extends ConsumerState<SmsReviewScreen> {
     _currency = widget.payload.currency;
     _date = widget.payload.occurredAt;
     _counterpartyId = widget.payload.counterpartyId;
-    final matchedCategory = widget.payload.category;
-    _category = matchedCategory != null && ledgerExpenseCategories.contains(matchedCategory)
-        ? matchedCategory
-        : ledgerExpenseCategories.first;
+    _category = widget.payload.category;
   }
 
   @override
@@ -65,7 +69,8 @@ class _SmsReviewScreenState extends ConsumerState<SmsReviewScreen> {
     if (counterpartyId == null) return;
 
     final amount = double.parse(_amountController.text.trim());
-    final category = _category == 'Other' ? _customCategoryController.text.trim() : _category;
+    final selectedCategory = _category ?? _categoryNames.first;
+    final category = selectedCategory == 'Other' ? _customCategoryController.text.trim() : selectedCategory;
 
     await ref.read(ledgerRepositoryProvider).addTransaction(
           counterpartyId: counterpartyId,
@@ -86,6 +91,29 @@ class _SmsReviewScreenState extends ConsumerState<SmsReviewScreen> {
     final colors = context.appColors;
     final counterparties = ref.watch(counterpartiesStreamProvider).valueOrNull ?? const [];
     final matchedByRule = widget.payload.counterpartyId != null;
+
+    final categoriesAsync = ref.watch(ledgerCategoriesStreamProvider);
+    _categoryNames = [
+      ...categoriesAsync.valueOrNull?.map((c) => c.name) ?? const <String>[],
+      'Other',
+    ];
+    final selectedCategory = (_category != null && _categoryNames.contains(_category)) ? _category! : _categoryNames.first;
+
+    // No vendor rule matched a ledger -- fall back to the Settings-picked
+    // default (still just a starting point; the dropdown below stays fully
+    // editable). Applied once, post-frame like the calculator screen's own
+    // seeding, and only if that stored id still refers to a real ledger --
+    // otherwise the dropdown would be handed a value with no matching item.
+    if (!_defaultLedgerApplied && _counterpartyId == null && counterparties.isNotEmpty) {
+      _defaultLedgerApplied = true;
+      final defaultId = ref.read(defaultLedgerCounterpartyIdProvider);
+      if (counterparties.any((c) => c.id == defaultId)) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) setState(() => _counterpartyId = defaultId);
+        });
+      }
+    }
+    final validCounterpartyId = counterparties.any((c) => c.id == _counterpartyId) ? _counterpartyId : null;
 
     return Scaffold(
       appBar: AppBar(title: const Text('Confirm payment')),
@@ -186,7 +214,7 @@ class _SmsReviewScreenState extends ConsumerState<SmsReviewScreen> {
             const SizedBox(height: 8),
             DropdownButtonFormField<String>(
               isExpanded: true,
-              initialValue: _counterpartyId,
+              initialValue: validCounterpartyId,
               items: counterparties
                   .map((c) => DropdownMenuItem(value: c.id, child: Text(c.name)))
                   .toList(),
@@ -198,15 +226,16 @@ class _SmsReviewScreenState extends ConsumerState<SmsReviewScreen> {
             const SizedBox(height: 8),
             Wrap(
               spacing: 8,
-              children: ledgerExpenseCategories.map((c) {
+              runSpacing: 8,
+              children: _categoryNames.map((c) {
                 return ChoiceChip(
                   label: Text(c),
-                  selected: _category == c,
+                  selected: selectedCategory == c,
                   onSelected: (_) => setState(() => _category = c),
                 );
               }).toList(),
             ),
-            if (_category == 'Other') ...[
+            if (selectedCategory == 'Other') ...[
               const SizedBox(height: 12),
               TextFormField(
                 controller: _customCategoryController,
@@ -235,6 +264,7 @@ class _SmsReviewScreenState extends ConsumerState<SmsReviewScreen> {
         ),
       ),
       bottomSheet: SafeArea(
+        minimum: const EdgeInsets.only(bottom: 12),
         child: Padding(
           padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
           child: Row(

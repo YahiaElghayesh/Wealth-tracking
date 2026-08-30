@@ -25,6 +25,24 @@ void main() {
     return id;
   }
 
+  Future<void> insertCard({
+    required String lastFourDigits,
+    double currentAvailableBalance = 0,
+  }) {
+    return db.into(db.creditCards).insert(
+          CreditCardsCompanion.insert(
+            id: const Uuid().v4(),
+            name: 'Test card',
+            bank: 'Test bank',
+            limitAmount: 100000,
+            currency: const Value('EGP'),
+            lastFourDigits: Value(lastFourDigits),
+            currentAvailableBalance: Value(currentAvailableBalance),
+            profileId: const Value('test-profile'),
+          ),
+        );
+  }
+
   Future<void> insertVendorRule({
     required String vendorPattern,
     required String counterpartyId,
@@ -106,6 +124,23 @@ void main() {
       expect(first, isTrue);
       expect(second, isFalse);
       expect(await db.select(db.ledgerTransactions).get(), hasLength(1));
+    });
+
+    test('a card-payment SMS updates the balance but is never added as a ledger entry', () async {
+      await insertCard(lastFourDigits: '8455', currentAvailableBalance: 50000);
+      const cibPaymentSms = 'نشكركم على سداد مبلغ 8860.36 جم لبطاقة رقم 8455 يوم 28/08';
+
+      final added = await commitSmsQuickAdd(
+        db,
+        body: cibPaymentSms,
+        timestampMillis: 1000,
+        profileId: 'test-profile',
+      );
+
+      expect(added, isFalse);
+      expect(await db.select(db.ledgerTransactions).get(), isEmpty);
+      final card = await db.select(db.creditCards).getSingle();
+      expect(card.currentAvailableBalance, 50000 + 8860.36);
     });
   });
 }
