@@ -81,10 +81,15 @@ class _StatisticsBody extends ConsumerStatefulWidget {
 }
 
 class _StatisticsBodyState extends ConsumerState<_StatisticsBody> {
-  /// Last 12 months (this month first), newest first — what the chip row offers.
+  /// Last 12 months, oldest first ending at the current month — same
+  /// chronological order the bar chart's own trend array already uses.
+  /// Previously newest-first (this month, then counting backward), which
+  /// put e.g. December right after January in the chip row -- correct by
+  /// "most recent first," but reads as backwards/random against a
+  /// left-to-right timeline.
   static List<DateTime> _recentMonths() {
     final now = DateTime.now();
-    return [for (var i = 0; i < 12; i++) DateTime(now.year, now.month - i)];
+    return [for (var i = 11; i >= 0; i--) DateTime(now.year, now.month - i)];
   }
 
   late Set<DateTime> _selectedMonths = {DateTime(DateTime.now().year, DateTime.now().month)};
