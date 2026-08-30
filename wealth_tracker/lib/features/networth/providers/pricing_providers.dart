@@ -7,6 +7,7 @@ import '../../../data/pricing/fallback_price_provider.dart';
 import '../../../data/pricing/fx_price_provider.dart';
 import '../../../data/pricing/gold_api_com_price_provider.dart';
 import '../../../data/pricing/metals_price_provider.dart';
+import '../../../data/pricing/price_provider.dart';
 import '../../../data/pricing/price_refresh_orchestrator.dart';
 import '../../../data/pricing/price_refresh_service.dart';
 import '../../../data/pricing/yahoo_finance_price_provider.dart';
@@ -20,26 +21,36 @@ final priceCacheRepositoryProvider = Provider<PriceCacheRepository>((ref) {
 });
 
 final cryptoPriceProviderProvider = Provider((ref) => CoinGeckoPriceProvider());
-final _fxProviderProvider = Provider((ref) => FxPriceProvider());
+final fxPriceProviderProvider = Provider((ref) => FxPriceProvider());
 
 final stockPriceProviderProvider = Provider((ref) => YahooFinancePriceProvider());
 
-final priceRefreshServiceProvider = Provider<PriceRefreshService>((ref) {
+/// The real, three-tier gold/silver fallback chain used both by the normal
+/// refresh flow and by the Settings > Live Prices "Test price sources"
+/// diagnostic -- shared so the diagnostic exercises exactly what
+/// production uses (including the user's own goldapi.io key), not a
+/// separate stand-in that could pass while the real chain doesn't.
+///
+/// goldapi.io's free tier keeps running out of its monthly quota, and
+/// gold-api.com -- the first fallback -- has started 429-rate-limiting too.
+/// Yahoo Finance (keyless, same reliable endpoint this app already uses for
+/// every stock price) is the third and last resort.
+final metalsPriceProviderProvider = Provider<PriceProvider>((ref) {
   final metalsApiKey = ref.watch(metalsApiKeyProvider);
+  return FallbackPriceProvider(
+    primary: FallbackPriceProvider(
+      primary: MetalsPriceProvider(apiKey: metalsApiKey),
+      secondary: GoldApiComPriceProvider(),
+    ),
+    secondary: YahooMetalsPriceProvider(),
+  );
+});
+
+final priceRefreshServiceProvider = Provider<PriceRefreshService>((ref) {
   return PriceRefreshService(
     cryptoProvider: ref.watch(cryptoPriceProviderProvider),
-    fxProvider: ref.watch(_fxProviderProvider),
-    // goldapi.io's free tier keeps running out of its monthly quota, and
-    // gold-api.com -- the first fallback -- has started 429-rate-limiting
-    // too. Yahoo Finance (keyless, same reliable endpoint this app already
-    // uses for every stock price) is the third and last resort.
-    metalsProvider: FallbackPriceProvider(
-      primary: FallbackPriceProvider(
-        primary: MetalsPriceProvider(apiKey: metalsApiKey),
-        secondary: GoldApiComPriceProvider(),
-      ),
-      secondary: YahooMetalsPriceProvider(),
-    ),
+    fxProvider: ref.watch(fxPriceProviderProvider),
+    metalsProvider: ref.watch(metalsPriceProviderProvider),
     stockProvider: ref.watch(stockPriceProviderProvider),
   );
 });
@@ -111,3 +122,69 @@ final autoRefreshOnLaunchProvider = FutureProvider<void>((ref) async {
   await ref.read(assetsStreamProvider.future);
   unawaited(ref.read(priceRefreshControllerProvider.notifier).refresh());
 });
+
+/// One source's outcome from [PriceSourceTestController.testAll].
+class PriceSourceCheck {
+  const PriceSourceCheck({required this.label, required this.ok, this.detail});
+
+  final String label;
+  final bool ok;
+
+  /// The exact error text on failure -- surfaced verbatim (not summarized)
+  /// so a report back from the user is immediately actionable instead of
+  /// "it doesn't work."
+  final String? detail;
+}
+
+class PriceSourceTestState {
+  const PriceSourceTestState({this.isTesting = false, this.results = const []});
+
+  final bool isTesting;
+  final List<PriceSourceCheck> results;
+
+  PriceSourceTestState copyWith({bool? isTesting, List<PriceSourceCheck>? results}) {
+    return PriceSourceTestState(isTesting: isTesting ?? this.isTesting, results: results ?? this.results);
+  }
+}
+
+/// Calls each price source directly with a fixed, always-available test
+/// symbol (BTC, USD->EGP, gold, silver, AAPL) regardless of what assets the
+/// user actually holds -- unlike a normal refresh, which only ever queries
+/// symbols in use, so a user with no stock assets would never actually
+/// exercise the stock provider. Gold and silver go through
+/// [metalsPriceProviderProvider], the exact same three-tier fallback chain
+/// (goldapi.io -> gold-api.com -> Yahoo Finance) production uses, so a pass
+/// here means the real chain -- not a stand-in -- is currently reachable.
+class PriceSourceTestController extends Notifier<PriceSourceTestState> {
+  @override
+  PriceSourceTestState build() => const PriceSourceTestState();
+
+  Future<void> testAll() async {
+    state = state.copyWith(isTesting: true, results: const []);
+
+    Future<PriceSourceCheck> check(String label, PriceProvider provider, Set<String> symbols) async {
+      try {
+        final prices = await provider.fetchPrices(symbols);
+        if (prices.isEmpty) {
+          return PriceSourceCheck(label: label, ok: false, detail: 'No price returned');
+        }
+        return PriceSourceCheck(label: label, ok: true);
+      } catch (e) {
+        return PriceSourceCheck(label: label, ok: false, detail: e.toString());
+      }
+    }
+
+    final results = [
+      await check('Crypto (CoinGecko)', ref.read(cryptoPriceProviderProvider), {'bitcoin'}),
+      await check('Currency exchange (open.er-api.com)', ref.read(fxPriceProviderProvider), {'EGP'}),
+      await check('Gold', ref.read(metalsPriceProviderProvider), {'XAU_GRAM_24K'}),
+      await check('Silver', ref.read(metalsPriceProviderProvider), {'XAG_GRAM'}),
+      await check('Stocks (Yahoo Finance)', ref.read(stockPriceProviderProvider), {'AAPL'}),
+    ];
+
+    state = state.copyWith(isTesting: false, results: results);
+  }
+}
+
+final priceSourceTestControllerProvider =
+    NotifierProvider<PriceSourceTestController, PriceSourceTestState>(PriceSourceTestController.new);

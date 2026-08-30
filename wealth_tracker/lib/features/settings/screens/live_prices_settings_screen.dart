@@ -61,6 +61,7 @@ class _LivePricesSettingsScreenState extends ConsumerState<LivePricesSettingsScr
   Widget build(BuildContext context) {
     final refreshState = ref.watch(priceRefreshControllerProvider);
     final refreshIntervalHours = ref.watch(priceRefreshIntervalHoursProvider);
+    final testState = ref.watch(priceSourceTestControllerProvider);
 
     return Scaffold(
       appBar: AppBar(title: const Text('Live prices')),
@@ -155,6 +156,68 @@ class _LivePricesSettingsScreenState extends ConsumerState<LivePricesSettingsScr
               child: Text(
                 'Stocks (US exchanges and the Egyptian Exchange) price via Yahoo Finance — works out of the box, no API key needed.',
                 style: Theme.of(context).textTheme.bodyMedium,
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Checks each price source directly with a fixed test symbol -- unlike '
+                    "\"Refresh prices now\" below, this doesn't depend on what assets you "
+                    'actually hold, so it always exercises every source (including gold and '
+                    'silver through the exact same fallback chain the app uses).',
+                  ),
+                  const SizedBox(height: 12),
+                  OutlinedButton.icon(
+                    onPressed: testState.isTesting
+                        ? null
+                        : () => ref.read(priceSourceTestControllerProvider.notifier).testAll(),
+                    icon: testState.isTesting
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.fact_check_outlined),
+                    label: const Text('Test price sources'),
+                  ),
+                  if (testState.results.isNotEmpty) ...[
+                    const SizedBox(height: 12),
+                    for (final result in testState.results)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 6),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Icon(
+                              result.ok ? Icons.check_circle : Icons.error,
+                              size: 18,
+                              color: result.ok ? Colors.green : Colors.red,
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(result.label),
+                                  if (!result.ok && result.detail != null)
+                                    Text(
+                                      result.detail!,
+                                      style: const TextStyle(color: Colors.red, fontSize: 12),
+                                    ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                  ],
+                ],
               ),
             ),
           ),
