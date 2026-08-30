@@ -259,7 +259,11 @@ class _AddEditAssetScreenState extends ConsumerState<AddEditAssetScreen> {
               setState(() {
                 _symbolController.text = option.compoundSymbol;
                 _selectedStockSymbol = option.compoundSymbol;
-                _nameController.text = option.name;
+                // The plain ticker (e.g. "COMI"), not Yahoo's full company
+                // name -- a name column has no room for "Commercial
+                // International Bank (Egypt) S.A.E." and the ticker is
+                // what the user actually recognizes their holding by.
+                _nameController.text = option.symbol;
               });
             },
             fieldViewBuilder: (context, controller, focusNode, onSubmitted) {

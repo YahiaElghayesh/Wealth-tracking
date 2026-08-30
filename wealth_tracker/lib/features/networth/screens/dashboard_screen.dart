@@ -89,12 +89,12 @@ class DashboardScreen extends ConsumerWidget {
                   child: Center(child: Text('No assets yet. Tap + to add one.')),
                 )
               else
-                ..._groupedByCategory(assets).entries.expand(
-                      (entry) => [
+                ..._groupedByCategory(assets).expand(
+                      (section) => [
                         Padding(
                           padding: const EdgeInsets.fromLTRB(4, 12, 4, 6),
                           child: Text(
-                            entry.key.label.toUpperCase(),
+                            section.label.toUpperCase(),
                             style: Theme.of(context).textTheme.labelSmall?.copyWith(
                                   color: context.appColors.textDim,
                                   fontWeight: FontWeight.w800,
@@ -102,8 +102,8 @@ class DashboardScreen extends ConsumerWidget {
                                 ),
                           ),
                         ),
-                        _CategorySummaryCard(category: entry.key, assets: entry.value),
-                        ...entry.value.map((asset) => _AssetTile(asset: asset)),
+                        _CategorySummaryCard(label: section.label, isMetals: section.isMetals, assets: section.assets),
+                        ...section.assets.map((asset) => _AssetTile(asset: asset)),
                       ],
                     ),
               // Clears the FAB, which otherwise sits directly over the
@@ -124,16 +124,50 @@ class DashboardScreen extends ConsumerWidget {
   }
 }
 
+/// One rendered group in the dashboard's asset list: a header, the assets
+/// under it, and whether it's the combined Gold+Silver "Metals" group
+/// (which gets the karat/weight breakdown card instead of a plain total).
+class _AssetSection {
+  const _AssetSection({required this.label, required this.assets, required this.isMetals});
+
+  final String label;
+  final List<Asset> assets;
+  final bool isMetals;
+}
+
 /// Groups [assets] by category, in [AssetCategory.values] order, dropping
 /// any category with nothing in it — so the list reads as sections
-/// (Crypto, Gold, Cash, ...) instead of one long undifferentiated stack.
-Map<AssetCategory, List<Asset>> _groupedByCategory(List<Asset> assets) {
-  final grouped = <AssetCategory, List<Asset>>{};
+/// (Crypto, Metals, Cash, ...) instead of one long undifferentiated stack.
+/// Gold and Silver — two separate [AssetCategory] values, since they price
+/// differently and stay separate in the data model — are combined into one
+/// "Metals" section here, purely a display grouping: a user thinking about
+/// their precious-metals holdings doesn't want them split into two section
+/// headers on screen.
+List<_AssetSection> _groupedByCategory(List<Asset> assets) {
+  final byCategory = <AssetCategory, List<Asset>>{};
   for (final category in AssetCategory.values) {
     final matches = assets.where((a) => a.category == category.name).toList();
-    if (matches.isNotEmpty) grouped[category] = matches;
+    if (matches.isNotEmpty) byCategory[category] = matches;
   }
-  return grouped;
+
+  final sections = <_AssetSection>[];
+  var metalsAdded = false;
+  for (final category in AssetCategory.values) {
+    if (category == AssetCategory.gold || category == AssetCategory.silver) {
+      if (metalsAdded) continue;
+      metalsAdded = true;
+      final combined = [...?byCategory[AssetCategory.gold], ...?byCategory[AssetCategory.silver]];
+      if (combined.isNotEmpty) {
+        sections.add(_AssetSection(label: 'Metals', assets: combined, isMetals: true));
+      }
+      continue;
+    }
+    final matches = byCategory[category];
+    if (matches != null) {
+      sections.add(_AssetSection(label: category.label, assets: matches, isMetals: false));
+    }
+  }
+  return sections;
 }
 
 /// Formats a held quantity without trailing zeros -- "0.5", not
@@ -166,19 +200,24 @@ String? _quantityLabel(Asset asset) {
 }
 
 /// Sits above every asset-category group, right below its header — a
-/// metals weight breakdown for Gold/Silver (since "total value" alone loses
-/// the karat detail that matters for those two), or a plain total-value
-/// roll-up for every other category. All numeric content goes through
-/// [MoneyText] so it masks itself automatically when hide-values is on.
+/// metals weight breakdown for the combined Gold+Silver "Metals" section
+/// (since "total value" alone loses the karat detail that matters there),
+/// or a plain total-value roll-up for every other category. Styled
+/// distinctly from the plain [_AssetTile] cards below it (tinted
+/// background, colored border) so a summary reads as a summary at a
+/// glance rather than blending in as just another row. All numeric content
+/// goes through [MoneyText] so it masks itself automatically when
+/// hide-values is on.
 class _CategorySummaryCard extends ConsumerWidget {
-  const _CategorySummaryCard({required this.category, required this.assets});
+  const _CategorySummaryCard({required this.label, required this.isMetals, required this.assets});
 
-  final AssetCategory category;
+  final String label;
+  final bool isMetals;
   final List<Asset> assets;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    if (category == AssetCategory.gold || category == AssetCategory.silver) {
+    if (isMetals) {
       return _MetalsSummaryCard(assets: assets);
     }
 
@@ -197,21 +236,21 @@ class _CategorySummaryCard extends ConsumerWidget {
     final totalEgp = usdToEgpRate == null ? null : totalUsd * usdToEgpRate;
 
     final theme = Theme.of(context);
-    final colors = context.appColors;
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surface,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: colors.border),
-      ),
+      decoration: _summaryCardDecoration(theme),
       child: Row(
         children: [
+          Icon(Icons.summarize_outlined, size: 16, color: theme.colorScheme.primary),
+          const SizedBox(width: 8),
           Expanded(
             child: Text(
-              '${category.label} total',
-              style: theme.textTheme.labelSmall?.copyWith(color: colors.textDim, fontWeight: FontWeight.w700),
+              '$label total',
+              style: theme.textTheme.labelSmall?.copyWith(
+                color: theme.colorScheme.primary,
+                fontWeight: FontWeight.w700,
+              ),
             ),
           ),
           Column(
@@ -219,12 +258,12 @@ class _CategorySummaryCard extends ConsumerWidget {
             children: [
               MoneyText(
                 totalEgp == null ? '—' : formatEgpWhole(totalEgp),
-                style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+                style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800),
                 maskLength: 8,
               ),
               MoneyText(
                 formatUsdWhole(totalUsd),
-                style: theme.textTheme.labelSmall?.copyWith(color: colors.textDim),
+                style: theme.textTheme.labelSmall?.copyWith(color: theme.colorScheme.primary),
                 maskLength: 6,
               ),
             ],
@@ -235,18 +274,30 @@ class _CategorySummaryCard extends ConsumerWidget {
   }
 }
 
-/// Aggregate gold/silver holdings across the assets passed in -- gold
-/// broken down by karat, since a 21K gram and a 24K gram aren't the same
-/// amount of pure gold. [assets] is already scoped to a single category
-/// (all-gold or all-silver) by [_CategorySummaryCard], so at most one of
-/// the two blocks below ever renders.
-class _MetalsSummaryCard extends StatelessWidget {
+/// Shared look for every category-summary card — a primary-tinted
+/// background and border, distinct from [_AssetTile]'s plain surface card,
+/// so summaries are visually unmistakable from the individual assets below
+/// them.
+BoxDecoration _summaryCardDecoration(ThemeData theme) {
+  return BoxDecoration(
+    color: theme.colorScheme.primary.withValues(alpha: 0.07),
+    borderRadius: BorderRadius.circular(14),
+    border: Border.all(color: theme.colorScheme.primary.withValues(alpha: 0.28)),
+  );
+}
+
+/// Aggregate gold/silver holdings across the combined Metals section --
+/// gold broken down by karat, since a 21K gram and a 24K gram aren't the
+/// same amount of pure gold -- plus a total-value and total-cost line in
+/// the same style as [_CategorySummaryCard]'s generic total, so Metals
+/// isn't the one section missing a value roll-up.
+class _MetalsSummaryCard extends ConsumerWidget {
   const _MetalsSummaryCard({required this.assets});
 
   final List<Asset> assets;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final goldByKarat = <GoldKarat, double>{};
     var silverTotal = 0.0;
     for (final asset in assets) {
@@ -262,6 +313,27 @@ class _MetalsSummaryCard extends StatelessWidget {
     }
     if (goldByKarat.isEmpty && silverTotal <= 0) return const SizedBox.shrink();
 
+    final prices = ref.watch(pricesUsdPerUnitProvider);
+    final usdToEgpRate = ref.watch(usdToEgpRateProvider);
+    var totalValueUsd = 0.0;
+    var totalCostUsd = 0.0;
+    var hasCost = false;
+    for (final asset in assets) {
+      final v = valueUsdForAsset(asset, prices);
+      if (v != null) totalValueUsd += v;
+      final purchasePrice = asset.purchasePrice;
+      final purchaseCurrency = asset.purchaseCurrency;
+      if (purchasePrice != null && purchaseCurrency != null && purchasePrice > 0) {
+        final purchasePriceUsd = prices[purchaseCurrency];
+        if (purchasePriceUsd != null) {
+          totalCostUsd += purchasePrice * purchasePriceUsd;
+          hasCost = true;
+        }
+      }
+    }
+    final totalValueEgp = usdToEgpRate == null ? null : totalValueUsd * usdToEgpRate;
+    final totalCostEgp = usdToEgpRate == null ? null : totalCostUsd * usdToEgpRate;
+
     final goldTotal = goldByKarat.values.fold(0.0, (a, b) => a + b);
     final theme = Theme.of(context);
     final colors = context.appColors;
@@ -269,14 +341,69 @@ class _MetalsSummaryCard extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: colors.border),
-      ),
+      decoration: _summaryCardDecoration(theme),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          Row(
+            children: [
+              Icon(Icons.summarize_outlined, size: 16, color: theme.colorScheme.primary),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Metals total',
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: theme.colorScheme.primary,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  MoneyText(
+                    totalValueEgp == null ? '—' : formatEgpWhole(totalValueEgp),
+                    style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800),
+                    maskLength: 8,
+                  ),
+                  MoneyText(
+                    formatUsdWhole(totalValueUsd),
+                    style: theme.textTheme.labelSmall?.copyWith(color: theme.colorScheme.primary),
+                    maskLength: 6,
+                  ),
+                ],
+              ),
+            ],
+          ),
+          if (hasCost) ...[
+            const SizedBox(height: 4),
+            Row(
+              children: [
+                const Spacer(),
+                Text(
+                  'Cost: ',
+                  style: theme.textTheme.labelSmall?.copyWith(color: colors.textDim),
+                ),
+                MoneyText(
+                  totalCostEgp == null ? '—' : formatEgpWhole(totalCostEgp),
+                  style: theme.textTheme.labelSmall?.copyWith(color: colors.textDim, fontWeight: FontWeight.w700),
+                  maskLength: 8,
+                ),
+                Text(
+                  ' · ',
+                  style: theme.textTheme.labelSmall?.copyWith(color: colors.textDim),
+                ),
+                MoneyText(
+                  formatUsdWhole(totalCostUsd),
+                  style: theme.textTheme.labelSmall?.copyWith(color: colors.textDim),
+                  maskLength: 6,
+                ),
+              ],
+            ),
+          ],
+          const SizedBox(height: 10),
+          Container(height: 1, color: theme.colorScheme.primary.withValues(alpha: 0.15)),
+          const SizedBox(height: 10),
           if (goldByKarat.isNotEmpty) ...[
             Row(
               children: [

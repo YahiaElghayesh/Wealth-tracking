@@ -8,14 +8,15 @@ import '../../../data/net_worth/net_worth_calculator.dart';
 import '../../calculator/providers/calculator_providers.dart';
 
 /// The mockup's "hero-total" card: label, big EGP/USD total on one
-/// baseline, a liquid/non-liquid split bar, and a two-sided legend showing
-/// both the percent and the actual value on each side -- replacing the
-/// previous pie-chart layout, which the approved redesign doesn't use here.
-/// Below that split sits a third, separate figure: the Calculator's last
-/// saved "current liquid cash" result -- a genuinely different number from
-/// the Liquid slice above (it nets ledgers, card debt, and manual inputs,
-/// not just which assets are tagged liquid), so it's its own row rather
-/// than folded into the same percentage split.
+/// baseline, a liquid/non-liquid split bar, and a legend row below it --
+/// replacing the previous pie-chart layout, which the approved redesign
+/// doesn't use here. When a Calculator snapshot exists, that legend row
+/// gets a third, centered entry: the Calculator's last saved "current
+/// liquid cash" result. It's a genuinely different number from the Liquid
+/// side (it nets ledgers, card debt, and manual inputs, not just which
+/// assets are tagged liquid) and isn't part of the liquid/non-liquid split
+/// bar above it, but it lives in the same legend row rather than a
+/// separate section below a divider.
 class NetWorthSummaryCard extends ConsumerWidget {
   const NetWorthSummaryCard({
     super.key,
@@ -91,6 +92,7 @@ class NetWorthSummaryCard extends ConsumerWidget {
             ),
             const SizedBox(height: 10),
             Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Expanded(
                   child: _SplitSide(
@@ -98,16 +100,23 @@ class NetWorthSummaryCard extends ConsumerWidget {
                     fraction: liquidFraction,
                     valueUsd: summary.liquidUsd,
                     usdToEgpRate: usdToEgpRate,
-                    alignEnd: false,
+                    alignment: CrossAxisAlignment.start,
                   ),
                 ),
+                if (latestSnapshot != null)
+                  Expanded(
+                    child: _CurrentSide(
+                      resultEgp: latestSnapshot.resultAmount,
+                      usdToEgpRate: usdToEgpRate,
+                    ),
+                  ),
                 Expanded(
                   child: _SplitSide(
                     label: 'Non-liquid',
                     fraction: 1 - liquidFraction,
                     valueUsd: summary.nonLiquidUsd,
                     usdToEgpRate: usdToEgpRate,
-                    alignEnd: true,
+                    alignment: CrossAxisAlignment.end,
                   ),
                 ),
               ],
@@ -119,12 +128,6 @@ class NetWorthSummaryCard extends ConsumerWidget {
               style: theme.textTheme.bodySmall?.copyWith(color: colors.textDim),
             ),
           ],
-          if (latestSnapshot != null) ...[
-            const SizedBox(height: 14),
-            Container(height: 1, color: colors.border),
-            const SizedBox(height: 12),
-            _CurrentLiquidCashRow(resultEgp: latestSnapshot.resultAmount, usdToEgpRate: usdToEgpRate),
-          ],
         ],
       ),
     );
@@ -133,10 +136,13 @@ class NetWorthSummaryCard extends ConsumerWidget {
 
 /// The Calculator tab's last saved "current liquid cash" result, in EGP
 /// (its native settlement currency) and derived USD. Not a slice of the
-/// Liquid/Non-liquid bar above -- a separately-computed figure the user
-/// deliberately keeps up to date from the Calculator tab itself.
-class _CurrentLiquidCashRow extends StatelessWidget {
-  const _CurrentLiquidCashRow({required this.resultEgp, required this.usdToEgpRate});
+/// Liquid/Non-liquid bar above it -- a separately-computed figure the user
+/// deliberately keeps up to date from the Calculator tab itself -- but it
+/// sits in the same legend row, centered between the two split sides, so
+/// all three figures read together at a glance instead of "Current" being
+/// a whole separate section underneath.
+class _CurrentSide extends StatelessWidget {
+  const _CurrentSide({required this.resultEgp, required this.usdToEgpRate});
 
   final double resultEgp;
   final double? usdToEgpRate;
@@ -146,33 +152,27 @@ class _CurrentLiquidCashRow extends StatelessWidget {
     final theme = Theme.of(context);
     final colors = context.appColors;
     final resultUsd = usdToEgpRate == null || usdToEgpRate == 0 ? null : resultEgp / usdToEgpRate!;
-    return Row(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        Icon(Icons.calculate_outlined, size: 15, color: theme.colorScheme.primary),
-        const SizedBox(width: 6),
-        Text(
-          'CURRENT (CALCULATOR)',
-          style: theme.textTheme.labelSmall?.copyWith(
-            color: colors.textDim,
-            fontWeight: FontWeight.w700,
-            letterSpacing: 0.5,
-          ),
-        ),
-        const Spacer(),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.end,
+        Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            MoneyText(
-              formatEgpWhole(resultEgp),
-              style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w700),
-              maskLength: 7,
-            ),
-            MoneyText(
-              resultUsd == null ? '—' : '≈ ${formatUsdWhole(resultUsd)}',
-              style: theme.textTheme.labelSmall?.copyWith(color: colors.textDim),
-              maskLength: 5,
-            ),
+            Icon(Icons.calculate_outlined, size: 12, color: theme.colorScheme.primary),
+            const SizedBox(width: 3),
+            Text('Current', style: theme.textTheme.bodySmall?.copyWith(color: colors.textDim)),
           ],
+        ),
+        const SizedBox(height: 1),
+        MoneyText(
+          formatEgpWhole(resultEgp),
+          style: theme.textTheme.labelSmall?.copyWith(color: colors.textDim, fontWeight: FontWeight.w700),
+          maskLength: 7,
+        ),
+        MoneyText(
+          resultUsd == null ? '—' : '≈ ${formatUsdWhole(resultUsd)}',
+          style: theme.textTheme.labelSmall?.copyWith(color: colors.textDim, fontSize: 10.5),
+          maskLength: 5,
         ),
       ],
     );
@@ -185,14 +185,14 @@ class _SplitSide extends StatelessWidget {
     required this.fraction,
     required this.valueUsd,
     required this.usdToEgpRate,
-    required this.alignEnd,
+    required this.alignment,
   });
 
   final String label;
   final double fraction;
   final double valueUsd;
   final double? usdToEgpRate;
-  final bool alignEnd;
+  final CrossAxisAlignment alignment;
 
   @override
   Widget build(BuildContext context) {
@@ -200,8 +200,9 @@ class _SplitSide extends StatelessWidget {
     final colors = context.appColors;
     final egpValue = usdToEgpRate == null ? null : valueUsd * usdToEgpRate!;
     final pct = '${(fraction * 100).round()}%';
+    final alignEnd = alignment == CrossAxisAlignment.end;
     return Column(
-      crossAxisAlignment: alignEnd ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+      crossAxisAlignment: alignment,
       children: [
         Row(
           mainAxisSize: MainAxisSize.min,

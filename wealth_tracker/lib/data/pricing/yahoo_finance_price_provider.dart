@@ -38,21 +38,34 @@ class YahooFinancePriceProvider implements PriceProvider {
 
     final result = <String, double>{};
     final errors = <String>[];
+    // Every price this app stores is USD-per-unit, but Yahoo quotes a
+    // stock in its own listing currency -- COMI.CA (Egyptian Exchange)
+    // comes back priced in EGP, not USD. A raw regularMarketPrice would
+    // silently be off by the whole EGP/USD rate. Cache each currency's
+    // conversion within this call so multiple stocks sharing an exchange
+    // (and so a currency) only trigger one extra FX lookup, not one each.
+    final fxRateToUsd = <String, double?>{};
 
     for (final stored in symbols) {
       final yahooSymbol = _toYahooSymbol(stored);
       try {
-        final response = await _dio.get<Map<String, dynamic>>(
-          '$_chartBaseUrl/$yahooSymbol',
-          queryParameters: const {'interval': '1d', 'range': '1d'},
-          options: Options(headers: const {'User-Agent': 'Mozilla/5.0'}),
-        );
-        final results = response.data?['chart']?['result'] as List?;
-        final chartResult = (results != null && results.isNotEmpty)
-            ? results.first as Map<String, dynamic>?
-            : null;
-        final price = chartResult?['meta']?['regularMarketPrice'];
-        if (price is num) result[stored] = price.toDouble();
+        final meta = await _fetchChartMeta(yahooSymbol);
+        final price = meta?['regularMarketPrice'];
+        if (price is! num) continue;
+        final currency = (meta?['currency'] as String?)?.toUpperCase();
+
+        var priceUsd = price.toDouble();
+        if (currency != null && currency != 'USD') {
+          final rate = fxRateToUsd.containsKey(currency)
+              ? fxRateToUsd[currency]
+              : await _fetchFxRateToUsd(currency);
+          fxRateToUsd[currency] = rate;
+          // No trustworthy conversion -- leave this one unpriced rather
+          // than store a wrong-currency figure as if it were USD.
+          if (rate == null) continue;
+          priceUsd *= rate;
+        }
+        result[stored] = priceUsd;
       } on DioException catch (e) {
         errors.add('$stored: ${e.message ?? 'network error'}');
       }
@@ -65,6 +78,33 @@ class YahooFinancePriceProvider implements PriceProvider {
       throw PriceFetchException(name, errors.join('; '));
     }
     return result;
+  }
+
+  Future<Map<String, dynamic>?> _fetchChartMeta(String yahooSymbol) async {
+    final response = await _dio.get<Map<String, dynamic>>(
+      '$_chartBaseUrl/$yahooSymbol',
+      queryParameters: const {'interval': '1d', 'range': '1d'},
+      options: Options(headers: const {'User-Agent': 'Mozilla/5.0'}),
+    );
+    final results = response.data?['chart']?['result'] as List?;
+    final chartResult = (results != null && results.isNotEmpty)
+        ? results.first as Map<String, dynamic>?
+        : null;
+    return chartResult?['meta'] as Map<String, dynamic>?;
+  }
+
+  /// USD value of one unit of [currency], via Yahoo's own FX-pair ticker
+  /// convention (e.g. `EGPUSD=X`). Returns null rather than throwing on
+  /// failure -- callers treat that as "can't trust this price" and skip it,
+  /// the same way a missing crypto/metal price is handled elsewhere.
+  Future<double?> _fetchFxRateToUsd(String currency) async {
+    try {
+      final meta = await _fetchChartMeta('${currency}USD=X');
+      final rate = meta?['regularMarketPrice'];
+      return rate is num ? rate.toDouble() : null;
+    } on DioException {
+      return null;
+    }
   }
 
   /// Legacy `TICKER:EXCHANGE` assets (from this app's Twelve Data days)
@@ -137,5 +177,5 @@ class StockSearchResult {
   String get compoundSymbol => symbol;
 
   @override
-  String toString() => '$name ($symbol · $exchange)';
+  String toString() => '$symbol · $name ($exchange)';
 }
