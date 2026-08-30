@@ -484,13 +484,20 @@ class _PieOutsideLabelsPainter extends CustomPainter {
   final bool hideValues;
 
   static const _ringOuterRadius = 40.0 + 58.0;
-  static const _leaderLength = 14.0;
+  static const _leaderLength = 22.0;
   static const _labelGap = 4.0;
+
+  /// Minimum vertical space kept between two labels' centers on the same
+  /// side of the ring -- roughly one label's line-height plus a little
+  /// breathing room, so two close-angle slices never print their numbers
+  /// on top of each other.
+  static const _minLabelGap = 16.0;
 
   @override
   void paint(Canvas canvas, Size size) {
     final center = Offset(size.width / 2, size.height / 2);
     var startAngleDeg = 0.0;
+    final placements = <_PieLabelPlacement>[];
 
     for (var i = 0; i < categories.length; i++) {
       final fraction = categories[i].value / total;
@@ -500,17 +507,7 @@ class _PieOutsideLabelsPainter extends CustomPainter {
       final color = palette[i % palette.length];
 
       final innerPoint = center + direction * _ringOuterRadius;
-      final outerPoint = center + direction * (_ringOuterRadius + _leaderLength);
-
-      canvas.drawLine(
-        innerPoint,
-        outerPoint,
-        Paint()
-          ..color = color
-          ..strokeWidth = 1.5
-          ..style = PaintingStyle.stroke,
-      );
-      canvas.drawCircle(innerPoint, 2.2, Paint()..color = color);
+      final elbow = center + direction * (_ringOuterRadius + _leaderLength);
 
       final label = hideValues ? '••' : '${fraction * 100 < 1 && fraction > 0 ? '<1' : (fraction * 100).round()}%';
       final textPainter = TextPainter(
@@ -518,13 +515,64 @@ class _PieOutsideLabelsPainter extends CustomPainter {
         textDirection: ui.TextDirection.ltr,
       )..layout();
 
-      final onRightHalf = direction.dx >= 0;
-      final labelOrigin = onRightHalf
-          ? Offset(outerPoint.dx + _labelGap, outerPoint.dy - textPainter.height / 2)
-          : Offset(outerPoint.dx - _labelGap - textPainter.width, outerPoint.dy - textPainter.height / 2);
-      textPainter.paint(canvas, labelOrigin);
+      placements.add(
+        _PieLabelPlacement(
+          innerPoint: innerPoint,
+          color: color,
+          textPainter: textPainter,
+          onRightHalf: direction.dx >= 0,
+          anchorX: elbow.dx,
+          anchorY: elbow.dy,
+        ),
+      );
 
       startAngleDeg += sweepDeg;
+    }
+
+    // Decluttered independently per side of the ring -- a label's *x*
+    // never moves (it stays on its own slice's radial line), only *y*
+    // shifts when two close-angle slices on the same side would otherwise
+    // stack their numbers on top of each other. The leader line drawn
+    // below then naturally runs longer for whichever labels got pushed,
+    // instead of every leader staying a fixed, sometimes-colliding length.
+    _declutter(placements.where((p) => p.onRightHalf).toList());
+    _declutter(placements.where((p) => !p.onRightHalf).toList());
+
+    for (final p in placements) {
+      final outerPoint = Offset(p.anchorX, p.anchorY);
+      canvas.drawLine(
+        p.innerPoint,
+        outerPoint,
+        Paint()
+          ..color = p.color
+          ..strokeWidth = 1.5
+          ..style = PaintingStyle.stroke,
+      );
+      canvas.drawCircle(p.innerPoint, 2.2, Paint()..color = p.color);
+
+      final labelOrigin = p.onRightHalf
+          ? Offset(outerPoint.dx + _labelGap, outerPoint.dy - p.textPainter.height / 2)
+          : Offset(outerPoint.dx - _labelGap - p.textPainter.width, outerPoint.dy - p.textPainter.height / 2);
+      p.textPainter.paint(canvas, labelOrigin);
+    }
+  }
+
+  /// Spreads out labels on one side of the ring just enough that no two
+  /// sit within [_minLabelGap] of each other vertically -- a forward pass
+  /// pushes later (lower) labels down, then a backward pass pulls earlier
+  /// (upper) ones back up as far as the gap allows, so a tight cluster of
+  /// small slices ends up centered on its natural position instead of
+  /// drifting entirely downward.
+  void _declutter(List<_PieLabelPlacement> side) {
+    if (side.length < 2) return;
+    side.sort((a, b) => a.anchorY.compareTo(b.anchorY));
+    for (var i = 1; i < side.length; i++) {
+      final minY = side[i - 1].anchorY + _minLabelGap;
+      if (side[i].anchorY < minY) side[i].anchorY = minY;
+    }
+    for (var i = side.length - 2; i >= 0; i--) {
+      final maxY = side[i + 1].anchorY - _minLabelGap;
+      if (side[i].anchorY > maxY) side[i].anchorY = maxY;
     }
   }
 
@@ -534,6 +582,27 @@ class _PieOutsideLabelsPainter extends CustomPainter {
         oldDelegate.total != total ||
         oldDelegate.hideValues != hideValues;
   }
+}
+
+/// One slice's resolved outside-label position -- [anchorX]/[anchorY] start
+/// as the slice's own radial point but [anchorY] may be nudged by
+/// [_PieOutsideLabelsPainter._declutter] to avoid overlapping a neighbor.
+class _PieLabelPlacement {
+  _PieLabelPlacement({
+    required this.innerPoint,
+    required this.color,
+    required this.textPainter,
+    required this.onRightHalf,
+    required this.anchorX,
+    required this.anchorY,
+  });
+
+  final Offset innerPoint;
+  final Color color;
+  final TextPainter textPainter;
+  final bool onRightHalf;
+  final double anchorX;
+  double anchorY;
 }
 
 class _LegendEntry extends ConsumerWidget {
