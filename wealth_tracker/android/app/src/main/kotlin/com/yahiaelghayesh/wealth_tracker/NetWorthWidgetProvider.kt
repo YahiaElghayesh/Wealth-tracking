@@ -27,7 +27,7 @@ import es.antonborri.home_widget.HomeWidgetProvider
  * a single tap event, not a press/release pair — so a timed reveal is the
  * closest available equivalent.
  */
-class NetWorthWidgetProvider : HomeWidgetProvider() {
+open class NetWorthWidgetProvider : HomeWidgetProvider() {
     companion object {
         private const val ACTION_REVEAL = "com.yahiaelghayesh.wealth_tracker.action.REVEAL_NET_WORTH"
         private const val ACTION_REHIDE = "com.yahiaelghayesh.wealth_tracker.action.REHIDE_NET_WORTH"
@@ -64,13 +64,30 @@ class NetWorthWidgetProvider : HomeWidgetProvider() {
             val showUpdatedAt = heightDp >= 130
             // Classic RemoteViews text is a fixed sp size that doesn't
             // reflow to fit a resized widget -- a compact-width widget
-            // showing a large EGP total (e.g. "EGP 1,842,300") would
-            // otherwise clip with an ellipsis instead of just rendering
-            // smaller. Step the size down as the granted width shrinks.
+            // showing a large EGP total (e.g. "EGP 8,069,417.85", which
+            // runs noticeably longer than the "EGP 1,842,300" the earlier
+            // 3-bucket version was tuned against) would otherwise clip with
+            // an ellipsis instead of just rendering smaller. More, finer
+            // steps down to a genuinely small floor size cover both a
+            // narrow compact placement and a long real total at once.
             val totalTextSizeSp = when {
-                widthDp < 110 -> 15f
-                widthDp < 150 -> 18f
+                widthDp < 90 -> 11f
+                widthDp < 110 -> 13f
+                widthDp < 130 -> 15f
+                widthDp < 150 -> 17f
+                widthDp < 180 -> 19f
+                widthDp < 220 -> 21f
                 else -> 22f
+            }
+            // The liquid/non-liquid rows now carry percent + EGP + USD each
+            // (e.g. "68% · EGP 5.2M · $103K") instead of just a percent and
+            // one currency, so they need the same width-based shrinking, on
+            // top of their existing maxLines=1/ellipsize=end safety net.
+            val splitTextSizeSp = when {
+                widthDp < 110 -> 9f
+                widthDp < 150 -> 10.5f
+                widthDp < 200 -> 12f
+                else -> 13f
             }
 
             val views = RemoteViews(context.packageName, R.layout.net_worth_widget).apply {
@@ -86,6 +103,8 @@ class NetWorthWidgetProvider : HomeWidgetProvider() {
                     R.id.widget_total_usd,
                     if (revealed) widgetData.getString("net_worth_total_usd", "") ?: "" else MASK,
                 )
+                setTextViewTextSize(R.id.widget_liquid, TypedValue.COMPLEX_UNIT_SP, splitTextSizeSp)
+                setTextViewTextSize(R.id.widget_nonliquid, TypedValue.COMPLEX_UNIT_SP, splitTextSizeSp)
                 setTextViewText(
                     R.id.widget_liquid,
                     if (revealed) widgetData.getString("net_worth_liquid_usd", "—") ?: "—" else MASK,

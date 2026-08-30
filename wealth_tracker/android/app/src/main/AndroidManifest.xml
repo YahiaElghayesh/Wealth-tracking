@@ -28,6 +28,9 @@
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
+            <meta-data
+                android:name="android.app.shortcuts"
+                android:resource="@xml/shortcuts" />
         </activity>
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
@@ -45,6 +48,18 @@
             <meta-data
                 android:name="android.appwidget.provider"
                 android:resource="@xml/net_worth_widget_info" />
+        </receiver>
+
+        <receiver
+            android:name=".NetWorthCompactWidgetProvider"
+            android:exported="true"
+            android:label="Net Worth (compact)">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/net_worth_compact_widget_info" />
         </receiver>
 
         <receiver

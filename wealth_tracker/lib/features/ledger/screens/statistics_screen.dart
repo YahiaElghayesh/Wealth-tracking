@@ -184,16 +184,22 @@ String _shortMoney(double value) {
 /// A permanently-visible label above a bar, using the same tooltip
 /// machinery fl_chart uses for touch — [BarChartGroupData.showingTooltipIndicators]
 /// keeps it displayed without requiring a tap.
-BarTouchTooltipData _permanentLabelTooltip(Color textColor, {required bool hideValues}) {
+/// The value label used to sit horizontally above each bar -- fine for one
+/// bar in isolation, but with 12 months side by side at only 12dp wide each,
+/// horizontal text either overlapped its neighbors or forced them apart.
+/// Rotating it 90° and pulling it down (negative margin) into the bar's own
+/// column lets it read bottom-to-top inside the space the bar already owns.
+BarTouchTooltipData _permanentLabelTooltip(Color onBarTextColor, {required bool hideValues}) {
   return BarTouchTooltipData(
     getTooltipColor: (_) => Colors.transparent,
-    tooltipPadding: EdgeInsets.zero,
-    tooltipMargin: 8,
+    tooltipPadding: const EdgeInsets.symmetric(vertical: 4),
+    tooltipMargin: -14,
+    rotateAngle: -90,
     fitInsideVertically: true,
     getTooltipItem: (group, groupIndex, rod, rodIndex) {
       return BarTooltipItem(
         hideValues ? '••••' : _shortMoney(rod.toY),
-        TextStyle(color: textColor, fontWeight: FontWeight.bold, fontSize: 11),
+        TextStyle(color: onBarTextColor, fontWeight: FontWeight.bold, fontSize: 10),
       );
     },
   );
@@ -244,7 +250,7 @@ class _MonthlyTrendChart extends ConsumerWidget {
             ),
           ),
         ),
-        barTouchData: BarTouchData(touchTooltipData: _permanentLabelTooltip(colors.textDim, hideValues: hideValues)),
+        barTouchData: BarTouchData(touchTooltipData: _permanentLabelTooltip(Colors.white, hideValues: hideValues)),
         barGroups: [
           for (var i = 0; i < trend.length; i++)
             BarChartGroupData(

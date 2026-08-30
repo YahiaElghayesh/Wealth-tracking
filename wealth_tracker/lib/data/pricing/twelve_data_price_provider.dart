@@ -10,11 +10,16 @@ import 'price_provider.dart';
 /// [MetalsPriceProvider]'s goldapi.io key — we can't create that account on
 /// their behalf.
 ///
-/// Symbols are stored and requested as `TICKER:EXCHANGE` (e.g.
-/// `AAPL:NASDAQ`, `COMI:EGX`) — Twelve Data accepts that exact compound
-/// form directly as its `symbol` query parameter, comma-separated for a
-/// batch request, so no translation is needed between what's stored on the
-/// asset and what's sent over the wire.
+/// Symbols are stored as `TICKER:EXCHANGE` (e.g. `AAPL:NASDAQ`,
+/// `COMI:EGX`), but that compound string is only a local storage
+/// convenience -- Twelve Data's `/price` endpoint wants the ticker and
+/// exchange as two *separate* query parameters (`symbol=AAPL&exchange=NASDAQ`),
+/// not smashed together into one `symbol` value. Sending the compound form
+/// as a single `symbol` was landing a 404 (confirmed on-device). Each stock
+/// is fetched with its own request rather than batched, both to sidestep
+/// that (each request's response is the same reliable flat `{"price": ...}`
+/// shape either way) and because a batch request sharing one `exchange`
+/// param can't represent a mix of EGX and NASDAQ tickers at once.
 class TwelveDataPriceProvider implements PriceProvider {
   TwelveDataPriceProvider({required this.apiKey, Dio? dio}) : _dio = dio ?? Dio();
 
@@ -35,36 +40,39 @@ class TwelveDataPriceProvider implements PriceProvider {
       throw PriceFetchException(name, 'No API key configured. Add one in Settings.');
     }
 
-    try {
-      final response = await _dio.get<Map<String, dynamic>>(
-        '$_baseUrl/price',
-        queryParameters: {'symbol': symbols.join(','), 'apikey': key},
-      );
-      final data = response.data ?? {};
-      final result = <String, double>{};
+    final result = <String, double>{};
+    final errors = <String>[];
 
-      // A single-symbol request returns {"price": "123.45"} directly; a
-      // batch request returns {"AAPL:NASDAQ": {"price": "..."}, ...} keyed
-      // by the same compound symbol that was requested.
-      if (symbols.length == 1) {
-        final price = data['price'];
+    for (final compound in symbols) {
+      final parts = compound.split(':');
+      final ticker = parts.first;
+      final exchange = parts.length > 1 ? parts.sublist(1).join(':') : null;
+      try {
+        final response = await _dio.get<Map<String, dynamic>>(
+          '$_baseUrl/price',
+          queryParameters: {
+            'symbol': ticker,
+            if (exchange != null && exchange.isNotEmpty) 'exchange': exchange,
+            'apikey': key,
+          },
+        );
+        final price = response.data?['price'];
         if (price is String) {
           final parsed = double.tryParse(price);
-          if (parsed != null) result[symbols.first] = parsed;
+          if (parsed != null) result[compound] = parsed;
         }
-      } else {
-        for (final symbol in symbols) {
-          final entry = data[symbol];
-          if (entry is Map && entry['price'] is String) {
-            final parsed = double.tryParse(entry['price'] as String);
-            if (parsed != null) result[symbol] = parsed;
-          }
-        }
+      } on DioException catch (e) {
+        errors.add('$ticker: ${e.message ?? 'network error'}');
       }
-      return result;
-    } on DioException catch (e) {
-      throw PriceFetchException(name, e.message ?? 'network error');
     }
+
+    // A total failure (nothing priced at all) is worth surfacing as an
+    // error the refresh UI shows; a partial failure just quietly leaves
+    // those specific assets unpriced, same as every other provider here.
+    if (result.isEmpty && errors.isNotEmpty) {
+      throw PriceFetchException(name, errors.join('; '));
+    }
+    return result;
   }
 
   /// Stock name/ticker search across every exchange Twelve Data covers

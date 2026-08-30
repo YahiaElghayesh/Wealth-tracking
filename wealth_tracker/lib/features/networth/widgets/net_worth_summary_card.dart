@@ -160,6 +160,11 @@ class _SplitSide extends StatelessWidget {
           style: theme.textTheme.labelSmall?.copyWith(color: colors.textDim),
           maskLength: 7,
         ),
+        MoneyText(
+          '≈ ${formatUsd(valueUsd)}',
+          style: theme.textTheme.labelSmall?.copyWith(color: colors.textDim, fontSize: 10.5),
+          maskLength: 5,
+        ),
       ],
     );
   }

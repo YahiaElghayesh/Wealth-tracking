@@ -202,10 +202,15 @@ class _CounterpartyTile extends ConsumerWidget {
                   : balance == 0
                       ? const Text('Settled up')
                       : Row(
-                          mainAxisSize: MainAxisSize.min,
                           children: [
                             Text(balance > 0 ? 'Owes you ' : 'You owe '),
-                            MoneyText(formatMoney(balance.abs(), defaultCurrency)),
+                            Flexible(
+                              child: MoneyText(
+                                formatMoney(balance.abs(), defaultCurrency),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
                           ],
                         ),
           trailing: Row(

@@ -100,6 +100,18 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
       lastDate: DateTime.now().add(const Duration(days: 1)),
     );
     if (picked != null) setState(() => _date = picked);
+    _keepAmountFocused();
+  }
+
+  /// Every other control on this screen (category chips, the currency
+  /// dropdown, the payment-direction toggle, the date picker) is a quick
+  /// thumb tap meant to happen *while* still keying in the amount — none of
+  /// them should be able to dismiss the numeric keyboard the way picking
+  /// them normally would by stealing focus. Called right after each of
+  /// those interactions to hand focus straight back to the amount field.
+  void _keepAmountFocused() {
+    if (!mounted) return;
+    FocusScope.of(context).requestFocus(_amountFocusNode);
   }
 
   Future<void> _save() async {
@@ -171,31 +183,14 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
                     items: supportedCurrencies
                         .map((c) => DropdownMenuItem(value: c, child: Text(c)))
                         .toList(),
-                    onChanged: (c) => setState(() => _currency = c!),
+                    onChanged: (c) {
+                      setState(() => _currency = c!);
+                      _keepAmountFocused();
+                    },
                   ),
                 ),
               ],
             ),
-            if (_isPayment) ...[
-              const SizedBox(height: 16),
-              Wrap(
-                spacing: 8,
-                children: _categoryNames.map((c) {
-                  return ChoiceChip(
-                    label: Text(c),
-                    selected: selectedCategory == c,
-                    onSelected: (_) => setState(() => _category = c),
-                  );
-                }).toList(),
-              ),
-              if (selectedCategory == 'Other') ...[
-                const SizedBox(height: 12),
-                TextFormField(
-                  controller: _customCategoryController,
-                  decoration: const InputDecoration(hintText: 'Category'),
-                ),
-              ],
-            ],
             const SizedBox(height: 16),
             SegmentedButton<bool>(
               segments: const [
@@ -203,7 +198,10 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
                 ButtonSegment(value: false, label: Text('Paid to You')),
               ],
               selected: {_isPayment},
-              onSelectionChanged: (s) => setState(() => _isPayment = s.first),
+              onSelectionChanged: (s) {
+                setState(() => _isPayment = s.first);
+                _keepAmountFocused();
+              },
             ),
             const SizedBox(height: 16),
             InkWell(
@@ -221,6 +219,36 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
                 ),
               ),
             ),
+            // Categories sit last, closest to the bottom of the screen --
+            // the control the user reaches for most, kept within easy
+            // one-thumb reach instead of up by the amount field.
+            if (_isPayment) ...[
+              const SizedBox(height: 20),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: _categoryNames.map((c) {
+                  return ChoiceChip(
+                    label: Text(c),
+                    selected: selectedCategory == c,
+                    onSelected: (_) {
+                      setState(() => _category = c);
+                      _keepAmountFocused();
+                    },
+                  );
+                }).toList(),
+              ),
+              if (selectedCategory == 'Other') ...[
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: _customCategoryController,
+                  decoration: const InputDecoration(hintText: 'Category'),
+                ),
+              ],
+            ],
+            // Keeps this content clear of the FAB when the list is short
+            // enough that it would otherwise sit right underneath it.
+            const SizedBox(height: 72),
           ],
         ),
       ),

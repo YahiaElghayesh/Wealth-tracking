@@ -23,6 +23,8 @@ class MoneyText extends ConsumerWidget {
     this.style,
     this.textAlign,
     this.maskLength = 7,
+    this.overflow,
+    this.maxLines,
   });
 
   final String text;
@@ -30,11 +32,23 @@ class MoneyText extends ConsumerWidget {
   final TextAlign? textAlign;
   final int maskLength;
 
+  /// Passed straight through to the underlying [Text] — set these at a call
+  /// site that can't guarantee enough width (e.g. sitting next to a
+  /// variable-length name in a Row) instead of letting it overflow.
+  final TextOverflow? overflow;
+  final int? maxLines;
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final hidden = ref.watch(hideValuesProvider);
     final effectiveStyle = moneyTextStyle(context).merge(_withoutFontFamily(style));
-    return Text(hidden ? '•' * maskLength : text, style: effectiveStyle, textAlign: textAlign);
+    return Text(
+      hidden ? '•' * maskLength : text,
+      style: effectiveStyle,
+      textAlign: textAlign,
+      overflow: overflow,
+      maxLines: maxLines,
+    );
   }
 
   /// A TextTheme slot (e.g. `theme.textTheme.headlineSmall`) carries its own

@@ -8,6 +8,7 @@ import '../net_worth/net_worth_calculator.dart';
 /// `home_widget` simply returns false/null there rather than throwing.
 class HomeWidgetService {
   static const _providerClassName = 'NetWorthWidgetProvider';
+  static const _compactProviderClassName = 'NetWorthCompactWidgetProvider';
   static const _quickAddProviderClassName = 'QuickAddLedgerWidgetProvider';
 
   /// Keys understood by `WidgetBackground.kt` on the native side — keep in
@@ -22,6 +23,7 @@ class HomeWidgetService {
   Future<void> setBackgroundPreset(String preset) async {
     await HomeWidget.saveWidgetData<String>('widget_background_preset', preset);
     await HomeWidget.updateWidget(androidName: _providerClassName);
+    await HomeWidget.updateWidget(androidName: _compactProviderClassName);
     await HomeWidget.updateWidget(androidName: _quickAddProviderClassName);
   }
 
@@ -37,6 +39,7 @@ class HomeWidgetService {
   Future<void> setBackgroundOpacity(int percent) async {
     await HomeWidget.saveWidgetData<int>('widget_background_opacity', percent.clamp(0, 100));
     await HomeWidget.updateWidget(androidName: _providerClassName);
+    await HomeWidget.updateWidget(androidName: _compactProviderClassName);
     await HomeWidget.updateWidget(androidName: _quickAddProviderClassName);
   }
 
@@ -45,18 +48,26 @@ class HomeWidgetService {
     required double? usdToEgpRate,
   }) async {
     await HomeWidget.saveWidgetData<String>('net_worth_total_usd', formatUsd(summary.totalUsd));
-    // Widget rows show both the percent and the actual value on each side
-    // (e.g. "68% · $14,120"), not just a bare amount -- matches the
-    // approved redesign's wpill pattern.
+    // Widget rows show percent + both currencies on each side (e.g.
+    // "68% · E£1.25M · $14.1K"), not just a bare USD amount -- matches the
+    // approved redesign's wpill pattern, extended to carry EGP too.
+    // Short (K/M-abbreviated) forms, since a widget row has no room for two
+    // full currency figures plus a percent.
     final splitTotal = summary.liquidUsd + summary.nonLiquidUsd;
     final liquidPct = splitTotal <= 0 ? 0 : (summary.liquidUsd / splitTotal * 100).round();
+    final liquidEgp = usdToEgpRate == null ? null : summary.liquidUsd * usdToEgpRate;
+    final nonLiquidEgp = usdToEgpRate == null ? null : summary.nonLiquidUsd * usdToEgpRate;
     await HomeWidget.saveWidgetData<String>(
       'net_worth_liquid_usd',
-      '$liquidPct% · ${formatUsd(summary.liquidUsd)}',
+      '$liquidPct%'
+      '${liquidEgp == null ? '' : ' · ${formatShortEgp(liquidEgp)}'}'
+      ' · ${formatShortUsd(summary.liquidUsd)}',
     );
     await HomeWidget.saveWidgetData<String>(
       'net_worth_nonliquid_usd',
-      '${100 - liquidPct}% · ${formatUsd(summary.nonLiquidUsd)}',
+      '${100 - liquidPct}%'
+      '${nonLiquidEgp == null ? '' : ' · ${formatShortEgp(nonLiquidEgp)}'}'
+      ' · ${formatShortUsd(summary.nonLiquidUsd)}',
     );
     await HomeWidget.saveWidgetData<String>(
       'net_worth_total_egp',
@@ -67,6 +78,7 @@ class HomeWidgetService {
       'Updated ${_formatTimestamp(DateTime.now())}',
     );
     await HomeWidget.updateWidget(androidName: _providerClassName);
+    await HomeWidget.updateWidget(androidName: _compactProviderClassName);
   }
 
   String _formatTimestamp(DateTime time) {

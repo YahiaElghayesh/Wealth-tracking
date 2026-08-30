@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  A static app shortcut — shown on long-press of the launcher icon, and
+  from there draggable onto the home screen as its own regular icon. Unlike
+  the "Add Payment" widget, a shortcut icon like this CAN be placed inside a
+  folder, which is the whole reason it exists alongside the widget rather
+  than instead of it.
+
+  Its intent reuses the exact same launch path the widget's own tap already
+  goes through: home_widget's plugin only recognizes a launch as "one of
+  ours" by checking the Intent's action string for its own
+  es.antonborri.home_widget.action.LAUNCH constant (see
+  HomeWidgetIntent.kt / HomeWidgetPlugin.kt) and then reads the data URI —
+  it isn't specific to widgets at all, just to that action string. Setting
+  the same action + the same wealthtracker://add_ledger_entry URI here
+  means handleQuickAddLaunch (quick_add_launch.dart) handles a shortcut tap
+  identically to a widget tap, with zero new native or Dart handling code.
+-->
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:shortcutId="add_payment"
+        android:enabled="true"
+        android:icon="@mipmap/ic_launcher"
+        android:shortcutShortLabel="@string/shortcut_add_payment_short"
+        android:shortcutLongLabel="@string/shortcut_add_payment_long">
+        <intent
+            android:action="es.antonborri.home_widget.action.LAUNCH"
+            android:targetPackage="com.yahiaelghayesh.wealth_tracker"
+            android:targetClass="com.yahiaelghayesh.wealth_tracker.MainActivity"
+            android:data="wealthtracker://add_ledger_entry" />
+    </shortcut>
+</shortcuts>

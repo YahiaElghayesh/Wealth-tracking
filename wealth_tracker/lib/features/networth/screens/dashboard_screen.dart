@@ -85,6 +85,7 @@ class DashboardScreen extends ConsumerWidget {
                         .toList(),
                   ),
                 ),
+              _MetalsSummaryCard(assets: assets),
               const SizedBox(height: 24),
               Text('Assets', style: Theme.of(context).textTheme.titleMedium),
               const SizedBox(height: 8),
@@ -94,7 +95,22 @@ class DashboardScreen extends ConsumerWidget {
                   child: Center(child: Text('No assets yet. Tap + to add one.')),
                 )
               else
-                ...assets.map((asset) => _AssetTile(asset: asset)),
+                ..._groupedByCategory(assets).entries.expand(
+                      (entry) => [
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(4, 12, 4, 6),
+                          child: Text(
+                            entry.key.label.toUpperCase(),
+                            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                                  color: context.appColors.textDim,
+                                  fontWeight: FontWeight.w800,
+                                  letterSpacing: 0.5,
+                                ),
+                          ),
+                        ),
+                        ...entry.value.map((asset) => _AssetTile(asset: asset)),
+                      ],
+                    ),
             ],
           );
         },
@@ -104,6 +120,129 @@ class DashboardScreen extends ConsumerWidget {
           MaterialPageRoute(builder: (_) => const AddEditAssetScreen()),
         ),
         child: const Icon(Icons.add),
+      ),
+    );
+  }
+}
+
+/// Groups [assets] by category, in [AssetCategory.values] order, dropping
+/// any category with nothing in it — so the list reads as sections
+/// (Crypto, Gold, Cash, ...) instead of one long undifferentiated stack.
+Map<AssetCategory, List<Asset>> _groupedByCategory(List<Asset> assets) {
+  final grouped = <AssetCategory, List<Asset>>{};
+  for (final category in AssetCategory.values) {
+    final matches = assets.where((a) => a.category == category.name).toList();
+    if (matches.isNotEmpty) grouped[category] = matches;
+  }
+  return grouped;
+}
+
+/// Formats a held quantity without trailing zeros -- "0.5", not
+/// "0.500000", but still "12" rather than "12.0" for a whole number.
+String _trimmedQuantity(double value) {
+  if (value == value.roundToDouble()) return value.toInt().toString();
+  var s = value.toStringAsFixed(6);
+  s = s.replaceFirst(RegExp(r'0+$'), '');
+  s = s.replaceFirst(RegExp(r'\.$'), '');
+  return s;
+}
+
+/// A short "how much is held" label shown alongside the category on each
+/// asset row -- grams for metals, share count for stocks, raw quantity for
+/// crypto (the asset's name already carries the coin, so no unit suffix is
+/// needed there). Currency-valued assets (cash, vehicles, real estate,
+/// certificates) have no separate "quantity" concept worth showing; the
+/// value itself already *is* the amount.
+String? _quantityLabel(Asset asset) {
+  switch (ValuationMode.values.byName(asset.valuationMode)) {
+    case ValuationMode.metal:
+      return '${_trimmedQuantity(asset.quantity)}g';
+    case ValuationMode.stock:
+      return '${_trimmedQuantity(asset.quantity)} sh';
+    case ValuationMode.crypto:
+      return _trimmedQuantity(asset.quantity);
+    case ValuationMode.currency:
+      return null;
+  }
+}
+
+/// Aggregate gold/silver holdings across every asset -- gold broken down by
+/// karat, since a 21K gram and a 24K gram aren't the same amount of pure
+/// gold. Shown above the asset list whenever at least one metal asset
+/// exists; renders nothing otherwise.
+class _MetalsSummaryCard extends StatelessWidget {
+  const _MetalsSummaryCard({required this.assets});
+
+  final List<Asset> assets;
+
+  @override
+  Widget build(BuildContext context) {
+    final goldByKarat = <GoldKarat, double>{};
+    var silverTotal = 0.0;
+    for (final asset in assets) {
+      final category = AssetCategory.values.byName(asset.category);
+      if (category == AssetCategory.gold) {
+        final karat = GoldKarat.fromPriceSymbol(asset.symbolOrCurrency);
+        if (karat != null) {
+          goldByKarat[karat] = (goldByKarat[karat] ?? 0) + asset.quantity;
+        }
+      } else if (category == AssetCategory.silver) {
+        silverTotal += asset.quantity;
+      }
+    }
+    if (goldByKarat.isEmpty && silverTotal <= 0) return const SizedBox.shrink();
+
+    final goldTotal = goldByKarat.values.fold(0.0, (a, b) => a + b);
+    final theme = Theme.of(context);
+    final colors = context.appColors;
+
+    return Container(
+      margin: const EdgeInsets.only(top: 16),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: colors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (goldByKarat.isNotEmpty) ...[
+            Row(
+              children: [
+                AppIcon.goldBar(size: 16),
+                const SizedBox(width: 8),
+                Expanded(child: Text('Gold — total ${_trimmedQuantity(goldTotal)}g', style: theme.textTheme.bodyMedium)),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: (goldByKarat.entries.toList()..sort((a, b) => b.key.purityFraction.compareTo(a.key.purityFraction)))
+                  .map(
+                    (e) => Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(color: colors.surface2, borderRadius: BorderRadius.circular(8)),
+                      child: Text(
+                        '${e.key.label}: ${_trimmedQuantity(e.value)}g',
+                        style: theme.textTheme.labelSmall?.copyWith(color: colors.textDim),
+                      ),
+                    ),
+                  )
+                  .toList(),
+            ),
+          ],
+          if (goldByKarat.isNotEmpty && silverTotal > 0) const SizedBox(height: 10),
+          if (silverTotal > 0)
+            Row(
+              children: [
+                AppIcon.silverBar(size: 16),
+                const SizedBox(width: 8),
+                Text('Silver — total ${_trimmedQuantity(silverTotal)}g', style: theme.textTheme.bodyMedium),
+              ],
+            ),
+        ],
       ),
     );
   }
@@ -128,6 +267,7 @@ class _AssetTile extends ConsumerWidget {
         ? GoldKarat.fromPriceSymbol(asset.symbolOrCurrency)
         : null;
     final categoryLabel = karat == null ? category.label : '${category.label} (${karat.label})';
+    final quantityLabel = _quantityLabel(asset);
 
     final theme = Theme.of(context);
     final colors = context.appColors;
@@ -192,7 +332,9 @@ class _AssetTile extends ConsumerWidget {
                     Text(
                       hideValues
                           ? '••••••'
-                          : '$categoryLabel · ${assetClass == AssetClass.liquid ? "Liquid" : "Non-liquid"}',
+                          : '$categoryLabel'
+                              '${quantityLabel == null ? '' : ' · $quantityLabel'}'
+                              ' · ${assetClass == AssetClass.liquid ? "Liquid" : "Non-liquid"}',
                       style: theme.textTheme.labelSmall?.copyWith(color: colors.textDim),
                     ),
                   ],

@@ -14,3 +14,19 @@ String formatEgp(double value) => _egpFormat.format(value);
 String formatMoney(double value, String currencyCode) {
   return '${_plainNumber.format(value)} $currencyCode';
 }
+
+/// K/M-abbreviated form for space-constrained spots (the home-screen
+/// widget's liquid/non-liquid rows) — "E£1.25M" / "$103.4K" instead of the
+/// full "EGP 1,250,000.00" / "$103,400.00", matching the mockup's `.wv`
+/// pattern for those rows.
+String _short(double value, String prefix) {
+  final abs = value.abs();
+  final sign = value < 0 ? '-' : '';
+  if (abs >= 1000000) return '$sign$prefix${(abs / 1000000).toStringAsFixed(2)}M';
+  if (abs >= 1000) return '$sign$prefix${(abs / 1000).toStringAsFixed(1)}K';
+  return '$sign$prefix${abs.toStringAsFixed(0)}';
+}
+
+String formatShortEgp(double value) => _short(value, 'E£');
+
+String formatShortUsd(double value) => _short(value, r'$');

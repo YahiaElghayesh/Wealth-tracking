@@ -159,12 +159,18 @@ class _AddEditAssetScreenState extends ConsumerState<AddEditAssetScreen> {
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            TextFormField(
-              controller: _nameController,
-              decoration: const InputDecoration(labelText: 'Name'),
-              validator: (v) => (v == null || v.trim().isEmpty) ? 'Required' : null,
-            ),
-            const SizedBox(height: 16),
+            // Crypto/stock assets get their name from the coin/ticker
+            // search below instead -- asking for it twice was redundant,
+            // and "Bitcoin" or "Apple Inc." is already exactly what the
+            // search selection carries.
+            if (_valuationMode != ValuationMode.crypto && _valuationMode != ValuationMode.stock) ...[
+              TextFormField(
+                controller: _nameController,
+                decoration: const InputDecoration(labelText: 'Name'),
+                validator: (v) => (v == null || v.trim().isEmpty) ? 'Required' : null,
+              ),
+              const SizedBox(height: 16),
+            ],
             DropdownButtonFormField<AssetCategory>(
               isExpanded: true,
               initialValue: _category,
@@ -253,6 +259,7 @@ class _AddEditAssetScreenState extends ConsumerState<AddEditAssetScreen> {
               setState(() {
                 _symbolController.text = option.compoundSymbol;
                 _selectedStockSymbol = option.compoundSymbol;
+                _nameController.text = option.name;
               });
             },
             fieldViewBuilder: (context, controller, focusNode, onSubmitted) {
@@ -299,6 +306,7 @@ class _AddEditAssetScreenState extends ConsumerState<AddEditAssetScreen> {
               setState(() {
                 _symbolController.text = option.toString();
                 _selectedCoinId = option.id;
+                _nameController.text = option.name;
               });
             },
             fieldViewBuilder: (context, controller, focusNode, onSubmitted) {
@@ -419,6 +427,11 @@ class _AddEditAssetScreenState extends ConsumerState<AddEditAssetScreen> {
       ValuationMode.currency => _currency,
     };
     final quantity = double.parse(_quantityController.text.trim());
+    // Crypto/stock don't ask for a name -- onSelected fills it in from the
+    // picked suggestion. If the user typed a raw id/ticker without picking
+    // one (the documented fallback path for both search fields), there's
+    // nothing else to show as a name, so fall back to whatever they typed.
+    final name = _nameController.text.trim().isEmpty ? symbol : _nameController.text.trim();
     final purchasePriceText = _purchasePriceController.text.trim();
     final purchasePrice =
         _purchasePriceCategories.contains(_category) && purchasePriceText.isNotEmpty
@@ -426,7 +439,7 @@ class _AddEditAssetScreenState extends ConsumerState<AddEditAssetScreen> {
             : null;
 
     final companion = AssetsCompanion(
-      name: Value(_nameController.text.trim()),
+      name: Value(name),
       category: Value(_category.name),
       valuationMode: Value(_valuationMode.name),
       quantity: Value(quantity),
