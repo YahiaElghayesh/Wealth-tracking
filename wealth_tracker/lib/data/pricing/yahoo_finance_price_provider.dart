@@ -122,21 +122,47 @@ class YahooFinancePriceProvider implements PriceProvider {
     return ticker;
   }
 
+  /// Well-known instruments whose common name doesn't text-match Yahoo's own
+  /// symbol/name well enough for its search to surface them -- Yahoo still
+  /// carries Egypt's benchmark index under its pre-rebrand name ("CASE 30",
+  /// from the exchange's former name, Cairo & Alexandria Stock Exchange),
+  /// so searching the current name ("EGX 30") the exchange has gone by for
+  /// years finds nothing relevant. Prepended to the real search results
+  /// (not a replacement for them) whenever the query matches, case- and
+  /// space-insensitively. Add another alias here only for a specific,
+  /// verified case like this one -- this is not a general fix for search
+  /// relevance, which [_rankedForQuery] handles instead.
+  static const _knownAliases = {'EGX30': ('^CASE30', 'EGX 30 (CASE 30) Index', 'Cairo')};
+
   /// Stock name/ticker search for the asset entry screen's autocomplete --
   /// Yahoo's own search already resolves each result to its fully-suffixed
   /// tradeable symbol, so no separate exchange-to-suffix mapping is needed
   /// here the way [_toYahooSymbol] needs one for legacy data.
   Future<List<StockSearchResult>> searchStocks(String query) async {
-    if (query.trim().isEmpty) return [];
+    final trimmed = query.trim();
+    if (trimmed.isEmpty) return [];
+
+    final results = <StockSearchResult>[];
+    final aliased = _knownAliases[trimmed.toUpperCase().replaceAll(' ', '')];
+    if (aliased != null) {
+      final (symbol, name, exchange) = aliased;
+      results.add(StockSearchResult(symbol: symbol, name: name, exchange: exchange, country: ''));
+    }
 
     try {
       final response = await _dio.get<Map<String, dynamic>>(
         _searchUrl,
-        queryParameters: {'q': query.trim(), 'quotesCount': 10, 'newsCount': 0},
+        // 20, not Yahoo's own default of 6-10 -- a smaller EGX-listed
+        // company competing for relevance against much larger, more
+        // Yahoo-popular names (the ranking [_rankedForQuery] can't fix,
+        // since it only reorders what Yahoo actually returned) needs more
+        // headroom to appear in the response at all.
+        queryParameters: {'q': trimmed, 'quotesCount': 20, 'newsCount': 0},
         options: Options(headers: const {'User-Agent': 'Mozilla/5.0'}),
       );
       final quotes = response.data?['quotes'] as List<dynamic>? ?? [];
-      return quotes
+      final aliasedSymbol = results.isEmpty ? null : results.first.symbol;
+      final fromYahoo = quotes
           .whereType<Map<String, dynamic>>()
           .where((q) => q['isYahooFinance'] != false)
           .map(
@@ -149,11 +175,39 @@ class YahooFinancePriceProvider implements PriceProvider {
               country: '',
             ),
           )
-          .where((r) => r.symbol.isNotEmpty)
-          .toList();
+          .where((r) => r.symbol.isNotEmpty && r.symbol != aliasedSymbol);
+      results.addAll(_rankedForQuery(fromYahoo.toList(), trimmed));
+      return results;
     } on DioException {
-      return [];
+      return results;
     }
+  }
+
+  /// Yahoo ranks its own search results by relevance/popularity, which
+  /// isn't the same as "matches the ticker the user actually typed" -- a
+  /// user who already knows a symbol and types it exactly (e.g. "COMI")
+  /// wants that result first, not buried under more Yahoo-prominent
+  /// companies whose *name* happens to loosely match the query text too.
+  /// Reorders in place for exact symbol matches (ignoring a `.CA`/`.US`
+  /// style suffix and a leading `^`) first, then symbol-starts-with next,
+  /// leaving everything else in Yahoo's own relevance order.
+  List<StockSearchResult> _rankedForQuery(List<StockSearchResult> results, String query) {
+    final normalizedQuery = query.toUpperCase().replaceAll(' ', '');
+    int rank(StockSearchResult r) {
+      final bareSymbol = r.symbol.toUpperCase().replaceAll('^', '').split('.').first;
+      if (bareSymbol == normalizedQuery) return 0;
+      if (bareSymbol.startsWith(normalizedQuery)) return 1;
+      return 2;
+    }
+
+    final indexed = results.asMap().entries.toList()
+      ..sort((a, b) {
+        final rankCompare = rank(a.value).compareTo(rank(b.value));
+        // Stable within the same rank -- preserves Yahoo's own relative
+        // ordering rather than re-sorting ties arbitrarily.
+        return rankCompare != 0 ? rankCompare : a.key.compareTo(b.key);
+      });
+    return indexed.map((e) => e.value).toList();
   }
 }
 

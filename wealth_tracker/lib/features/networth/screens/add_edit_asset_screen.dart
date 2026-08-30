@@ -273,6 +273,9 @@ class _AddEditAssetScreenState extends ConsumerState<AddEditAssetScreen> {
                 decoration: const InputDecoration(
                   labelText: 'Stock',
                   hintText: 'Start typing a name or ticker, e.g. Apple or COMI',
+                  helperText: "Can't find it? Type the exact Yahoo Finance ticker "
+                      '(e.g. PHDC.CA) and save without picking a suggestion.',
+                  helperMaxLines: 2,
                 ),
                 validator: (v) => (v == null || v.trim().isEmpty) ? 'Required' : null,
               );
