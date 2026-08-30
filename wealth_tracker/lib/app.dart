@@ -10,6 +10,7 @@ import 'core/theme/app_theme.dart';
 import 'core/widgets/app_bottom_nav.dart';
 import 'data/sms/native_sms_channel.dart';
 import 'data/sms/sms_ledger_processor.dart';
+import 'features/calculator/providers/known_cards_sync.dart';
 import 'features/calculator/screens/calculator_screen.dart';
 import 'features/ledger/providers/quick_add_launch.dart';
 import 'features/ledger/providers/widget_counterparties_sync.dart';
@@ -121,6 +122,7 @@ class _RootShellState extends ConsumerState<_RootShell> with WidgetsBindingObser
   Widget build(BuildContext context) {
     ref.watch(homeWidgetSyncProvider);
     ref.watch(widgetCounterpartiesSyncProvider);
+    ref.watch(knownCardsSyncProvider);
     ref.watch(vendorRuleSeedProvider);
 
     return Scaffold(

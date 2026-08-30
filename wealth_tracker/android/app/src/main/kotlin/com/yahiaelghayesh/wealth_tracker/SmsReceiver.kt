@@ -65,10 +65,11 @@ class SmsReceiver : BroadcastReceiver() {
         // promotional text mentioning a percentage-off or a cash amount
         // ("Save up to 500 EGP!") looked identical to a real bank alert to
         // this receiver, since the actual bank-format check only ran once
-        // the user tapped in. looksLikeBankCardSms requires all three of a
-        // money-shaped amount, a currency, and a card reference with its
-        // last four digits before anything below even runs.
-        if (!looksLikeBankCardSms(body)) return
+        // the user tapped in. looksLikeBankCardSms requires a money-shaped
+        // amount, a currency, a card reference with its last four digits,
+        // and (when at least one card is actually registered) that those
+        // four digits match a real card, before anything below even runs.
+        if (!looksLikeBankCardSms(context, body)) return
 
         if (isCardPaymentOrRefundAlert(body)) {
             enqueueAutoUpdate(context, body, timestampMillis)
@@ -162,17 +163,17 @@ class SmsReceiver : BroadcastReceiver() {
         private const val SMS_AUTO_UPDATE_TASK_NAME = "smsAutoUpdate"
 
         /**
-         * The three criteria a real bank card alert states together --
-         * see the class doc comment. Each is checked independently so a
-         * promo text would need to accidentally satisfy all three at once
-         * to slip through, which the kind of wording promos actually use
+         * The criteria a real bank card alert states together -- see the
+         * class doc comment. Each is checked independently so a promo text
+         * would need to accidentally satisfy all of them at once to slip
+         * through, which the kind of wording promos actually use
          * essentially never does:
          *
          * 1. [amountPattern] -- a money-*shaped* number: has a decimal
          *    point or thousands-comma-grouping, e.g. "958.54" or
          *    "85,891.16". Deliberately narrower than "any number", since a
          *    bare 4-digit card number would otherwise also satisfy this on
-         *    its own and collapse the three criteria into two.
+         *    its own and collapse this criterion into the next.
          * 2. [currencyPattern] -- EGP/USD (this app's supported
          *    currencies) or "جم", the Arabic abbreviation CIB/NBE alerts
          *    actually use for Egyptian pounds.
@@ -182,17 +183,56 @@ class SmsReceiver : BroadcastReceiver() {
          *    4-digit number, standing in for "the last four digits of a
          *    card number" without needing to locate the two adjacent to
          *    each other in the text.
+         * 4. [matchesKnownCardIfAnyRegistered] -- that 4-digit number
+         *    actually belongs to a card the user has registered (in any
+         *    profile, not just whichever is active), read from
+         *    home_widget's shared storage (see
+         *    lib/features/calculator/providers/known_cards_sync.dart --
+         *    the only Dart->native bridge already used for exactly this
+         *    "native code needs something Dart's database owns" need).
+         *    Skipped (never blocks) when nothing is registered yet, so a
+         *    fresh install or a user who hasn't added any cards doesn't
+         *    lose SMS detection entirely over an empty list.
          */
         private val amountPattern = Regex("""\d[\d,]*\.\d+|\d{1,3}(,\d{3})+""")
         private val currencyPattern = Regex("EGP|USD|جم", RegexOption.IGNORE_CASE)
         private val cardKeywordPattern = Regex("card|بطاق", RegexOption.IGNORE_CASE)
         private val fourDigitPattern = Regex("""\b\d{4}\b""")
 
-        private fun looksLikeBankCardSms(body: String): Boolean {
+        // Must match the file/key HomeWidget.saveWidgetData writes to from
+        // known_cards_sync.dart -- see home_widget's own Android plugin
+        // (HomeWidgetPlugin.PREFERENCES) for why this exact plain
+        // SharedPreferences file, rather than the Flutter shared_preferences
+        // plugin's own storage (which as of its current version is backed
+        // by AndroidX DataStore, not a plain SharedPreferences file this
+        // receiver could read directly).
+        private const val HOME_WIDGET_PREFERENCES = "HomeWidgetPreferences"
+        private const val KNOWN_CARDS_KEY = "known_card_last_four_digits"
+
+        private fun looksLikeBankCardSms(context: Context, body: String): Boolean {
             return amountPattern.containsMatchIn(body) &&
                 currencyPattern.containsMatchIn(body) &&
                 cardKeywordPattern.containsMatchIn(body) &&
-                fourDigitPattern.containsMatchIn(body)
+                fourDigitPattern.containsMatchIn(body) &&
+                matchesKnownCardIfAnyRegistered(context, body)
+        }
+
+        private fun matchesKnownCardIfAnyRegistered(context: Context, body: String): Boolean {
+            val knownLastFourDigits = readKnownCardLastFourDigits(context)
+            if (knownLastFourDigits.isEmpty()) return true
+            return fourDigitPattern.findAll(body).any { it.value in knownLastFourDigits }
+        }
+
+        private fun readKnownCardLastFourDigits(context: Context): Set<String> {
+            val json = context
+                .getSharedPreferences(HOME_WIDGET_PREFERENCES, Context.MODE_PRIVATE)
+                .getString(KNOWN_CARDS_KEY, null) ?: return emptySet()
+            return try {
+                val array = org.json.JSONArray(json)
+                (0 until array.length()).map { array.getString(it) }.toSet()
+            } catch (e: org.json.JSONException) {
+                emptySet()
+            }
         }
 
         /**
