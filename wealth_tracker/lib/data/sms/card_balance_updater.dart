@@ -10,11 +10,19 @@ import 'bank_sms_parser.dart';
 /// never asks the user anything.
 ///
 /// Prefers the balance the bank itself stated after the transaction
-/// ([ParsedBankSms.availableBalanceAfter]); falls back to adding or
+/// ([ParsedBankSms.availableBalanceAfter]) whenever *that figure's own
+/// currency* ([ParsedBankSms.availableBalanceCurrency], falling back to
+/// [ParsedBankSms.currency] for older callers that don't distinguish the
+/// two) matches the card's tracked currency — this is deliberately checked
+/// independently of the charge's own currency, since a bank can state an
+/// available balance in a different currency than the transaction that
+/// triggered the alert (e.g. NBE reports a EGP-billed card's balance in
+/// EGP even when the charge itself was in USD). Falls back to adding or
 /// subtracting [ParsedBankSms.amount] from whatever was last known (or the
-/// card's limit, if nothing was ever recorded) when the SMS didn't state
-/// one. Returns `null` when there's no matching card or the currencies
-/// don't line up (mixing currencies here would silently corrupt the
+/// card's limit, if nothing was ever recorded) when no usable stated
+/// balance is available and the charge's own currency matches the card's.
+/// Returns `null` when there's no matching card, or neither of those two
+/// paths can be trusted (mixing currencies here would silently corrupt the
 /// balance).
 Future<CreditCard?> updateCardBalanceFromSms(AppDatabase db, ParsedBankSms parsed, {required String profileId}) async {
   final lastFour = parsed.lastFourDigits;
@@ -28,13 +36,18 @@ Future<CreditCard?> updateCardBalanceFromSms(AppDatabase db, ParsedBankSms parse
       break;
     }
   }
-  if (card == null || card.currency != parsed.currency) return null;
+  if (card == null) return null;
 
-  final newBalance = parsed.availableBalanceAfter ??
-      () {
-        final current = card!.currentAvailableBalance ?? card.limitAmount;
-        return parsed.isCharge ? current - parsed.amount : current + parsed.amount;
-      }();
+  final availCurrency = parsed.availableBalanceCurrency ?? parsed.currency;
+  final double newBalance;
+  if (parsed.availableBalanceAfter != null && availCurrency == card.currency) {
+    newBalance = parsed.availableBalanceAfter!;
+  } else if (card.currency == parsed.currency) {
+    final current = card.currentAvailableBalance ?? card.limitAmount;
+    newBalance = parsed.isCharge ? current - parsed.amount : current + parsed.amount;
+  } else {
+    return null;
+  }
 
   final updated = card.copyWith(
     currentAvailableBalance: Value(newBalance),

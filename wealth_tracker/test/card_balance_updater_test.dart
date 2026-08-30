@@ -131,6 +131,25 @@ void main() {
     expect(await updateCardBalanceFromSms(db, parsed, profileId: 'test-profile'), isNull);
   });
 
+  test('a stated balance in the card\'s currency is applied even if the charge itself was a different currency', () async {
+    await insertCard(lastFourDigits: '8455', currency: 'EGP');
+    final parsed = ParsedBankSms(
+      vendor: 'HODJAPASHA CULT',
+      amount: 85,
+      currency: 'USD',
+      occurredAt: DateTime(2026, 8, 26, 22, 27),
+      isCharge: true,
+      lastFourDigits: '8455',
+      availableBalanceAfter: 491269.64,
+      availableBalanceCurrency: 'EGP',
+    );
+
+    final updated = await updateCardBalanceFromSms(db, parsed, profileId: 'test-profile');
+
+    expect(updated, isNotNull);
+    expect(updated!.currentAvailableBalance, 491269.64);
+  });
+
   test('no last-4-digits on the SMS returns null (nothing to match against)', () async {
     await insertCard(lastFourDigits: '1234');
     final parsed = ParsedBankSms(

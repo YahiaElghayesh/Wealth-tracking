@@ -2,11 +2,20 @@ import 'package:intl/intl.dart';
 
 final _usdFormat = NumberFormat.currency(symbol: r'$', decimalDigits: 2);
 final _egpFormat = NumberFormat.currency(symbol: 'EGP ', decimalDigits: 2);
+final _usdFormatWhole = NumberFormat.currency(symbol: r'$', decimalDigits: 0);
+final _egpFormatWhole = NumberFormat.currency(symbol: 'EGP ', decimalDigits: 0);
 final _plainNumber = NumberFormat('#,##0.00');
 
 String formatUsd(double value) => _usdFormat.format(value);
 
 String formatEgp(double value) => _egpFormat.format(value);
+
+/// Whole-number forms (rounded, no cents) — used on the Net Worth page,
+/// where a precise fraction of a currency unit adds noise without adding
+/// information at the scale asset values are shown at.
+String formatUsdWhole(double value) => _usdFormatWhole.format(value);
+
+String formatEgpWhole(double value) => _egpFormatWhole.format(value);
 
 /// Formats [value] with its ISO currency code (e.g. "1,234.56 SAR") — used
 /// wherever the currency isn't fixed to USD/EGP, since intl's locale-based

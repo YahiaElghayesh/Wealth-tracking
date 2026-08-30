@@ -1,3 +1,6 @@
+import 'dart:math' as math;
+import 'dart:ui' as ui;
+
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -81,15 +84,19 @@ class _StatisticsBody extends ConsumerStatefulWidget {
 }
 
 class _StatisticsBodyState extends ConsumerState<_StatisticsBody> {
-  /// Last 12 months, oldest first ending at the current month — same
-  /// chronological order the bar chart's own trend array already uses.
-  /// Previously newest-first (this month, then counting backward), which
-  /// put e.g. December right after January in the chip row -- correct by
-  /// "most recent first," but reads as backwards/random against a
-  /// left-to-right timeline.
+  /// The last 12 months, sorted by calendar position (January through
+  /// December) rather than by when they actually occurred -- confirmed via
+  /// screenshot that a chronological rolling window (oldest of the trailing
+  /// 12 first) still read as "out of order" to the user, who wants a plain
+  /// Jan-through-Dec reading regardless of which of those months belongs to
+  /// this year versus last. This is a picker for "which month(s) to look
+  /// at," not a timeline, so re-sorting it away from real time order is
+  /// fine here -- unlike the trend chart below, which stays chronological.
   static List<DateTime> _recentMonths() {
     final now = DateTime.now();
-    return [for (var i = 11; i >= 0; i--) DateTime(now.year, now.month - i)];
+    final months = [for (var i = 11; i >= 0; i--) DateTime(now.year, now.month - i)];
+    months.sort((a, b) => a.month.compareTo(b.month));
+    return months;
   }
 
   late Set<DateTime> _selectedMonths = {DateTime(DateTime.now().year, DateTime.now().month)};
@@ -123,7 +130,7 @@ class _StatisticsBodyState extends ConsumerState<_StatisticsBody> {
                   children: [
                     Text('Spend by month', style: Theme.of(context).textTheme.titleMedium),
                     const SizedBox(height: 12),
-                    SizedBox(height: 220, child: _MonthlyTrendChart(trend: trend)),
+                    SizedBox(height: 260, child: _MonthlyTrendChart(trend: trend)),
                   ],
                 ),
               ),
@@ -180,14 +187,16 @@ class _StatisticsBodyState extends ConsumerState<_StatisticsBody> {
   }
 }
 
-/// Compact money label used above bars — a shortened form (e.g. "1.2K")
-/// keeps labels legible when several bars sit close together.
+/// Compact number label rendered inside a bar -- a shortened form (e.g.
+/// "1.2K") for larger values, and a bare whole number (no currency code, no
+/// decimals) below 1,000, so the label needs as little vertical room as
+/// possible once rotated into the bar.
 String _shortMoney(double value) {
   final abs = value.abs();
   final sign = value < 0 ? '-' : '';
   if (abs >= 1000000) return '$sign${(abs / 1000000).toStringAsFixed(1)}M';
   if (abs >= 1000) return '$sign${(abs / 1000).toStringAsFixed(1)}K';
-  return formatMoney(value, defaultCurrency);
+  return '$sign${abs.round()}';
 }
 
 /// A permanently-visible label above a bar, using the same tooltip
@@ -201,14 +210,14 @@ String _shortMoney(double value) {
 BarTouchTooltipData _permanentLabelTooltip(Color onBarTextColor, {required bool hideValues}) {
   return BarTouchTooltipData(
     getTooltipColor: (_) => Colors.transparent,
-    tooltipPadding: const EdgeInsets.symmetric(vertical: 4),
-    tooltipMargin: -14,
+    tooltipPadding: EdgeInsets.zero,
+    tooltipMargin: -8,
     rotateAngle: -90,
     fitInsideVertically: true,
     getTooltipItem: (group, groupIndex, rod, rodIndex) {
       return BarTooltipItem(
-        hideValues ? '••••' : _shortMoney(rod.toY),
-        TextStyle(color: onBarTextColor, fontWeight: FontWeight.bold, fontSize: 10),
+        hideValues ? '•••' : _shortMoney(rod.toY),
+        TextStyle(color: onBarTextColor, fontWeight: FontWeight.bold, fontSize: 8),
       );
     },
   );
@@ -225,7 +234,11 @@ class _MonthlyTrendChart extends ConsumerWidget {
     final color = Theme.of(context).colorScheme.primary;
     final colors = context.appColors;
     final maxY = trend.map((m) => m.amount).fold(0.0, (a, b) => a > b ? a : b);
-    final track = maxY == 0 ? 1.0 : maxY * 1.3;
+    // Less headroom above the tallest bar than before (1.3x -> 1.15x) so
+    // the one bar carrying a label actually occupies more of the chart's
+    // height, giving the rotated label more real room to sit inside it
+    // instead of needing to spill into the empty space above.
+    final track = maxY == 0 ? 1.0 : maxY * 1.15;
     // Only the current (last, right-most) month gets a permanent value
     // label -- every month still shows a visible track slot underneath its
     // bar so future/empty months don't read as literal gaps in the chart.
@@ -268,7 +281,7 @@ class _MonthlyTrendChart extends ConsumerWidget {
                 BarChartRodData(
                   toY: trend[i].amount,
                   color: i == currentIndex ? color : color.withValues(alpha: 0.3),
-                  width: 12,
+                  width: 18,
                   borderRadius: const BorderRadius.vertical(top: Radius.circular(3)),
                   backDrawRodData: BackgroundBarChartRodData(
                     show: true,
@@ -323,44 +336,58 @@ class _CategoryPieChartState extends ConsumerState<_CategoryPieChart> {
       children: [
         // AspectRatio(1) forces a true circle -- PieChart otherwise fills
         // whatever box it's given, which renders as an oval whenever the
-        // available width and height don't happen to match.
+        // available width and height don't happen to match. Percentage
+        // labels are drawn *outside* the ring by _PieOutsideLabelsPainter
+        // rather than as fl_chart's own in-slice `title` -- a label inside
+        // a thin, small slice has nowhere to go but stack on top of its
+        // neighbors once several categories are small; a label anchored to
+        // its own radial position outside the ring stays legible no matter
+        // how thin the slice behind it gets.
         AspectRatio(
           aspectRatio: 1,
-          child: PieChart(
-            PieChartData(
-              sectionsSpace: 2,
-              centerSpaceRadius: 40,
-              pieTouchData: PieTouchData(
-                touchCallback: (event, response) {
-                  setState(() {
-                    if (!event.isInterestedForInteractions || response?.touchedSection == null) {
-                      _touchedIndex = null;
-                    } else {
-                      _touchedIndex = response!.touchedSection!.touchedSectionIndex;
-                    }
-                  });
-                },
-              ),
-              sections: [
-                for (var i = 0; i < categories.length; i++)
-                  PieChartSectionData(
-                    value: categories[i].value,
-                    color: _palette[i % _palette.length],
-                    radius: i == _touchedIndex ? 58 : 52,
-                    title: total == 0
-                        ? ''
-                        : hideValues
-                            ? '••'
-                            : '${(categories[i].value / total * 100).round()}%',
-                    titleStyle: const TextStyle(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w700,
-                      color: Colors.white,
-                    ),
-                    titlePositionPercentageOffset: 0.62,
+          child: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              PieChart(
+                PieChartData(
+                  sectionsSpace: 2,
+                  centerSpaceRadius: 40,
+                  pieTouchData: PieTouchData(
+                    touchCallback: (event, response) {
+                      setState(() {
+                        if (!event.isInterestedForInteractions || response?.touchedSection == null) {
+                          _touchedIndex = null;
+                        } else {
+                          _touchedIndex = response!.touchedSection!.touchedSectionIndex;
+                        }
+                      });
+                    },
                   ),
-              ],
-            ),
+                  sections: [
+                    for (var i = 0; i < categories.length; i++)
+                      PieChartSectionData(
+                        value: categories[i].value,
+                        color: _palette[i % _palette.length],
+                        radius: i == _touchedIndex ? 58 : 52,
+                        showTitle: false,
+                      ),
+                  ],
+                ),
+              ),
+              if (total > 0)
+                Positioned.fill(
+                  child: IgnorePointer(
+                    child: CustomPaint(
+                      painter: _PieOutsideLabelsPainter(
+                        categories: categories,
+                        total: total,
+                        palette: _palette,
+                        hideValues: hideValues,
+                      ),
+                    ),
+                  ),
+                ),
+            ],
           ),
         ),
         const SizedBox(height: 16),
@@ -380,6 +407,81 @@ class _CategoryPieChartState extends ConsumerState<_CategoryPieChart> {
         ),
       ],
     );
+  }
+}
+
+/// Draws each slice's percentage outside the pie ring, on a short leader
+/// line the same color as its slice -- replaces fl_chart's own in-slice
+/// `title`, which becomes illegible (labels overlapping each other) once
+/// several categories are small. Angle math mirrors fl_chart's own
+/// `PieChartPainter` (sections start at 0° = 3 o'clock and sweep clockwise
+/// in the same order as [categories], with the same 40px `centerSpaceRadius`
+/// and up-to-58px section radius the chart itself uses), so each leader
+/// line starts exactly at its slice's outer edge rather than an
+/// approximation.
+class _PieOutsideLabelsPainter extends CustomPainter {
+  _PieOutsideLabelsPainter({
+    required this.categories,
+    required this.total,
+    required this.palette,
+    required this.hideValues,
+  });
+
+  final List<MapEntry<String, double>> categories;
+  final double total;
+  final List<Color> palette;
+  final bool hideValues;
+
+  static const _ringOuterRadius = 40.0 + 58.0;
+  static const _leaderLength = 14.0;
+  static const _labelGap = 4.0;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    var startAngleDeg = 0.0;
+
+    for (var i = 0; i < categories.length; i++) {
+      final fraction = categories[i].value / total;
+      final sweepDeg = fraction * 360;
+      final midAngleRad = (startAngleDeg + sweepDeg / 2) * math.pi / 180;
+      final direction = Offset(math.cos(midAngleRad), math.sin(midAngleRad));
+      final color = palette[i % palette.length];
+
+      final innerPoint = center + direction * _ringOuterRadius;
+      final outerPoint = center + direction * (_ringOuterRadius + _leaderLength);
+
+      canvas.drawLine(
+        innerPoint,
+        outerPoint,
+        Paint()
+          ..color = color
+          ..strokeWidth = 1.5
+          ..style = PaintingStyle.stroke,
+      );
+      canvas.drawCircle(innerPoint, 2.2, Paint()..color = color);
+
+      final label = hideValues ? '••' : '${fraction * 100 < 1 && fraction > 0 ? '<1' : (fraction * 100).round()}%';
+      final textPainter = TextPainter(
+        text: TextSpan(text: label, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: color)),
+        textDirection: ui.TextDirection.ltr,
+      )..layout();
+
+      final onRightHalf = direction.dx >= 0;
+      final labelOrigin = onRightHalf
+          ? Offset(outerPoint.dx + _labelGap, outerPoint.dy - textPainter.height / 2)
+          : Offset(outerPoint.dx - _labelGap - textPainter.width, outerPoint.dy - textPainter.height / 2);
+      textPainter.paint(canvas, labelOrigin);
+
+      startAngleDeg += sweepDeg;
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _PieOutsideLabelsPainter oldDelegate) {
+    return oldDelegate.categories != categories ||
+        oldDelegate.total != total ||
+        oldDelegate.hideValues != hideValues;
   }
 }
 

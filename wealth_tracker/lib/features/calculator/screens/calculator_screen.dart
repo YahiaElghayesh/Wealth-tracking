@@ -34,16 +34,28 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
   final _customItems = <CustomCalculatorItem>[];
   final _scrollController = ScrollController();
 
-  // Cards default-prefill exactly once, the first time their data arrives —
-  // to their last known available balance (SMS-tracked, if bank SMS
-  // detection is on; otherwise the card's own limit, "as if nothing's been
-  // spent yet"). Manual inputs default-prefill from the latest saved
-  // snapshot's matching-by-name entry, if any. A user edit (including
-  // clearing the field back to save a snapshot) must not be overwritten on
-  // the next rebuild, hence the one-shot flags — per-id, so an item added
-  // later still gets its own default without re-seeding ones already
-  // touched.
+  // Cards default-prefill the first time their data arrives — to their
+  // last known available balance (SMS-tracked, if bank SMS detection is
+  // on; otherwise the card's own limit, "as if nothing's been spent
+  // yet"). Manual inputs default-prefill from the latest saved snapshot's
+  // matching-by-name entry, if any. A user edit (including clearing the
+  // field back to save a snapshot) must not be overwritten on the next
+  // rebuild, hence the seeded-ids set — per-id, so an item added later
+  // still gets its own default without re-seeding ones already touched.
+  //
+  // Cards get one more thing manual inputs don't: an SMS listener can
+  // update `currentAvailableBalance` in the background at any time, and
+  // that write needs to reach this screen's on-screen field live, not
+  // just the "Updated from SMS ..." timestamp label (which is bound
+  // straight to the stream already) — otherwise the balance visibly
+  // changes only after the app is fully restarted. So a card is
+  // re-seeded whenever its `balanceUpdatedAt` has moved past what was
+  // seeded last *and* the field still holds exactly what was seeded then
+  // (i.e. the user hasn't started typing their own value over it, which
+  // must never be silently clobbered).
   final _seededCardIds = <String>{};
+  final _cardSeedBalanceUpdatedAt = <String, DateTime?>{};
+  final _cardSeedText = <String, String>{};
   final _seededManualInputIds = <String>{};
   bool _saving = false;
   bool _scrolled = false;
@@ -264,10 +276,14 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
     final latestHistory = historyAsync.valueOrNull;
     final currentCards = cardsAsync.valueOrNull;
     final currentManualInputs = manualInputsAsync.valueOrNull;
-    final unseededCards = currentCards?.where((c) => !_seededCardIds.contains(c.id)).toList();
+    final cardsNeedingSeed = currentCards?.where((c) {
+      if (!_seededCardIds.contains(c.id)) return true;
+      if (c.balanceUpdatedAt == _cardSeedBalanceUpdatedAt[c.id]) return false;
+      return _cardControllerFor(c).text == _cardSeedText[c.id];
+    }).toList();
     final unseededManualInputs =
         currentManualInputs?.where((m) => !_seededManualInputIds.contains(m.id)).toList();
-    final needsSeeding = (unseededCards != null && unseededCards.isNotEmpty) ||
+    final needsSeeding = (cardsNeedingSeed != null && cardsNeedingSeed.isNotEmpty) ||
         (unseededManualInputs != null && unseededManualInputs.isNotEmpty);
     if (needsSeeding) {
       // Setting controller.text synchronously here would fire the field
@@ -276,10 +292,13 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
         setState(() {
-          if (unseededCards != null) {
-            for (final card in unseededCards) {
-              _cardControllerFor(card).text = _formatSeed(card.currentAvailableBalance ?? card.limitAmount);
+          if (cardsNeedingSeed != null) {
+            for (final card in cardsNeedingSeed) {
+              final text = _formatSeed(card.currentAvailableBalance ?? card.limitAmount);
+              _cardControllerFor(card).text = text;
               _seededCardIds.add(card.id);
+              _cardSeedBalanceUpdatedAt[card.id] = card.balanceUpdatedAt;
+              _cardSeedText[card.id] = text;
             }
           }
           if (unseededManualInputs != null) {
@@ -662,7 +681,11 @@ class _SignedAmountField extends ConsumerWidget {
           child: _SelectAllOnFocusField(
             key: key,
             controller: controller,
-            decoration: InputDecoration(labelText: label, hintText: '0.00', suffixText: currency),
+            decoration: InputDecoration(
+              labelText: hideValues ? '••••••' : label,
+              hintText: '0.00',
+              suffixText: currency,
+            ),
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
             obscureText: hideValues,
           ),

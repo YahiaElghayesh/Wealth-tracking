@@ -80,8 +80,7 @@ class DashboardScreen extends ConsumerWidget {
                         .toList(),
                   ),
                 ),
-              _MetalsSummaryCard(assets: assets),
-              const SizedBox(height: 24),
+              const SizedBox(height: 8),
               Text('Assets', style: Theme.of(context).textTheme.titleMedium),
               const SizedBox(height: 8),
               if (assets.isEmpty)
@@ -103,6 +102,7 @@ class DashboardScreen extends ConsumerWidget {
                                 ),
                           ),
                         ),
+                        _CategorySummaryCard(category: entry.key, assets: entry.value),
                         ...entry.value.map((asset) => _AssetTile(asset: asset)),
                       ],
                     ),
@@ -161,10 +161,81 @@ String? _quantityLabel(Asset asset) {
   }
 }
 
-/// Aggregate gold/silver holdings across every asset -- gold broken down by
-/// karat, since a 21K gram and a 24K gram aren't the same amount of pure
-/// gold. Shown above the asset list whenever at least one metal asset
-/// exists; renders nothing otherwise.
+/// Sits above every asset-category group, right below its header — a
+/// metals weight breakdown for Gold/Silver (since "total value" alone loses
+/// the karat detail that matters for those two), or a plain total-value
+/// roll-up for every other category. All numeric content goes through
+/// [MoneyText] so it masks itself automatically when hide-values is on.
+class _CategorySummaryCard extends ConsumerWidget {
+  const _CategorySummaryCard({required this.category, required this.assets});
+
+  final AssetCategory category;
+  final List<Asset> assets;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    if (category == AssetCategory.gold || category == AssetCategory.silver) {
+      return _MetalsSummaryCard(assets: assets);
+    }
+
+    final prices = ref.watch(pricesUsdPerUnitProvider);
+    final usdToEgpRate = ref.watch(usdToEgpRateProvider);
+    var totalUsd = 0.0;
+    var pricedCount = 0;
+    for (final asset in assets) {
+      final v = valueUsdForAsset(asset, prices);
+      if (v != null) {
+        totalUsd += v;
+        pricedCount++;
+      }
+    }
+    if (pricedCount == 0) return const SizedBox.shrink();
+    final totalEgp = usdToEgpRate == null ? null : totalUsd * usdToEgpRate;
+
+    final theme = Theme.of(context);
+    final colors = context.appColors;
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: colors.border),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              '${category.label} total',
+              style: theme.textTheme.labelSmall?.copyWith(color: colors.textDim, fontWeight: FontWeight.w700),
+            ),
+          ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              MoneyText(
+                totalEgp == null ? '—' : formatEgpWhole(totalEgp),
+                style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+                maskLength: 8,
+              ),
+              MoneyText(
+                formatUsdWhole(totalUsd),
+                style: theme.textTheme.labelSmall?.copyWith(color: colors.textDim),
+                maskLength: 6,
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Aggregate gold/silver holdings across the assets passed in -- gold
+/// broken down by karat, since a 21K gram and a 24K gram aren't the same
+/// amount of pure gold. [assets] is already scoped to a single category
+/// (all-gold or all-silver) by [_CategorySummaryCard], so at most one of
+/// the two blocks below ever renders.
 class _MetalsSummaryCard extends StatelessWidget {
   const _MetalsSummaryCard({required this.assets});
 
@@ -192,7 +263,7 @@ class _MetalsSummaryCard extends StatelessWidget {
     final colors = context.appColors;
 
     return Container(
-      margin: const EdgeInsets.only(top: 16),
+      margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: theme.colorScheme.surface,
@@ -205,23 +276,30 @@ class _MetalsSummaryCard extends StatelessWidget {
           if (goldByKarat.isNotEmpty) ...[
             Row(
               children: [
-                AppIcon.goldBar(size: 16),
+                AppIcon.goldBar(size: 18),
                 const SizedBox(width: 8),
-                Expanded(child: Text('Gold — total ${_trimmedQuantity(goldTotal)}g', style: theme.textTheme.bodyMedium)),
+                Expanded(
+                  child: MoneyText(
+                    'Gold — total ${_trimmedQuantity(goldTotal)}g',
+                    style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+                    maskLength: 14,
+                  ),
+                ),
               ],
             ),
-            const SizedBox(height: 6),
+            const SizedBox(height: 8),
             Wrap(
               spacing: 6,
               runSpacing: 6,
               children: (goldByKarat.entries.toList()..sort((a, b) => b.key.purityFraction.compareTo(a.key.purityFraction)))
                   .map(
                     (e) => Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                       decoration: BoxDecoration(color: colors.surface2, borderRadius: BorderRadius.circular(8)),
-                      child: Text(
+                      child: MoneyText(
                         '${e.key.label}: ${_trimmedQuantity(e.value)}g',
-                        style: theme.textTheme.labelSmall?.copyWith(color: colors.textDim),
+                        style: theme.textTheme.bodySmall?.copyWith(color: colors.textDim, fontWeight: FontWeight.w600),
+                        maskLength: 10,
                       ),
                     ),
                   )
@@ -232,9 +310,13 @@ class _MetalsSummaryCard extends StatelessWidget {
           if (silverTotal > 0)
             Row(
               children: [
-                AppIcon.silverBar(size: 16),
+                AppIcon.silverBar(size: 18),
                 const SizedBox(width: 8),
-                Text('Silver — total ${_trimmedQuantity(silverTotal)}g', style: theme.textTheme.bodyMedium),
+                MoneyText(
+                  'Silver — total ${_trimmedQuantity(silverTotal)}g',
+                  style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+                  maskLength: 16,
+                ),
               ],
             ),
         ],
@@ -269,6 +351,7 @@ class _AssetTile extends ConsumerWidget {
     final (icon, tint) = _iconFor(category, asset.symbolOrCurrency, asset.vehicleType, colors);
 
     double? gainLossUsd;
+    double? gainLossEgp;
     double? gainLossPct;
     final purchasePrice = asset.purchasePrice;
     final purchaseCurrency = asset.purchaseCurrency;
@@ -278,6 +361,7 @@ class _AssetTile extends ConsumerWidget {
         final purchaseTotalUsd = purchasePrice * purchasePriceUsd;
         gainLossUsd = value - purchaseTotalUsd;
         gainLossPct = gainLossUsd / purchaseTotalUsd * 100;
+        gainLossEgp = usdToEgpRate == null ? null : gainLossUsd * usdToEgpRate;
       }
     }
 
@@ -327,11 +411,16 @@ class _AssetTile extends ConsumerWidget {
                     Text(
                       hideValues
                           ? '••••••'
-                          : '$categoryLabel'
-                              '${quantityLabel == null ? '' : ' · $quantityLabel'}'
-                              ' · ${assetClass == AssetClass.liquid ? "Liquid" : "Non-liquid"}',
+                          : '$categoryLabel · ${assetClass == AssetClass.liquid ? "Liquid" : "Non-liquid"}',
                       style: theme.textTheme.labelSmall?.copyWith(color: colors.textDim),
                     ),
+                    if (quantityLabel != null && !hideValues) ...[
+                      const SizedBox(height: 3),
+                      MoneyText(
+                        quantityLabel,
+                        style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700, color: colors.textBody),
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -341,18 +430,19 @@ class _AssetTile extends ConsumerWidget {
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
                     MoneyText(
-                      egpValue == null ? '—' : formatEgp(egpValue),
+                      egpValue == null ? '—' : formatEgpWhole(egpValue),
                       style: theme.textTheme.bodyMedium,
                     ),
                     MoneyText(
-                      formatUsd(value),
+                      formatUsdWhole(value),
                       style: theme.textTheme.labelSmall?.copyWith(color: colors.textDim),
                     ),
                     if (gainLossUsd != null && gainLossPct != null) ...[
                       const SizedBox(height: 2),
                       MoneyText(
-                        '${gainLossUsd >= 0 ? '+' : ''}${gainLossPct.toStringAsFixed(1)}% '
-                        '(${gainLossUsd >= 0 ? '+' : ''}${formatUsd(gainLossUsd)})',
+                        '${gainLossUsd >= 0 ? '+' : ''}${gainLossPct.toStringAsFixed(1)}%'
+                        '${gainLossEgp == null ? '' : ' · ${gainLossUsd >= 0 ? '+' : ''}${formatEgpWhole(gainLossEgp)}'}'
+                        ' · ${gainLossUsd >= 0 ? '+' : ''}${formatUsdWhole(gainLossUsd)}',
                         style: theme.textTheme.labelSmall?.copyWith(
                           color: gainLossUsd >= 0 ? colors.good : colors.bad,
                           fontWeight: FontWeight.w700,

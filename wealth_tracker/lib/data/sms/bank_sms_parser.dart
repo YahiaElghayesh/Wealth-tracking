@@ -10,6 +10,7 @@ class ParsedBankSms {
     required this.isCharge,
     this.lastFourDigits,
     this.availableBalanceAfter,
+    this.availableBalanceCurrency,
   });
 
   final String vendor;
@@ -39,17 +40,41 @@ class ParsedBankSms {
   /// SMS doesn't state one, in which case the balance has to be derived by
   /// adding/subtracting [amount] from whatever was last known instead.
   final double? availableBalanceAfter;
+
+  /// The currency [availableBalanceAfter] is denominated in — usually the
+  /// same as [currency] (a EGP purchase reported against a EGP balance),
+  /// but not always: NBE's alerts state the available balance in EGP even
+  /// for a foreign-currency purchase (a card billed in EGP that was simply
+  /// used abroad), so this is tracked separately rather than assumed equal
+  /// to [currency]. Null when [availableBalanceAfter] is null, or (for
+  /// callers built before this field existed) when the bank format didn't
+  /// distinguish the two — treated as equal to [currency] in that case.
+  final String? availableBalanceCurrency;
 }
 
-/// One matcher for a specific bank's SMS wording. [isCharge] is fixed per
-/// pattern since a bank's charge-alert and payment-alert templates always
-/// differ in wording, not just in the numbers.
+/// One matcher for a specific bank's SMS wording, paired with the function
+/// that turns a match into a [ParsedBankSms] — a plain regex isn't enough
+/// on its own because different banks number their capture groups
+/// completely differently (CIB states day/month/year and an
+/// optionally-present available-limit at the end; NBE states month/day
+/// with no year and an always-present available balance in a fixed
+/// currency), so each pattern owns its own extraction logic instead of the
+/// parsing loop assuming one shared group layout.
 class _BankSmsPattern {
-  const _BankSmsPattern(this.regex, {required this.isCharge});
+  const _BankSmsPattern(this.regex, this.extract);
 
   final RegExp regex;
-  final bool isCharge;
+  final ParsedBankSms? Function(RegExpMatch match, String body) extract;
 }
+
+/// Extracts the card's last 4 digits from wording like "ending with#4912",
+/// independently of whichever bank pattern matched — CIB's charge alert
+/// puts this before "charged for" as an optional segment, and an optional
+/// group positioned at the very start of a match only ever gets tried at
+/// the match's starting offset; since skipping it doesn't cause the rest
+/// of the regex to fail, the engine never backtracks to actually find it
+/// further into the string. So this is extracted independently instead.
+final _cibLastFourPattern = RegExp(r'ending with#\s*(\d{4})', caseSensitive: false);
 
 /// Matches CIB's card-charge alert, e.g.:
 /// "Your credit card ending with#4912 was charged for EGP 958.54 at
@@ -59,13 +84,7 @@ class _BankSmsPattern {
 /// The available-limit portion is optional in the pattern itself (wrapped
 /// in `(?:...)?`) so a charge SMS that's worded slightly differently still
 /// parses the vendor/amount/date rather than failing outright — that field
-/// just comes back null. The last-4-digits text ("ending with#4912") is
-/// deliberately *not* woven into this sequential pattern — it sits before
-/// "charged for" as an optional segment, and an optional group positioned
-/// at the very start of a match only ever gets tried at the match's
-/// starting offset; since skipping it doesn't cause the rest of the regex
-/// to fail, the engine never backtracks to actually find it further into
-/// the string. [_lastFourPattern] below extracts it independently instead.
+/// just comes back null.
 final _cibChargePattern = _BankSmsPattern(
   RegExp(
     r'.*?'
@@ -75,35 +94,14 @@ final _cibChargePattern = _BankSmsPattern(
     caseSensitive: false,
     dotAll: true,
   ),
-  isCharge: true,
-);
-
-/// Every recognized bank format, tried in order — add a new bank or a new
-/// message type (e.g. a payment/refund alert) here once a real sample of
-/// its exact wording is available. Guessing at wording without one risks a
-/// pattern that silently never matches the real thing.
-final _patterns = [_cibChargePattern];
-
-/// Extracts the card's last 4 digits from wording like "ending with#4912",
-/// independently of whichever bank pattern matched — see the comment on
-/// [_cibChargePattern] for why this can't just be another capture group in
-/// the main sequential pattern.
-final _lastFourPattern = RegExp(r'ending with#\s*(\d{4})', caseSensitive: false);
-
-/// Parses a bank SMS body into a card transaction, or `null` if it doesn't
-/// match any known bank format.
-ParsedBankSms? parseBankSms(String body) {
-  for (final pattern in _patterns) {
-    final match = pattern.regex.firstMatch(body);
-    if (match == null) continue;
-
+  (match, body) {
     final currency = match.group(1)!.toUpperCase();
     final amountStr = match.group(2)!.replaceAll(',', '');
     final amount = double.tryParse(amountStr);
-    if (amount == null) continue;
+    if (amount == null) return null;
 
     final vendor = match.group(3)!.trim();
-    if (vendor.isEmpty) continue;
+    if (vendor.isEmpty) return null;
 
     final day = int.parse(match.group(4)!);
     final month = int.parse(match.group(5)!);
@@ -112,26 +110,97 @@ ParsedBankSms? parseBankSms(String body) {
     final hour = int.parse(match.group(7)!);
     final minute = int.parse(match.group(8)!);
 
-    final lastFour = _lastFourPattern.firstMatch(body)?.group(1);
+    final lastFour = _cibLastFourPattern.firstMatch(body)?.group(1);
     final availCurrency = match.group(9);
     final availAmountStr = match.group(10)?.replaceAll(',', '');
     final availAmount = availAmountStr == null ? null : double.tryParse(availAmountStr);
-    // Only trust the stated balance when it's actually in the card's own
-    // currency — mixing currencies here would silently corrupt a tracked
-    // balance.
-    final availableBalanceAfter = (availAmount != null && availCurrency?.toUpperCase() == currency)
-        ? availAmount
-        : null;
+    // Only trust the stated balance when it's actually in the same
+    // currency as the charge — mixing currencies here would silently
+    // corrupt a tracked balance.
+    final availableBalanceAfter = (availAmount != null && availCurrency?.toUpperCase() == currency) ? availAmount : null;
 
     return ParsedBankSms(
       vendor: vendor,
       amount: amount.ceilToDouble(),
       currency: currency,
       occurredAt: DateTime(year, month, day, hour, minute),
-      isCharge: pattern.isCharge,
+      isCharge: true,
       lastFourDigits: lastFour,
       availableBalanceAfter: availableBalanceAfter,
+      availableBalanceCurrency: availableBalanceAfter == null ? null : currency,
     );
+  },
+);
+
+/// Matches NBE's Arabic card-charge alert, e.g.:
+/// "تم خصم USD 84.44 من بطاقة الائتمان رقم 8455 عند HODJAPASHA CULT يوم
+/// 08-26 الساعة 22:27 المتاح 491269.64 جم والمتبقي من حد الاستخدام الشهري
+/// بالعملة الأجنبية بما يعادل 154722.75 جم للمزيد اتصل ب 19623."
+///
+/// The date is month-day with no year (assumed to be the current year,
+/// rolled back one if that would put it in the future — e.g. a
+/// late-December SMS parsed the following January). Unlike CIB, the
+/// "المتاح" (available) figure is always in EGP regardless of the charge's
+/// own currency, since NBE cards are billed in EGP even when used abroad
+/// — captured via [ParsedBankSms.availableBalanceCurrency] rather than
+/// assumed to match [ParsedBankSms.currency].
+final _nbeChargePattern = _BankSmsPattern(
+  RegExp(
+    r'تم\s*خصم\s*([A-Za-z]{3})\s*([\d,]+(?:\.\d+)?)\s*من\s*بطاقة\s*الائتمان\s*رقم\s*(\d{4})\s*'
+    r'عند\s*(.+?)\s*يوم\s*(\d{1,2})-(\d{1,2})\s*الساعة\s*(\d{1,2}):(\d{2})\s*المتاح\s*([\d,]+(?:\.\d+)?)\s*جم',
+    dotAll: true,
+  ),
+  (match, body) {
+    final currency = match.group(1)!.toUpperCase();
+    final amountStr = match.group(2)!.replaceAll(',', '');
+    final amount = double.tryParse(amountStr);
+    if (amount == null) return null;
+
+    final lastFour = match.group(3);
+    final vendor = match.group(4)!.trim();
+    if (vendor.isEmpty) return null;
+
+    final month = int.parse(match.group(5)!);
+    final day = int.parse(match.group(6)!);
+    final hour = int.parse(match.group(7)!);
+    final minute = int.parse(match.group(8)!);
+
+    final now = DateTime.now();
+    var occurredAt = DateTime(now.year, month, day, hour, minute);
+    if (occurredAt.isAfter(now.add(const Duration(days: 1)))) {
+      occurredAt = DateTime(now.year - 1, month, day, hour, minute);
+    }
+
+    final availAmountStr = match.group(9)!.replaceAll(',', '');
+    final availAmount = double.tryParse(availAmountStr);
+
+    return ParsedBankSms(
+      vendor: vendor,
+      amount: amount.ceilToDouble(),
+      currency: currency,
+      occurredAt: occurredAt,
+      isCharge: true,
+      lastFourDigits: lastFour,
+      availableBalanceAfter: availAmount,
+      availableBalanceCurrency: availAmount == null ? null : 'EGP',
+    );
+  },
+);
+
+/// Every recognized bank format, tried in order — add a new bank or a new
+/// message type (e.g. a payment/refund alert) here once a real sample of
+/// its exact wording is available. Guessing at wording without one risks a
+/// pattern that silently never matches the real thing.
+final _patterns = [_cibChargePattern, _nbeChargePattern];
+
+/// Parses a bank SMS body into a card transaction, or `null` if it doesn't
+/// match any known bank format.
+ParsedBankSms? parseBankSms(String body) {
+  for (final pattern in _patterns) {
+    final match = pattern.regex.firstMatch(body);
+    if (match == null) continue;
+    final parsed = pattern.extract(match, body);
+    if (parsed != null) return parsed;
   }
   return null;
 }

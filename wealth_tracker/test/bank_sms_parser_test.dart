@@ -63,5 +63,36 @@ void main() {
     test('unrelated SMS text returns null', () {
       expect(parseBankSms('Your OTP is 123456. Do not share it with anyone.'), isNull);
     });
+
+    test('parses the real NBE Arabic charge-alert format', () {
+      const body = 'تم خصم USD 84.44 من بطاقة الائتمان رقم 8455  عند HODJAPASHA CULT يوم '
+          '08-26 الساعة 22:27 المتاح 491269.64 جم والمتبقي من حد الاستخدام الشهري بالعملة '
+          'الأجنبية بما يعادل 154722.75 جم للمزيد اتصل ب 19623.';
+
+      final result = parseBankSms(body);
+
+      expect(result, isNotNull);
+      expect(result!.vendor, 'HODJAPASHA CULT');
+      expect(result.currency, 'USD');
+      expect(result.amount, 85.0);
+      expect(result.isCharge, isTrue);
+      expect(result.lastFourDigits, '8455');
+      // Stated in EGP even though the charge itself was in USD — the card
+      // is billed in EGP, so the balance the user cares about tracking is
+      // this figure, not one in the charge's own currency.
+      expect(result.availableBalanceAfter, 491269.64);
+      expect(result.availableBalanceCurrency, 'EGP');
+    });
+
+    test('NBE date with no year rolls back to last year if it would otherwise be in the future', () {
+      final futureMonth = DateTime.now().month == 12 ? 1 : DateTime.now().month + 1;
+      final body = 'تم خصم EGP 100 من بطاقة الائتمان رقم 1234  عند Somewhere يوم '
+          '${futureMonth.toString().padLeft(2, '0')}-15 الساعة 09:00 المتاح 5000 جم';
+
+      final result = parseBankSms(body);
+
+      expect(result, isNotNull);
+      expect(result!.occurredAt.isAfter(DateTime.now()), isFalse);
+    });
   });
 }

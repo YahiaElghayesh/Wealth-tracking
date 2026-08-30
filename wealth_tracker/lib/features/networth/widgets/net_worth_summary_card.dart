@@ -1,15 +1,22 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/format/money_formatter.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/money_text.dart';
 import '../../../data/net_worth/net_worth_calculator.dart';
+import '../../calculator/providers/calculator_providers.dart';
 
 /// The mockup's "hero-total" card: label, big EGP/USD total on one
 /// baseline, a liquid/non-liquid split bar, and a two-sided legend showing
 /// both the percent and the actual value on each side -- replacing the
 /// previous pie-chart layout, which the approved redesign doesn't use here.
-class NetWorthSummaryCard extends StatelessWidget {
+/// Below that split sits a third, separate figure: the Calculator's last
+/// saved "current liquid cash" result -- a genuinely different number from
+/// the Liquid slice above (it nets ledgers, card debt, and manual inputs,
+/// not just which assets are tagged liquid), so it's its own row rather
+/// than folded into the same percentage split.
+class NetWorthSummaryCard extends ConsumerWidget {
   const NetWorthSummaryCard({
     super.key,
     required this.summary,
@@ -23,12 +30,14 @@ class NetWorthSummaryCard extends StatelessWidget {
   final double? usdToEgpRate;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final colors = context.appColors;
     final egpTotal = usdToEgpRate == null ? null : summary.totalUsd * usdToEgpRate!;
     final total = summary.liquidUsd + summary.nonLiquidUsd;
     final liquidFraction = total <= 0 ? 0.0 : summary.liquidUsd / total;
+    final calculatorHistory = ref.watch(calculatorHistoryStreamProvider).valueOrNull;
+    final latestSnapshot = (calculatorHistory == null || calculatorHistory.isEmpty) ? null : calculatorHistory.first;
 
     return Container(
       padding: const EdgeInsets.fromLTRB(18, 18, 18, 16),
@@ -50,13 +59,13 @@ class NetWorthSummaryCard extends StatelessWidget {
           ),
           const SizedBox(height: 6),
           MoneyText(
-            egpTotal == null ? '—' : formatEgp(egpTotal),
+            egpTotal == null ? '—' : formatEgpWhole(egpTotal),
             style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w700),
             maskLength: 9,
           ),
           const SizedBox(height: 2),
           MoneyText(
-            '≈ ${formatUsd(summary.totalUsd)}',
+            '≈ ${formatUsdWhole(summary.totalUsd)}',
             style: theme.textTheme.bodyMedium?.copyWith(color: colors.textDim),
             maskLength: 5,
           ),
@@ -110,8 +119,62 @@ class NetWorthSummaryCard extends StatelessWidget {
               style: theme.textTheme.bodySmall?.copyWith(color: colors.textDim),
             ),
           ],
+          if (latestSnapshot != null) ...[
+            const SizedBox(height: 14),
+            Container(height: 1, color: colors.border),
+            const SizedBox(height: 12),
+            _CurrentLiquidCashRow(resultEgp: latestSnapshot.resultAmount, usdToEgpRate: usdToEgpRate),
+          ],
         ],
       ),
+    );
+  }
+}
+
+/// The Calculator tab's last saved "current liquid cash" result, in EGP
+/// (its native settlement currency) and derived USD. Not a slice of the
+/// Liquid/Non-liquid bar above -- a separately-computed figure the user
+/// deliberately keeps up to date from the Calculator tab itself.
+class _CurrentLiquidCashRow extends StatelessWidget {
+  const _CurrentLiquidCashRow({required this.resultEgp, required this.usdToEgpRate});
+
+  final double resultEgp;
+  final double? usdToEgpRate;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = context.appColors;
+    final resultUsd = usdToEgpRate == null || usdToEgpRate == 0 ? null : resultEgp / usdToEgpRate!;
+    return Row(
+      children: [
+        Icon(Icons.calculate_outlined, size: 15, color: theme.colorScheme.primary),
+        const SizedBox(width: 6),
+        Text(
+          'CURRENT (CALCULATOR)',
+          style: theme.textTheme.labelSmall?.copyWith(
+            color: colors.textDim,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 0.5,
+          ),
+        ),
+        const Spacer(),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            MoneyText(
+              formatEgpWhole(resultEgp),
+              style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w700),
+              maskLength: 7,
+            ),
+            MoneyText(
+              resultUsd == null ? '—' : '≈ ${formatUsdWhole(resultUsd)}',
+              style: theme.textTheme.labelSmall?.copyWith(color: colors.textDim),
+              maskLength: 5,
+            ),
+          ],
+        ),
+      ],
     );
   }
 }
@@ -156,12 +219,12 @@ class _SplitSide extends StatelessWidget {
         ),
         const SizedBox(height: 1),
         MoneyText(
-          egpValue == null ? '—' : formatEgp(egpValue),
+          egpValue == null ? '—' : formatEgpWhole(egpValue),
           style: theme.textTheme.labelSmall?.copyWith(color: colors.textDim),
           maskLength: 7,
         ),
         MoneyText(
-          '≈ ${formatUsd(valueUsd)}',
+          '≈ ${formatUsdWhole(valueUsd)}',
           style: theme.textTheme.labelSmall?.copyWith(color: colors.textDim, fontSize: 10.5),
           maskLength: 5,
         ),
