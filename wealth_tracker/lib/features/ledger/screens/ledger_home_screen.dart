@@ -74,7 +74,18 @@ class LedgerHomeScreen extends ConsumerWidget {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Debt Ledger'),
-        actions: const [HideValuesAction(), SettingsAction()],
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.add_to_home_screen_outlined),
+            tooltip: 'Add home screen icon',
+            onPressed: () => showDialog<void>(
+              context: context,
+              builder: (_) => const _LedgerShortcutPickerDialog(),
+            ),
+          ),
+          const HideValuesAction(),
+          const SettingsAction(),
+        ],
       ),
       body: counterpartiesAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
@@ -93,6 +104,81 @@ class LedgerHomeScreen extends ConsumerWidget {
         onPressed: () => _addCounterparty(context, ref),
         child: const Icon(Icons.person_add),
       ),
+    );
+  }
+}
+
+/// The explicit "which ledger is this icon for?" prompt -- a per-row pin
+/// button (see `_CounterpartyTile`) already implies its own ledger by
+/// which row it's on, but this is the dedicated flow for someone who just
+/// wants to build up several pinned icons in one sitting without hunting
+/// through the list row by row. Stays open after each pin (showing a brief
+/// "pinned" state on that row) so tapping several ledgers in a row creates
+/// several icons without reopening the dialog each time.
+class _LedgerShortcutPickerDialog extends ConsumerStatefulWidget {
+  const _LedgerShortcutPickerDialog();
+
+  @override
+  ConsumerState<_LedgerShortcutPickerDialog> createState() => _LedgerShortcutPickerDialogState();
+}
+
+class _LedgerShortcutPickerDialogState extends ConsumerState<_LedgerShortcutPickerDialog> {
+  final _pinning = <String>{};
+  final _pinned = <String>{};
+
+  Future<void> _pin(Counterparty counterparty) async {
+    setState(() => _pinning.add(counterparty.id));
+    final requested = await pinLedgerShortcut(counterpartyId: counterparty.id, name: counterparty.name);
+    if (!mounted) return;
+    setState(() {
+      _pinning.remove(counterparty.id);
+      if (requested) _pinned.add(counterparty.id);
+    });
+    if (!requested) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Couldn't request a home-screen icon on this device.")),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final counterparties = ref.watch(counterpartiesStreamProvider).valueOrNull ?? const [];
+
+    return AlertDialog(
+      title: const Text('Add home screen icon'),
+      content: SizedBox(
+        width: double.maxFinite,
+        child: counterparties.isEmpty
+            ? const Text('Add a ledger first.')
+            : Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Padding(
+                    padding: EdgeInsets.only(bottom: 8),
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text('Which ledger should this icon open straight to?'),
+                    ),
+                  ),
+                  for (final counterparty in counterparties)
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: CircleAvatar(child: Text(counterparty.name.isEmpty ? '?' : counterparty.name[0].toUpperCase())),
+                      title: Text(counterparty.name),
+                      trailing: _pinning.contains(counterparty.id)
+                          ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                          : _pinned.contains(counterparty.id)
+                              ? const Icon(Icons.check_circle)
+                              : const Icon(Icons.add_to_home_screen_outlined),
+                      onTap: _pinning.contains(counterparty.id) ? null : () => _pin(counterparty),
+                    ),
+                ],
+              ),
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Done')),
+      ],
     );
   }
 }

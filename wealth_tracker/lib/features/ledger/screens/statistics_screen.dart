@@ -130,7 +130,7 @@ class _StatisticsBodyState extends ConsumerState<_StatisticsBody> {
                   children: [
                     Text('Spend by month', style: Theme.of(context).textTheme.titleMedium),
                     const SizedBox(height: 12),
-                    SizedBox(height: 260, child: _MonthlyTrendChart(trend: trend)),
+                    _MonthlyTrendChart(trend: trend),
                   ],
                 ),
               ),
@@ -199,99 +199,150 @@ String _shortMoney(double value) {
   return '$sign${abs.round()}';
 }
 
-/// A permanently-visible label above a bar, using the same tooltip
-/// machinery fl_chart uses for touch — [BarChartGroupData.showingTooltipIndicators]
-/// keeps it displayed without requiring a tap.
-/// The value label used to sit horizontally above each bar -- fine for one
-/// bar in isolation, but with 12 months side by side at only 12dp wide each,
-/// horizontal text either overlapped its neighbors or forced them apart.
-/// Rotating it 90° and pulling it down (negative margin) into the bar's own
-/// column lets it read bottom-to-top inside the space the bar already owns.
-BarTouchTooltipData _permanentLabelTooltip(Color onBarTextColor, {required bool hideValues}) {
-  return BarTouchTooltipData(
-    getTooltipColor: (_) => Colors.transparent,
-    tooltipPadding: EdgeInsets.zero,
-    tooltipMargin: -8,
-    rotateAngle: -90,
-    fitInsideVertically: true,
-    getTooltipItem: (group, groupIndex, rod, rodIndex) {
-      return BarTooltipItem(
-        hideValues ? '•••' : _shortMoney(rod.toY),
-        TextStyle(color: onBarTextColor, fontWeight: FontWeight.bold, fontSize: 8),
-      );
-    },
-  );
-}
-
+/// Plain Flutter bars instead of fl_chart -- an fl_chart `BarChart` only
+/// offers a value label via its touch-tooltip machinery, which renders as
+/// its own separately-decorated bubble rather than actual paint inside the
+/// bar's own rectangle; pinning that bubble in place with negative margins
+/// and rotation (the previous approach here) could get it to visually
+/// overlap the bar but never to genuinely BE the bar's own fill the way a
+/// real inside-the-rectangle label needs to. Building the bars directly
+/// sidesteps that entirely: the label is a literal child of the same
+/// `Container` that IS the bar, clipped to it, so it can never be anything
+/// other than inside.
 class _MonthlyTrendChart extends ConsumerWidget {
   const _MonthlyTrendChart({required this.trend});
 
   final List<MonthlySpend> trend;
+
+  static const _barAreaHeight = 170.0;
+  static const _barWidth = 22.0;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final hideValues = ref.watch(hideValuesProvider);
     final color = Theme.of(context).colorScheme.primary;
     final colors = context.appColors;
-    final maxY = trend.map((m) => m.amount).fold(0.0, (a, b) => a > b ? a : b);
-    // Less headroom above the tallest bar than before (1.3x -> 1.15x) so
-    // the one bar carrying a label actually occupies more of the chart's
-    // height, giving the rotated label more real room to sit inside it
-    // instead of needing to spill into the empty space above.
-    final track = maxY == 0 ? 1.0 : maxY * 1.15;
+    final maxValue = trend.map((m) => m.amount).fold(0.0, (a, b) => a > b ? a : b);
     // Only the current (last, right-most) month gets a permanent value
     // label -- every month still shows a visible track slot underneath its
     // bar so future/empty months don't read as literal gaps in the chart.
     final currentIndex = trend.length - 1;
 
-    return BarChart(
-      BarChartData(
-        maxY: track,
-        alignment: BarChartAlignment.spaceAround,
-        gridData: const FlGridData(show: false),
-        borderData: FlBorderData(show: false),
-        titlesData: FlTitlesData(
-          topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-          rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-          leftTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-          bottomTitles: AxisTitles(
-            sideTitles: SideTitles(
-              showTitles: true,
-              reservedSize: 24,
-              getTitlesWidget: (value, meta) {
-                final index = value.toInt();
-                if (index < 0 || index >= trend.length) return const SizedBox.shrink();
-                return Padding(
-                  padding: const EdgeInsets.only(top: 6),
-                  child: Text(
-                    DateFormat.MMM().format(trend[index].month),
-                    style: Theme.of(context).textTheme.labelSmall?.copyWith(color: colors.textDim),
-                  ),
-                );
-              },
-            ),
-          ),
-        ),
-        barTouchData: BarTouchData(touchTooltipData: _permanentLabelTooltip(Colors.white, hideValues: hideValues)),
-        barGroups: [
-          for (var i = 0; i < trend.length; i++)
-            BarChartGroupData(
-              x: i,
-              barRods: [
-                BarChartRodData(
-                  toY: trend[i].amount,
-                  color: i == currentIndex ? color : color.withValues(alpha: 0.3),
-                  width: 18,
-                  borderRadius: const BorderRadius.vertical(top: Radius.circular(3)),
-                  backDrawRodData: BackgroundBarChartRodData(
-                    show: true,
-                    toY: track,
-                    color: colors.surface2,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        SizedBox(
+          height: _barAreaHeight,
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              for (var i = 0; i < trend.length; i++)
+                Expanded(
+                  child: Center(
+                    child: _MonthBar(
+                      value: trend[i].amount,
+                      maxValue: maxValue,
+                      areaHeight: _barAreaHeight,
+                      width: _barWidth,
+                      isCurrent: i == currentIndex,
+                      barColor: i == currentIndex ? color : color.withValues(alpha: 0.3),
+                      trackColor: colors.surface2,
+                      hideValues: hideValues,
+                    ),
                   ),
                 ),
-              ],
-              showingTooltipIndicators: i == currentIndex && trend[i].amount > 0 ? [0] : [],
+            ],
+          ),
+        ),
+        const SizedBox(height: 6),
+        Row(
+          children: [
+            for (var i = 0; i < trend.length; i++)
+              Expanded(
+                child: Center(
+                  child: Text(
+                    DateFormat.MMM().format(trend[i].month),
+                    style: Theme.of(context).textTheme.labelSmall?.copyWith(color: colors.textDim),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class _MonthBar extends StatelessWidget {
+  const _MonthBar({
+    required this.value,
+    required this.maxValue,
+    required this.areaHeight,
+    required this.width,
+    required this.isCurrent,
+    required this.barColor,
+    required this.trackColor,
+    required this.hideValues,
+  });
+
+  final double value;
+  final double maxValue;
+  final double areaHeight;
+  final double width;
+  final bool isCurrent;
+  final Color barColor;
+  final Color trackColor;
+  final bool hideValues;
+
+  @override
+  Widget build(BuildContext context) {
+    final rawHeight = maxValue <= 0 ? 0.0 : (value / maxValue) * areaHeight;
+    // The current month's bar gets a taller floor than every other month's
+    // (44 vs 4) whenever it carries a value -- that's the only bar with a
+    // label painted inside it, and the label needs real room to sit in
+    // regardless of how small its own value happens to be relative to the
+    // rest of the trend.
+    final showsLabel = isCurrent && !hideValues && value > 0;
+    final barHeight = (isCurrent && value > 0 ? rawHeight.clamp(44.0, areaHeight) : rawHeight.clamp(4.0, areaHeight))
+        .toDouble();
+
+    return SizedBox(
+      width: width,
+      height: areaHeight,
+      child: Stack(
+        alignment: Alignment.bottomCenter,
+        children: [
+          Container(
+            decoration: BoxDecoration(
+              color: trackColor,
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(4)),
             ),
+          ),
+          ClipRRect(
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(4)),
+            child: Container(
+              height: barHeight,
+              color: barColor,
+              alignment: Alignment.topCenter,
+              padding: const EdgeInsets.only(top: 4),
+              child: showsLabel
+                  ? RotatedBox(
+                      quarterTurns: 3,
+                      child: Text(
+                        _shortMoney(value),
+                        maxLines: 1,
+                        softWrap: false,
+                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 10),
+                      ),
+                    )
+                  : (isCurrent && value > 0 && hideValues)
+                      ? const Padding(
+                          padding: EdgeInsets.only(top: 2),
+                          child: Text('•••', style: TextStyle(color: Colors.white, fontSize: 9)),
+                        )
+                      : null,
+            ),
+          ),
         ],
       ),
     );
