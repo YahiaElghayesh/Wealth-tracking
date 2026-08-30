@@ -8,15 +8,16 @@ import '../../../data/net_worth/net_worth_calculator.dart';
 import '../../calculator/providers/calculator_providers.dart';
 
 /// The mockup's "hero-total" card: label, big EGP/USD total on one
-/// baseline, a liquid/non-liquid split bar, and a legend row below it --
-/// replacing the previous pie-chart layout, which the approved redesign
-/// doesn't use here. When a Calculator snapshot exists, that legend row
-/// gets a third, centered entry: the Calculator's last saved "current
-/// liquid cash" result. It's a genuinely different number from the Liquid
-/// side (it nets ledgers, card debt, and manual inputs, not just which
-/// assets are tagged liquid) and isn't part of the liquid/non-liquid split
-/// bar above it, but it lives in the same legend row rather than a
-/// separate section below a divider.
+/// baseline, a liquid/current/non-liquid split bar, and a legend row below
+/// it -- replacing the previous pie-chart layout, which the approved
+/// redesign doesn't use here. When a Calculator snapshot exists, the
+/// Calculator's last saved "current liquid cash" result is folded in as a
+/// real third slice of the total (both the headline number and the bar
+/// itself), not just a decorative readout beside it -- it's the actual
+/// spendable cash a Liquid asset total alone doesn't capture (nets
+/// ledgers, card debt, and manual inputs, none of which are tracked as
+/// Net Worth assets), so leaving it out of the total would understate net
+/// worth by exactly that amount.
 class NetWorthSummaryCard extends ConsumerWidget {
   const NetWorthSummaryCard({
     super.key,
@@ -34,11 +35,22 @@ class NetWorthSummaryCard extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final colors = context.appColors;
-    final egpTotal = usdToEgpRate == null ? null : summary.totalUsd * usdToEgpRate!;
-    final total = summary.liquidUsd + summary.nonLiquidUsd;
-    final liquidFraction = total <= 0 ? 0.0 : summary.liquidUsd / total;
     final calculatorHistory = ref.watch(calculatorHistoryStreamProvider).valueOrNull;
     final latestSnapshot = (calculatorHistory == null || calculatorHistory.isEmpty) ? null : calculatorHistory.first;
+
+    // The Calculator snapshot is saved in EGP (its native settlement
+    // currency); everything else here is USD-denominated, so it needs
+    // converting before it can join the same total -- skipped (rather than
+    // shown as a misleading zero) whenever the FX rate isn't known yet.
+    final currentUsd = (latestSnapshot != null && usdToEgpRate != null && usdToEgpRate! > 0)
+        ? latestSnapshot.resultAmount / usdToEgpRate!
+        : null;
+
+    final total = summary.liquidUsd + summary.nonLiquidUsd + (currentUsd ?? 0);
+    final egpTotal = usdToEgpRate == null ? null : total * usdToEgpRate!;
+    final liquidFraction = total <= 0 ? 0.0 : summary.liquidUsd / total;
+    final currentFraction = total <= 0 ? 0.0 : (currentUsd ?? 0) / total;
+    final nonLiquidFraction = total <= 0 ? 0.0 : summary.nonLiquidUsd / total;
 
     return Container(
       padding: const EdgeInsets.fromLTRB(18, 18, 18, 16),
@@ -66,7 +78,7 @@ class NetWorthSummaryCard extends ConsumerWidget {
           ),
           const SizedBox(height: 2),
           MoneyText(
-            '≈ ${formatUsdWhole(summary.totalUsd)}',
+            '≈ ${formatUsdWhole(total)}',
             style: theme.textTheme.bodyMedium?.copyWith(color: colors.textDim),
             maskLength: 5,
           ),
@@ -82,8 +94,13 @@ class NetWorthSummaryCard extends ConsumerWidget {
                       flex: (liquidFraction * 1000).round().clamp(1, 999),
                       child: Container(color: theme.colorScheme.primary),
                     ),
+                    if (currentUsd != null && currentUsd > 0)
+                      Expanded(
+                        flex: (currentFraction * 1000).round().clamp(1, 999),
+                        child: Container(color: colors.good),
+                      ),
                     Expanded(
-                      flex: ((1 - liquidFraction) * 1000).round().clamp(1, 999),
+                      flex: (nonLiquidFraction * 1000).round().clamp(1, 999),
                       child: Container(color: colors.gold),
                     ),
                   ],
@@ -103,17 +120,18 @@ class NetWorthSummaryCard extends ConsumerWidget {
                     alignment: CrossAxisAlignment.start,
                   ),
                 ),
-                if (latestSnapshot != null)
+                if (currentUsd != null)
                   Expanded(
                     child: _CurrentSide(
-                      resultEgp: latestSnapshot.resultAmount,
+                      resultEgp: latestSnapshot!.resultAmount,
+                      fraction: currentFraction,
                       usdToEgpRate: usdToEgpRate,
                     ),
                   ),
                 Expanded(
                   child: _SplitSide(
                     label: 'Non-liquid',
-                    fraction: 1 - liquidFraction,
+                    fraction: nonLiquidFraction,
                     valueUsd: summary.nonLiquidUsd,
                     usdToEgpRate: usdToEgpRate,
                     alignment: CrossAxisAlignment.end,
@@ -135,16 +153,16 @@ class NetWorthSummaryCard extends ConsumerWidget {
 }
 
 /// The Calculator tab's last saved "current liquid cash" result, in EGP
-/// (its native settlement currency) and derived USD. Not a slice of the
-/// Liquid/Non-liquid bar above it -- a separately-computed figure the user
-/// deliberately keeps up to date from the Calculator tab itself -- but it
-/// sits in the same legend row, centered between the two split sides, so
-/// all three figures read together at a glance instead of "Current" being
-/// a whole separate section underneath.
+/// (its native settlement currency) and derived USD -- now a genuine third
+/// slice of the total net worth (see [NetWorthSummaryCard]'s own doc
+/// comment), so this shows a percentage the same way [_SplitSide] does for
+/// Liquid/Non-liquid, just centered between them instead of left/right
+/// aligned.
 class _CurrentSide extends StatelessWidget {
-  const _CurrentSide({required this.resultEgp, required this.usdToEgpRate});
+  const _CurrentSide({required this.resultEgp, required this.fraction, required this.usdToEgpRate});
 
   final double resultEgp;
+  final double fraction;
   final double? usdToEgpRate;
 
   @override
@@ -152,15 +170,18 @@ class _CurrentSide extends StatelessWidget {
     final theme = Theme.of(context);
     final colors = context.appColors;
     final resultUsd = usdToEgpRate == null || usdToEgpRate == 0 ? null : resultEgp / usdToEgpRate!;
+    final pct = '${(fraction * 100).round()}%';
     return Column(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.calculate_outlined, size: 12, color: theme.colorScheme.primary),
+            Icon(Icons.calculate_outlined, size: 12, color: colors.good),
             const SizedBox(width: 3),
             Text('Current', style: theme.textTheme.bodySmall?.copyWith(color: colors.textDim)),
+            const SizedBox(width: 4),
+            MoneyText(pct, style: theme.textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w700), maskLength: 3),
           ],
         ),
         const SizedBox(height: 1),

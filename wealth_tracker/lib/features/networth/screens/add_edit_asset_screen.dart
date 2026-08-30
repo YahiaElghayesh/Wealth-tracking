@@ -65,6 +65,7 @@ class _AddEditAssetScreenState extends ConsumerState<AddEditAssetScreen> {
     AssetCategory.silver,
     AssetCategory.realEstate,
     AssetCategory.stock,
+    AssetCategory.crypto,
   };
 
   @override
@@ -340,6 +341,7 @@ class _AddEditAssetScreenState extends ConsumerState<AddEditAssetScreen> {
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
             validator: _requiredNumber,
           ),
+          ..._purchasePriceFields(),
         ];
       case ValuationMode.metal:
         return [

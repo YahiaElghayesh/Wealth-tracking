@@ -31,6 +31,7 @@ class DashboardScreen extends ConsumerWidget {
     final netWorth = ref.watch(netWorthResultProvider);
     final usdToEgpRate = ref.watch(usdToEgpRateProvider);
     final refreshState = ref.watch(priceRefreshControllerProvider);
+    final hideValues = ref.watch(hideValuesProvider);
 
     return Scaffold(
       appBar: AppBar(
@@ -94,7 +95,7 @@ class DashboardScreen extends ConsumerWidget {
                         Padding(
                           padding: const EdgeInsets.fromLTRB(4, 12, 4, 6),
                           child: Text(
-                            section.label.toUpperCase(),
+                            hideValues ? '••••••' : section.label.toUpperCase(),
                             style: Theme.of(context).textTheme.labelSmall?.copyWith(
                                   color: context.appColors.textDim,
                                   fontWeight: FontWeight.w800,
@@ -223,6 +224,7 @@ class _CategorySummaryCard extends ConsumerWidget {
 
     final prices = ref.watch(pricesUsdPerUnitProvider);
     final usdToEgpRate = ref.watch(usdToEgpRateProvider);
+    final hideValues = ref.watch(hideValuesProvider);
     var totalUsd = 0.0;
     var pricedCount = 0;
     for (final asset in assets) {
@@ -246,7 +248,7 @@ class _CategorySummaryCard extends ConsumerWidget {
           const SizedBox(width: 8),
           Expanded(
             child: Text(
-              '$label total',
+              hideValues ? '••••••' : '$label total',
               style: theme.textTheme.labelSmall?.copyWith(
                 color: theme.colorScheme.primary,
                 fontWeight: FontWeight.w700,
@@ -315,6 +317,7 @@ class _MetalsSummaryCard extends ConsumerWidget {
 
     final prices = ref.watch(pricesUsdPerUnitProvider);
     final usdToEgpRate = ref.watch(usdToEgpRateProvider);
+    final hideValues = ref.watch(hideValuesProvider);
     var totalValueUsd = 0.0;
     var totalCostUsd = 0.0;
     var hasCost = false;
@@ -351,7 +354,7 @@ class _MetalsSummaryCard extends ConsumerWidget {
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  'Metals total',
+                  hideValues ? '••••••' : 'Metals total',
                   style: theme.textTheme.labelSmall?.copyWith(
                     color: theme.colorScheme.primary,
                     fontWeight: FontWeight.w700,
