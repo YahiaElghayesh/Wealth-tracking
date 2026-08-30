@@ -118,6 +118,7 @@ class NetWorthSummaryCard extends ConsumerWidget {
                     valueUsd: summary.liquidUsd,
                     usdToEgpRate: usdToEgpRate,
                     alignment: CrossAxisAlignment.start,
+                    color: theme.colorScheme.primary,
                   ),
                 ),
                 if (currentUsd != null)
@@ -126,6 +127,7 @@ class NetWorthSummaryCard extends ConsumerWidget {
                       resultEgp: latestSnapshot!.resultAmount,
                       fraction: currentFraction,
                       usdToEgpRate: usdToEgpRate,
+                      color: colors.good,
                     ),
                   ),
                 Expanded(
@@ -135,6 +137,7 @@ class NetWorthSummaryCard extends ConsumerWidget {
                     valueUsd: summary.nonLiquidUsd,
                     usdToEgpRate: usdToEgpRate,
                     alignment: CrossAxisAlignment.end,
+                    color: colors.gold,
                   ),
                 ),
               ],
@@ -159,11 +162,17 @@ class NetWorthSummaryCard extends ConsumerWidget {
 /// Liquid/Non-liquid, just centered between them instead of left/right
 /// aligned.
 class _CurrentSide extends StatelessWidget {
-  const _CurrentSide({required this.resultEgp, required this.fraction, required this.usdToEgpRate});
+  const _CurrentSide({
+    required this.resultEgp,
+    required this.fraction,
+    required this.usdToEgpRate,
+    required this.color,
+  });
 
   final double resultEgp;
   final double fraction;
   final double? usdToEgpRate;
+  final Color color;
 
   @override
   Widget build(BuildContext context) {
@@ -171,31 +180,35 @@ class _CurrentSide extends StatelessWidget {
     final colors = context.appColors;
     final resultUsd = usdToEgpRate == null || usdToEgpRate == 0 ? null : resultEgp / usdToEgpRate!;
     final pct = '${(fraction * 100).round()}%';
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.calculate_outlined, size: 12, color: colors.good),
-            const SizedBox(width: 3),
-            Text('Current', style: theme.textTheme.bodySmall?.copyWith(color: colors.textDim)),
-            const SizedBox(width: 4),
-            MoneyText(pct, style: theme.textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w700), maskLength: 3),
-          ],
-        ),
-        const SizedBox(height: 1),
-        MoneyText(
-          formatEgpWhole(resultEgp),
-          style: theme.textTheme.labelSmall?.copyWith(color: colors.textDim, fontWeight: FontWeight.w700),
-          maskLength: 7,
-        ),
-        MoneyText(
-          resultUsd == null ? '—' : '≈ ${formatUsdWhole(resultUsd)}',
-          style: theme.textTheme.labelSmall?.copyWith(color: colors.textDim, fontSize: 10.5),
-          maskLength: 5,
-        ),
-      ],
+    return _LegendBox(
+      color: color,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.calculate_outlined, size: 12, color: colors.good),
+              const SizedBox(width: 3),
+              Text('Current', style: theme.textTheme.bodySmall?.copyWith(color: colors.textDim)),
+              const SizedBox(width: 4),
+              MoneyText(pct, style: theme.textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w700), maskLength: 3),
+            ],
+          ),
+          const SizedBox(height: 1),
+          MoneyText(
+            formatEgpWhole(resultEgp),
+            style: theme.textTheme.labelSmall?.copyWith(color: colors.textDim, fontWeight: FontWeight.w700),
+            maskLength: 7,
+          ),
+          MoneyText(
+            resultUsd == null ? '—' : '≈ ${formatUsdWhole(resultUsd)}',
+            style: theme.textTheme.labelSmall?.copyWith(color: colors.textDim, fontSize: 10.5),
+            maskLength: 5,
+          ),
+        ],
+      ),
     );
   }
 }
@@ -207,6 +220,7 @@ class _SplitSide extends StatelessWidget {
     required this.valueUsd,
     required this.usdToEgpRate,
     required this.alignment,
+    required this.color,
   });
 
   final String label;
@@ -214,6 +228,7 @@ class _SplitSide extends StatelessWidget {
   final double valueUsd;
   final double? usdToEgpRate;
   final CrossAxisAlignment alignment;
+  final Color color;
 
   @override
   Widget build(BuildContext context) {
@@ -225,32 +240,66 @@ class _SplitSide extends StatelessWidget {
     return Column(
       crossAxisAlignment: alignment,
       children: [
-        Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (!alignEnd) ...[
-              Text(label, style: theme.textTheme.bodySmall?.copyWith(color: colors.textDim)),
-              const SizedBox(width: 4),
+        _LegendBox(
+          color: color,
+          child: Column(
+            crossAxisAlignment: alignment,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (!alignEnd) ...[
+                    Text(label, style: theme.textTheme.bodySmall?.copyWith(color: colors.textDim)),
+                    const SizedBox(width: 4),
+                  ],
+                  MoneyText(pct, style: theme.textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w700), maskLength: 3),
+                  if (alignEnd) ...[
+                    const SizedBox(width: 4),
+                    Text(label, style: theme.textTheme.bodySmall?.copyWith(color: colors.textDim)),
+                  ],
+                ],
+              ),
+              const SizedBox(height: 1),
+              MoneyText(
+                egpValue == null ? '—' : formatEgpWhole(egpValue),
+                style: theme.textTheme.labelSmall?.copyWith(color: colors.textDim),
+                maskLength: 7,
+              ),
+              MoneyText(
+                '≈ ${formatUsdWhole(valueUsd)}',
+                style: theme.textTheme.labelSmall?.copyWith(color: colors.textDim, fontSize: 10.5),
+                maskLength: 5,
+              ),
             ],
-            MoneyText(pct, style: theme.textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w700), maskLength: 3),
-            if (alignEnd) ...[
-              const SizedBox(width: 4),
-              Text(label, style: theme.textTheme.bodySmall?.copyWith(color: colors.textDim)),
-            ],
-          ],
-        ),
-        const SizedBox(height: 1),
-        MoneyText(
-          egpValue == null ? '—' : formatEgpWhole(egpValue),
-          style: theme.textTheme.labelSmall?.copyWith(color: colors.textDim),
-          maskLength: 7,
-        ),
-        MoneyText(
-          '≈ ${formatUsdWhole(valueUsd)}',
-          style: theme.textTheme.labelSmall?.copyWith(color: colors.textDim, fontSize: 10.5),
-          maskLength: 5,
+          ),
         ),
       ],
+    );
+  }
+}
+
+/// Shared tinted-box look behind each legend entry below the split bar --
+/// [color] matches that entry's own segment in the bar above it (primary
+/// for Liquid, [AppColors.good] for Current, [AppColors.gold] for
+/// Non-liquid), so the legend visually keys to the bar instead of relying
+/// on position/reading order alone.
+class _LegendBox extends StatelessWidget {
+  const _LegendBox({required this.color, required this.child});
+
+  final Color color;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: color.withValues(alpha: 0.35)),
+      ),
+      child: child,
     );
   }
 }

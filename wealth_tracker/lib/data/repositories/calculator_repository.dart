@@ -118,6 +118,12 @@ class CalculatorRepository {
             cardEntriesJson: Value(jsonEncode(cardEntries.map((c) => c.toJson()).toList())),
             manualInputEntriesJson:
                 Value(jsonEncode(manualInputEntries.map((e) => e.toJson()).toList())),
+            // Unconditionally true -- this snapshot's card/manual-input
+            // lists are authoritative even when genuinely empty (e.g. a
+            // profile with zero cards configured), unlike a pre-migration
+            // row where emptiness meant "the feature didn't exist yet".
+            cardsRecorded: const Value(true),
+            manualInputsRecorded: const Value(true),
             profileId: Value(profileId),
           ),
         );
@@ -150,10 +156,14 @@ extension CalculatorSnapshotCustomItems on CalculatorSnapshot {
   /// True for a snapshot saved before user-managed cards existed — its
   /// card data lives in the fixed nbe/cib* columns instead of
   /// [cardEntries], which the history screen needs to know to render it.
-  bool get usesLegacyFixedCardColumns => cardEntries.isEmpty;
+  /// Driven by [CalculatorSnapshot.cardsRecorded] rather than
+  /// `cardEntries.isEmpty` -- an empty list is genuinely ambiguous on its
+  /// own (a profile with zero cards configured produces the exact same
+  /// empty list a pre-migration snapshot does), see that column's doc
+  /// comment in tables.dart.
+  bool get usesLegacyFixedCardColumns => !cardsRecorded;
 
-  /// True for a snapshot saved before manual inputs became user-managed —
-  /// its apartment/CIB numbers live in the fixed apartmentSavings/
-  /// cibAccountBalance columns instead of [manualInputEntries].
-  bool get usesLegacyFixedManualInputs => manualInputEntries.isEmpty;
+  /// Same idea as [usesLegacyFixedCardColumns], for [manualInputEntries]
+  /// and [CalculatorSnapshot.manualInputsRecorded].
+  bool get usesLegacyFixedManualInputs => !manualInputsRecorded;
 }

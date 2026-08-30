@@ -33,6 +33,15 @@ import dev.fluttercommunity.workmanager.buildTaskInputData
  * instead, which commits it in the background with no app UI involved at
  * all when a Vendor Rule already resolves the sender to a specific ledger.
  *
+ * Before either of those, [looksLikeBankCardSms] gates whether this is
+ * even worth treating as a bank alert at all -- every SMS reaching this
+ * receiver used to post a notification unconditionally, including a
+ * promotional text that happened to mention a cash amount or a percentage.
+ * A real card alert always states three things together: how much, in
+ * what currency, and which card (its last four digits) -- a promo rarely
+ * states all three, so requiring every one of them before doing anything
+ * further meaningfully cuts false positives without needing a full parse.
+ *
  * A card *payment/settlement or refund* alert (paying down the card,
  * opposite of a purchase) never reaches either of those -- the user only
  * wants to be interrupted for purchases. [isCardPaymentOrRefundAlert]
@@ -51,6 +60,15 @@ class SmsReceiver : BroadcastReceiver() {
         val body = messages.joinToString(separator = "") { it.messageBody ?: "" }
         val timestampMillis = messages.first().timestampMillis
         if (body.isBlank()) return
+
+        // Every SMS used to trigger a notification, bank or not -- a
+        // promotional text mentioning a percentage-off or a cash amount
+        // ("Save up to 500 EGP!") looked identical to a real bank alert to
+        // this receiver, since the actual bank-format check only ran once
+        // the user tapped in. looksLikeBankCardSms requires all three of a
+        // money-shaped amount, a currency, and a card reference with its
+        // last four digits before anything below even runs.
+        if (!looksLikeBankCardSms(body)) return
 
         if (isCardPaymentOrRefundAlert(body)) {
             enqueueAutoUpdate(context, body, timestampMillis)
@@ -142,6 +160,40 @@ class SmsReceiver : BroadcastReceiver() {
         // lib/data/sms/sms_ledger_processor.dart, which
         // priceRefreshCallbackDispatcher switches on.
         private const val SMS_AUTO_UPDATE_TASK_NAME = "smsAutoUpdate"
+
+        /**
+         * The three criteria a real bank card alert states together --
+         * see the class doc comment. Each is checked independently so a
+         * promo text would need to accidentally satisfy all three at once
+         * to slip through, which the kind of wording promos actually use
+         * essentially never does:
+         *
+         * 1. [amountPattern] -- a money-*shaped* number: has a decimal
+         *    point or thousands-comma-grouping, e.g. "958.54" or
+         *    "85,891.16". Deliberately narrower than "any number", since a
+         *    bare 4-digit card number would otherwise also satisfy this on
+         *    its own and collapse the three criteria into two.
+         * 2. [currencyPattern] -- EGP/USD (this app's supported
+         *    currencies) or "جم", the Arabic abbreviation CIB/NBE alerts
+         *    actually use for Egyptian pounds.
+         * 3. [cardKeywordPattern] together with [fourDigitPattern] -- the
+         *    word "card" (or its Arabic root "بطاق", which every inflected
+         *    form -- بطاقة، بطاقتكم، لبطاقة -- shares) *and* a standalone
+         *    4-digit number, standing in for "the last four digits of a
+         *    card number" without needing to locate the two adjacent to
+         *    each other in the text.
+         */
+        private val amountPattern = Regex("""\d[\d,]*\.\d+|\d{1,3}(,\d{3})+""")
+        private val currencyPattern = Regex("EGP|USD|جم", RegexOption.IGNORE_CASE)
+        private val cardKeywordPattern = Regex("card|بطاق", RegexOption.IGNORE_CASE)
+        private val fourDigitPattern = Regex("""\b\d{4}\b""")
+
+        private fun looksLikeBankCardSms(body: String): Boolean {
+            return amountPattern.containsMatchIn(body) &&
+                currencyPattern.containsMatchIn(body) &&
+                cardKeywordPattern.containsMatchIn(body) &&
+                fourDigitPattern.containsMatchIn(body)
+        }
 
         /**
          * Mirrors just the *trigger phrase* of `_cibPaymentPattern` and

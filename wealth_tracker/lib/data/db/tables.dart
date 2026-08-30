@@ -187,6 +187,24 @@ class CalculatorSnapshots extends Table {
   /// written to again by any snapshot saved after this point.
   TextColumn get manualInputEntriesJson => text().withDefault(const Constant('[]'))();
 
+  /// True once [cardEntriesJson] is the authoritative source for this
+  /// snapshot's card breakdown -- distinct from [cardEntriesJson] simply
+  /// being `'[]'`, which is genuinely ambiguous on its own: a profile with
+  /// zero cards configured at save time produces the exact same empty
+  /// list a snapshot saved before user-managed cards existed does. Every
+  /// snapshot saved going forward sets this to `true` unconditionally
+  /// (the default), so an empty-but-current list still renders correctly
+  /// as "no cards" instead of silently falling back to the fixed legacy
+  /// nbe/cib* columns, which are the same three hardcoded card names
+  /// regardless of profile. Existing rows are backfilled by the migration
+  /// that added this column, from whether their own [cardEntriesJson] was
+  /// already non-empty at that point -- the best available signal for
+  /// data written before this flag existed.
+  BoolColumn get cardsRecorded => boolean().withDefault(const Constant(true))();
+
+  /// Same idea as [cardsRecorded], for [manualInputEntriesJson].
+  BoolColumn get manualInputsRecorded => boolean().withDefault(const Constant(true))();
+
   TextColumn get profileId => text().nullable().references(Profiles, #id)();
 
   @override

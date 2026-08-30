@@ -3388,6 +3388,35 @@ class $CalculatorSnapshotsTable extends CalculatorSnapshots
         requiredDuringInsert: false,
         defaultValue: const Constant('[]'),
       );
+  static const VerificationMeta _cardsRecordedMeta = const VerificationMeta(
+    'cardsRecorded',
+  );
+  @override
+  late final GeneratedColumn<bool> cardsRecorded = GeneratedColumn<bool>(
+    'cards_recorded',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("cards_recorded" IN (0, 1))',
+    ),
+    defaultValue: const Constant(true),
+  );
+  static const VerificationMeta _manualInputsRecordedMeta =
+      const VerificationMeta('manualInputsRecorded');
+  @override
+  late final GeneratedColumn<bool> manualInputsRecorded = GeneratedColumn<bool>(
+    'manual_inputs_recorded',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("manual_inputs_recorded" IN (0, 1))',
+    ),
+    defaultValue: const Constant(true),
+  );
   static const VerificationMeta _profileIdMeta = const VerificationMeta(
     'profileId',
   );
@@ -3419,6 +3448,8 @@ class $CalculatorSnapshotsTable extends CalculatorSnapshots
     customItemsJson,
     cardEntriesJson,
     manualInputEntriesJson,
+    cardsRecorded,
+    manualInputsRecorded,
     profileId,
   ];
   @override
@@ -3568,6 +3599,24 @@ class $CalculatorSnapshotsTable extends CalculatorSnapshots
         ),
       );
     }
+    if (data.containsKey('cards_recorded')) {
+      context.handle(
+        _cardsRecordedMeta,
+        cardsRecorded.isAcceptableOrUnknown(
+          data['cards_recorded']!,
+          _cardsRecordedMeta,
+        ),
+      );
+    }
+    if (data.containsKey('manual_inputs_recorded')) {
+      context.handle(
+        _manualInputsRecordedMeta,
+        manualInputsRecorded.isAcceptableOrUnknown(
+          data['manual_inputs_recorded']!,
+          _manualInputsRecordedMeta,
+        ),
+      );
+    }
     if (data.containsKey('profile_id')) {
       context.handle(
         _profileIdMeta,
@@ -3643,6 +3692,14 @@ class $CalculatorSnapshotsTable extends CalculatorSnapshots
         DriftSqlType.string,
         data['${effectivePrefix}manual_input_entries_json'],
       )!,
+      cardsRecorded: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}cards_recorded'],
+      )!,
+      manualInputsRecorded: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}manual_inputs_recorded'],
+      )!,
       profileId: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}profile_id'],
@@ -3686,6 +3743,24 @@ class CalculatorSnapshot extends DataClass
   /// cibAccountBalance columns above carry those instead, and are never
   /// written to again by any snapshot saved after this point.
   final String manualInputEntriesJson;
+
+  /// True once [cardEntriesJson] is the authoritative source for this
+  /// snapshot's card breakdown -- distinct from [cardEntriesJson] simply
+  /// being `'[]'`, which is genuinely ambiguous on its own: a profile with
+  /// zero cards configured at save time produces the exact same empty
+  /// list a snapshot saved before user-managed cards existed does. Every
+  /// snapshot saved going forward sets this to `true` unconditionally
+  /// (the default), so an empty-but-current list still renders correctly
+  /// as "no cards" instead of silently falling back to the fixed legacy
+  /// nbe/cib* columns, which are the same three hardcoded card names
+  /// regardless of profile. Existing rows are backfilled by the migration
+  /// that added this column, from whether their own [cardEntriesJson] was
+  /// already non-empty at that point -- the best available signal for
+  /// data written before this flag existed.
+  final bool cardsRecorded;
+
+  /// Same idea as [cardsRecorded], for [manualInputEntriesJson].
+  final bool manualInputsRecorded;
   final String? profileId;
   const CalculatorSnapshot({
     required this.id,
@@ -3703,6 +3778,8 @@ class CalculatorSnapshot extends DataClass
     required this.customItemsJson,
     required this.cardEntriesJson,
     required this.manualInputEntriesJson,
+    required this.cardsRecorded,
+    required this.manualInputsRecorded,
     this.profileId,
   });
   @override
@@ -3725,6 +3802,8 @@ class CalculatorSnapshot extends DataClass
     map['custom_items_json'] = Variable<String>(customItemsJson);
     map['card_entries_json'] = Variable<String>(cardEntriesJson);
     map['manual_input_entries_json'] = Variable<String>(manualInputEntriesJson);
+    map['cards_recorded'] = Variable<bool>(cardsRecorded);
+    map['manual_inputs_recorded'] = Variable<bool>(manualInputsRecorded);
     if (!nullToAbsent || profileId != null) {
       map['profile_id'] = Variable<String>(profileId);
     }
@@ -3748,6 +3827,8 @@ class CalculatorSnapshot extends DataClass
       customItemsJson: Value(customItemsJson),
       cardEntriesJson: Value(cardEntriesJson),
       manualInputEntriesJson: Value(manualInputEntriesJson),
+      cardsRecorded: Value(cardsRecorded),
+      manualInputsRecorded: Value(manualInputsRecorded),
       profileId: profileId == null && nullToAbsent
           ? const Value.absent()
           : Value(profileId),
@@ -3783,6 +3864,10 @@ class CalculatorSnapshot extends DataClass
       manualInputEntriesJson: serializer.fromJson<String>(
         json['manualInputEntriesJson'],
       ),
+      cardsRecorded: serializer.fromJson<bool>(json['cardsRecorded']),
+      manualInputsRecorded: serializer.fromJson<bool>(
+        json['manualInputsRecorded'],
+      ),
       profileId: serializer.fromJson<String?>(json['profileId']),
     );
   }
@@ -3809,6 +3894,8 @@ class CalculatorSnapshot extends DataClass
       'manualInputEntriesJson': serializer.toJson<String>(
         manualInputEntriesJson,
       ),
+      'cardsRecorded': serializer.toJson<bool>(cardsRecorded),
+      'manualInputsRecorded': serializer.toJson<bool>(manualInputsRecorded),
       'profileId': serializer.toJson<String?>(profileId),
     };
   }
@@ -3829,6 +3916,8 @@ class CalculatorSnapshot extends DataClass
     String? customItemsJson,
     String? cardEntriesJson,
     String? manualInputEntriesJson,
+    bool? cardsRecorded,
+    bool? manualInputsRecorded,
     Value<String?> profileId = const Value.absent(),
   }) => CalculatorSnapshot(
     id: id ?? this.id,
@@ -3848,6 +3937,8 @@ class CalculatorSnapshot extends DataClass
     cardEntriesJson: cardEntriesJson ?? this.cardEntriesJson,
     manualInputEntriesJson:
         manualInputEntriesJson ?? this.manualInputEntriesJson,
+    cardsRecorded: cardsRecorded ?? this.cardsRecorded,
+    manualInputsRecorded: manualInputsRecorded ?? this.manualInputsRecorded,
     profileId: profileId.present ? profileId.value : this.profileId,
   );
   CalculatorSnapshot copyWithCompanion(CalculatorSnapshotsCompanion data) {
@@ -3893,6 +3984,12 @@ class CalculatorSnapshot extends DataClass
       manualInputEntriesJson: data.manualInputEntriesJson.present
           ? data.manualInputEntriesJson.value
           : this.manualInputEntriesJson,
+      cardsRecorded: data.cardsRecorded.present
+          ? data.cardsRecorded.value
+          : this.cardsRecorded,
+      manualInputsRecorded: data.manualInputsRecorded.present
+          ? data.manualInputsRecorded.value
+          : this.manualInputsRecorded,
       profileId: data.profileId.present ? data.profileId.value : this.profileId,
     );
   }
@@ -3915,6 +4012,8 @@ class CalculatorSnapshot extends DataClass
           ..write('customItemsJson: $customItemsJson, ')
           ..write('cardEntriesJson: $cardEntriesJson, ')
           ..write('manualInputEntriesJson: $manualInputEntriesJson, ')
+          ..write('cardsRecorded: $cardsRecorded, ')
+          ..write('manualInputsRecorded: $manualInputsRecorded, ')
           ..write('profileId: $profileId')
           ..write(')'))
         .toString();
@@ -3937,6 +4036,8 @@ class CalculatorSnapshot extends DataClass
     customItemsJson,
     cardEntriesJson,
     manualInputEntriesJson,
+    cardsRecorded,
+    manualInputsRecorded,
     profileId,
   );
   @override
@@ -3958,6 +4059,8 @@ class CalculatorSnapshot extends DataClass
           other.customItemsJson == this.customItemsJson &&
           other.cardEntriesJson == this.cardEntriesJson &&
           other.manualInputEntriesJson == this.manualInputEntriesJson &&
+          other.cardsRecorded == this.cardsRecorded &&
+          other.manualInputsRecorded == this.manualInputsRecorded &&
           other.profileId == this.profileId);
 }
 
@@ -3977,6 +4080,8 @@ class CalculatorSnapshotsCompanion extends UpdateCompanion<CalculatorSnapshot> {
   final Value<String> customItemsJson;
   final Value<String> cardEntriesJson;
   final Value<String> manualInputEntriesJson;
+  final Value<bool> cardsRecorded;
+  final Value<bool> manualInputsRecorded;
   final Value<String?> profileId;
   final Value<int> rowid;
   const CalculatorSnapshotsCompanion({
@@ -3995,6 +4100,8 @@ class CalculatorSnapshotsCompanion extends UpdateCompanion<CalculatorSnapshot> {
     this.customItemsJson = const Value.absent(),
     this.cardEntriesJson = const Value.absent(),
     this.manualInputEntriesJson = const Value.absent(),
+    this.cardsRecorded = const Value.absent(),
+    this.manualInputsRecorded = const Value.absent(),
     this.profileId = const Value.absent(),
     this.rowid = const Value.absent(),
   });
@@ -4014,6 +4121,8 @@ class CalculatorSnapshotsCompanion extends UpdateCompanion<CalculatorSnapshot> {
     this.customItemsJson = const Value.absent(),
     this.cardEntriesJson = const Value.absent(),
     this.manualInputEntriesJson = const Value.absent(),
+    this.cardsRecorded = const Value.absent(),
+    this.manualInputsRecorded = const Value.absent(),
     this.profileId = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
@@ -4038,6 +4147,8 @@ class CalculatorSnapshotsCompanion extends UpdateCompanion<CalculatorSnapshot> {
     Expression<String>? customItemsJson,
     Expression<String>? cardEntriesJson,
     Expression<String>? manualInputEntriesJson,
+    Expression<bool>? cardsRecorded,
+    Expression<bool>? manualInputsRecorded,
     Expression<String>? profileId,
     Expression<int>? rowid,
   }) {
@@ -4061,6 +4172,9 @@ class CalculatorSnapshotsCompanion extends UpdateCompanion<CalculatorSnapshot> {
       if (cardEntriesJson != null) 'card_entries_json': cardEntriesJson,
       if (manualInputEntriesJson != null)
         'manual_input_entries_json': manualInputEntriesJson,
+      if (cardsRecorded != null) 'cards_recorded': cardsRecorded,
+      if (manualInputsRecorded != null)
+        'manual_inputs_recorded': manualInputsRecorded,
       if (profileId != null) 'profile_id': profileId,
       if (rowid != null) 'rowid': rowid,
     });
@@ -4082,6 +4196,8 @@ class CalculatorSnapshotsCompanion extends UpdateCompanion<CalculatorSnapshot> {
     Value<String>? customItemsJson,
     Value<String>? cardEntriesJson,
     Value<String>? manualInputEntriesJson,
+    Value<bool>? cardsRecorded,
+    Value<bool>? manualInputsRecorded,
     Value<String?>? profileId,
     Value<int>? rowid,
   }) {
@@ -4104,6 +4220,8 @@ class CalculatorSnapshotsCompanion extends UpdateCompanion<CalculatorSnapshot> {
       cardEntriesJson: cardEntriesJson ?? this.cardEntriesJson,
       manualInputEntriesJson:
           manualInputEntriesJson ?? this.manualInputEntriesJson,
+      cardsRecorded: cardsRecorded ?? this.cardsRecorded,
+      manualInputsRecorded: manualInputsRecorded ?? this.manualInputsRecorded,
       profileId: profileId ?? this.profileId,
       rowid: rowid ?? this.rowid,
     );
@@ -4165,6 +4283,14 @@ class CalculatorSnapshotsCompanion extends UpdateCompanion<CalculatorSnapshot> {
         manualInputEntriesJson.value,
       );
     }
+    if (cardsRecorded.present) {
+      map['cards_recorded'] = Variable<bool>(cardsRecorded.value);
+    }
+    if (manualInputsRecorded.present) {
+      map['manual_inputs_recorded'] = Variable<bool>(
+        manualInputsRecorded.value,
+      );
+    }
     if (profileId.present) {
       map['profile_id'] = Variable<String>(profileId.value);
     }
@@ -4192,6 +4318,8 @@ class CalculatorSnapshotsCompanion extends UpdateCompanion<CalculatorSnapshot> {
           ..write('customItemsJson: $customItemsJson, ')
           ..write('cardEntriesJson: $cardEntriesJson, ')
           ..write('manualInputEntriesJson: $manualInputEntriesJson, ')
+          ..write('cardsRecorded: $cardsRecorded, ')
+          ..write('manualInputsRecorded: $manualInputsRecorded, ')
           ..write('profileId: $profileId, ')
           ..write('rowid: $rowid')
           ..write(')'))
@@ -9029,6 +9157,8 @@ typedef $$CalculatorSnapshotsTableCreateCompanionBuilder =
       Value<String> customItemsJson,
       Value<String> cardEntriesJson,
       Value<String> manualInputEntriesJson,
+      Value<bool> cardsRecorded,
+      Value<bool> manualInputsRecorded,
       Value<String?> profileId,
       Value<int> rowid,
     });
@@ -9049,6 +9179,8 @@ typedef $$CalculatorSnapshotsTableUpdateCompanionBuilder =
       Value<String> customItemsJson,
       Value<String> cardEntriesJson,
       Value<String> manualInputEntriesJson,
+      Value<bool> cardsRecorded,
+      Value<bool> manualInputsRecorded,
       Value<String?> profileId,
       Value<int> rowid,
     });
@@ -9168,6 +9300,16 @@ class $$CalculatorSnapshotsTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
+  ColumnFilters<bool> get cardsRecorded => $composableBuilder(
+    column: $table.cardsRecorded,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get manualInputsRecorded => $composableBuilder(
+    column: $table.manualInputsRecorded,
+    builder: (column) => ColumnFilters(column),
+  );
+
   $$ProfilesTableFilterComposer get profileId {
     final $$ProfilesTableFilterComposer composer = $composerBuilder(
       composer: this,
@@ -9276,6 +9418,16 @@ class $$CalculatorSnapshotsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<bool> get cardsRecorded => $composableBuilder(
+    column: $table.cardsRecorded,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get manualInputsRecorded => $composableBuilder(
+    column: $table.manualInputsRecorded,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   $$ProfilesTableOrderingComposer get profileId {
     final $$ProfilesTableOrderingComposer composer = $composerBuilder(
       composer: this,
@@ -9380,6 +9532,16 @@ class $$CalculatorSnapshotsTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<bool> get cardsRecorded => $composableBuilder(
+    column: $table.cardsRecorded,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get manualInputsRecorded => $composableBuilder(
+    column: $table.manualInputsRecorded,
+    builder: (column) => column,
+  );
+
   $$ProfilesTableAnnotationComposer get profileId {
     final $$ProfilesTableAnnotationComposer composer = $composerBuilder(
       composer: this,
@@ -9455,6 +9617,8 @@ class $$CalculatorSnapshotsTableTableManager
                 Value<String> customItemsJson = const Value.absent(),
                 Value<String> cardEntriesJson = const Value.absent(),
                 Value<String> manualInputEntriesJson = const Value.absent(),
+                Value<bool> cardsRecorded = const Value.absent(),
+                Value<bool> manualInputsRecorded = const Value.absent(),
                 Value<String?> profileId = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => CalculatorSnapshotsCompanion(
@@ -9473,6 +9637,8 @@ class $$CalculatorSnapshotsTableTableManager
                 customItemsJson: customItemsJson,
                 cardEntriesJson: cardEntriesJson,
                 manualInputEntriesJson: manualInputEntriesJson,
+                cardsRecorded: cardsRecorded,
+                manualInputsRecorded: manualInputsRecorded,
                 profileId: profileId,
                 rowid: rowid,
               ),
@@ -9493,6 +9659,8 @@ class $$CalculatorSnapshotsTableTableManager
                 Value<String> customItemsJson = const Value.absent(),
                 Value<String> cardEntriesJson = const Value.absent(),
                 Value<String> manualInputEntriesJson = const Value.absent(),
+                Value<bool> cardsRecorded = const Value.absent(),
+                Value<bool> manualInputsRecorded = const Value.absent(),
                 Value<String?> profileId = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => CalculatorSnapshotsCompanion.insert(
@@ -9511,6 +9679,8 @@ class $$CalculatorSnapshotsTableTableManager
                 customItemsJson: customItemsJson,
                 cardEntriesJson: cardEntriesJson,
                 manualInputEntriesJson: manualInputEntriesJson,
+                cardsRecorded: cardsRecorded,
+                manualInputsRecorded: manualInputsRecorded,
                 profileId: profileId,
                 rowid: rowid,
               ),

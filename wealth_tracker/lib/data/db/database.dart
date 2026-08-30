@@ -36,7 +36,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 15;
+  int get schemaVersion => 16;
 
   /// Public so `ProfileRepository.addProfile` can give a newly created
   /// profile the same starter categories a fresh install gets -- otherwise
@@ -250,6 +250,30 @@ class AppDatabase extends _$AppDatabase {
             // in via Edit.
             await m.addColumn(assets, assets.purchasePrice);
             await m.addColumn(assets, assets.purchaseCurrency);
+          }
+          if (from < 16) {
+            // Calculator History's "is this snapshot's card/manual-input
+            // breakdown legacy?" check used to infer it purely from
+            // cardEntriesJson/manualInputEntriesJson being empty -- which a
+            // profile with genuinely zero cards or manual inputs configured
+            // at save time also produces, so it fell back to the fixed
+            // legacy columns (the same three hardcoded card names /
+            // "Apartment savings" / "CIB Accounts Balance" labels on every
+            // profile) instead of correctly showing "none". Backfill from
+            // the same isEmpty signal the old inference used, since that's
+            // the best information available for data written before this
+            // flag existed -- it reproduces today's (already-correct for
+            // non-empty rows) behavior exactly, while every snapshot saved
+            // from now on sets both to `true` unconditionally via the
+            // column default and is never ambiguous again.
+            await m.addColumn(calculatorSnapshots, calculatorSnapshots.cardsRecorded);
+            await m.addColumn(calculatorSnapshots, calculatorSnapshots.manualInputsRecorded);
+            await customStatement(
+              "UPDATE calculator_snapshots SET cards_recorded = (card_entries_json != '[]')",
+            );
+            await customStatement(
+              "UPDATE calculator_snapshots SET manual_inputs_recorded = (manual_input_entries_json != '[]')",
+            );
           }
         },
         // The "Breakfast" quick-pick category was a voice-transcription

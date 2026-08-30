@@ -523,93 +523,109 @@ class _AssetTile extends ConsumerWidget {
             borderRadius: BorderRadius.circular(16),
             border: Border.all(color: colors.border),
           ),
-          child: Row(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(color: tint, borderRadius: BorderRadius.circular(12)),
-                alignment: Alignment.center,
-                child: hideValues ? Icon(Icons.lock_outline, size: 16, color: colors.textDim) : icon,
-              ),
-              const SizedBox(width: 12),
-              // Both sides are flex-constrained (rather than the trailing
-              // side sizing to its own unbounded natural width) so a very
-              // long gain/loss string -- an outsized gain % is a single
-              // unbreakable run with no spaces to wrap at -- can never
-              // shrink the name column down to almost nothing and force it
-              // into character-by-character wrapping instead.
-              Expanded(
-                flex: 3,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      hideValues ? '••••••' : asset.name,
-                      style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w700),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      hideValues
-                          ? '••••••'
-                          : '$categoryLabel · ${assetClass == AssetClass.liquid ? "Liquid" : "Non-liquid"}',
-                      style: theme.textTheme.labelSmall?.copyWith(color: colors.textDim),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    if (quantityLabel != null && !hideValues) ...[
-                      const SizedBox(height: 3),
-                      MoneyText(
-                        quantityLabel,
-                        style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700, color: colors.textBody),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-              if (value != null)
-                Expanded(
-                  flex: 2,
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      MoneyText(
-                        egpValue == null ? '—' : formatEgpWhole(egpValue),
-                        style: theme.textTheme.bodyMedium,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      MoneyText(
-                        formatUsdWhole(value),
-                        style: theme.textTheme.labelSmall?.copyWith(color: colors.textDim),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      if (gainLossUsd != null && gainLossPct != null) ...[
-                        const SizedBox(height: 2),
-                        MoneyText(
-                          '${gainLossUsd >= 0 ? '+' : ''}${gainLossPct.toStringAsFixed(1)}%'
-                          '${gainLossEgp == null ? '' : ' · ${gainLossUsd >= 0 ? '+' : ''}${formatEgpWhole(gainLossEgp)}'}'
-                          ' · ${gainLossUsd >= 0 ? '+' : ''}${formatUsdWhole(gainLossUsd)}',
-                          style: theme.textTheme.labelSmall?.copyWith(
-                            color: gainLossUsd >= 0 ? colors.good : colors.bad,
-                            fontWeight: FontWeight.w700,
-                          ),
-                          maskLength: 10,
+              Row(
+                children: [
+                  Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(color: tint, borderRadius: BorderRadius.circular(12)),
+                    alignment: Alignment.center,
+                    child: hideValues ? Icon(Icons.lock_outline, size: 16, color: colors.textDim) : icon,
+                  ),
+                  const SizedBox(width: 12),
+                  // Both sides are flex-constrained (rather than the
+                  // trailing side sizing to its own unbounded natural
+                  // width) so a long name can never be starved down to
+                  // near-zero by the value column next to it.
+                  Expanded(
+                    flex: 3,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          hideValues ? '••••••' : asset.name,
+                          style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w700),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
+                        const SizedBox(height: 2),
+                        Text(
+                          hideValues
+                              ? '••••••'
+                              : '$categoryLabel · ${assetClass == AssetClass.liquid ? "Liquid" : "Non-liquid"}',
+                          style: theme.textTheme.labelSmall?.copyWith(color: colors.textDim),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        if (quantityLabel != null && !hideValues) ...[
+                          const SizedBox(height: 3),
+                          MoneyText(
+                            quantityLabel,
+                            style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700, color: colors.textBody),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
                       ],
-                    ],
+                    ),
                   ),
-                )
-              else
-                const Text('—'),
+                  if (value != null)
+                    Expanded(
+                      flex: 2,
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          MoneyText(
+                            egpValue == null ? '—' : formatEgpWhole(egpValue),
+                            style: theme.textTheme.bodyMedium,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          MoneyText(
+                            formatUsdWhole(value),
+                            style: theme.textTheme.labelSmall?.copyWith(color: colors.textDim),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ),
+                    )
+                  else
+                    const Text('—'),
+                ],
+              ),
+              // Gain/loss gets its own full-width row instead of squeezing
+              // into the narrow trailing value column above -- that column
+              // is only ~40% of the card's width, nowhere near enough for
+              // a string like "-17.5% · -EGP 30,240 · -EGP 602", so it was
+              // silently ellipsis-truncated to "-17.5% · -EGP…" and
+              // effectively unreadable. Full card width is enough for this
+              // to render on one line in the overwhelming majority of
+              // cases; on the rare string that's still too long, it wraps
+              // to a second line instead of ever truncating, since a
+              // number that's cut off is worse than one that takes two
+              // lines.
+              if (gainLossUsd != null && gainLossPct != null && !hideValues) ...[
+                const SizedBox(height: 6),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: MoneyText(
+                    '${gainLossUsd >= 0 ? '+' : ''}${gainLossPct.toStringAsFixed(1)}%'
+                    '${gainLossEgp == null ? '' : ' · ${gainLossUsd >= 0 ? '+' : ''}${formatEgpWhole(gainLossEgp)}'}'
+                    ' · ${gainLossUsd >= 0 ? '+' : ''}${formatUsdWhole(gainLossUsd)}',
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      color: gainLossUsd >= 0 ? colors.good : colors.bad,
+                      fontWeight: FontWeight.w700,
+                    ),
+                    maskLength: 10,
+                    textAlign: TextAlign.right,
+                  ),
+                ),
+              ],
             ],
           ),
         ),
