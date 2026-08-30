@@ -105,6 +105,32 @@ Widgets → **Wealth Tracker** → drag the "Net Worth" widget onto the screen. 
 whatever was last computed in the app and refreshes automatically every few hours, or
 immediately after you open the app and its data changes.
 
+### 6. In-app update checking (optional)
+
+Settings → App updates lets the app check GitHub for a newer CI build and install it
+directly, without going back to GitHub Actions to download an APK by hand. Since this
+repo is private, that requires a token baked into the app at build time:
+
+1. Create a **fine-grained personal access token**: GitHub → Settings → Developer
+   settings → Personal access tokens → Fine-grained tokens → Generate new token.
+2. Repository access → Only select repositories → this repo.
+3. Permissions → Repository permissions → **Contents: Read-only** (Metadata: Read-only
+   comes along automatically).
+4. Set an expiration long enough that you won't need to regenerate it often — the app
+   can't reach GitHub at all with an expired token, and there's no in-app way to update
+   just the token once it's baked into an already-installed build.
+5. Add the generated token as a repository secret named `APP_UPDATE_TOKEN`
+   (Settings → Secrets and variables → Actions → New repository secret).
+
+CI passes it to `flutter build apk` via `--dart-define` on every build; builds made
+without that secret configured leave the update-checking screen showing a plain
+"not configured" message instead of failing confusingly.
+
+Because that token only grants read access to this one repository's contents, it's a
+low-risk thing to embed in a distributed APK — but it's still a real credential, and
+anyone with a copy of the installed APK file could extract it. Revoke and rotate it
+(same GitHub settings page) if that's ever a concern.
+
 ## Architecture
 
 - **State management**: Riverpod

@@ -7,6 +7,7 @@ import 'package:local_auth/local_auth.dart';
 import '../../../core/providers/core_providers.dart';
 import '../../../core/theme/app_colors.dart';
 import '../providers/settings_providers.dart';
+import 'app_updates_settings_screen.dart';
 import 'asset_classification_settings_screen.dart';
 import 'bank_sms_settings_screen.dart';
 import 'credit_cards_settings_screen.dart';
@@ -157,6 +158,14 @@ class SettingsScreen extends ConsumerWidget {
               title: 'Widget appearance',
               subtitle: 'Color and opacity of the home-screen widgets',
               builder: (_) => const WidgetAppearanceSettingsScreen(),
+            ),
+            const SizedBox(height: 10),
+            const _SectionLabel('Updates'),
+            _SettingsTile(
+              icon: Icons.system_update,
+              title: 'App updates',
+              subtitle: 'Check for and install the latest build',
+              builder: (_) => const AppUpdatesSettingsScreen(),
             ),
           ],
           const SizedBox(height: 10),

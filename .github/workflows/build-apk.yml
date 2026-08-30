@@ -9,6 +9,9 @@ on:
       - ".github/workflows/build-apk.yml"
   workflow_dispatch: {}
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -32,7 +35,19 @@ jobs:
 
       - run: dart run build_runner build --delete-conflicting-outputs
 
-      - run: flutter build apk --debug
+      # --build-number becomes the APK's versionCode -- the in-app "Check
+      # for updates" feature (Settings > App updates) compares its own
+      # installed versionCode against this same run number read back from
+      # the GitHub Release below, so it has to be injected here, not left
+      # to whatever pubspec.yaml's build number says (that isn't bumped on
+      # every commit). --dart-define bakes in the token the app needs to
+      # read this private repo's Releases API -- see APP_UPDATE_TOKEN setup
+      # in the README; the check/download feature just no-ops with a clear
+      # message if this secret isn't configured.
+      - run: |
+          flutter build apk --debug \
+            --build-number=${{ github.run_number }} \
+            --dart-define=GITHUB_UPDATE_TOKEN=${{ secrets.APP_UPDATE_TOKEN }}
 
       - name: Verify built APK (installability diagnostics)
         run: |
@@ -54,3 +69,18 @@ jobs:
           name: wealth-tracker-debug-apk
           path: wealth_tracker/build/app/outputs/flutter-apk/app-debug.apk
           retention-days: 30
+
+      # Gives the in-app updater a stable, permanent place to check/download
+      # from -- unlike the artifact above (requires a GitHub login, expires
+      # in 30 days), a Release asset is addressable by a fixed API URL for
+      # as long as the release exists, which is what the app polls.
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cp build/app/outputs/flutter-apk/app-debug.apk wealth-tracker-debug.apk
+          gh release create "build-${{ github.run_number }}" wealth-tracker-debug.apk \
+            --repo "${{ github.repository }}" \
+            --title "Build ${{ github.run_number }}" \
+            --notes "Automated debug build from commit ${{ github.sha }}." \
+            --latest

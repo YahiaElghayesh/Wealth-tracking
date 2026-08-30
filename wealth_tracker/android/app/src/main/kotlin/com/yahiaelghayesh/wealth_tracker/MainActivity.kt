@@ -12,6 +12,7 @@ import io.flutter.plugin.common.MethodChannel
 class MainActivity : FlutterFragmentActivity() {
     private var smsChannel: MethodChannel? = null
     private var shortcutsChannel: MethodChannel? = null
+    private var updaterChannel: MethodChannel? = null
 
     // home_widget's click detection reads the launch Intent both from the
     // "was I cold-started by a widget tap" check (activity.intent, i.e.
@@ -54,6 +55,32 @@ class MainActivity : FlutterFragmentActivity() {
                         result.error("invalid_args", "counterpartyId and name are required", null)
                     } else {
                         result.success(LedgerShortcuts.pin(this, counterpartyId, name))
+                    }
+                }
+                else -> result.notImplemented()
+            }
+        }
+
+        // Dart's counterpart lives in lib/core/update/app_update_service.dart
+        // and lib/core/update/app_update_screen.dart -- see AppUpdater.kt for
+        // why this needs native code instead of a Flutter plugin (the
+        // FileProvider content:// URI dance a downloaded APK needs before
+        // the system installer will touch it).
+        updaterChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "money_hub/updater")
+        updaterChannel?.setMethodCallHandler { call, result ->
+            when (call.method) {
+                "canInstallPackages" -> result.success(AppUpdater.canInstall(this))
+                "requestInstallPermission" -> {
+                    AppUpdater.requestInstallPermission(this)
+                    result.success(null)
+                }
+                "installApk" -> {
+                    val path = call.argument<String>("path")
+                    if (path == null) {
+                        result.error("invalid_args", "path is required", null)
+                    } else {
+                        AppUpdater.install(this, path)
+                        result.success(null)
                     }
                 }
                 else -> result.notImplemented()
