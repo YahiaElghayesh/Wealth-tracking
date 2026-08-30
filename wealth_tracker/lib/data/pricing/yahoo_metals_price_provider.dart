@@ -5,15 +5,16 @@ import 'price_provider.dart';
 
 const _gramsPerTroyOunce = 31.1034768;
 
-/// Gold/silver spot prices via Yahoo Finance's unofficial chart endpoint --
-/// a third, keyless fallback behind goldapi.io and gold-api.com, both of
-/// which now hit 429 rate limits on their free tiers. `XAUUSD=X`/`XAGUSD=X`
-/// are Yahoo's own standard tickers for spot gold/silver in USD per troy
-/// ounce (the same `=X` FX-pair convention [YahooFinancePriceProvider]
-/// already uses for currency conversion), served off the same
-/// `query1.finance.yahoo.com/v8/finance/chart` endpoint this app already
-/// relies on for every stock price -- no signup, and no rate-limit issues
-/// observed there so far.
+/// Gold/silver prices via Yahoo Finance's unofficial chart endpoint -- a
+/// third, keyless fallback behind goldapi.io and gold-api.com, both of
+/// which now hit 429 rate limits on their free tiers. `GC=F`/`SI=F` are
+/// Yahoo's tickers for COMEX gold/silver futures (continuous front-month
+/// contract), quoted in USD per troy ounce -- close enough to spot for a
+/// net-worth estimate. `XAUUSD=X`/`XAGUSD=X` (the `=X` FX-pair convention
+/// [YahooFinancePriceProvider] uses for currency conversion) looked like
+/// the more natural fit but 404s on this endpoint on-device; Yahoo doesn't
+/// carry metals as FX pairs the way it does for real ISO currencies, only
+/// as futures contracts.
 class YahooMetalsPriceProvider implements PriceProvider {
   YahooMetalsPriceProvider({Dio? dio}) : _dio = dio ?? Dio();
 
@@ -35,7 +36,7 @@ class YahooMetalsPriceProvider implements PriceProvider {
 
     if (requestedKarats.isNotEmpty) {
       try {
-        final pureGoldPerGram = await _fetchPricePerGram('XAUUSD=X');
+        final pureGoldPerGram = await _fetchPricePerGram('GC=F');
         for (final karat in requestedKarats) {
           result[karat.priceSymbol] = pureGoldPerGram * karat.purityFraction;
         }
@@ -46,7 +47,7 @@ class YahooMetalsPriceProvider implements PriceProvider {
 
     if (needsSilver) {
       try {
-        result['XAG_GRAM'] = await _fetchPricePerGram('XAGUSD=X');
+        result['XAG_GRAM'] = await _fetchPricePerGram('SI=F');
       } on PriceFetchException catch (e) {
         errors.add(e.toString());
       }
