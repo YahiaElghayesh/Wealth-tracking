@@ -49,11 +49,25 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
   String _currency = defaultCurrency;
   DateTime _date = DateTime.now();
 
+  // The numeric keyboard must stay open for the whole time this screen is
+  // up -- there's no "done" action on it that should also close it without
+  // leaving the screen. These two flags are the only legitimate reasons the
+  // amount field is allowed to actually lose focus: [_closing] while this
+  // screen is on its way out (saving, deleting, or being popped), and
+  // [_modalOpen] while a dialog that might have its own focusable field
+  // (the date picker's manual-entry mode, the delete confirmation) is up --
+  // fighting for focus in either case would either be pointless (the screen
+  // is going away) or actively break the dialog (yanking focus back to the
+  // amount field out from under whatever the dialog itself is focused on).
+  bool _closing = false;
+  bool _modalOpen = false;
+
   bool get _isEditing => widget.existing != null;
 
   @override
   void initState() {
     super.initState();
+    _amountFocusNode.addListener(_onAmountFocusChange);
     final existing = widget.existing;
     if (existing != null) {
       _isPayment = existing.amount >= 0;
@@ -106,19 +120,36 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
 
   @override
   void dispose() {
+    _amountFocusNode.removeListener(_onAmountFocusChange);
     _amountController.dispose();
     _amountFocusNode.dispose();
     _customCategoryController.dispose();
     super.dispose();
   }
 
+  /// Fires on *any* loss of focus, including ones nothing on this screen
+  /// caused directly -- the system's own "hide keyboard" affordance closes
+  /// the IME by ending the text input connection, which unfocuses the field
+  /// in Flutter's tree too even though no other widget here ever asked for
+  /// focus. Immediately asking for it back is what makes the keyboard
+  /// effectively impossible to dismiss without leaving the screen.
+  void _onAmountFocusChange() {
+    if (_amountFocusNode.hasFocus || _closing || _modalOpen) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _closing || _modalOpen) return;
+      FocusScope.of(context).requestFocus(_amountFocusNode);
+    });
+  }
+
   Future<void> _pickDate() async {
+    _modalOpen = true;
     final picked = await showDatePicker(
       context: context,
       initialDate: _date,
       firstDate: DateTime(2000),
       lastDate: DateTime.now().add(const Duration(days: 1)),
     );
+    _modalOpen = false;
     if (picked != null) setState(() => _date = picked);
     _keepAmountFocused();
   }
@@ -136,6 +167,7 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
 
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
+    _closing = true;
 
     final amount = double.parse(_amountController.text.trim());
     final selectedCategory = _category ?? _categoryNames.first;
@@ -181,6 +213,7 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
   }
 
   Future<void> _delete() async {
+    _modalOpen = true;
     final confirmed =
         await showDialog<bool>(
           context: context,
@@ -203,7 +236,12 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
           ),
         ) ??
         false;
-    if (!confirmed) return;
+    _modalOpen = false;
+    if (!confirmed) {
+      _keepAmountFocused();
+      return;
+    }
+    _closing = true;
 
     await ref
         .read(ledgerRepositoryProvider)
@@ -220,124 +258,129 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
     ];
     final selectedCategory = _category ?? _categoryNames.first;
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(_isEditing ? 'Edit' : 'Add'),
-        actions: [
-          if (_isEditing)
-            IconButton(
-              icon: const Icon(Icons.delete_outline),
-              tooltip: 'Delete',
-              onPressed: _delete,
-            ),
-        ],
-      ),
-      body: Form(
-        key: _formKey,
-        child: ListView(
-          padding: const EdgeInsets.all(16),
-          children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  flex: 2,
-                  child: TextFormField(
-                    controller: _amountController,
-                    focusNode: _amountFocusNode,
-                    style: Theme.of(context).textTheme.headlineMedium,
-                    decoration: const InputDecoration(hintText: '0.00'),
-                    keyboardType: const TextInputType.numberWithOptions(
-                      decimal: true,
-                    ),
-                    validator: (v) {
-                      if (v == null || v.trim().isEmpty) return 'Required';
-                      final n = double.tryParse(v.trim());
-                      if (n == null || n <= 0) return 'Enter a number';
-                      return null;
-                    },
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: DropdownButtonFormField<String>(
-                    isExpanded: true,
-                    initialValue: _currency,
-                    items: supportedCurrencies
-                        .map((c) => DropdownMenuItem(value: c, child: Text(c)))
-                        .toList(),
-                    onChanged: (c) {
-                      setState(() => _currency = c!);
-                      _keepAmountFocused();
-                    },
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            SegmentedButton<bool>(
-              segments: const [
-                ButtonSegment(value: true, label: Text('You Paid')),
-                ButtonSegment(value: false, label: Text('Paid to You')),
-              ],
-              selected: {_isPayment},
-              onSelectionChanged: (s) {
-                setState(() => _isPayment = s.first);
-                _keepAmountFocused();
-              },
-            ),
-            const SizedBox(height: 16),
-            InkWell(
-              onTap: _pickDate,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                child: Row(
-                  children: [
-                    const Icon(Icons.calendar_today, size: 18),
-                    const SizedBox(width: 12),
-                    Text(
-                      '${_date.year}-${_date.month.toString().padLeft(2, '0')}-${_date.day.toString().padLeft(2, '0')}',
-                    ),
-                  ],
-                ),
+    return PopScope(
+      onPopInvokedWithResult: (didPop, result) => _closing = true,
+      child: Scaffold(
+        appBar: AppBar(
+          title: Text(_isEditing ? 'Edit' : 'Add'),
+          actions: [
+            if (_isEditing)
+              IconButton(
+                icon: const Icon(Icons.delete_outline),
+                tooltip: 'Delete',
+                onPressed: _delete,
               ),
-            ),
-            // Categories sit last, closest to the bottom of the screen --
-            // the control the user reaches for most, kept within easy
-            // one-thumb reach instead of up by the amount field.
-            if (_isPayment) ...[
-              const SizedBox(height: 20),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: _categoryNames.map((c) {
-                  return ChoiceChip(
-                    label: Text(c),
-                    selected: selectedCategory == c,
-                    onSelected: (_) {
-                      setState(() => _category = c);
-                      _keepAmountFocused();
-                    },
-                  );
-                }).toList(),
-              ),
-              if (selectedCategory == 'Other') ...[
-                const SizedBox(height: 12),
-                TextFormField(
-                  controller: _customCategoryController,
-                  decoration: const InputDecoration(hintText: 'Category'),
-                ),
-              ],
-            ],
-            // Keeps this content clear of the FAB when the list is short
-            // enough that it would otherwise sit right underneath it.
-            const SizedBox(height: 72),
           ],
         ),
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _save,
-        child: const Icon(Icons.check),
+        body: Form(
+          key: _formKey,
+          child: ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    flex: 2,
+                    child: TextFormField(
+                      controller: _amountController,
+                      focusNode: _amountFocusNode,
+                      style: Theme.of(context).textTheme.headlineMedium,
+                      decoration: const InputDecoration(hintText: '0.00'),
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
+                      validator: (v) {
+                        if (v == null || v.trim().isEmpty) return 'Required';
+                        final n = double.tryParse(v.trim());
+                        if (n == null || n <= 0) return 'Enter a number';
+                        return null;
+                      },
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: DropdownButtonFormField<String>(
+                      isExpanded: true,
+                      initialValue: _currency,
+                      items: supportedCurrencies
+                          .map(
+                            (c) => DropdownMenuItem(value: c, child: Text(c)),
+                          )
+                          .toList(),
+                      onChanged: (c) {
+                        setState(() => _currency = c!);
+                        _keepAmountFocused();
+                      },
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              SegmentedButton<bool>(
+                segments: const [
+                  ButtonSegment(value: true, label: Text('You Paid')),
+                  ButtonSegment(value: false, label: Text('Paid to You')),
+                ],
+                selected: {_isPayment},
+                onSelectionChanged: (s) {
+                  setState(() => _isPayment = s.first);
+                  _keepAmountFocused();
+                },
+              ),
+              const SizedBox(height: 16),
+              InkWell(
+                onTap: _pickDate,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.calendar_today, size: 18),
+                      const SizedBox(width: 12),
+                      Text(
+                        '${_date.year}-${_date.month.toString().padLeft(2, '0')}-${_date.day.toString().padLeft(2, '0')}',
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              // Categories sit last, closest to the bottom of the screen --
+              // the control the user reaches for most, kept within easy
+              // one-thumb reach instead of up by the amount field.
+              if (_isPayment) ...[
+                const SizedBox(height: 20),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: _categoryNames.map((c) {
+                    return ChoiceChip(
+                      label: Text(c),
+                      selected: selectedCategory == c,
+                      onSelected: (_) {
+                        setState(() => _category = c);
+                        _keepAmountFocused();
+                      },
+                    );
+                  }).toList(),
+                ),
+                if (selectedCategory == 'Other') ...[
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: _customCategoryController,
+                    decoration: const InputDecoration(hintText: 'Category'),
+                  ),
+                ],
+              ],
+              // Keeps this content clear of the FAB when the list is short
+              // enough that it would otherwise sit right underneath it.
+              const SizedBox(height: 72),
+            ],
+          ),
+        ),
+        floatingActionButton: FloatingActionButton(
+          onPressed: _save,
+          child: const Icon(Icons.check),
+        ),
       ),
     );
   }
