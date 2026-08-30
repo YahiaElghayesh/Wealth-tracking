@@ -22,10 +22,37 @@ class _BankSmsSettingsScreenState extends ConsumerState<BankSmsSettingsScreen> {
   bool _enabled = false;
   bool _requesting = false;
 
+  /// Null while still checking. Only meaningful when [_enabled] is true --
+  /// covers anyone who turned this on before POST_NOTIFICATIONS was
+  /// requested at all (see [_toggle]'s doc comment): their SMS capture
+  /// looks "on" but detected charges were silently never surfacing.
+  bool? _notificationsGranted;
+
   @override
   void initState() {
     super.initState();
     _enabled = ref.read(settingsRepositoryProvider).smsCaptureEnabled;
+    if (_enabled) _checkNotificationPermission();
+  }
+
+  Future<void> _checkNotificationPermission() async {
+    final status = await Permission.notification.status;
+    if (mounted) setState(() => _notificationsGranted = status.isGranted);
+  }
+
+  Future<void> _fixNotificationPermission() async {
+    final status = await Permission.notification.request();
+    if (!mounted) return;
+    setState(() => _notificationsGranted = status.isGranted);
+    if (!status.isGranted && status.isPermanentlyDenied) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Notifications were denied. Enable them for Money Hub in your phone\'s app settings.',
+          ),
+        ),
+      );
+    }
   }
 
   Future<void> _toggle(bool wantEnabled) async {
@@ -38,20 +65,40 @@ class _BankSmsSettingsScreenState extends ConsumerState<BankSmsSettingsScreen> {
 
     setState(() => _requesting = true);
     final status = await Permission.sms.request();
-    await settings.setSmsCaptureEnabled(status.isGranted);
+    // Detecting the SMS itself only needs Permission.sms -- but the whole
+    // point of this feature is the notification it posts (see SmsReceiver.kt),
+    // and Android 13+ silently drops any NotificationManager.notify() call
+    // until POST_NOTIFICATIONS is separately granted. Not requesting this
+    // too was the "SMS detection is on but nothing ever happens" bug: SMS
+    // detection genuinely worked, the notification just never appeared.
+    final notificationStatus = await Permission.notification.request();
+    final granted = status.isGranted;
+    await settings.setSmsCaptureEnabled(granted);
     if (!mounted) return;
     setState(() {
-      _enabled = status.isGranted;
+      _enabled = granted;
+      _notificationsGranted = notificationStatus.isGranted;
       _requesting = false;
     });
 
-    if (!status.isGranted) {
+    if (!granted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
             status.isPermanentlyDenied
                 ? 'SMS permission was denied. Enable it for Money Hub in your phone\'s app settings to turn this on.'
                 : 'SMS permission is needed for this to work.',
+          ),
+        ),
+      );
+    } else if (!notificationStatus.isGranted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            notificationStatus.isPermanentlyDenied
+                ? 'Notifications were denied. Enable them for Money Hub in your phone\'s app '
+                    'settings, or detected charges will never show up.'
+                : 'Notification permission is needed too, or detected charges never show up.',
           ),
         ),
       );
@@ -93,6 +140,31 @@ class _BankSmsSettingsScreenState extends ConsumerState<BankSmsSettingsScreen> {
               onChanged: _requesting ? null : _toggle,
             ),
           ),
+          if (_enabled && _notificationsGranted == false) ...[
+            const SizedBox(height: 10),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: colors.bad.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: colors.bad.withValues(alpha: 0.3)),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.notifications_off_outlined, color: colors.bad, size: 20),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      'Notifications aren\'t granted, so detected charges never show up even '
+                      'though SMS reading is on.',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(color: colors.bad),
+                    ),
+                  ),
+                  TextButton(onPressed: _fixNotificationPermission, child: const Text('Fix')),
+                ],
+              ),
+            ),
+          ],
           Padding(
             padding: const EdgeInsets.fromLTRB(4, 10, 4, 0),
             child: Text(

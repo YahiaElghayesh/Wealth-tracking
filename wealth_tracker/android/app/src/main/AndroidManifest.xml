@@ -3,6 +3,14 @@
     <!-- Bank SMS detection (Settings > Bank SMS detection) — requested at
          runtime, off by default, only for a card charge/payment alert. -->
     <uses-permission android:name="android.permission.RECEIVE_SMS"/>
+    <!-- Android 13+ (API 33) requires this to be both declared here AND
+         granted at runtime before NotificationManager.notify() does
+         anything — without it, SmsReceiver.kt's notify() call silently
+         no-ops: the SMS is genuinely detected, but nothing ever appears,
+         with no error anywhere to explain why. Requested alongside SMS
+         permission itself in bank_sms_settings_screen.dart, since the
+         whole feature is built around that notification. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     <application
         android:label="Money Hub"
         android:name="${applicationName}"

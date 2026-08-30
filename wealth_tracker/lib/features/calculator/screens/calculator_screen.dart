@@ -10,6 +10,7 @@ import '../../../core/providers/privacy_providers.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/hide_values_action.dart';
 import '../../../core/widgets/money_text.dart';
+import '../../../core/widgets/settings_action.dart';
 import '../../../data/calculator/current_money_calculator.dart';
 import '../../../data/db/database.dart';
 import '../../../data/ledger/ledger_calculator.dart';
@@ -310,6 +311,7 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
               MaterialPageRoute(builder: (_) => const CalculatorHistoryScreen()),
             ),
           ),
+          const SettingsAction(),
         ],
       ),
       body: cardsAsync.when(

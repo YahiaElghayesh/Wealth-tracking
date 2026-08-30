@@ -6,6 +6,7 @@ import '../../../core/models/currency.dart';
 import '../../../core/providers/privacy_providers.dart';
 import '../../../core/widgets/hide_values_action.dart';
 import '../../../core/widgets/money_text.dart';
+import '../../../core/widgets/settings_action.dart';
 import '../../../data/db/database.dart';
 import '../../../data/ledger/ledger_calculator.dart';
 import '../../networth/providers/asset_providers.dart' show pricesUsdPerUnitProvider;
@@ -70,7 +71,10 @@ class LedgerHomeScreen extends ConsumerWidget {
     final counterpartiesAsync = ref.watch(counterpartiesStreamProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Debt Ledger'), actions: const [HideValuesAction()]),
+      appBar: AppBar(
+        title: const Text('Debt Ledger'),
+        actions: const [HideValuesAction(), SettingsAction()],
+      ),
       body: counterpartiesAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, st) => Center(child: Text('Error: $e')),

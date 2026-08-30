@@ -11,11 +11,11 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/app_icons.dart';
 import '../../../core/widgets/hide_values_action.dart';
 import '../../../core/widgets/money_text.dart';
+import '../../../core/widgets/settings_action.dart';
 import '../../../data/db/database.dart';
 import '../../../data/net_worth/net_worth_calculator.dart';
 import '../../settings/providers/settings_providers.dart';
 import '../../settings/screens/profiles_settings_screen.dart';
-import '../../settings/screens/settings_screen.dart';
 import '../providers/asset_providers.dart';
 import '../providers/pricing_providers.dart';
 import '../widgets/net_worth_summary_card.dart';
@@ -50,12 +50,7 @@ class DashboardScreen extends ConsumerWidget {
                 : () => ref.read(priceRefreshControllerProvider.notifier).refresh(),
           ),
           const _ProfileSwitcherAction(),
-          IconButton(
-            icon: const Icon(Icons.settings),
-            onPressed: () => Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => const SettingsScreen()),
-            ),
-          ),
+          const SettingsAction(),
         ],
       ),
       body: assetsAsync.when(

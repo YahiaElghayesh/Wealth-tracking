@@ -9,6 +9,7 @@ import '../../../core/providers/privacy_providers.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/hide_values_action.dart';
 import '../../../core/widgets/money_text.dart';
+import '../../../core/widgets/settings_action.dart';
 import '../../../data/ledger/ledger_calculator.dart';
 import '../../networth/providers/asset_providers.dart' show pricesUsdPerUnitProvider;
 import '../providers/ledger_providers.dart';
@@ -28,7 +29,10 @@ class _StatisticsScreenState extends ConsumerState<StatisticsScreen> {
     final counterpartiesAsync = ref.watch(statisticsCounterpartiesProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Ledger Statistics'), actions: const [HideValuesAction()]),
+      appBar: AppBar(
+        title: const Text('Ledger Statistics'),
+        actions: const [HideValuesAction(), SettingsAction()],
+      ),
       body: counterpartiesAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, st) => Center(child: Text('Error: $e')),
