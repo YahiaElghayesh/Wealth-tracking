@@ -10,6 +10,7 @@ import '../../../data/pricing/metals_price_provider.dart';
 import '../../../data/pricing/price_refresh_orchestrator.dart';
 import '../../../data/pricing/price_refresh_service.dart';
 import '../../../data/pricing/yahoo_finance_price_provider.dart';
+import '../../../data/pricing/yahoo_metals_price_provider.dart';
 import '../../../data/repositories/price_cache_repository.dart';
 import '../../settings/providers/settings_providers.dart';
 import 'asset_providers.dart';
@@ -28,13 +29,16 @@ final priceRefreshServiceProvider = Provider<PriceRefreshService>((ref) {
   return PriceRefreshService(
     cryptoProvider: ref.watch(cryptoPriceProviderProvider),
     fxProvider: ref.watch(_fxProviderProvider),
-    // goldapi.io's free tier keeps running out of its monthly quota --
-    // gold-api.com (no signup, no per-account quota) automatically fills
-    // in whatever it couldn't price instead of leaving metals unpriced
-    // until the quota resets.
+    // goldapi.io's free tier keeps running out of its monthly quota, and
+    // gold-api.com -- the first fallback -- has started 429-rate-limiting
+    // too. Yahoo Finance (keyless, same reliable endpoint this app already
+    // uses for every stock price) is the third and last resort.
     metalsProvider: FallbackPriceProvider(
-      primary: MetalsPriceProvider(apiKey: metalsApiKey),
-      secondary: GoldApiComPriceProvider(),
+      primary: FallbackPriceProvider(
+        primary: MetalsPriceProvider(apiKey: metalsApiKey),
+        secondary: GoldApiComPriceProvider(),
+      ),
+      secondary: YahooMetalsPriceProvider(),
     ),
     stockProvider: ref.watch(stockPriceProviderProvider),
   );

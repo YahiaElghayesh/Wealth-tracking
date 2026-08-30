@@ -15,6 +15,7 @@ import 'metals_price_provider.dart';
 import 'price_refresh_orchestrator.dart';
 import 'price_refresh_service.dart';
 import 'yahoo_finance_price_provider.dart';
+import 'yahoo_metals_price_provider.dart';
 
 const backgroundPriceRefreshUniqueName = 'wealth_tracker_price_refresh';
 const backgroundPriceRefreshTaskName = 'priceRefresh';
@@ -110,8 +111,11 @@ Future<void> runBackgroundPriceRefresh() async {
       cryptoProvider: CoinGeckoPriceProvider(),
       fxProvider: FxPriceProvider(),
       metalsProvider: FallbackPriceProvider(
-        primary: MetalsPriceProvider(apiKey: settings.metalsApiKey),
-        secondary: GoldApiComPriceProvider(),
+        primary: FallbackPriceProvider(
+          primary: MetalsPriceProvider(apiKey: settings.metalsApiKey),
+          secondary: GoldApiComPriceProvider(),
+        ),
+        secondary: YahooMetalsPriceProvider(),
       ),
       stockProvider: YahooFinancePriceProvider(),
     );
