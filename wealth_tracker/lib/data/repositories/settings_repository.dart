@@ -23,6 +23,21 @@ class SettingsRepository {
   static const _hideValuesByDefaultKey = 'hide_values_by_default';
   static const _activeProfileIdKey = 'active_profile_id';
   static const _defaultLedgerCounterpartyIdKey = 'default_ledger_counterparty_id';
+  static const _priceRefreshIntervalHoursKey = 'price_refresh_interval_hours';
+
+  /// How often the background price refresh runs -- also the effective
+  /// floor on how often a keyless free price API (gold-api.com, CoinGecko,
+  /// ...) gets hit from this device, since manual "Refresh now" taps are
+  /// the only other trigger. Defaults to the interval this app always used
+  /// before this became configurable.
+  static const defaultPriceRefreshIntervalHours = 4;
+
+  int get priceRefreshIntervalHours =>
+      _prefs.getInt(_priceRefreshIntervalHoursKey) ?? defaultPriceRefreshIntervalHours;
+
+  Future<void> setPriceRefreshIntervalHours(int hours) {
+    return _prefs.setInt(_priceRefreshIntervalHoursKey, hours);
+  }
 
   String? get metalsApiKey => _prefs.getString(_metalsApiKeyKey);
 

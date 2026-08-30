@@ -19,10 +19,10 @@ import 'yahoo_finance_price_provider.dart';
 const backgroundPriceRefreshUniqueName = 'wealth_tracker_price_refresh';
 const backgroundPriceRefreshTaskName = 'priceRefresh';
 
-/// Runs 6 times a day (roughly — WorkManager batches for battery, so exact
-/// timing isn't guaranteed) so the dashboard and the home-screen widget
-/// have reasonably fresh prices even if the app isn't opened that often.
-const backgroundPriceRefreshFrequency = Duration(hours: 4);
+/// WorkManager's own documented floor for a periodic task -- registering
+/// anything shorter is silently clamped up to this by Android itself, so
+/// the Settings picker never offers less.
+const minPriceRefreshInterval = Duration(minutes: 15);
 
 /// Entry point Android/WorkManager invokes in a headless Dart isolate —
 /// there's no ProviderScope or widget tree here, so everything is built
@@ -132,20 +132,21 @@ Future<void> runBackgroundPriceRefresh() async {
   }
 }
 
-/// Registers the periodic background task. Call once from `main()`, Android
-/// only — there's no equivalent always-on background execution model to
-/// hook into on Windows, and the widget this feeds doesn't exist there
-/// either.
-Future<void> registerBackgroundPriceRefresh() async {
+/// Registers the periodic background task, at [frequency] -- called once
+/// from `main()` (Android only; there's no equivalent always-on background
+/// execution model on Windows, and the widget this feeds doesn't exist
+/// there either) with whatever interval Settings has saved, and again
+/// whenever the user changes that interval from the Live Prices screen.
+Future<void> registerBackgroundPriceRefresh({required Duration frequency}) async {
   await Workmanager().initialize(priceRefreshCallbackDispatcher);
   await Workmanager().registerPeriodicTask(
     backgroundPriceRefreshUniqueName,
     backgroundPriceRefreshTaskName,
-    frequency: backgroundPriceRefreshFrequency,
+    frequency: frequency,
     constraints: Constraints(networkType: NetworkType.connected),
-    // Re-applies the current frequency/constraints on every app start
-    // without cancelling an in-flight run — matters if this frequency ever
-    // changes in a future update.
+    // Re-applies the current frequency/constraints without cancelling an
+    // in-flight run -- matters both on every app start and whenever the
+    // user picks a different interval.
     existingWorkPolicy: ExistingPeriodicWorkPolicy.update,
   );
 }

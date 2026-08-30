@@ -1,10 +1,20 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/providers/core_providers.dart';
+import '../../../data/pricing/background_refresh.dart';
 import '../../networth/providers/pricing_providers.dart';
 import '../providers/settings_providers.dart';
+
+/// Options offered by the refresh-interval picker below, in hours. Every
+/// value here comfortably clears WorkManager's 15-minute floor
+/// ([minPriceRefreshInterval]) -- these are spacing choices for the user to
+/// reduce how often the free metals APIs get hit, not an attempt to offer
+/// anything near that floor.
+const _refreshIntervalOptionsHours = [1, 2, 4, 6, 12, 24];
 
 class LivePricesSettingsScreen extends ConsumerStatefulWidget {
   const LivePricesSettingsScreen({super.key});
@@ -37,9 +47,20 @@ class _LivePricesSettingsScreenState extends ConsumerState<LivePricesSettingsScr
     }
   }
 
+  Future<void> _setRefreshInterval(int hours) async {
+    await ref.read(settingsRepositoryProvider).setPriceRefreshIntervalHours(hours);
+    ref.read(priceRefreshIntervalHoursProvider.notifier).state = hours;
+    if (Platform.isAndroid) {
+      // Re-register with the new frequency now, rather than waiting for the
+      // next app start to pick it up.
+      await registerBackgroundPriceRefresh(frequency: Duration(hours: hours));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final refreshState = ref.watch(priceRefreshControllerProvider);
+    final refreshIntervalHours = ref.watch(priceRefreshIntervalHoursProvider);
 
     return Scaffold(
       appBar: AppBar(title: const Text('Live prices')),
@@ -91,6 +112,37 @@ class _LivePricesSettingsScreenState extends ConsumerState<LivePricesSettingsScr
                       helperText: 'Paste the key from your goldapi.io dashboard, then tap save.',
                       suffixIcon: IconButton(icon: const Icon(Icons.save), onPressed: _saveMetalsKey),
                     ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'How often prices refresh in the background. A longer interval means fewer '
+                    'calls to the free gold/silver APIs, which helps avoid their rate limits — '
+                    "you can always tap \"Refresh prices now\" below for an on-demand update.",
+                  ),
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<int>(
+                    initialValue: refreshIntervalHours,
+                    decoration: const InputDecoration(labelText: 'Refresh every'),
+                    items: [
+                      for (final hours in _refreshIntervalOptionsHours)
+                        DropdownMenuItem(
+                          value: hours,
+                          child: Text(hours == 1 ? 'Every hour' : 'Every $hours hours'),
+                        ),
+                    ],
+                    onChanged: (hours) {
+                      if (hours != null) _setRefreshInterval(hours);
+                    },
                   ),
                 ],
               ),

@@ -35,3 +35,13 @@ final activeProfileIdProvider = StateProvider<String>((ref) {
 final defaultLedgerCounterpartyIdProvider = StateProvider<String?>((ref) {
   return ref.watch(settingsRepositoryProvider).defaultLedgerCounterpartyId;
 });
+
+/// How often the background price refresh runs -- same
+/// seeded-then-optimistically-updated pattern as [themeModeProvider]. Write
+/// via `ref.read(settingsRepositoryProvider).setPriceRefreshIntervalHours(h)`
+/// then `ref.read(priceRefreshIntervalHoursProvider.notifier).state = h`, and
+/// re-call `registerBackgroundPriceRefresh(frequency: ...)` so WorkManager
+/// picks up the new interval immediately instead of at the next app start.
+final priceRefreshIntervalHoursProvider = StateProvider<int>((ref) {
+  return ref.watch(settingsRepositoryProvider).priceRefreshIntervalHours;
+});

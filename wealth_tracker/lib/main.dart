@@ -8,6 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'app.dart';
 import 'core/providers/core_providers.dart';
 import 'data/pricing/background_refresh.dart';
+import 'data/repositories/settings_repository.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -17,7 +18,8 @@ void main() async {
     // Fire-and-forget: registration talks to the OS's job scheduler, no
     // need to hold up first frame for it, and a failure here shouldn't
     // block the app from starting.
-    unawaited(registerBackgroundPriceRefresh());
+    final hours = SettingsRepository(prefs).priceRefreshIntervalHours;
+    unawaited(registerBackgroundPriceRefresh(frequency: Duration(hours: hours)));
   }
 
   runApp(
