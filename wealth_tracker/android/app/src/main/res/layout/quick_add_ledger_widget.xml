@@ -55,7 +55,11 @@
             android:textColor="#CCFFFFFF"
             android:gravity="center"
             android:maxLines="1"
-            android:ellipsize="end" />
+            android:ellipsize="end"
+            android:autoSizeTextType="uniform"
+            android:autoSizeMinTextSize="6sp"
+            android:autoSizeMaxTextSize="9sp"
+            android:autoSizeStepGranularity="1sp" />
 
     </LinearLayout>
 
@@ -114,7 +118,11 @@
                 android:textStyle="bold"
                 android:textColor="#FFFFFF"
                 android:maxLines="1"
-                android:ellipsize="end" />
+                android:ellipsize="end"
+                android:autoSizeTextType="uniform"
+                android:autoSizeMinTextSize="9sp"
+                android:autoSizeMaxTextSize="15sp"
+                android:autoSizeStepGranularity="1sp" />
 
             <TextView
                 android:id="@+id/quick_add_subtitle"
@@ -124,7 +132,11 @@
                 android:textSize="12sp"
                 android:textColor="#CCFFFFFF"
                 android:maxLines="1"
-                android:ellipsize="end" />
+                android:ellipsize="end"
+                android:autoSizeTextType="uniform"
+                android:autoSizeMinTextSize="7sp"
+                android:autoSizeMaxTextSize="12sp"
+                android:autoSizeStepGranularity="1sp" />
 
         </LinearLayout>
 
