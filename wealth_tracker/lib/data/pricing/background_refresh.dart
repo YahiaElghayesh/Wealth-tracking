@@ -8,7 +8,9 @@ import '../repositories/settings_repository.dart';
 import '../sms/sms_ledger_processor.dart';
 import '../widget/home_widget_service.dart';
 import 'coingecko_price_provider.dart';
+import 'fallback_price_provider.dart';
 import 'fx_price_provider.dart';
+import 'gold_api_com_price_provider.dart';
 import 'metals_price_provider.dart';
 import 'price_refresh_orchestrator.dart';
 import 'price_refresh_service.dart';
@@ -107,7 +109,10 @@ Future<void> runBackgroundPriceRefresh() async {
     final service = PriceRefreshService(
       cryptoProvider: CoinGeckoPriceProvider(),
       fxProvider: FxPriceProvider(),
-      metalsProvider: MetalsPriceProvider(apiKey: settings.metalsApiKey),
+      metalsProvider: FallbackPriceProvider(
+        primary: MetalsPriceProvider(apiKey: settings.metalsApiKey),
+        secondary: GoldApiComPriceProvider(),
+      ),
       stockProvider: YahooFinancePriceProvider(),
     );
 

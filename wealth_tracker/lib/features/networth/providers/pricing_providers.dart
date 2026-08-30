@@ -3,7 +3,9 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../data/pricing/coingecko_price_provider.dart';
+import '../../../data/pricing/fallback_price_provider.dart';
 import '../../../data/pricing/fx_price_provider.dart';
+import '../../../data/pricing/gold_api_com_price_provider.dart';
 import '../../../data/pricing/metals_price_provider.dart';
 import '../../../data/pricing/price_refresh_orchestrator.dart';
 import '../../../data/pricing/price_refresh_service.dart';
@@ -26,7 +28,14 @@ final priceRefreshServiceProvider = Provider<PriceRefreshService>((ref) {
   return PriceRefreshService(
     cryptoProvider: ref.watch(cryptoPriceProviderProvider),
     fxProvider: ref.watch(_fxProviderProvider),
-    metalsProvider: MetalsPriceProvider(apiKey: metalsApiKey),
+    // goldapi.io's free tier keeps running out of its monthly quota --
+    // gold-api.com (no signup, no per-account quota) automatically fills
+    // in whatever it couldn't price instead of leaving metals unpriced
+    // until the quota resets.
+    metalsProvider: FallbackPriceProvider(
+      primary: MetalsPriceProvider(apiKey: metalsApiKey),
+      secondary: GoldApiComPriceProvider(),
+    ),
     stockProvider: ref.watch(stockPriceProviderProvider),
   );
 });

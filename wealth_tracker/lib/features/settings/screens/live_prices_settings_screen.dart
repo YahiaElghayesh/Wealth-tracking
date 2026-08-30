@@ -54,7 +54,10 @@ class _LivePricesSettingsScreenState extends ConsumerState<LivePricesSettingsScr
                 children: [
                   const Text(
                     'Crypto (CoinGecko) and FX rates (open.er-api.com) work out of the box. '
-                    'Gold and silver need a free goldapi.io API key.',
+                    'Gold and silver price via a free goldapi.io API key when one is set below; '
+                    'gold-api.com (no signup needed) automatically fills in whatever goldapi.io '
+                    "couldn't -- a missing key or its monthly quota running out -- so metals still "
+                    'price even without one.',
                   ),
                   const SizedBox(height: 8),
                   InkWell(
