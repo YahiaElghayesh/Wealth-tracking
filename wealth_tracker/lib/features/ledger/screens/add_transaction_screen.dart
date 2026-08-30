@@ -175,6 +175,17 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
 
     if (!mounted) return;
     if (widget.closeAppOnSave) {
+      // SystemNavigator.pop() isn't guaranteed to actually kill the task on
+      // every device/Android version -- on some it just backgrounds it,
+      // leaving the whole Flutter engine (and this route) alive. Popping
+      // this screen off the Navigator ourselves first, before asking the
+      // system to exit, means the *next* quick-add tap always finds a clean
+      // base route to push onto regardless of what SystemNavigator.pop()
+      // ends up doing -- this is what actually fixes the "have to back out
+      // of every payment I ever quick-added" bug: without it, an
+      // un-disposed, still-mounted AddTransactionScreen from last time was
+      // sitting right where the new one got pushed on top of it, every time.
+      Navigator.of(context).popUntil((route) => route.isFirst);
       SystemNavigator.pop();
     } else {
       Navigator.of(context).pop();
