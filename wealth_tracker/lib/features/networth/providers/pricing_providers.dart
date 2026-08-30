@@ -7,7 +7,7 @@ import '../../../data/pricing/fx_price_provider.dart';
 import '../../../data/pricing/metals_price_provider.dart';
 import '../../../data/pricing/price_refresh_orchestrator.dart';
 import '../../../data/pricing/price_refresh_service.dart';
-import '../../../data/pricing/twelve_data_price_provider.dart';
+import '../../../data/pricing/yahoo_finance_price_provider.dart';
 import '../../../data/repositories/price_cache_repository.dart';
 import '../../settings/providers/settings_providers.dart';
 import 'asset_providers.dart';
@@ -19,9 +19,7 @@ final priceCacheRepositoryProvider = Provider<PriceCacheRepository>((ref) {
 final cryptoPriceProviderProvider = Provider((ref) => CoinGeckoPriceProvider());
 final _fxProviderProvider = Provider((ref) => FxPriceProvider());
 
-final stockPriceProviderProvider = Provider((ref) {
-  return TwelveDataPriceProvider(apiKey: ref.watch(stocksApiKeyProvider));
-});
+final stockPriceProviderProvider = Provider((ref) => YahooFinancePriceProvider());
 
 final priceRefreshServiceProvider = Provider<PriceRefreshService>((ref) {
   final metalsApiKey = ref.watch(metalsApiKeyProvider);

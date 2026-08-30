@@ -13,7 +13,6 @@ class SettingsRepository {
   final SharedPreferences _prefs;
 
   static const _metalsApiKeyKey = 'metals_api_key';
-  static const _stocksApiKeyKey = 'stocks_api_key';
   static const _desktopClientIdKey = 'drive_desktop_client_id';
   static const _desktopClientSecretKey = 'drive_desktop_client_secret';
   static const _desktopCredentialsKey = 'drive_desktop_credentials_json';
@@ -31,19 +30,6 @@ class SettingsRepository {
       await _prefs.remove(_metalsApiKeyKey);
     } else {
       await _prefs.setString(_metalsApiKeyKey, key);
-    }
-  }
-
-  /// Twelve Data API key, used for stock price lookups + symbol search
-  /// (both US and Egyptian Exchange tickers). Free tier, user's own key —
-  /// same reasoning as [metalsApiKey].
-  String? get stocksApiKey => _prefs.getString(_stocksApiKeyKey);
-
-  Future<void> setStocksApiKey(String? key) async {
-    if (key == null || key.isEmpty) {
-      await _prefs.remove(_stocksApiKeyKey);
-    } else {
-      await _prefs.setString(_stocksApiKeyKey, key);
     }
   }
 

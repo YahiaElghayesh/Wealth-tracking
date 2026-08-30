@@ -15,19 +15,16 @@ class LivePricesSettingsScreen extends ConsumerStatefulWidget {
 
 class _LivePricesSettingsScreenState extends ConsumerState<LivePricesSettingsScreen> {
   late final TextEditingController _metalsKeyController;
-  late final TextEditingController _stocksKeyController;
 
   @override
   void initState() {
     super.initState();
     _metalsKeyController = TextEditingController(text: ref.read(metalsApiKeyProvider) ?? '');
-    _stocksKeyController = TextEditingController(text: ref.read(stocksApiKeyProvider) ?? '');
   }
 
   @override
   void dispose() {
     _metalsKeyController.dispose();
-    _stocksKeyController.dispose();
     super.dispose();
   }
 
@@ -35,15 +32,6 @@ class _LivePricesSettingsScreenState extends ConsumerState<LivePricesSettingsScr
     final key = _metalsKeyController.text.trim();
     await ref.read(settingsRepositoryProvider).setMetalsApiKey(key.isEmpty ? null : key);
     ref.read(metalsApiKeyProvider.notifier).state = key.isEmpty ? null : key;
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Saved')));
-    }
-  }
-
-  Future<void> _saveStocksKey() async {
-    final key = _stocksKeyController.text.trim();
-    await ref.read(settingsRepositoryProvider).setStocksApiKey(key.isEmpty ? null : key);
-    ref.read(stocksApiKeyProvider.notifier).state = key.isEmpty ? null : key;
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Saved')));
     }
@@ -109,43 +97,9 @@ class _LivePricesSettingsScreenState extends ConsumerState<LivePricesSettingsScr
           Card(
             child: Padding(
               padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Stocks (US exchanges and the Egyptian Exchange) need a free Twelve Data API key.',
-                  ),
-                  const SizedBox(height: 8),
-                  InkWell(
-                    onTap: () => launchUrl(
-                      Uri.parse('https://twelvedata.com/pricing'),
-                      mode: LaunchMode.externalApplication,
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          'Get a free API key at twelvedata.com',
-                          style: TextStyle(
-                            color: Theme.of(context).colorScheme.primary,
-                            decoration: TextDecoration.underline,
-                          ),
-                        ),
-                        const SizedBox(width: 4),
-                        Icon(Icons.open_in_new, size: 14, color: Theme.of(context).colorScheme.primary),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  TextField(
-                    controller: _stocksKeyController,
-                    decoration: InputDecoration(
-                      labelText: 'Twelve Data API key',
-                      helperText: 'Free tier: 800 requests/day. Paste the key, then tap save.',
-                      suffixIcon: IconButton(icon: const Icon(Icons.save), onPressed: _saveStocksKey),
-                    ),
-                  ),
-                ],
+              child: Text(
+                'Stocks (US exchanges and the Egyptian Exchange) price via Yahoo Finance — works out of the box, no API key needed.',
+                style: Theme.of(context).textTheme.bodyMedium,
               ),
             ),
           ),

@@ -11,7 +11,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/app_icons.dart';
 import '../../../data/db/database.dart';
 import '../../../data/pricing/coingecko_price_provider.dart';
-import '../../../data/pricing/twelve_data_price_provider.dart';
+import '../../../data/pricing/yahoo_finance_price_provider.dart';
 import '../providers/asset_providers.dart';
 import '../providers/pricing_providers.dart';
 
@@ -280,8 +280,7 @@ class _AddEditAssetScreenState extends ConsumerState<AddEditAssetScreen> {
           ),
           const SizedBox(height: 4),
           Text(
-            'Covers US exchanges (NASDAQ/NYSE) and the Egyptian Exchange (EGX). '
-            'Needs a Twelve Data API key — see Settings → Live prices.',
+            'Covers US exchanges (NASDAQ/NYSE) and the Egyptian Exchange (EGX). No API key needed.',
             style: Theme.of(context).textTheme.bodySmall?.copyWith(color: context.appColors.textDim),
           ),
           const SizedBox(height: 16),

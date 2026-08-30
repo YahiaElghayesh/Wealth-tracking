@@ -10,10 +10,6 @@ final metalsApiKeyProvider = StateProvider<String?>((ref) {
   return ref.watch(settingsRepositoryProvider).metalsApiKey;
 });
 
-final stocksApiKeyProvider = StateProvider<String?>((ref) {
-  return ref.watch(settingsRepositoryProvider).stocksApiKey;
-});
-
 /// Drives `MaterialApp.themeMode` — same seeded-then-optimistically-updated
 /// pattern as [metalsApiKeyProvider]. Write via
 /// `ref.read(settingsRepositoryProvider).setThemeMode(mode)` then
