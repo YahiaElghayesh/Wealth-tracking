@@ -21,7 +21,7 @@ Future<Uint8List> buildMonthlySummaryPdf({
         crossAxisAlignment: pw.CrossAxisAlignment.start,
         children: [
           pw.Text(
-            'Monthly Summary — $counterpartyName',
+            'Monthly Summary - $counterpartyName',
             style: pw.TextStyle(fontSize: 20, fontWeight: pw.FontWeight.bold),
           ),
           pw.Text(monthLabel),
