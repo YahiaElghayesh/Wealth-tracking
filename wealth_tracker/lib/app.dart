@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:home_widget/home_widget.dart';
 
 import 'core/navigation/app_navigator.dart';
+import 'core/security/app_lock_gate.dart';
 import 'core/theme/app_theme.dart';
 import 'core/widgets/app_bottom_nav.dart';
 import 'data/sms/native_sms_channel.dart';
@@ -36,7 +37,7 @@ class WealthTrackerApp extends ConsumerWidget {
       theme: buildAppTheme(Brightness.light),
       darkTheme: buildAppTheme(Brightness.dark),
       themeMode: themeMode,
-      home: const _RootShell(),
+      home: const AppLockGate(child: _RootShell()),
     );
   }
 }

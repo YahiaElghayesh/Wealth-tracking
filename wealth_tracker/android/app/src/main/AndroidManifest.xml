@@ -11,6 +11,11 @@
          permission itself in bank_sms_settings_screen.dart, since the
          whole feature is built around that notification. -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+    <!-- App-open fingerprint/Face ID lock (Settings > Security), off by
+         default. USE_BIOMETRIC is a normal (not runtime-prompted)
+         permission -- local_auth's own authenticate() call is what
+         surfaces the actual system fingerprint/face UI. -->
+    <uses-permission android:name="android.permission.USE_BIOMETRIC"/>
     <application
         android:label="Money Hub"
         android:name="${applicationName}"

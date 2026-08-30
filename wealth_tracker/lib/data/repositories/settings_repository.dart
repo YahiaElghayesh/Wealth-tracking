@@ -24,6 +24,21 @@ class SettingsRepository {
   static const _activeProfileIdKey = 'active_profile_id';
   static const _defaultLedgerCounterpartyIdKey = 'default_ledger_counterparty_id';
   static const _priceRefreshIntervalHoursKey = 'price_refresh_interval_hours';
+  static const _biometricLockEnabledKey = 'biometric_lock_enabled';
+
+  /// Whether the app requires a successful fingerprint/Face ID (or device
+  /// PIN/pattern, as local_auth's own fallback) check before showing any
+  /// screen -- off by default so existing users aren't suddenly locked out
+  /// on their next launch. Deliberately does NOT gate the "Add Payment"
+  /// pinned home-screen shortcuts/widget quick-add flow -- see
+  /// `AppLockGate` in `lib/core/security/app_lock_gate.dart` for why that's
+  /// safe (that flow pushes its own route on top of the lock, never through
+  /// it).
+  bool get biometricLockEnabled => _prefs.getBool(_biometricLockEnabledKey) ?? false;
+
+  Future<void> setBiometricLockEnabled(bool enabled) {
+    return _prefs.setBool(_biometricLockEnabledKey, enabled);
+  }
 
   /// How often the background price refresh runs -- also the effective
   /// floor on how often a keyless free price API (gold-api.com, CoinGecko,

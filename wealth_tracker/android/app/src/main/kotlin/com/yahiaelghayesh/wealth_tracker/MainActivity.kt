@@ -1,11 +1,15 @@
 package com.yahiaelghayesh.wealth_tracker
 
 import android.content.Intent
-import io.flutter.embedding.android.FlutterActivity
+import io.flutter.embedding.android.FlutterFragmentActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 
-class MainActivity : FlutterActivity() {
+// local_auth's Android implementation shows a BiometricPrompt, which needs
+// a FragmentActivity host -- plain FlutterActivity doesn't extend one, so
+// this had to switch from FlutterActivity or the fingerprint/Face ID lock
+// would crash (or just never show) as soon as it tried to authenticate.
+class MainActivity : FlutterFragmentActivity() {
     private var smsChannel: MethodChannel? = null
     private var shortcutsChannel: MethodChannel? = null
 

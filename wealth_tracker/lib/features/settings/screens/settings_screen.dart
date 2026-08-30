@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:local_auth/local_auth.dart';
 
 import '../../../core/providers/core_providers.dart';
 import '../../../core/theme/app_colors.dart';
@@ -28,6 +29,7 @@ class SettingsScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final themeMode = ref.watch(themeModeProvider);
     final hideValuesByDefault = ref.watch(settingsRepositoryProvider).hideValuesByDefault;
+    final biometricLockEnabled = ref.watch(biometricLockEnabledProvider);
 
     return Scaffold(
       appBar: AppBar(title: const Text('Settings')),
@@ -89,6 +91,18 @@ class SettingsScreen extends ConsumerWidget {
                 ref.read(settingsRepositoryProvider).setHideValuesByDefault(enabled);
                 ref.invalidate(settingsRepositoryProvider);
               },
+            ),
+          ),
+          const SizedBox(height: 10),
+          const _SectionLabel('Security'),
+          Container(
+            decoration: _rowDecoration(context),
+            child: SwitchListTile(
+              secondary: _IconChip(Icons.fingerprint),
+              title: const Text('App lock'),
+              subtitle: const Text('Require fingerprint or Face ID to open the app'),
+              value: biometricLockEnabled,
+              onChanged: (enabled) => _setBiometricLock(context, ref, enabled),
             ),
           ),
           const SizedBox(height: 10),
@@ -157,6 +171,41 @@ class SettingsScreen extends ConsumerWidget {
       ),
     );
   }
+}
+
+/// Turning the toggle off never needs to prove anything -- but turning it
+/// on runs one real authentication first, so the user can't lock
+/// themselves out of the app with a setting that turns out not to work
+/// (no fingerprint/face/PIN enrolled, hardware unavailable, etc.).
+Future<void> _setBiometricLock(BuildContext context, WidgetRef ref, bool enabled) async {
+  final messenger = ScaffoldMessenger.of(context);
+
+  if (!enabled) {
+    await ref.read(settingsRepositoryProvider).setBiometricLockEnabled(false);
+    ref.read(biometricLockEnabledProvider.notifier).state = false;
+    return;
+  }
+
+  final localAuth = LocalAuthentication();
+  try {
+    if (!await localAuth.isDeviceSupported()) {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('No fingerprint, face, or PIN lock is set up on this device.')),
+      );
+      return;
+    }
+    final confirmed = await localAuth.authenticate(
+      localizedReason: 'Confirm to turn on app lock',
+      persistAcrossBackgrounding: true,
+    );
+    if (!confirmed) return;
+  } catch (_) {
+    messenger.showSnackBar(const SnackBar(content: Text('Could not verify fingerprint/Face ID. App lock not enabled.')));
+    return;
+  }
+
+  await ref.read(settingsRepositoryProvider).setBiometricLockEnabled(true);
+  ref.read(biometricLockEnabledProvider.notifier).state = true;
 }
 
 BoxDecoration _rowDecoration(BuildContext context) {

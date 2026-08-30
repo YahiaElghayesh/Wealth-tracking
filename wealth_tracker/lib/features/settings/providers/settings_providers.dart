@@ -45,3 +45,11 @@ final defaultLedgerCounterpartyIdProvider = StateProvider<String?>((ref) {
 final priceRefreshIntervalHoursProvider = StateProvider<int>((ref) {
   return ref.watch(settingsRepositoryProvider).priceRefreshIntervalHours;
 });
+
+/// Whether the app-open biometric lock is turned on -- same
+/// seeded-then-optimistically-updated pattern as [themeModeProvider]. Write
+/// via `ref.read(settingsRepositoryProvider).setBiometricLockEnabled(v)`
+/// then `ref.read(biometricLockEnabledProvider.notifier).state = v`.
+final biometricLockEnabledProvider = StateProvider<bool>((ref) {
+  return ref.watch(settingsRepositoryProvider).biometricLockEnabled;
+});
