@@ -36,7 +36,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 16;
+  int get schemaVersion => 17;
 
   /// Public so `ProfileRepository.addProfile` can give a newly created
   /// profile the same starter categories a fresh install gets -- otherwise
@@ -274,6 +274,13 @@ class AppDatabase extends _$AppDatabase {
             await customStatement(
               "UPDATE calculator_snapshots SET manual_inputs_recorded = (manual_input_entries_json != '[]')",
             );
+          }
+          if (from < 17) {
+            // Date purchased -- unlike purchasePrice, asked for on every
+            // asset category, not just the ones that can compute a
+            // gain/loss. Null (the default for every pre-existing asset)
+            // means "not tracked" -- nothing shows until filled in via Edit.
+            await m.addColumn(assets, assets.purchaseDate);
           }
         },
         // The "Breakfast" quick-pick category was a voice-transcription

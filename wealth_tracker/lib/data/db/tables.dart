@@ -47,10 +47,15 @@ class Assets extends Table {
 
   /// What was originally paid for this asset, in [purchaseCurrency] --
   /// optional (null means "not tracked"). Only surfaced in the UI for
-  /// gold/silver/real estate today; the column itself is generic so nothing
-  /// stops another category from using it later.
+  /// gold/silver/real estate/stock/crypto; the column itself is generic so
+  /// nothing stops another category from using it later.
   RealColumn get purchasePrice => real().nullable()();
   TextColumn get purchaseCurrency => text().nullable()();
+
+  /// When this asset was bought -- optional, and (unlike [purchasePrice])
+  /// asked for on every category, since "when did I get this" doesn't
+  /// depend on whether a gain/loss can be computed for it.
+  DateTimeColumn get purchaseDate => dateTime().nullable()();
 
   /// Which [Profiles] row this asset belongs to. Nullable only because
   /// SQLite can't add a NOT NULL column with a dynamic default -- every

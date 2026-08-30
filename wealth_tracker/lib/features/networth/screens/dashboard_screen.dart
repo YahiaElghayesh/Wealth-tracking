@@ -171,6 +171,11 @@ List<_AssetSection> _groupedByCategory(List<Asset> assets) {
   return sections;
 }
 
+/// "YYYY-MM-DD", for an asset's optional [Asset.purchaseDate].
+String _formatPurchaseDate(DateTime d) {
+  return '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+}
+
 /// Formats a held quantity without trailing zeros -- "0.5", not
 /// "0.500000", but still "12" rather than "12.0" for a whole number.
 String _trimmedQuantity(double value) {
@@ -326,7 +331,9 @@ class _MetalsSummaryCard extends ConsumerWidget {
       if (v != null) totalValueUsd += v;
       final purchasePrice = asset.purchasePrice;
       final purchaseCurrency = asset.purchaseCurrency;
-      if (purchasePrice != null && purchaseCurrency != null && purchasePrice > 0) {
+      // Not gated on "> 0" -- a genuine 0 (a gift) is still a known cost,
+      // just one that happens to be zero, not the same as "unknown".
+      if (purchasePrice != null && purchaseCurrency != null) {
         final purchasePriceUsd = prices[purchaseCurrency];
         if (purchasePriceUsd != null) {
           totalCostUsd += purchasePrice * purchasePriceUsd;
@@ -489,12 +496,19 @@ class _AssetTile extends ConsumerWidget {
     double? gainLossPct;
     final purchasePrice = asset.purchasePrice;
     final purchaseCurrency = asset.purchaseCurrency;
+    // Deliberately not gated on "purchasePrice > 0" -- a genuine 0 (an
+    // asset received as a gift) is a real, entered value, not the same as
+    // never having entered one at all (null, which correctly skips this
+    // whole block and shows no gain/loss).
     if (value != null && purchasePrice != null && purchaseCurrency != null) {
       final purchasePriceUsd = prices[purchaseCurrency];
-      if (purchasePriceUsd != null && purchasePrice > 0) {
+      if (purchasePriceUsd != null) {
         final purchaseTotalUsd = purchasePrice * purchasePriceUsd;
         gainLossUsd = value - purchaseTotalUsd;
-        gainLossPct = gainLossUsd / purchaseTotalUsd * 100;
+        // A 0 cost basis makes "percent gained" undefined (division by
+        // zero) rather than meaningful -- shown as just the amount instead
+        // of a bogus/infinite percentage.
+        gainLossPct = purchaseTotalUsd > 0 ? gainLossUsd / purchaseTotalUsd * 100 : null;
         gainLossEgp = usdToEgpRate == null ? null : gainLossUsd * usdToEgpRate;
       }
     }
@@ -609,20 +623,35 @@ class _AssetTile extends ConsumerWidget {
               // to a second line instead of ever truncating, since a
               // number that's cut off is worse than one that takes two
               // lines.
-              if (gainLossUsd != null && gainLossPct != null && !hideValues) ...[
+              if (gainLossUsd != null && !hideValues) ...[
                 const SizedBox(height: 6),
                 Align(
                   alignment: Alignment.centerRight,
                   child: MoneyText(
-                    '${gainLossUsd >= 0 ? '+' : ''}${gainLossPct.toStringAsFixed(1)}%'
-                    '${gainLossEgp == null ? '' : ' · ${gainLossUsd >= 0 ? '+' : ''}${formatEgpWhole(gainLossEgp)}'}'
-                    ' · ${gainLossUsd >= 0 ? '+' : ''}${formatUsdWhole(gainLossUsd)}',
+                    [
+                      // Omitted (rather than shown as a bogus infinite
+                      // value) for a 0 cost basis -- see the comment where
+                      // gainLossPct is computed above.
+                      if (gainLossPct != null) '${gainLossUsd >= 0 ? '+' : ''}${gainLossPct.toStringAsFixed(1)}%',
+                      if (gainLossEgp != null) '${gainLossUsd >= 0 ? '+' : ''}${formatEgpWhole(gainLossEgp)}',
+                      '${gainLossUsd >= 0 ? '+' : ''}${formatUsdWhole(gainLossUsd)}',
+                    ].join(' · '),
                     style: theme.textTheme.labelSmall?.copyWith(
                       color: gainLossUsd >= 0 ? colors.good : colors.bad,
                       fontWeight: FontWeight.w700,
                     ),
                     maskLength: 10,
                     textAlign: TextAlign.right,
+                  ),
+                ),
+              ],
+              if (asset.purchaseDate != null && !hideValues) ...[
+                const SizedBox(height: 4),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: Text(
+                    'Purchased ${_formatPurchaseDate(asset.purchaseDate!)}',
+                    style: theme.textTheme.labelSmall?.copyWith(color: colors.textDim),
                   ),
                 ),
               ],

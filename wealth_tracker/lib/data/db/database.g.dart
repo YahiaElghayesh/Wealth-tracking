@@ -441,6 +441,17 @@ class $AssetsTable extends Assets with TableInfo<$AssetsTable, Asset> {
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _purchaseDateMeta = const VerificationMeta(
+    'purchaseDate',
+  );
+  @override
+  late final GeneratedColumn<DateTime> purchaseDate = GeneratedColumn<DateTime>(
+    'purchase_date',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _profileIdMeta = const VerificationMeta(
     'profileId',
   );
@@ -469,6 +480,7 @@ class $AssetsTable extends Assets with TableInfo<$AssetsTable, Asset> {
     vehicleType,
     purchasePrice,
     purchaseCurrency,
+    purchaseDate,
     profileId,
   ];
   @override
@@ -583,6 +595,15 @@ class $AssetsTable extends Assets with TableInfo<$AssetsTable, Asset> {
         ),
       );
     }
+    if (data.containsKey('purchase_date')) {
+      context.handle(
+        _purchaseDateMeta,
+        purchaseDate.isAcceptableOrUnknown(
+          data['purchase_date']!,
+          _purchaseDateMeta,
+        ),
+      );
+    }
     if (data.containsKey('profile_id')) {
       context.handle(
         _profileIdMeta,
@@ -646,6 +667,10 @@ class $AssetsTable extends Assets with TableInfo<$AssetsTable, Asset> {
         DriftSqlType.string,
         data['${effectivePrefix}purchase_currency'],
       ),
+      purchaseDate: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}purchase_date'],
+      ),
       profileId: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}profile_id'],
@@ -687,10 +712,15 @@ class Asset extends DataClass implements Insertable<Asset> {
 
   /// What was originally paid for this asset, in [purchaseCurrency] --
   /// optional (null means "not tracked"). Only surfaced in the UI for
-  /// gold/silver/real estate today; the column itself is generic so nothing
-  /// stops another category from using it later.
+  /// gold/silver/real estate/stock/crypto; the column itself is generic so
+  /// nothing stops another category from using it later.
   final double? purchasePrice;
   final String? purchaseCurrency;
+
+  /// When this asset was bought -- optional, and (unlike [purchasePrice])
+  /// asked for on every category, since "when did I get this" doesn't
+  /// depend on whether a gain/loss can be computed for it.
+  final DateTime? purchaseDate;
 
   /// Which [Profiles] row this asset belongs to. Nullable only because
   /// SQLite can't add a NOT NULL column with a dynamic default -- every
@@ -710,6 +740,7 @@ class Asset extends DataClass implements Insertable<Asset> {
     this.vehicleType,
     this.purchasePrice,
     this.purchaseCurrency,
+    this.purchaseDate,
     this.profileId,
   });
   @override
@@ -734,6 +765,9 @@ class Asset extends DataClass implements Insertable<Asset> {
     }
     if (!nullToAbsent || purchaseCurrency != null) {
       map['purchase_currency'] = Variable<String>(purchaseCurrency);
+    }
+    if (!nullToAbsent || purchaseDate != null) {
+      map['purchase_date'] = Variable<DateTime>(purchaseDate);
     }
     if (!nullToAbsent || profileId != null) {
       map['profile_id'] = Variable<String>(profileId);
@@ -763,6 +797,9 @@ class Asset extends DataClass implements Insertable<Asset> {
       purchaseCurrency: purchaseCurrency == null && nullToAbsent
           ? const Value.absent()
           : Value(purchaseCurrency),
+      purchaseDate: purchaseDate == null && nullToAbsent
+          ? const Value.absent()
+          : Value(purchaseDate),
       profileId: profileId == null && nullToAbsent
           ? const Value.absent()
           : Value(profileId),
@@ -787,6 +824,7 @@ class Asset extends DataClass implements Insertable<Asset> {
       vehicleType: serializer.fromJson<String?>(json['vehicleType']),
       purchasePrice: serializer.fromJson<double?>(json['purchasePrice']),
       purchaseCurrency: serializer.fromJson<String?>(json['purchaseCurrency']),
+      purchaseDate: serializer.fromJson<DateTime?>(json['purchaseDate']),
       profileId: serializer.fromJson<String?>(json['profileId']),
     );
   }
@@ -806,6 +844,7 @@ class Asset extends DataClass implements Insertable<Asset> {
       'vehicleType': serializer.toJson<String?>(vehicleType),
       'purchasePrice': serializer.toJson<double?>(purchasePrice),
       'purchaseCurrency': serializer.toJson<String?>(purchaseCurrency),
+      'purchaseDate': serializer.toJson<DateTime?>(purchaseDate),
       'profileId': serializer.toJson<String?>(profileId),
     };
   }
@@ -823,6 +862,7 @@ class Asset extends DataClass implements Insertable<Asset> {
     Value<String?> vehicleType = const Value.absent(),
     Value<double?> purchasePrice = const Value.absent(),
     Value<String?> purchaseCurrency = const Value.absent(),
+    Value<DateTime?> purchaseDate = const Value.absent(),
     Value<String?> profileId = const Value.absent(),
   }) => Asset(
     id: id ?? this.id,
@@ -841,6 +881,7 @@ class Asset extends DataClass implements Insertable<Asset> {
     purchaseCurrency: purchaseCurrency.present
         ? purchaseCurrency.value
         : this.purchaseCurrency,
+    purchaseDate: purchaseDate.present ? purchaseDate.value : this.purchaseDate,
     profileId: profileId.present ? profileId.value : this.profileId,
   );
   Asset copyWithCompanion(AssetsCompanion data) {
@@ -867,6 +908,9 @@ class Asset extends DataClass implements Insertable<Asset> {
       purchaseCurrency: data.purchaseCurrency.present
           ? data.purchaseCurrency.value
           : this.purchaseCurrency,
+      purchaseDate: data.purchaseDate.present
+          ? data.purchaseDate.value
+          : this.purchaseDate,
       profileId: data.profileId.present ? data.profileId.value : this.profileId,
     );
   }
@@ -886,6 +930,7 @@ class Asset extends DataClass implements Insertable<Asset> {
           ..write('vehicleType: $vehicleType, ')
           ..write('purchasePrice: $purchasePrice, ')
           ..write('purchaseCurrency: $purchaseCurrency, ')
+          ..write('purchaseDate: $purchaseDate, ')
           ..write('profileId: $profileId')
           ..write(')'))
         .toString();
@@ -905,6 +950,7 @@ class Asset extends DataClass implements Insertable<Asset> {
     vehicleType,
     purchasePrice,
     purchaseCurrency,
+    purchaseDate,
     profileId,
   );
   @override
@@ -923,6 +969,7 @@ class Asset extends DataClass implements Insertable<Asset> {
           other.vehicleType == this.vehicleType &&
           other.purchasePrice == this.purchasePrice &&
           other.purchaseCurrency == this.purchaseCurrency &&
+          other.purchaseDate == this.purchaseDate &&
           other.profileId == this.profileId);
 }
 
@@ -939,6 +986,7 @@ class AssetsCompanion extends UpdateCompanion<Asset> {
   final Value<String?> vehicleType;
   final Value<double?> purchasePrice;
   final Value<String?> purchaseCurrency;
+  final Value<DateTime?> purchaseDate;
   final Value<String?> profileId;
   final Value<int> rowid;
   const AssetsCompanion({
@@ -954,6 +1002,7 @@ class AssetsCompanion extends UpdateCompanion<Asset> {
     this.vehicleType = const Value.absent(),
     this.purchasePrice = const Value.absent(),
     this.purchaseCurrency = const Value.absent(),
+    this.purchaseDate = const Value.absent(),
     this.profileId = const Value.absent(),
     this.rowid = const Value.absent(),
   });
@@ -970,6 +1019,7 @@ class AssetsCompanion extends UpdateCompanion<Asset> {
     this.vehicleType = const Value.absent(),
     this.purchasePrice = const Value.absent(),
     this.purchaseCurrency = const Value.absent(),
+    this.purchaseDate = const Value.absent(),
     this.profileId = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
@@ -993,6 +1043,7 @@ class AssetsCompanion extends UpdateCompanion<Asset> {
     Expression<String>? vehicleType,
     Expression<double>? purchasePrice,
     Expression<String>? purchaseCurrency,
+    Expression<DateTime>? purchaseDate,
     Expression<String>? profileId,
     Expression<int>? rowid,
   }) {
@@ -1009,6 +1060,7 @@ class AssetsCompanion extends UpdateCompanion<Asset> {
       if (vehicleType != null) 'vehicle_type': vehicleType,
       if (purchasePrice != null) 'purchase_price': purchasePrice,
       if (purchaseCurrency != null) 'purchase_currency': purchaseCurrency,
+      if (purchaseDate != null) 'purchase_date': purchaseDate,
       if (profileId != null) 'profile_id': profileId,
       if (rowid != null) 'rowid': rowid,
     });
@@ -1027,6 +1079,7 @@ class AssetsCompanion extends UpdateCompanion<Asset> {
     Value<String?>? vehicleType,
     Value<double?>? purchasePrice,
     Value<String?>? purchaseCurrency,
+    Value<DateTime?>? purchaseDate,
     Value<String?>? profileId,
     Value<int>? rowid,
   }) {
@@ -1043,6 +1096,7 @@ class AssetsCompanion extends UpdateCompanion<Asset> {
       vehicleType: vehicleType ?? this.vehicleType,
       purchasePrice: purchasePrice ?? this.purchasePrice,
       purchaseCurrency: purchaseCurrency ?? this.purchaseCurrency,
+      purchaseDate: purchaseDate ?? this.purchaseDate,
       profileId: profileId ?? this.profileId,
       rowid: rowid ?? this.rowid,
     );
@@ -1087,6 +1141,9 @@ class AssetsCompanion extends UpdateCompanion<Asset> {
     if (purchaseCurrency.present) {
       map['purchase_currency'] = Variable<String>(purchaseCurrency.value);
     }
+    if (purchaseDate.present) {
+      map['purchase_date'] = Variable<DateTime>(purchaseDate.value);
+    }
     if (profileId.present) {
       map['profile_id'] = Variable<String>(profileId.value);
     }
@@ -1111,6 +1168,7 @@ class AssetsCompanion extends UpdateCompanion<Asset> {
           ..write('vehicleType: $vehicleType, ')
           ..write('purchasePrice: $purchasePrice, ')
           ..write('purchaseCurrency: $purchaseCurrency, ')
+          ..write('purchaseDate: $purchaseDate, ')
           ..write('profileId: $profileId, ')
           ..write('rowid: $rowid')
           ..write(')'))
@@ -6774,6 +6832,7 @@ typedef $$AssetsTableCreateCompanionBuilder =
       Value<String?> vehicleType,
       Value<double?> purchasePrice,
       Value<String?> purchaseCurrency,
+      Value<DateTime?> purchaseDate,
       Value<String?> profileId,
       Value<int> rowid,
     });
@@ -6791,6 +6850,7 @@ typedef $$AssetsTableUpdateCompanionBuilder =
       Value<String?> vehicleType,
       Value<double?> purchasePrice,
       Value<String?> purchaseCurrency,
+      Value<DateTime?> purchaseDate,
       Value<String?> profileId,
       Value<int> rowid,
     });
@@ -6883,6 +6943,11 @@ class $$AssetsTableFilterComposer
 
   ColumnFilters<String> get purchaseCurrency => $composableBuilder(
     column: $table.purchaseCurrency,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get purchaseDate => $composableBuilder(
+    column: $table.purchaseDate,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -6979,6 +7044,11 @@ class $$AssetsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<DateTime> get purchaseDate => $composableBuilder(
+    column: $table.purchaseDate,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   $$ProfilesTableOrderingComposer get profileId {
     final $$ProfilesTableOrderingComposer composer = $composerBuilder(
       composer: this,
@@ -7058,6 +7128,11 @@ class $$AssetsTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<DateTime> get purchaseDate => $composableBuilder(
+    column: $table.purchaseDate,
+    builder: (column) => column,
+  );
+
   $$ProfilesTableAnnotationComposer get profileId {
     final $$ProfilesTableAnnotationComposer composer = $composerBuilder(
       composer: this,
@@ -7122,6 +7197,7 @@ class $$AssetsTableTableManager
                 Value<String?> vehicleType = const Value.absent(),
                 Value<double?> purchasePrice = const Value.absent(),
                 Value<String?> purchaseCurrency = const Value.absent(),
+                Value<DateTime?> purchaseDate = const Value.absent(),
                 Value<String?> profileId = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => AssetsCompanion(
@@ -7137,6 +7213,7 @@ class $$AssetsTableTableManager
                 vehicleType: vehicleType,
                 purchasePrice: purchasePrice,
                 purchaseCurrency: purchaseCurrency,
+                purchaseDate: purchaseDate,
                 profileId: profileId,
                 rowid: rowid,
               ),
@@ -7154,6 +7231,7 @@ class $$AssetsTableTableManager
                 Value<String?> vehicleType = const Value.absent(),
                 Value<double?> purchasePrice = const Value.absent(),
                 Value<String?> purchaseCurrency = const Value.absent(),
+                Value<DateTime?> purchaseDate = const Value.absent(),
                 Value<String?> profileId = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => AssetsCompanion.insert(
@@ -7169,6 +7247,7 @@ class $$AssetsTableTableManager
                 vehicleType: vehicleType,
                 purchasePrice: purchasePrice,
                 purchaseCurrency: purchaseCurrency,
+                purchaseDate: purchaseDate,
                 profileId: profileId,
                 rowid: rowid,
               ),

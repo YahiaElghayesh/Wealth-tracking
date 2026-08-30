@@ -58,15 +58,9 @@ class _AddEditAssetScreenState extends ConsumerState<AddEditAssetScreen> {
   String _lastStockQuery = '';
   bool _stockFieldListenerAttached = false;
 
-  /// Which categories currently support recording a purchase price for a
-  /// gain/loss-since-purchase display on the dashboard.
-  static const _purchasePriceCategories = {
-    AssetCategory.gold,
-    AssetCategory.silver,
-    AssetCategory.realEstate,
-    AssetCategory.stock,
-    AssetCategory.crypto,
-  };
+  /// Null means "not set" -- left that way, purchase date stays untracked
+  /// for that asset, same as [purchasePrice] being null.
+  DateTime? _purchaseDate;
 
   @override
   void initState() {
@@ -97,6 +91,7 @@ class _AddEditAssetScreenState extends ConsumerState<AddEditAssetScreen> {
     _purchasePriceController =
         TextEditingController(text: existing?.purchasePrice == null ? '' : existing!.purchasePrice.toString());
     _purchaseCurrency = existing?.purchaseCurrency ?? defaultCurrency;
+    _purchaseDate = existing?.purchaseDate;
   }
 
   @override
@@ -368,12 +363,12 @@ class _AddEditAssetScreenState extends ConsumerState<AddEditAssetScreen> {
     }
   }
 
-  /// Optional "what did this cost" fields — only shown for the categories
-  /// where the dashboard can turn it into a gain/loss-since-purchase
-  /// display (see [_purchasePriceCategories]). Left blank, purchase price
-  /// stays untracked for that asset — nothing forces the user to fill it in.
+  /// Optional "what did this cost, and when" fields, shown for every
+  /// category. Both are independently optional -- leaving the amount
+  /// blank keeps purchase price untracked for that asset (nothing forces
+  /// it in), while entering `0` is a real, deliberate value (e.g. an
+  /// asset received as a gift) and is treated as such, not as "unset".
   List<Widget> _purchasePriceFields() {
-    if (!_purchasePriceCategories.contains(_category)) return const [];
     return [
       const SizedBox(height: 16),
       Text(
@@ -391,7 +386,10 @@ class _AddEditAssetScreenState extends ConsumerState<AddEditAssetScreen> {
             flex: 2,
             child: TextFormField(
               controller: _purchasePriceController,
-              decoration: const InputDecoration(labelText: 'Amount paid', hintText: 'Leave blank if unknown'),
+              decoration: const InputDecoration(
+                labelText: 'Amount paid',
+                hintText: 'Leave blank if unknown, or 0 if a gift',
+              ),
               keyboardType: const TextInputType.numberWithOptions(decimal: true),
               validator: (v) {
                 if (v == null || v.trim().isEmpty) return null;
@@ -411,7 +409,43 @@ class _AddEditAssetScreenState extends ConsumerState<AddEditAssetScreen> {
           ),
         ],
       ),
+      const SizedBox(height: 12),
+      InkWell(
+        onTap: _pickPurchaseDate,
+        child: InputDecorator(
+          decoration: const InputDecoration(labelText: 'Date purchased (optional)'),
+          child: Row(
+            children: [
+              const Icon(Icons.calendar_today, size: 16),
+              const SizedBox(width: 10),
+              Text(_purchaseDate == null ? 'Not set' : _formatDate(_purchaseDate!)),
+              if (_purchaseDate != null) ...[
+                const Spacer(),
+                IconButton(
+                  icon: const Icon(Icons.close, size: 18),
+                  tooltip: 'Clear',
+                  onPressed: () => setState(() => _purchaseDate = null),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
     ];
+  }
+
+  Future<void> _pickPurchaseDate() async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _purchaseDate ?? DateTime.now(),
+      firstDate: DateTime(1970),
+      lastDate: DateTime.now(),
+    );
+    if (picked != null) setState(() => _purchaseDate = picked);
+  }
+
+  static String _formatDate(DateTime d) {
+    return '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
   }
 
   String? _requiredNumber(String? v) {
@@ -438,10 +472,10 @@ class _AddEditAssetScreenState extends ConsumerState<AddEditAssetScreen> {
     // nothing else to show as a name, so fall back to whatever they typed.
     final name = _nameController.text.trim().isEmpty ? symbol : _nameController.text.trim();
     final purchasePriceText = _purchasePriceController.text.trim();
-    final purchasePrice =
-        _purchasePriceCategories.contains(_category) && purchasePriceText.isNotEmpty
-            ? double.tryParse(purchasePriceText)
-            : null;
+    // double.tryParse('0') is 0.0, not null -- a deliberately entered zero
+    // (e.g. a gift) is saved as a real value here, not silently treated
+    // the same as leaving the field blank.
+    final purchasePrice = purchasePriceText.isEmpty ? null : double.tryParse(purchasePriceText);
 
     final companion = AssetsCompanion(
       name: Value(name),
@@ -452,6 +486,7 @@ class _AddEditAssetScreenState extends ConsumerState<AddEditAssetScreen> {
       vehicleType: Value(_category == AssetCategory.vehicle ? _vehicleType : null),
       purchasePrice: Value(purchasePrice),
       purchaseCurrency: Value(purchasePrice == null ? null : _purchaseCurrency),
+      purchaseDate: Value(_purchaseDate),
     );
 
     if (_isEditing) {
