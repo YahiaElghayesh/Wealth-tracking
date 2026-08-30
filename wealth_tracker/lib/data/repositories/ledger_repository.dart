@@ -25,7 +25,9 @@ class LedgerRepository {
     bool includeInStatistics = true,
     bool includeInCalculator = true,
   }) {
-    return _db.into(_db.counterparties).insert(
+    return _db
+        .into(_db.counterparties)
+        .insert(
           CounterpartiesCompanion.insert(
             id: _uuid.v4(),
             name: name,
@@ -37,7 +39,9 @@ class LedgerRepository {
   }
 
   Future<void> deleteCounterparty(String id) async {
-    await (_db.delete(_db.ledgerTransactions)..where((t) => t.counterpartyId.equals(id))).go();
+    await (_db.delete(
+      _db.ledgerTransactions,
+    )..where((t) => t.counterpartyId.equals(id))).go();
     await (_db.delete(_db.counterparties)..where((c) => c.id.equals(id))).go();
   }
 
@@ -58,7 +62,9 @@ class LedgerRepository {
   /// equivalent to totaling each counterparty's own balance, just without
   /// grouping.
   Stream<List<LedgerTransaction>> watchAllTransactions() {
-    return (_db.select(_db.ledgerTransactions)..where((t) => t.profileId.equals(profileId))).watch();
+    return (_db.select(
+      _db.ledgerTransactions,
+    )..where((t) => t.profileId.equals(profileId))).watch();
   }
 
   Future<void> addTransaction({
@@ -69,7 +75,9 @@ class LedgerRepository {
     required String category,
     String? description,
   }) {
-    return _db.into(_db.ledgerTransactions).insert(
+    return _db
+        .into(_db.ledgerTransactions)
+        .insert(
           LedgerTransactionsCompanion.insert(
             id: _uuid.v4(),
             counterpartyId: counterpartyId,
@@ -84,7 +92,13 @@ class LedgerRepository {
         );
   }
 
+  Future<void> updateTransaction(LedgerTransaction transaction) {
+    return _db.update(_db.ledgerTransactions).replace(transaction);
+  }
+
   Future<void> deleteTransaction(String id) async {
-    await (_db.delete(_db.ledgerTransactions)..where((t) => t.id.equals(id))).go();
+    await (_db.delete(
+      _db.ledgerTransactions,
+    )..where((t) => t.id.equals(id))).go();
   }
 }

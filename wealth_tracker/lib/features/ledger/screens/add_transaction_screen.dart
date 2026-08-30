@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/models/currency.dart';
 import '../../../core/models/ledger_category.dart';
+import '../../../data/db/database.dart';
 import '../providers/ledger_providers.dart';
 
 class AddTransactionScreen extends ConsumerStatefulWidget {
@@ -13,6 +14,7 @@ class AddTransactionScreen extends ConsumerStatefulWidget {
     super.key,
     required this.counterpartyId,
     this.closeAppOnSave = false,
+    this.existing,
   });
 
   final String counterpartyId;
@@ -22,8 +24,14 @@ class AddTransactionScreen extends ConsumerStatefulWidget {
   /// screen instead of leaving the app open on some other screen.
   final bool closeAppOnSave;
 
+  /// Non-null when editing an already-saved entry instead of adding a new
+  /// one — pre-fills every field from it and saves via `updateTransaction`
+  /// instead of `addTransaction`.
+  final LedgerTransaction? existing;
+
   @override
-  ConsumerState<AddTransactionScreen> createState() => _AddTransactionScreenState();
+  ConsumerState<AddTransactionScreen> createState() =>
+      _AddTransactionScreenState();
 }
 
 class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
@@ -41,9 +49,21 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
   String _currency = defaultCurrency;
   DateTime _date = DateTime.now();
 
+  bool get _isEditing => widget.existing != null;
+
   @override
   void initState() {
     super.initState();
+    final existing = widget.existing;
+    if (existing != null) {
+      _isPayment = existing.amount >= 0;
+      _amountController.text = existing.amount.abs().toString();
+      _currency = existing.currency;
+      _date = existing.date;
+      if (_isPayment) {
+        _category = existing.category;
+      }
+    }
     // autofocus alone isn't reliable right after a route push, and a plain
     // post-frame focus request isn't enough either when this screen is
     // reached via the quick-add widget's deep link: the enclosing route's
@@ -120,17 +140,37 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
     final amount = double.parse(_amountController.text.trim());
     final selectedCategory = _category ?? _categoryNames.first;
     final category = _isPayment
-        ? (selectedCategory == 'Other' ? _customCategoryController.text.trim() : selectedCategory)
+        ? (selectedCategory == 'Other'
+              ? _customCategoryController.text.trim()
+              : selectedCategory)
         : ledgerRepaymentCategory;
+    final signedAmount = _isPayment ? amount : -amount;
+    final resolvedCategory = category.isEmpty ? 'Other' : category;
 
-    await ref.read(ledgerRepositoryProvider).addTransaction(
-          counterpartyId: widget.counterpartyId,
-          date: _date,
-          amount: _isPayment ? amount : -amount,
-          currency: _currency,
-          category: category.isEmpty ? 'Other' : category,
-          description: null,
-        );
+    final existing = widget.existing;
+    if (existing != null) {
+      await ref
+          .read(ledgerRepositoryProvider)
+          .updateTransaction(
+            existing.copyWith(
+              date: _date,
+              amount: signedAmount,
+              currency: _currency,
+              category: resolvedCategory,
+            ),
+          );
+    } else {
+      await ref
+          .read(ledgerRepositoryProvider)
+          .addTransaction(
+            counterpartyId: widget.counterpartyId,
+            date: _date,
+            amount: signedAmount,
+            currency: _currency,
+            category: resolvedCategory,
+            description: null,
+          );
+    }
 
     if (!mounted) return;
     if (widget.closeAppOnSave) {
@@ -138,6 +178,37 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
     } else {
       Navigator.of(context).pop();
     }
+  }
+
+  Future<void> _delete() async {
+    final confirmed =
+        await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Delete entry?'),
+            content: const Text("This can't be undone."),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Cancel'),
+              ),
+              FilledButton(
+                style: FilledButton.styleFrom(
+                  backgroundColor: Theme.of(context).colorScheme.error,
+                ),
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text('Delete'),
+              ),
+            ],
+          ),
+        ) ??
+        false;
+    if (!confirmed) return;
+
+    await ref
+        .read(ledgerRepositoryProvider)
+        .deleteTransaction(widget.existing!.id);
+    if (mounted) Navigator.of(context).pop();
   }
 
   @override
@@ -150,7 +221,17 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
     final selectedCategory = _category ?? _categoryNames.first;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Add')),
+      appBar: AppBar(
+        title: Text(_isEditing ? 'Edit' : 'Add'),
+        actions: [
+          if (_isEditing)
+            IconButton(
+              icon: const Icon(Icons.delete_outline),
+              tooltip: 'Delete',
+              onPressed: _delete,
+            ),
+        ],
+      ),
       body: Form(
         key: _formKey,
         child: ListView(
@@ -166,7 +247,9 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
                     focusNode: _amountFocusNode,
                     style: Theme.of(context).textTheme.headlineMedium,
                     decoration: const InputDecoration(hintText: '0.00'),
-                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
                     validator: (v) {
                       if (v == null || v.trim().isEmpty) return 'Required';
                       final n = double.tryParse(v.trim());
