@@ -5,6 +5,7 @@ import '../db/database.dart';
 import '../net_worth/net_worth_calculator.dart';
 import '../repositories/price_cache_repository.dart';
 import '../repositories/settings_repository.dart';
+import '../sms/sms_ledger_processor.dart';
 import '../widget/home_widget_service.dart';
 import 'coingecko_price_provider.dart';
 import 'fx_price_provider.dart';
@@ -23,20 +24,51 @@ const backgroundPriceRefreshFrequency = Duration(hours: 4);
 
 /// Entry point Android/WorkManager invokes in a headless Dart isolate —
 /// there's no ProviderScope or widget tree here, so everything is built
-/// directly rather than read from Riverpod.
+/// directly rather than read from Riverpod. Handles every background task
+/// this app enqueues through WorkManager, not just the periodic price
+/// refresh it was originally written for -- also the one-off task a bank-
+/// SMS notification's "Quick add" action enqueues natively from
+/// SmsQuickAddActionReceiver.kt (see [smsQuickAddTaskName]), since that's
+/// the same headless-isolate mechanism, just triggered on demand instead of
+/// on a timer.
 @pragma('vm:entry-point')
 void priceRefreshCallbackDispatcher() {
   Workmanager().executeTask((task, inputData) async {
-    if (task != backgroundPriceRefreshTaskName) return true;
     try {
-      await runBackgroundPriceRefresh();
+      if (task == backgroundPriceRefreshTaskName) {
+        await runBackgroundPriceRefresh();
+      } else if (task == smsQuickAddTaskName) {
+        await runSmsQuickAddTask(inputData ?? const {});
+      }
       return true;
     } catch (_) {
       // Swallow — WorkManager would otherwise reschedule aggressively, and
-      // the next periodic run (or the next app open) will just try again.
+      // the next periodic run (or the next incoming SMS / app open) will
+      // just try again.
       return true;
     }
   });
+}
+
+/// Reads the `body`/`timestampMillis` a "Quick add" notification action
+/// passed through WorkManager's input data and commits the charge via
+/// [commitSmsQuickAdd], scoped to whichever profile is currently active on
+/// this device — same [SettingsRepository]-backed lookup the foreground app
+/// uses, so a quick-added entry lands in the same profile the user would
+/// see it in if they'd opened the app instead.
+Future<void> runSmsQuickAddTask(Map<String, dynamic> inputData) async {
+  final body = inputData['body'] as String?;
+  final timestampMillis = inputData['timestampMillis'] as int?;
+  if (body == null || timestampMillis == null) return;
+
+  final db = AppDatabase();
+  try {
+    final prefs = await SharedPreferences.getInstance();
+    final profileId = SettingsRepository(prefs).activeProfileId;
+    await commitSmsQuickAdd(db, body: body, timestampMillis: timestampMillis, profileId: profileId);
+  } finally {
+    await db.close();
+  }
 }
 
 Future<void> runBackgroundPriceRefresh() async {

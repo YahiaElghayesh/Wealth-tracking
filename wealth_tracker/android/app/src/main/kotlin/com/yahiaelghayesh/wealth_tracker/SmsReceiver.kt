@@ -20,11 +20,14 @@ import androidx.core.app.NotificationCompat
  * manifest-registered BroadcastReceiver: zero third-party Android build
  * config involved.
  *
- * Deliberately does not touch Dart at all. It just posts a system
- * notification whose tap intent carries the raw SMS text as extras on
+ * The notification's tap target carries the raw SMS text as extras on
  * MainActivity's launch Intent; MainActivity hands those to Dart once the
  * app is actually open (see its `money_hub/sms` MethodChannel), where all
- * the parsing/matching/DB-writing logic already lives and is tested.
+ * the parsing/matching/DB-writing logic already lives and is tested. It
+ * also carries a second, genuinely headless path: a "Quick add" action
+ * button that hands the same raw text to [SmsQuickAddActionReceiver]
+ * instead, which commits it in the background with no app UI involved at
+ * all when a Vendor Rule already resolves the sender to a specific ledger.
  */
 class SmsReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
@@ -70,6 +73,17 @@ class SmsReceiver : BroadcastReceiver() {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
 
+        val quickAddIntent = Intent(context, SmsQuickAddActionReceiver::class.java).apply {
+            putExtra(SmsQuickAddActionReceiver.EXTRA_SMS_BODY, body)
+            putExtra(SmsQuickAddActionReceiver.EXTRA_SMS_TIMESTAMP, timestampMillis)
+        }
+        val quickAddPendingIntent = PendingIntent.getBroadcast(
+            context,
+            timestampMillis.toInt(),
+            quickAddIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.stat_notify_chat)
             .setContentTitle("Bank text detected")
@@ -77,6 +91,7 @@ class SmsReceiver : BroadcastReceiver() {
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setAutoCancel(true)
             .setContentIntent(pendingIntent)
+            .addAction(0, "Quick add", quickAddPendingIntent)
             .build()
 
         manager.notify(timestampMillis.toInt(), notification)

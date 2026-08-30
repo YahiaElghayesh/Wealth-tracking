@@ -105,6 +105,14 @@
                 <action android:name="android.provider.Telephony.SMS_RECEIVED"/>
             </intent-filter>
         </receiver>
+
+        <!-- Only ever invoked via the "Quick add" PendingIntent SmsReceiver
+             attaches to its own notification — not exported, no
+             intent-filter, since nothing outside this app should be able to
+             trigger a ledger write. -->
+        <receiver
+            android:name=".SmsQuickAddActionReceiver"
+            android:exported="false" />
     </application>
     <!-- Required to query activities that can process text, see:
          https://developer.android.com/training/package-visibility and

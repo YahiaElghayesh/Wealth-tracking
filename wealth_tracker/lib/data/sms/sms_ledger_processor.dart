@@ -1,6 +1,8 @@
 import 'dart:convert';
 
+import 'package:drift/drift.dart';
 import 'package:flutter/material.dart';
+import 'package:uuid/uuid.dart';
 
 import '../../core/navigation/app_navigator.dart';
 import '../../features/ledger/screens/sms_review_screen.dart';
@@ -11,6 +13,12 @@ import 'card_balance_updater.dart';
 
 const _dedupeKey = 'sms_processed_ids';
 const _dedupeCap = 200;
+
+/// The WorkManager task name a bank-SMS notification's "Quick add" action
+/// enqueues (see SmsQuickAddActionReceiver.kt) -- must match the string
+/// switched on in `priceRefreshCallbackDispatcher`
+/// (lib/data/pricing/background_refresh.dart).
+const smsQuickAddTaskName = 'smsQuickAdd';
 
 /// One incoming SMS, already known to be from the app's own SMS-detected
 /// launch path (see `native_sms_channel.dart` / `app.dart`) — so the app is
@@ -65,6 +73,65 @@ Future<void> processIncomingSms(
 
   final navigator = await _awaitNavigator();
   navigator?.push(MaterialPageRoute(builder: (_) => SmsReviewScreen(payload: payload)));
+}
+
+/// Headless counterpart to [processIncomingSms] for the notification's
+/// "Quick add" action -- runs with no UI and no user confirmation, so it
+/// only ever commits when a [VendorRule] already resolves the SMS sender to
+/// a specific ledger + category on its own; anything else is silently left
+/// for the notification's normal tap (still [processIncomingSms], still
+/// available afterward since nothing here marks the SMS processed unless a
+/// rule actually matched). Shares [processIncomingSms]'s dedupe key space
+/// so a charge added this way is not reviewable-and-addable again from a
+/// later tap on the same notification, and vice versa.
+///
+/// Returns whether a ledger entry was actually added, purely so a caller
+/// (or a test) can tell "matched and added" apart from "nothing to do
+/// here" -- the background isolate that calls this in production has no
+/// UI to report it to either way.
+Future<bool> commitSmsQuickAdd(
+  AppDatabase db, {
+  required String body,
+  required int timestampMillis,
+  required String profileId,
+}) async {
+  if (body.trim().isEmpty) return false;
+
+  final dedupeId = '$timestampMillis:${body.hashCode}';
+  if (await _alreadyProcessed(db, dedupeId)) return false;
+
+  final parsed = parseBankSms(body);
+  if (parsed == null) return false;
+
+  await updateCardBalanceFromSms(db, parsed, profileId: profileId);
+
+  final rules = await (db.select(db.vendorRules)..where((r) => r.profileId.equals(profileId))).get();
+  VendorRule? rule;
+  for (final r in rules) {
+    if (parsed.vendor.toLowerCase().contains(r.vendorPattern.toLowerCase())) {
+      rule = r;
+      break;
+    }
+  }
+  if (rule == null) return false;
+
+  await db
+      .into(db.ledgerTransactions)
+      .insert(
+        LedgerTransactionsCompanion.insert(
+          id: const Uuid().v4(),
+          counterpartyId: rule.counterpartyId,
+          date: parsed.occurredAt,
+          amount: parsed.amount,
+          currency: Value(parsed.currency),
+          category: rule.category,
+          createdAt: DateTime.now(),
+          profileId: Value(profileId),
+        ),
+      );
+
+  await _markProcessed(db, dedupeId);
+  return true;
 }
 
 /// [navigatorKey]'s Navigator is usually already mounted by the time this
