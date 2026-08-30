@@ -143,4 +143,54 @@ void main() {
       expect(card.currentAvailableBalance, 50000 + 8860.36);
     });
   });
+
+  group('commitSmsAutoUpdate', () {
+    test('a card-payment SMS updates the balance with no ledger entry', () async {
+      await insertCard(lastFourDigits: '4912', currentAvailableBalance: 50000);
+      const nbePaymentSms = 'تم سداد مبلغ 100000.00 جم فى بطاقتكم الائتمانية المنتهية بـ 4912 بتاريخ 21-08-26';
+
+      await commitSmsAutoUpdate(
+        db,
+        body: nbePaymentSms,
+        timestampMillis: 1000,
+        profileId: 'test-profile',
+      );
+
+      expect(await db.select(db.ledgerTransactions).get(), isEmpty);
+      final card = await db.select(db.creditCards).getSingle();
+      expect(card.currentAvailableBalance, 50000 + 100000.00);
+    });
+
+    test('does nothing for text that does not parse as a bank SMS', () async {
+      await commitSmsAutoUpdate(
+        db,
+        body: 'Your OTP is 123456.',
+        timestampMillis: 1000,
+        profileId: 'test-profile',
+      );
+
+      expect(await db.select(db.creditCards).get(), isEmpty);
+    });
+
+    test('the same SMS is only ever applied once, even across repeated calls', () async {
+      await insertCard(lastFourDigits: '8455', currentAvailableBalance: 50000);
+      const cibPaymentSms = 'نشكركم على سداد مبلغ 8860.36 جم لبطاقة رقم 8455 يوم 28/08';
+
+      await commitSmsAutoUpdate(db, body: cibPaymentSms, timestampMillis: 1000, profileId: 'test-profile');
+      await commitSmsAutoUpdate(db, body: cibPaymentSms, timestampMillis: 1000, profileId: 'test-profile');
+
+      final card = await db.select(db.creditCards).getSingle();
+      expect(card.currentAvailableBalance, 50000 + 8860.36);
+    });
+
+    test('a charge SMS still updates the balance even though it is not meant to reach this path', () async {
+      await insertCard(lastFourDigits: '4912', currentAvailableBalance: 50000);
+
+      await commitSmsAutoUpdate(db, body: _cibBreadfastSms, timestampMillis: 1000, profileId: 'test-profile');
+
+      expect(await db.select(db.ledgerTransactions).get(), isEmpty);
+      final card = await db.select(db.creditCards).getSingle();
+      expect(card.currentAvailableBalance, 85891.16);
+    });
+  });
 }

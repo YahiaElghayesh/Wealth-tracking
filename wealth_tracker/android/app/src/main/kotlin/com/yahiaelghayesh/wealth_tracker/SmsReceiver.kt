@@ -9,6 +9,10 @@ import android.content.Intent
 import android.os.Build
 import android.provider.Telephony
 import androidx.core.app.NotificationCompat
+import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.WorkManager
+import dev.fluttercommunity.workmanager.BackgroundWorker
+import dev.fluttercommunity.workmanager.buildTaskInputData
 
 /**
  * Native, plugin-free SMS capture. A Flutter SMS-reading plugin
@@ -28,6 +32,13 @@ import androidx.core.app.NotificationCompat
  * button that hands the same raw text to [SmsQuickAddActionReceiver]
  * instead, which commits it in the background with no app UI involved at
  * all when a Vendor Rule already resolves the sender to a specific ledger.
+ *
+ * A card *payment/settlement or refund* alert (paying down the card,
+ * opposite of a purchase) never reaches either of those -- the user only
+ * wants to be interrupted for purchases. [isCardPaymentOrRefundAlert]
+ * recognizes that case natively (a deliberately narrow trigger-phrase
+ * check, not a full parse) and routes it straight to a silent background
+ * task instead of posting anything.
  */
 class SmsReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
@@ -41,7 +52,34 @@ class SmsReceiver : BroadcastReceiver() {
         val timestampMillis = messages.first().timestampMillis
         if (body.isBlank()) return
 
+        if (isCardPaymentOrRefundAlert(body)) {
+            enqueueAutoUpdate(context, body, timestampMillis)
+            return
+        }
+
         postNotification(context, body, timestampMillis)
+    }
+
+    /**
+     * Enqueues the same kind of headless WorkManager task
+     * [SmsQuickAddActionReceiver] does for its "Quick add" action, just
+     * triggered automatically here instead of by a button tap -- runs
+     * `commitSmsAutoUpdate` (lib/data/sms/sms_ledger_processor.dart) in a
+     * background Flutter engine, which applies the payment to the tracked
+     * card balance with no notification and no ledger entry.
+     */
+    private fun enqueueAutoUpdate(context: Context, body: String, timestampMillis: Long) {
+        val inputData = buildTaskInputData(
+            dartTask = SMS_AUTO_UPDATE_TASK_NAME,
+            payload = mapOf(
+                "body" to body,
+                "timestampMillis" to timestampMillis,
+            ),
+        )
+        val request = OneTimeWorkRequestBuilder<BackgroundWorker>()
+            .setInputData(inputData)
+            .build()
+        WorkManager.getInstance(context).enqueue(request)
     }
 
     private fun postNotification(context: Context, body: String, timestampMillis: Long) {
@@ -99,5 +137,32 @@ class SmsReceiver : BroadcastReceiver() {
 
     companion object {
         private const val CHANNEL_ID = "bank_sms_detected"
+
+        // Must match smsAutoUpdateTaskName in
+        // lib/data/sms/sms_ledger_processor.dart, which
+        // priceRefreshCallbackDispatcher switches on.
+        private const val SMS_AUTO_UPDATE_TASK_NAME = "smsAutoUpdate"
+
+        /**
+         * Mirrors just the *trigger phrase* of `_cibPaymentPattern` and
+         * `_nbePaymentPattern` in lib/data/sms/bank_sms_parser.dart --
+         * deliberately much looser than either full Dart regex (no capture
+         * groups, no date/amount validation), since this only decides
+         * whether to skip the notification and run the silent background
+         * task instead. It never decides what gets written to the database;
+         * that's still entirely the tested Dart parser's call, run
+         * separately once the background task starts. Neither of CIB's or
+         * NBE's *charge* alerts (the ones that should still notify) contain
+         * either phrase, so a false match here would need genuinely new
+         * bank wording -- if a new payment-alert format is ever added to
+         * the Dart parser, add its trigger phrase here too.
+         */
+        private val cibPaymentAlertPattern = Regex("نشكركم\\s*على\\s*سداد\\s*مبلغ")
+        private val nbePaymentAlertPattern = Regex("تم\\s*سداد\\s*مبلغ.*?بطاقتكم\\s*الائتمانية")
+
+        private fun isCardPaymentOrRefundAlert(body: String): Boolean {
+            return cibPaymentAlertPattern.containsMatchIn(body) ||
+                nbePaymentAlertPattern.containsMatchIn(body)
+        }
     }
 }

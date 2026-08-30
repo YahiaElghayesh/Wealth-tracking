@@ -20,6 +20,12 @@ const _dedupeCap = 200;
 /// (lib/data/pricing/background_refresh.dart).
 const smsQuickAddTaskName = 'smsQuickAdd';
 
+/// The WorkManager task name SmsReceiver.kt enqueues automatically, with no
+/// notification ever posted, when it recognizes an incoming SMS as a card
+/// payment/settlement or refund alert -- must match the string switched on
+/// in `priceRefreshCallbackDispatcher` (lib/data/pricing/background_refresh.dart).
+const smsAutoUpdateTaskName = 'smsAutoUpdate';
+
 /// One incoming SMS, already known to be from the app's own SMS-detected
 /// launch path (see `native_sms_channel.dart` / `app.dart`) — so the app is
 /// guaranteed to be in the foreground by the time this runs, which is why
@@ -140,6 +146,38 @@ Future<bool> commitSmsQuickAdd(
 
   await _markProcessed(db, dedupeId);
   return true;
+}
+
+/// Headless counterpart for SMS the *native* receiver already identified as
+/// a card payment/settlement or refund alert (see SmsReceiver.kt's
+/// `isCardPaymentOrRefundAlert`) -- runs with no notification and no
+/// ledger entry at all, per the user's explicit ask to only be interrupted
+/// for purchases, not for paying a card down or a refund landing on it.
+///
+/// The native check is a narrow trigger-phrase match, not a full parse, so
+/// this still runs the same tested [parseBankSms] before touching
+/// anything -- if it somehow doesn't parse, or turns out to be a charge
+/// after all, nothing happens here (no notification can be raised from a
+/// background isolate either way; that gap is accepted as the cost of the
+/// native check being deliberately conservative about *what* it matches,
+/// not *how much* of the message it verifies). Shares the same dedupe key
+/// space as [processIncomingSms]/[commitSmsQuickAdd].
+Future<void> commitSmsAutoUpdate(
+  AppDatabase db, {
+  required String body,
+  required int timestampMillis,
+  required String profileId,
+}) async {
+  if (body.trim().isEmpty) return;
+
+  final dedupeId = '$timestampMillis:${body.hashCode}';
+  if (await _alreadyProcessed(db, dedupeId)) return;
+
+  final parsed = parseBankSms(body);
+  if (parsed == null) return;
+
+  await updateCardBalanceFromSms(db, parsed, profileId: profileId);
+  await _markProcessed(db, dedupeId);
 }
 
 /// [navigatorKey]'s Navigator is usually already mounted by the time this

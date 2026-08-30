@@ -28,9 +28,11 @@ const backgroundPriceRefreshFrequency = Duration(hours: 4);
 /// this app enqueues through WorkManager, not just the periodic price
 /// refresh it was originally written for -- also the one-off task a bank-
 /// SMS notification's "Quick add" action enqueues natively from
-/// SmsQuickAddActionReceiver.kt (see [smsQuickAddTaskName]), since that's
-/// the same headless-isolate mechanism, just triggered on demand instead of
-/// on a timer.
+/// SmsQuickAddActionReceiver.kt (see [smsQuickAddTaskName]), and the
+/// one-off task SmsReceiver.kt enqueues automatically (no notification
+/// involved at all) for a recognized card payment/refund alert (see
+/// [smsAutoUpdateTaskName]) -- all the same headless-isolate mechanism,
+/// just triggered on demand instead of on a timer.
 @pragma('vm:entry-point')
 void priceRefreshCallbackDispatcher() {
   Workmanager().executeTask((task, inputData) async {
@@ -39,6 +41,8 @@ void priceRefreshCallbackDispatcher() {
         await runBackgroundPriceRefresh();
       } else if (task == smsQuickAddTaskName) {
         await runSmsQuickAddTask(inputData ?? const {});
+      } else if (task == smsAutoUpdateTaskName) {
+        await runSmsAutoUpdateTask(inputData ?? const {});
       }
       return true;
     } catch (_) {
@@ -66,6 +70,27 @@ Future<void> runSmsQuickAddTask(Map<String, dynamic> inputData) async {
     final prefs = await SharedPreferences.getInstance();
     final profileId = SettingsRepository(prefs).activeProfileId;
     await commitSmsQuickAdd(db, body: body, timestampMillis: timestampMillis, profileId: profileId);
+  } finally {
+    await db.close();
+  }
+}
+
+/// Reads the `body`/`timestampMillis` SmsReceiver.kt passed through
+/// WorkManager's input data when it recognized an incoming SMS as a card
+/// payment/settlement or refund alert, and applies it via
+/// [commitSmsAutoUpdate] -- no notification, no ledger entry, scoped to
+/// whichever profile is currently active on this device, same as
+/// [runSmsQuickAddTask].
+Future<void> runSmsAutoUpdateTask(Map<String, dynamic> inputData) async {
+  final body = inputData['body'] as String?;
+  final timestampMillis = inputData['timestampMillis'] as int?;
+  if (body == null || timestampMillis == null) return;
+
+  final db = AppDatabase();
+  try {
+    final prefs = await SharedPreferences.getInstance();
+    final profileId = SettingsRepository(prefs).activeProfileId;
+    await commitSmsAutoUpdate(db, body: body, timestampMillis: timestampMillis, profileId: profileId);
   } finally {
     await db.close();
   }
