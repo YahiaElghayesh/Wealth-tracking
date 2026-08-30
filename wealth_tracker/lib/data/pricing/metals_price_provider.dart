@@ -55,7 +55,7 @@ class MetalsPriceProvider implements PriceProvider {
     try {
       final response = await _dio.get<Map<String, dynamic>>(
         'https://www.goldapi.io/api/$metalCode/USD',
-        options: Options(headers: {'x-access-token': key}),
+        options: Options(headers: {'x-access-token': key, 'Accept': 'application/json'}),
       );
       final pricePerOunce = response.data?['price'];
       if (pricePerOunce is! num) {
@@ -63,7 +63,21 @@ class MetalsPriceProvider implements PriceProvider {
       }
       return pricePerOunce.toDouble() / _gramsPerTroyOunce;
     } on DioException catch (e) {
-      throw PriceFetchException(name, e.message ?? 'network error');
+      // Dio's own e.message for a non-2xx response is a wall of generic
+      // boilerplate ("This exception was thrown because the response has a
+      // status code of 403 and RequestOptions.validateStatus was
+      // configured to throw...") that says nothing about *why* goldapi.io
+      // rejected the request. goldapi.io's own error responses are a JSON
+      // body with an "error" string (e.g. "Invalid API key.", "You have
+      // reached your API request limit for the month.") -- surface that
+      // instead whenever it's present, since it's the only actionable part
+      // of the response for a user trying to fix their own key/plan.
+      final status = e.response?.statusCode;
+      final apiError = e.response?.data is Map ? (e.response?.data as Map)['error'] : null;
+      final detail = apiError is String && apiError.isNotEmpty
+          ? apiError
+          : (e.message ?? 'network error');
+      throw PriceFetchException(name, status == null ? detail : '$detail (HTTP $status)');
     }
   }
 }
