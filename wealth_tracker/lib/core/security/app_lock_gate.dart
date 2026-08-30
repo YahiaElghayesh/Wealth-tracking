@@ -6,21 +6,35 @@ import 'package:local_auth/local_auth.dart';
 import '../../features/settings/providers/settings_providers.dart';
 import '../providers/core_providers.dart';
 import '../theme/app_colors.dart';
+import 'quick_add_exemption.dart';
 
-/// Covers [child] with a fingerprint/Face ID (or device PIN/pattern,
-/// local_auth's own fallback) prompt whenever [biometricLockEnabledProvider]
-/// is on -- re-armed every time the app is backgrounded and resumed.
+/// Waited before every auto-triggered biometric prompt (cold start, and
+/// every resume from the background) -- not for pacing, but to give a
+/// concurrently-arriving "Add Payment" quick-add push (see
+/// `quick_add_launch.dart`) time to mount `AddTransactionScreen` and flip
+/// [quickAddScreenActive] first. That push is asynchronous (it polls for
+/// the root [Navigator] to be mounted, normally resolving well inside one
+/// frame), so evaluating the exemption flag immediately would sometimes
+/// race it and fire the OS biometric sheet over what's supposed to be a
+/// zero-auth shortcut. 200ms is well past the push's typical completion
+/// time but short enough that a normal app open still reads as instant.
+const _autoPromptDelay = Duration(milliseconds: 200);
+
+/// Wraps the app's current screen (via [MaterialApp.builder], so this sees
+/// *every* route, not just the first one) with a fingerprint/Face ID (or
+/// device PIN/pattern, local_auth's own fallback) lock whenever
+/// [biometricLockEnabledProvider] is on. The prompt fires automatically --
+/// on first showing the lock screen and every time the app returns from the
+/// background -- with no "Unlock" tap needed first; a manual retry button
+/// only appears if that automatic attempt fails or is cancelled.
 ///
-/// Deliberately overlays [child] in a [Stack] rather than swapping it out:
-/// [child] is `_RootShell`, whose `initState` registers the
-/// `home_widget`-tap listener that the "Add Payment" pinned shortcuts and
-/// widget quick-add rely on (see `quick_add_launch.dart`). That listener has
-/// to stay alive even while locked, and it responds by pushing
-/// `AddTransactionScreen` straight onto the app's root [Navigator] -- a
-/// route that lands on top of this entire gate, lock screen included, with
-/// no biometric check in between. That's not a bypass being tolerated, it's
-/// the explicit design: quick-adding a payment must never require
-/// fingerprint/Face ID, only opening the full app does.
+/// The "Add Payment" pinned shortcuts and the home-screen widget's
+/// quick-add are exempt: while [quickAddScreenActive] is true (set by
+/// `AddTransactionScreen` itself, only for the quick-add-invoked instance),
+/// this neither shows the lock overlay nor fires the biometric prompt, so
+/// quick-adding a payment never requires fingerprint/Face ID. Everything
+/// else -- including screens reached by regular in-app navigation while
+/// backgrounded and resumed -- stays behind the lock.
 class AppLockGate extends ConsumerStatefulWidget {
   const AppLockGate({super.key, required this.child});
 
@@ -40,24 +54,46 @@ class _AppLockGateState extends ConsumerState<AppLockGate> with WidgetsBindingOb
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    quickAddScreenActive.addListener(_onQuickAddExemptionChanged);
     _unlocked = !ref.read(settingsRepositoryProvider).biometricLockEnabled;
+    if (!_unlocked) _scheduleAutoPrompt();
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    quickAddScreenActive.removeListener(_onQuickAddExemptionChanged);
     super.dispose();
   }
+
+  /// The lock overlay's own visibility already reacts to this (see [build]),
+  /// but a rebuild alone doesn't affect a biometric prompt that's already
+  /// showing -- there's nothing more to do here beyond that rebuild; this
+  /// listener exists so the overlay's disappearance the moment quick-add
+  /// takes over is immediate rather than waiting on some other rebuild.
+  void _onQuickAddExemptionChanged() => setState(() {});
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     // Re-lock on backgrounding, not just at cold start -- otherwise
     // switching away and back would leave the app permanently unlocked for
     // the rest of the process's life after the very first check.
-    if (state != AppLifecycleState.paused) return;
-    if (ref.read(biometricLockEnabledProvider) && _unlocked) {
-      setState(() => _unlocked = false);
+    if (state == AppLifecycleState.paused) {
+      if (ref.read(biometricLockEnabledProvider) && _unlocked) {
+        setState(() => _unlocked = false);
+      }
+      return;
     }
+    if (state == AppLifecycleState.resumed && !_unlocked) {
+      _scheduleAutoPrompt();
+    }
+  }
+
+  void _scheduleAutoPrompt() {
+    Future.delayed(_autoPromptDelay, () {
+      if (!mounted || _unlocked || quickAddScreenActive.value) return;
+      _authenticate();
+    });
   }
 
   Future<void> _authenticate() async {
@@ -75,6 +111,13 @@ class _AppLockGateState extends ConsumerState<AppLockGate> with WidgetsBindingOb
           _unlocked = true;
           _checking = false;
         });
+        return;
+      }
+      // Re-checked right before actually surfacing the OS prompt -- the
+      // scheduling delay in [_scheduleAutoPrompt] covers the common case,
+      // this covers the rest.
+      if (quickAddScreenActive.value) {
+        setState(() => _checking = false);
         return;
       }
       final ok = await _localAuth.authenticate(
@@ -96,7 +139,7 @@ class _AppLockGateState extends ConsumerState<AppLockGate> with WidgetsBindingOb
   @override
   Widget build(BuildContext context) {
     final enabled = ref.watch(biometricLockEnabledProvider);
-    final locked = enabled && !_unlocked;
+    final locked = enabled && !_unlocked && !quickAddScreenActive.value;
 
     return Stack(
       children: [
@@ -120,8 +163,8 @@ class _LockScreen extends StatelessWidget {
     // An opaque Container (not just a Material) is the outer layer on
     // purpose -- Container's render object reports itself hit-testable
     // ("opaque" HitTestBehavior), which is what actually stops a tap on the
-    // dead background area from falling through to `_RootShell` underneath
-    // in the Stack. A bare Material with no GestureDetector of its own
+    // dead background area from falling through to whatever's underneath in
+    // the Stack. A bare Material with no GestureDetector of its own
     // wouldn't block anything. The FilledButton below still gets its own
     // taps first, same as any other button on an opaque background.
     return Container(
@@ -146,7 +189,7 @@ class _LockScreen extends StatelessWidget {
                   Text('Money Hub is locked', style: theme.textTheme.titleMedium),
                   const SizedBox(height: 8),
                   Text(
-                    'Unlock with your fingerprint or face to continue',
+                    checking ? 'Checking your fingerprint or face…' : 'Waiting for fingerprint or Face ID…',
                     textAlign: TextAlign.center,
                     style: TextStyle(color: context.appColors.textDim),
                   ),
@@ -155,12 +198,16 @@ class _LockScreen extends StatelessWidget {
                     Text(error!, textAlign: TextAlign.center, style: TextStyle(color: context.appColors.bad)),
                   ],
                   const SizedBox(height: 24),
+                  // Only ever needed as a fallback -- the prompt above fires
+                  // on its own; this is for when that attempt failed, was
+                  // dismissed, or the user wants to retry without waiting
+                  // for another background/resume cycle.
                   FilledButton.icon(
                     onPressed: checking ? null : onUnlock,
                     icon: checking
                         ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
                         : const Icon(Icons.lock_open),
-                    label: const Text('Unlock'),
+                    label: const Text('Try again'),
                   ),
                 ],
               ),

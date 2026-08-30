@@ -37,7 +37,14 @@ class WealthTrackerApp extends ConsumerWidget {
       theme: buildAppTheme(Brightness.light),
       darkTheme: buildAppTheme(Brightness.dark),
       themeMode: themeMode,
-      home: const AppLockGate(child: _RootShell()),
+      home: const _RootShell(),
+      // Wraps *whatever route is currently on screen*, not just `home` --
+      // unlike an earlier version of this gate that only covered
+      // `_RootShell` and left any pushed route (Settings, Add Asset, a
+      // quick-add screen, ...) visible if the app was backgrounded and
+      // resumed while on one of those. AppLockGate's own doc comment covers
+      // how it still exempts the quick-add flow specifically despite that.
+      builder: (context, child) => AppLockGate(child: child ?? const SizedBox.shrink()),
     );
   }
 }
