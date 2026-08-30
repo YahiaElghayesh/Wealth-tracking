@@ -108,39 +108,42 @@ class NetWorthSummaryCard extends ConsumerWidget {
               ),
             ),
             const SizedBox(height: 10),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: _SplitSide(
-                    label: 'Liquid',
-                    fraction: liquidFraction,
-                    valueUsd: summary.liquidUsd,
-                    usdToEgpRate: usdToEgpRate,
-                    alignment: CrossAxisAlignment.start,
-                    color: theme.colorScheme.primary,
-                  ),
-                ),
-                if (currentUsd != null)
-                  Expanded(
-                    child: _CurrentSide(
-                      resultEgp: latestSnapshot!.resultAmount,
-                      fraction: currentFraction,
-                      usdToEgpRate: usdToEgpRate,
-                      color: colors.good,
-                    ),
-                  ),
-                Expanded(
-                  child: _SplitSide(
-                    label: 'Non-liquid',
-                    fraction: nonLiquidFraction,
-                    valueUsd: summary.nonLiquidUsd,
-                    usdToEgpRate: usdToEgpRate,
-                    alignment: CrossAxisAlignment.end,
-                    color: colors.gold,
-                  ),
-                ),
-              ],
+            // Stacked full-width rows instead of three side-by-side boxes
+            // sharing a third of the card's width each -- squeezed that
+            // tight, a long value ("EGP 1,236,882" next to "≈ $24,614")
+            // had nowhere to go but overflow past its box's edge (the
+            // "white line" a screenshot showed: Flutter's own render
+            // overflow indicator). Full width also makes "equal size" a
+            // non-issue -- every row is exactly the card's width, so none
+            // can be smaller than another -- and gives every row the same
+            // label-then-percent-then-values order, left to right.
+            _LegendRow(
+              icon: Icons.water_drop_outlined,
+              label: 'Liquid',
+              fraction: liquidFraction,
+              egpValue: usdToEgpRate == null ? null : summary.liquidUsd * usdToEgpRate!,
+              usdValue: summary.liquidUsd,
+              color: theme.colorScheme.primary,
+            ),
+            if (currentUsd != null) ...[
+              const SizedBox(height: 8),
+              _LegendRow(
+                icon: Icons.calculate_outlined,
+                label: 'Current',
+                fraction: currentFraction,
+                egpValue: latestSnapshot!.resultAmount,
+                usdValue: currentUsd,
+                color: colors.good,
+              ),
+            ],
+            const SizedBox(height: 8),
+            _LegendRow(
+              icon: Icons.savings_outlined,
+              label: 'Non-liquid',
+              fraction: nonLiquidFraction,
+              egpValue: usdToEgpRate == null ? null : summary.nonLiquidUsd * usdToEgpRate!,
+              usdValue: summary.nonLiquidUsd,
+              color: colors.gold,
             ),
           ] else ...[
             const SizedBox(height: 14),
@@ -155,151 +158,83 @@ class NetWorthSummaryCard extends ConsumerWidget {
   }
 }
 
-/// The Calculator tab's last saved "current liquid cash" result, in EGP
-/// (its native settlement currency) and derived USD -- now a genuine third
-/// slice of the total net worth (see [NetWorthSummaryCard]'s own doc
-/// comment), so this shows a percentage the same way [_SplitSide] does for
-/// Liquid/Non-liquid, just centered between them instead of left/right
-/// aligned.
-class _CurrentSide extends StatelessWidget {
-  const _CurrentSide({
-    required this.resultEgp,
-    required this.fraction,
-    required this.usdToEgpRate,
-    required this.color,
-  });
-
-  final double resultEgp;
-  final double fraction;
-  final double? usdToEgpRate;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colors = context.appColors;
-    final resultUsd = usdToEgpRate == null || usdToEgpRate == 0 ? null : resultEgp / usdToEgpRate!;
-    final pct = '${(fraction * 100).round()}%';
-    return _LegendBox(
-      color: color,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(Icons.calculate_outlined, size: 12, color: colors.good),
-              const SizedBox(width: 3),
-              Text('Current', style: theme.textTheme.bodySmall?.copyWith(color: colors.textDim)),
-              const SizedBox(width: 4),
-              MoneyText(pct, style: theme.textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w700), maskLength: 3),
-            ],
-          ),
-          const SizedBox(height: 1),
-          MoneyText(
-            formatEgpWhole(resultEgp),
-            style: theme.textTheme.labelSmall?.copyWith(color: colors.textDim, fontWeight: FontWeight.w700),
-            maskLength: 7,
-          ),
-          MoneyText(
-            resultUsd == null ? '—' : '≈ ${formatUsdWhole(resultUsd)}',
-            style: theme.textTheme.labelSmall?.copyWith(color: colors.textDim, fontSize: 10.5),
-            maskLength: 5,
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _SplitSide extends StatelessWidget {
-  const _SplitSide({
+/// One full-width legend row below the split bar -- shared by Liquid,
+/// Current, and Non-liquid so all three are visually identical apart from
+/// their icon/label/color: same left-to-right order (icon, label,
+/// percentage, then the EGP/USD figures pinned to the right), same box
+/// style tinted to match that entry's own segment in the bar above it.
+/// Being the card's full width rather than one of three squeezed side by
+/// side, no value here is ever tight enough to wrap or overflow, and
+/// every row is trivially the same size as the others.
+class _LegendRow extends StatelessWidget {
+  const _LegendRow({
+    required this.icon,
     required this.label,
     required this.fraction,
-    required this.valueUsd,
-    required this.usdToEgpRate,
-    required this.alignment,
+    required this.egpValue,
+    required this.usdValue,
     required this.color,
   });
 
+  final IconData icon;
   final String label;
   final double fraction;
-  final double valueUsd;
-  final double? usdToEgpRate;
-  final CrossAxisAlignment alignment;
+
+  /// Null when the FX rate isn't known yet -- shown as "—" rather than a
+  /// misleading zero.
+  final double? egpValue;
+  final double usdValue;
   final Color color;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colors = context.appColors;
-    final egpValue = usdToEgpRate == null ? null : valueUsd * usdToEgpRate!;
     final pct = '${(fraction * 100).round()}%';
-    final alignEnd = alignment == CrossAxisAlignment.end;
-    return Column(
-      crossAxisAlignment: alignment,
-      children: [
-        _LegendBox(
-          color: color,
-          child: Column(
-            crossAxisAlignment: alignment,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  if (!alignEnd) ...[
-                    Text(label, style: theme.textTheme.bodySmall?.copyWith(color: colors.textDim)),
-                    const SizedBox(width: 4),
-                  ],
-                  MoneyText(pct, style: theme.textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w700), maskLength: 3),
-                  if (alignEnd) ...[
-                    const SizedBox(width: 4),
-                    Text(label, style: theme.textTheme.bodySmall?.copyWith(color: colors.textDim)),
-                  ],
-                ],
-              ),
-              const SizedBox(height: 1),
-              MoneyText(
-                egpValue == null ? '—' : formatEgpWhole(egpValue),
-                style: theme.textTheme.labelSmall?.copyWith(color: colors.textDim),
-                maskLength: 7,
-              ),
-              MoneyText(
-                '≈ ${formatUsdWhole(valueUsd)}',
-                style: theme.textTheme.labelSmall?.copyWith(color: colors.textDim, fontSize: 10.5),
-                maskLength: 5,
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-/// Shared tinted-box look behind each legend entry below the split bar --
-/// [color] matches that entry's own segment in the bar above it (primary
-/// for Liquid, [AppColors.good] for Current, [AppColors.gold] for
-/// Non-liquid), so the legend visually keys to the bar instead of relying
-/// on position/reading order alone.
-class _LegendBox extends StatelessWidget {
-  const _LegendBox({required this.color, required this.child});
-
-  final Color color;
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(10),
         border: Border.all(color: color.withValues(alpha: 0.35)),
       ),
-      child: child,
+      child: Row(
+        children: [
+          Icon(icon, size: 14, color: color),
+          const SizedBox(width: 6),
+          Flexible(
+            child: Text(
+              label,
+              style: theme.textTheme.bodySmall?.copyWith(color: colors.textDim),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          const SizedBox(width: 6),
+          MoneyText(pct, style: theme.textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w700), maskLength: 3),
+          const Spacer(),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              MoneyText(
+                egpValue == null ? '—' : formatEgpWhole(egpValue!),
+                style: theme.textTheme.labelSmall?.copyWith(color: colors.textDim, fontWeight: FontWeight.w700),
+                maskLength: 7,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              MoneyText(
+                '≈ ${formatUsdWhole(usdValue)}',
+                style: theme.textTheme.labelSmall?.copyWith(color: colors.textDim, fontSize: 10.5),
+                maskLength: 5,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 }

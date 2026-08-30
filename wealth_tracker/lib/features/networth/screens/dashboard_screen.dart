@@ -21,11 +21,23 @@ import '../providers/pricing_providers.dart';
 import '../widgets/net_worth_summary_card.dart';
 import 'add_edit_asset_screen.dart';
 
-class DashboardScreen extends ConsumerWidget {
+class DashboardScreen extends ConsumerStatefulWidget {
   const DashboardScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<DashboardScreen> createState() => _DashboardScreenState();
+}
+
+class _DashboardScreenState extends ConsumerState<DashboardScreen> {
+  /// When true, every category section shows just its summary card, with
+  /// the individual asset rows underneath hidden -- toggled by the two
+  /// "standard" collapse/expand AppBar buttons rather than per-section,
+  /// since the ask was "collapse -> everything hides, expand -> everything
+  /// shows".
+  bool _collapsed = false;
+
+  @override
+  Widget build(BuildContext context) {
     ref.watch(autoRefreshOnLaunchProvider);
     final assetsAsync = ref.watch(assetsStreamProvider);
     final netWorth = ref.watch(netWorthResultProvider);
@@ -38,6 +50,16 @@ class DashboardScreen extends ConsumerWidget {
         title: const Text('Net Worth'),
         actions: [
           const HideValuesAction(),
+          IconButton(
+            icon: const Icon(Icons.unfold_less),
+            tooltip: 'Collapse all',
+            onPressed: _collapsed ? null : () => setState(() => _collapsed = true),
+          ),
+          IconButton(
+            icon: const Icon(Icons.unfold_more),
+            tooltip: 'Expand all',
+            onPressed: _collapsed ? () => setState(() => _collapsed = false) : null,
+          ),
           IconButton(
             icon: refreshState.isRefreshing
                 ? const SizedBox(
@@ -104,7 +126,7 @@ class DashboardScreen extends ConsumerWidget {
                           ),
                         ),
                         _CategorySummaryCard(label: section.label, isMetals: section.isMetals, assets: section.assets),
-                        ...section.assets.map((asset) => _AssetTile(asset: asset)),
+                        if (!_collapsed) ...section.assets.map((asset) => _AssetTile(asset: asset)),
                       ],
                     ),
               // Clears the FAB, which otherwise sits directly over the
@@ -615,34 +637,78 @@ class _AssetTile extends ConsumerWidget {
               // Gain/loss gets its own full-width row instead of squeezing
               // into the narrow trailing value column above -- that column
               // is only ~40% of the card's width, nowhere near enough for
-              // a string like "-17.5% · -EGP 30,240 · -EGP 602", so it was
-              // silently ellipsis-truncated to "-17.5% · -EGP…" and
-              // effectively unreadable. Full card width is enough for this
-              // to render on one line in the overwhelming majority of
-              // cases; on the rare string that's still too long, it wraps
-              // to a second line instead of ever truncating, since a
-              // number that's cut off is worse than one that takes two
-              // lines.
+              // "-17.5% · -EGP 30,240 · -$602" as one joined string, which
+              // used to silently ellipsis-truncate to "-17.5% · -EGP…" and
+              // was unreadable. Now one big +/- badge on the left carries
+              // the direction once, and three plain (unsigned) stacked
+              // rows on the right -- percentage, EGP, USD -- each get the
+              // full card width to themselves, so none can wrap or
+              // truncate.
               if (gainLossUsd != null && !hideValues) ...[
-                const SizedBox(height: 6),
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: MoneyText(
-                    [
-                      // Omitted (rather than shown as a bogus infinite
-                      // value) for a 0 cost basis -- see the comment where
-                      // gainLossPct is computed above.
-                      if (gainLossPct != null) '${gainLossUsd >= 0 ? '+' : ''}${gainLossPct.toStringAsFixed(1)}%',
-                      if (gainLossEgp != null) '${gainLossUsd >= 0 ? '+' : ''}${formatEgpWhole(gainLossEgp)}',
-                      '${gainLossUsd >= 0 ? '+' : ''}${formatUsdWhole(gainLossUsd)}',
-                    ].join(' · '),
-                    style: theme.textTheme.labelSmall?.copyWith(
-                      color: gainLossUsd >= 0 ? colors.good : colors.bad,
-                      fontWeight: FontWeight.w700,
+                const SizedBox(height: 8),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Container(
+                      width: 22,
+                      height: 22,
+                      decoration: BoxDecoration(
+                        color: (gainLossUsd >= 0 ? colors.good : colors.bad).withValues(alpha: 0.15),
+                        shape: BoxShape.circle,
+                      ),
+                      alignment: Alignment.center,
+                      child: Text(
+                        gainLossUsd >= 0 ? '+' : '−',
+                        style: TextStyle(
+                          color: gainLossUsd >= 0 ? colors.good : colors.bad,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                        ),
+                      ),
                     ),
-                    maskLength: 10,
-                    textAlign: TextAlign.right,
-                  ),
+                    const SizedBox(width: 10),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        // Omitted (rather than shown as a bogus infinite
+                        // value) for a 0 cost basis -- see the comment
+                        // where gainLossPct is computed above.
+                        if (gainLossPct != null)
+                          MoneyText(
+                            '${gainLossPct.abs().toStringAsFixed(1)}%',
+                            style: theme.textTheme.labelSmall?.copyWith(
+                              color: gainLossUsd >= 0 ? colors.good : colors.bad,
+                              fontWeight: FontWeight.w700,
+                            ),
+                            maskLength: 5,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        if (gainLossEgp != null)
+                          MoneyText(
+                            formatEgpWhole(gainLossEgp.abs()),
+                            style: theme.textTheme.labelSmall?.copyWith(
+                              color: gainLossUsd >= 0 ? colors.good : colors.bad,
+                              fontWeight: FontWeight.w700,
+                            ),
+                            maskLength: 8,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        MoneyText(
+                          formatUsdWhole(gainLossUsd.abs()),
+                          style: theme.textTheme.labelSmall?.copyWith(
+                            color: gainLossUsd >= 0 ? colors.good : colors.bad,
+                            fontWeight: FontWeight.w700,
+                          ),
+                          maskLength: 6,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ),
+                  ],
                 ),
               ],
               if (asset.purchaseDate != null && !hideValues) ...[

@@ -70,12 +70,23 @@ class _SnapshotCard extends ConsumerWidget {
           childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
           children: [
             _BreakdownRow(isAddition: true, label: 'Ledgers', amount: snapshot.ledgersTotal),
-            if (snapshot.usesLegacyFixedManualInputs) ...[
+            // A snapshot saved on a build from before cardsRecorded/
+            // manualInputsRecorded existed (schema v16) can't be
+            // retroactively told apart from a genuinely-legacy snapshot --
+            // both look like an empty cardEntries/manualInputEntries list,
+            // so the migration backfilled it into the legacy branch either
+            // way (see that migration's comment in database.dart). A real
+            // legacy row always carried actual fixed-column figures
+            // though; one where every single legacy value is exactly zero
+            // is a brand-new, genuinely-empty profile misclassified by
+            // that backfill, not real history -- render nothing for it
+            // rather than five fake "0.00" rows.
+            if (snapshot.usesLegacyFixedManualInputs && !snapshot.legacyManualInputsAreAllZero) ...[
               // Saved before manual inputs became user-managed — these two
               // were the fixed hardcoded pair at the time.
               _BreakdownRow(isAddition: false, label: 'Apartment savings', amount: snapshot.apartmentSavings),
               _BreakdownRow(isAddition: true, label: 'CIB Accounts Balance', amount: snapshot.cibAccountBalance),
-            ] else
+            ] else if (!snapshot.usesLegacyFixedManualInputs)
               for (final entry in snapshot.manualInputEntries)
                 _BreakdownRow(
                   isAddition: entry.isAddition,
@@ -83,7 +94,7 @@ class _SnapshotCard extends ConsumerWidget {
                   amount: entry.amount,
                   currency: entry.currency,
                 ),
-            if (snapshot.usesLegacyFixedCardColumns) ...[
+            if (snapshot.usesLegacyFixedCardColumns && !snapshot.legacyCardsAreAllZero) ...[
               // Saved before cards became user-managed — these three were
               // the fixed hardcoded set at the time.
               _BreakdownRow(isAddition: false, label: 'NBE Wallet owed', amount: snapshot.nbeOwed),
@@ -93,7 +104,7 @@ class _SnapshotCard extends ConsumerWidget {
                 amount: snapshot.cibExplorerWalletOwed,
               ),
               _BreakdownRow(isAddition: false, label: 'CIB Platinum owed', amount: snapshot.cibPlatinumOwed),
-            ] else
+            ] else if (!snapshot.usesLegacyFixedCardColumns)
               for (final entry in snapshot.cardEntries)
                 _BreakdownRow(
                   isAddition: false,

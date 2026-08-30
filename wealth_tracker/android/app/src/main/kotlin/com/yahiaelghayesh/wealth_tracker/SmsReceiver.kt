@@ -196,25 +196,28 @@ class SmsReceiver : BroadcastReceiver() {
         }
 
         /**
-         * Mirrors just the *trigger phrase* of `_cibPaymentPattern` and
-         * `_nbePaymentPattern` in lib/data/sms/bank_sms_parser.dart --
-         * deliberately much looser than either full Dart regex (no capture
-         * groups, no date/amount validation), since this only decides
-         * whether to skip the notification and run the silent background
-         * task instead. It never decides what gets written to the database;
-         * that's still entirely the tested Dart parser's call, run
-         * separately once the background task starts. Neither of CIB's or
-         * NBE's *charge* alerts (the ones that should still notify) contain
-         * either phrase, so a false match here would need genuinely new
-         * bank wording -- if a new payment-alert format is ever added to
+         * Mirrors just the *trigger phrase* of `_cibPaymentPattern`,
+         * `_nbePaymentPattern`, and `_nbeRefundPattern` in
+         * lib/data/sms/bank_sms_parser.dart -- deliberately much looser
+         * than any of the full Dart regexes (no capture groups, no date/
+         * amount validation), since this only decides whether to skip the
+         * notification and run the silent background task instead. It
+         * never decides what gets written to the database; that's still
+         * entirely the tested Dart parser's call, run separately once the
+         * background task starts. Neither of CIB's or NBE's *charge*
+         * alerts (the ones that should still notify) contain any of these
+         * phrases, so a false match here would need genuinely new bank
+         * wording -- if a new payment/refund-alert format is ever added to
          * the Dart parser, add its trigger phrase here too.
          */
         private val cibPaymentAlertPattern = Regex("نشكركم\\s*على\\s*سداد\\s*مبلغ")
         private val nbePaymentAlertPattern = Regex("تم\\s*سداد\\s*مبلغ.*?بطاقتكم\\s*الائتمانية")
+        private val nbeRefundAlertPattern = Regex("تم\\s*رد.*?بطاقتكم\\s*الائتمانية")
 
         private fun isCardPaymentOrRefundAlert(body: String): Boolean {
             return cibPaymentAlertPattern.containsMatchIn(body) ||
-                nbePaymentAlertPattern.containsMatchIn(body)
+                nbePaymentAlertPattern.containsMatchIn(body) ||
+                nbeRefundAlertPattern.containsMatchIn(body)
         }
     }
 }

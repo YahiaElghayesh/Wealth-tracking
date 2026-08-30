@@ -166,4 +166,17 @@ extension CalculatorSnapshotCustomItems on CalculatorSnapshot {
   /// Same idea as [usesLegacyFixedCardColumns], for [manualInputEntries]
   /// and [CalculatorSnapshot.manualInputsRecorded].
   bool get usesLegacyFixedManualInputs => !manualInputsRecorded;
+
+  /// True when every one of the three fixed legacy card columns is exactly
+  /// zero -- the signal the history screen uses to tell a genuinely-legacy
+  /// row (which always carried real owed figures) apart from a brand-new,
+  /// empty profile's snapshot that the v16 migration's isEmpty-based
+  /// backfill couldn't tell apart from legacy data (see that column's doc
+  /// comment in tables.dart). Real legacy history essentially never has
+  /// all three at exactly 0.
+  bool get legacyCardsAreAllZero => nbeOwed == 0 && cibExplorerWalletOwed == 0 && cibPlatinumOwed == 0;
+
+  /// Same idea as [legacyCardsAreAllZero], for the two fixed legacy
+  /// manual-input columns.
+  bool get legacyManualInputsAreAllZero => apartmentSavings == 0 && cibAccountBalance == 0;
 }

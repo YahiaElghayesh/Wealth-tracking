@@ -271,11 +271,53 @@ final _nbePaymentPattern = _BankSmsPattern(
   },
 );
 
+/// Matches NBE's Arabic *refund* alert (money returned to the card, e.g. a
+/// refunded online order) -- distinct from a payment/settlement, and the
+/// SMS itself says so explicitly (this amount doesn't count toward the
+/// month's minimum due, only the available balance), e.g.:
+/// "لقد تم رد EGP1500.00 على بطاقتكم الائتمانية المنتهية بـ# 4912 من Amazon
+/// Marketplace. يرجى ملاحظة أن هذا المبلغ سيتم إضافته إلى رصيد بطاقتك ولا
+/// يتم اعتباره بمثابة دفعة للمديونيات المستحقة لهذا الشهر."
+///
+/// No date is stated anywhere in this format, unlike every other pattern
+/// here -- occurredAt falls back to the moment this SMS is processed. Like
+/// a payment alert, the amount is NOT rounded up (never becomes a ledger
+/// entry, only feeds the card balance's fallback add-the-amount math).
+final _nbeRefundPattern = _BankSmsPattern(
+  RegExp(
+    r'تم\s*رد\s*([A-Za-z]{3})\s*([\d,]+(?:\.\d+)?)\s*على\s*بطاقتكم\s*الائتمانية\s*المنتهية\s*بـ#?\s*(\d{4})',
+    dotAll: true,
+  ),
+  (match, body) {
+    final currency = match.group(1)!.toUpperCase();
+    final amountStr = match.group(2)!.replaceAll(',', '');
+    final amount = double.tryParse(amountStr);
+    if (amount == null) return null;
+
+    final lastFour = match.group(3);
+
+    return ParsedBankSms(
+      vendor: 'Card refund',
+      amount: amount,
+      currency: currency,
+      occurredAt: DateTime.now(),
+      isCharge: false,
+      lastFourDigits: lastFour,
+    );
+  },
+);
+
 /// Every recognized bank format, tried in order — add a new bank or a new
 /// message type (e.g. a payment/refund alert) here once a real sample of
 /// its exact wording is available. Guessing at wording without one risks a
 /// pattern that silently never matches the real thing.
-final _patterns = [_cibChargePattern, _cibPaymentPattern, _nbeChargePattern, _nbePaymentPattern];
+final _patterns = [
+  _cibChargePattern,
+  _cibPaymentPattern,
+  _nbeChargePattern,
+  _nbePaymentPattern,
+  _nbeRefundPattern,
+];
 
 /// Parses a bank SMS body into a card transaction, or `null` if it doesn't
 /// match any known bank format.
