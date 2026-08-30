@@ -1,11 +1,10 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/models/currency.dart';
 import '../../../core/models/ledger_category.dart';
+import '../../../core/theme/app_colors.dart';
 import '../../../data/db/database.dart';
 import '../providers/ledger_providers.dart';
 
@@ -34,11 +33,19 @@ class AddTransactionScreen extends ConsumerStatefulWidget {
       _AddTransactionScreenState();
 }
 
-class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen>
-    with WidgetsBindingObserver {
+class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
   final _formKey = GlobalKey<FormState>();
+  // Never receives real keyboard focus -- see the keypad row built at the
+  // bottom of this screen. A previous version of this screen fought
+  // Android's own IME to keep it permanently open (re-requesting focus
+  // whenever it closed, re-showing it after the back button, ...), which
+  // never fully worked: the system keyboard can still flicker shut for a
+  // frame on things like the Enter key, and a *system* affordance was
+  // always going to have another way to dismiss itself eventually. A
+  // number pad that's just part of this screen's own layout -- a plain
+  // Column, not a platform overlay -- has no "closed" state to fight in
+  // the first place.
   final _amountController = TextEditingController();
-  final _amountFocusNode = FocusNode();
   final _customCategoryController = TextEditingController();
   bool _isPayment = true;
   // Null until the user actually taps a chip — defaults to whichever
@@ -50,36 +57,11 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen>
   String _currency = defaultCurrency;
   DateTime _date = DateTime.now();
 
-  // The numeric keyboard must stay open for the whole time this screen is
-  // up -- there's no "done" action on it that should also close it without
-  // leaving the screen. These two flags are the only legitimate reasons the
-  // amount field is allowed to actually lose focus: [_closing] while this
-  // screen is on its way out (saving, deleting, or being popped), and
-  // [_modalOpen] while a dialog that might have its own focusable field
-  // (the date picker's manual-entry mode, the delete confirmation) is up --
-  // fighting for focus in either case would either be pointless (the screen
-  // is going away) or actively break the dialog (yanking focus back to the
-  // amount field out from under whatever the dialog itself is focused on).
-  bool _closing = false;
-  bool _modalOpen = false;
-
-  /// The last-seen keyboard height, for [didChangeMetrics] to compare
-  /// against -- Android's back button (and some launchers'/keyboards' own
-  /// "hide" affordances) can close the IME without the amount field's
-  /// [FocusNode] ever reporting a focus change, since the platform side of
-  /// the text-input connection just closes while Flutter's own focus tree
-  /// stays exactly as it was. Watching the actual bottom view inset catches
-  /// that case regardless of *why* the keyboard went away, where the
-  /// focus-loss listener alone (see [_onAmountFocusChange]) cannot.
-  double _lastBottomInset = 0;
-
   bool get _isEditing => widget.existing != null;
 
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addObserver(this);
-    _amountFocusNode.addListener(_onAmountFocusChange);
     final existing = widget.existing;
     if (existing != null) {
       _isPayment = existing.amount >= 0;
@@ -90,117 +72,60 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen>
         _category = existing.category;
       }
     }
-    // autofocus alone isn't reliable right after a route push, and a plain
-    // post-frame focus request isn't enough either when this screen is
-    // reached via the quick-add widget's deep link: the enclosing route's
-    // push transition (and, on a cold start, the Activity's own window
-    // transition) can still be animating when the first frame completes,
-    // which silently swallows the focus request and never brings up the
-    // keyboard. Wait for the route transition to finish, then retry once
-    // shortly after as a safety net for the cold-start case.
-    WidgetsBinding.instance.addPostFrameCallback((_) async {
-      if (!mounted) return;
-      await _waitForRouteTransition();
-      if (!mounted) return;
-      FocusScope.of(context).requestFocus(_amountFocusNode);
-      await Future.delayed(const Duration(milliseconds: 150));
-      if (!mounted || _amountFocusNode.hasFocus) return;
-      FocusScope.of(context).requestFocus(_amountFocusNode);
-    });
-  }
-
-  Future<void> _waitForRouteTransition() {
-    final animation = ModalRoute.of(context)?.animation;
-    if (animation == null || animation.isCompleted) return Future.value();
-    final completer = Completer<void>();
-    void listener(AnimationStatus status) {
-      if (status == AnimationStatus.completed) {
-        animation.removeStatusListener(listener);
-        if (!completer.isCompleted) completer.complete();
-      }
-    }
-
-    animation.addStatusListener(listener);
-    // Belt-and-suspenders: don't wait forever if the animation never
-    // reports completed for some reason.
-    Future.delayed(const Duration(milliseconds: 500), () {
-      animation.removeStatusListener(listener);
-      if (!completer.isCompleted) completer.complete();
-    });
-    return completer.future;
   }
 
   @override
   void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
-    _amountFocusNode.removeListener(_onAmountFocusChange);
     _amountController.dispose();
-    _amountFocusNode.dispose();
     _customCategoryController.dispose();
     super.dispose();
   }
 
-  @override
-  void didChangeMetrics() {
-    final bottomInset = WidgetsBinding.instance.platformDispatcher.views.first.viewInsets.bottom;
-    final wasOpen = _lastBottomInset > 0;
-    final isOpen = bottomInset > 0;
-    _lastBottomInset = bottomInset;
-    if (!wasOpen || isOpen || _closing || _modalOpen) return;
-    // The keyboard just closed without this screen asking for that (back
-    // button, a keyboard's own "hide" icon, ...) -- force it back open.
-    // Re-requesting focus alone isn't enough here: the FocusNode likely
-    // never actually lost focus (see the field doc comment above), so
-    // Flutter sees nothing to act on unless the platform's own "show
-    // keyboard" channel call is also made directly.
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted || _closing || _modalOpen) return;
-      FocusScope.of(context).requestFocus(_amountFocusNode);
-      SystemChannels.textInput.invokeMethod<void>('TextInput.show');
-    });
+  /// Appends [input] (a digit, or ".") to the amount, matching how a plain
+  /// numeric keyboard would -- a lone leading "0" is replaced rather than
+  /// prefixed (typing "5" after "0" gives "5", not "05"), and a second "."
+  /// is ignored rather than accepted, same as [TextInputType.number]'s own
+  /// decimal filtering.
+  void _appendDigit(String input) {
+    final text = _amountController.text;
+    if (input == '.') {
+      if (text.contains('.')) return;
+      _setAmountText(text.isEmpty ? '0.' : '$text.');
+    } else {
+      _setAmountText(text == '0' ? input : text + input);
+    }
   }
 
-  /// Fires on *any* loss of focus, including ones nothing on this screen
-  /// caused directly -- the system's own "hide keyboard" affordance closes
-  /// the IME by ending the text input connection, which unfocuses the field
-  /// in Flutter's tree too even though no other widget here ever asked for
-  /// focus. Immediately asking for it back is what makes the keyboard
-  /// effectively impossible to dismiss without leaving the screen.
-  void _onAmountFocusChange() {
-    if (_amountFocusNode.hasFocus || _closing || _modalOpen) return;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted || _closing || _modalOpen) return;
-      FocusScope.of(context).requestFocus(_amountFocusNode);
+  void _backspace() {
+    final text = _amountController.text;
+    if (text.isEmpty) return;
+    _setAmountText(text.substring(0, text.length - 1));
+  }
+
+  /// Setting [TextEditingController.text] on its own resets the cursor to
+  /// the start; every keypad tap should instead leave it at the end, where
+  /// the next tap's digit will land, matching how typing normally feels.
+  void _setAmountText(String text) {
+    setState(() {
+      _amountController.value = TextEditingValue(
+        text: text,
+        selection: TextSelection.collapsed(offset: text.length),
+      );
     });
   }
 
   Future<void> _pickDate() async {
-    _modalOpen = true;
     final picked = await showDatePicker(
       context: context,
       initialDate: _date,
       firstDate: DateTime(2000),
       lastDate: DateTime.now().add(const Duration(days: 1)),
     );
-    _modalOpen = false;
     if (picked != null) setState(() => _date = picked);
-    _keepAmountFocused();
-  }
-
-  /// Every other control on this screen (category chips, the currency
-  /// dropdown, the payment-direction toggle, the date picker) is a quick
-  /// thumb tap meant to happen *while* still keying in the amount — none of
-  /// them should be able to dismiss the numeric keyboard the way picking
-  /// them normally would by stealing focus. Called right after each of
-  /// those interactions to hand focus straight back to the amount field.
-  void _keepAmountFocused() {
-    if (!mounted) return;
-    FocusScope.of(context).requestFocus(_amountFocusNode);
   }
 
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
-    _closing = true;
 
     final amount = double.parse(_amountController.text.trim());
     final selectedCategory = _category ?? _categoryNames.first;
@@ -246,7 +171,6 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen>
   }
 
   Future<void> _delete() async {
-    _modalOpen = true;
     final confirmed =
         await showDialog<bool>(
           context: context,
@@ -269,12 +193,7 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen>
           ),
         ) ??
         false;
-    _modalOpen = false;
-    if (!confirmed) {
-      _keepAmountFocused();
-      return;
-    }
-    _closing = true;
+    if (!confirmed) return;
 
     await ref
         .read(ledgerRepositoryProvider)
@@ -291,131 +210,204 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen>
     ];
     final selectedCategory = _category ?? _categoryNames.first;
 
-    return PopScope(
-      onPopInvokedWithResult: (didPop, result) => _closing = true,
-      child: Scaffold(
-        appBar: AppBar(
-          title: Text(_isEditing ? 'Edit' : 'Add'),
-          actions: [
-            if (_isEditing)
-              IconButton(
-                icon: const Icon(Icons.delete_outline),
-                tooltip: 'Delete',
-                onPressed: _delete,
-              ),
-            // Lives in the AppBar rather than a FloatingActionButton so it's
-            // never at risk of sitting behind the keyboard, which is now
-            // permanently open on this screen -- the AppBar is the one part
-            // of the layout the keyboard can never cover.
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(_isEditing ? 'Edit' : 'Add'),
+        actions: [
+          if (_isEditing)
             IconButton(
-              icon: const Icon(Icons.check),
-              tooltip: 'Save',
-              onPressed: _save,
+              icon: const Icon(Icons.delete_outline),
+              tooltip: 'Delete',
+              onPressed: _delete,
+            ),
+        ],
+      ),
+      // A plain Column, not a Scaffold-managed keyboard inset -- the number
+      // pad and Save bar are always-present layout, not something that
+      // slides in over content the way the system IME would, so there's
+      // nothing for either to ever hide behind.
+      body: SafeArea(
+        child: Column(
+          children: [
+            Expanded(
+              child: Form(
+                key: _formKey,
+                child: ListView(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                  children: [
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          flex: 2,
+                          child: TextFormField(
+                            controller: _amountController,
+                            readOnly: true,
+                            showCursor: true,
+                            style: Theme.of(context).textTheme.headlineMedium,
+                            decoration: const InputDecoration(hintText: '0.00'),
+                            validator: (v) {
+                              if (v == null || v.trim().isEmpty) return 'Required';
+                              final n = double.tryParse(v.trim());
+                              if (n == null || n <= 0) return 'Enter a number';
+                              return null;
+                            },
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: DropdownButtonFormField<String>(
+                            isExpanded: true,
+                            initialValue: _currency,
+                            items: supportedCurrencies
+                                .map(
+                                  (c) => DropdownMenuItem(value: c, child: Text(c)),
+                                )
+                                .toList(),
+                            onChanged: (c) => setState(() => _currency = c!),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    SegmentedButton<bool>(
+                      segments: const [
+                        ButtonSegment(value: true, label: Text('You Paid')),
+                        ButtonSegment(value: false, label: Text('Paid to You')),
+                      ],
+                      selected: {_isPayment},
+                      onSelectionChanged: (s) => setState(() => _isPayment = s.first),
+                    ),
+                    const SizedBox(height: 16),
+                    InkWell(
+                      onTap: _pickDate,
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.calendar_today, size: 18),
+                            const SizedBox(width: 12),
+                            Text(
+                              '${_date.year}-${_date.month.toString().padLeft(2, '0')}-${_date.day.toString().padLeft(2, '0')}',
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    // Categories sit last, closest to the bottom of the
+                    // scrollable content -- the control the user reaches for
+                    // most, kept within easy one-thumb reach instead of up
+                    // by the amount field.
+                    if (_isPayment) ...[
+                      const SizedBox(height: 20),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: _categoryNames.map((c) {
+                          return ChoiceChip(
+                            label: Text(c),
+                            selected: selectedCategory == c,
+                            onSelected: (_) => setState(() => _category = c),
+                          );
+                        }).toList(),
+                      ),
+                      if (selectedCategory == 'Other') ...[
+                        const SizedBox(height: 12),
+                        TextFormField(
+                          controller: _customCategoryController,
+                          decoration: const InputDecoration(hintText: 'Category'),
+                        ),
+                      ],
+                    ],
+                  ],
+                ),
+              ),
+            ),
+            _NumericKeypad(onDigit: _appendDigit, onBackspace: _backspace),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+              child: SizedBox(
+                width: double.infinity,
+                height: 48,
+                child: FilledButton.icon(
+                  onPressed: _save,
+                  icon: const Icon(Icons.check),
+                  label: const Text('Save'),
+                ),
+              ),
             ),
           ],
         ),
-        body: Form(
-          key: _formKey,
-          child: ListView(
-            padding: const EdgeInsets.all(16),
-            children: [
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
+      ),
+    );
+  }
+}
+
+/// A plain in-app number pad standing in for the system keyboard on this
+/// screen's amount field -- see the field doc comment on
+/// [_AddTransactionScreenState._amountController] for why. Four rows of
+/// three: digits 1-9, then "." / 0 / backspace, each a full-width tappable
+/// cell rather than a small icon-sized target.
+class _NumericKeypad extends StatelessWidget {
+  const _NumericKeypad({required this.onDigit, required this.onBackspace});
+
+  final void Function(String digit) onDigit;
+  final VoidCallback onBackspace;
+
+  static const _rows = [
+    ['1', '2', '3'],
+    ['4', '5', '6'],
+    ['7', '8', '9'],
+    ['.', '0', '⌫'],
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.appColors;
+    return Container(
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        border: Border(top: BorderSide(color: colors.border)),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          for (final row in _rows)
+            Row(
+              children: [
+                for (final key in row)
                   Expanded(
-                    flex: 2,
-                    child: TextFormField(
-                      controller: _amountController,
-                      focusNode: _amountFocusNode,
-                      style: Theme.of(context).textTheme.headlineMedium,
-                      decoration: const InputDecoration(hintText: '0.00'),
-                      keyboardType: const TextInputType.numberWithOptions(
-                        decimal: true,
-                      ),
-                      validator: (v) {
-                        if (v == null || v.trim().isEmpty) return 'Required';
-                        final n = double.tryParse(v.trim());
-                        if (n == null || n <= 0) return 'Enter a number';
-                        return null;
-                      },
+                    child: _KeypadKey(
+                      label: key,
+                      onTap: key == '⌫'
+                          ? onBackspace
+                          : () => onDigit(key),
                     ),
                   ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: DropdownButtonFormField<String>(
-                      isExpanded: true,
-                      initialValue: _currency,
-                      items: supportedCurrencies
-                          .map(
-                            (c) => DropdownMenuItem(value: c, child: Text(c)),
-                          )
-                          .toList(),
-                      onChanged: (c) {
-                        setState(() => _currency = c!);
-                        _keepAmountFocused();
-                      },
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              SegmentedButton<bool>(
-                segments: const [
-                  ButtonSegment(value: true, label: Text('You Paid')),
-                  ButtonSegment(value: false, label: Text('Paid to You')),
-                ],
-                selected: {_isPayment},
-                onSelectionChanged: (s) {
-                  setState(() => _isPayment = s.first);
-                  _keepAmountFocused();
-                },
-              ),
-              const SizedBox(height: 16),
-              InkWell(
-                onTap: _pickDate,
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 8),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.calendar_today, size: 18),
-                      const SizedBox(width: 12),
-                      Text(
-                        '${_date.year}-${_date.month.toString().padLeft(2, '0')}-${_date.day.toString().padLeft(2, '0')}',
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              // Categories sit last, closest to the bottom of the screen --
-              // the control the user reaches for most, kept within easy
-              // one-thumb reach instead of up by the amount field.
-              if (_isPayment) ...[
-                const SizedBox(height: 20),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: _categoryNames.map((c) {
-                    return ChoiceChip(
-                      label: Text(c),
-                      selected: selectedCategory == c,
-                      onSelected: (_) {
-                        setState(() => _category = c);
-                        _keepAmountFocused();
-                      },
-                    );
-                  }).toList(),
-                ),
-                if (selectedCategory == 'Other') ...[
-                  const SizedBox(height: 12),
-                  TextFormField(
-                    controller: _customCategoryController,
-                    decoration: const InputDecoration(hintText: 'Category'),
-                  ),
-                ],
               ],
-              const SizedBox(height: 24),
-            ],
-          ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _KeypadKey extends StatelessWidget {
+  const _KeypadKey({required this.label, required this.onTap});
+
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: SizedBox(
+        height: 52,
+        child: Center(
+          child: Text(label, style: Theme.of(context).textTheme.headlineSmall),
         ),
       ),
     );
