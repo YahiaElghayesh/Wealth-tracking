@@ -303,45 +303,70 @@ class _CounterpartyTile extends ConsumerWidget {
       ),
       child: Card(
         margin: const EdgeInsets.only(bottom: 12),
-        child: ListTile(
-          leading: const CircleAvatar(child: Icon(Icons.account_balance_wallet_outlined)),
-          title: Text(hideValues ? '••••••' : counterparty.name),
-          subtitle: hideValues
-              ? null
-              : balance == null
-                  ? const Text('Loading…')
-                  : balance == 0
-                      ? const Text('Settled up')
-                      : Row(
-                          children: [
-                            Text(balance > 0 ? 'Owes you ' : 'You owe '),
-                            Flexible(
-                              child: MoneyText(
-                                formatMoney(balance.abs(), defaultCurrency),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                          ],
-                        ),
-          trailing: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              IconButton(
-                icon: const Icon(Icons.add_to_home_screen_outlined, size: 20),
-                tooltip: 'Pin to home screen',
-                onPressed: () => _pinShortcut(context),
-              ),
-              IconButton(
-                icon: const Icon(Icons.edit_outlined, size: 20),
-                tooltip: 'Edit',
-                onPressed: () => _edit(context, ref),
-              ),
-              const Icon(Icons.chevron_right),
-            ],
-          ),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
           onTap: () => Navigator.of(context).push(
             MaterialPageRoute(builder: (_) => CounterpartyDetailScreen(counterparty: counterparty)),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 8, 12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const CircleAvatar(child: Icon(Icons.account_balance_wallet_outlined)),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        hideValues ? '••••••' : counterparty.name,
+                        style: Theme.of(context).textTheme.titleMedium,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.add_to_home_screen_outlined, size: 20),
+                      tooltip: 'Pin to home screen',
+                      onPressed: () => _pinShortcut(context),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.edit_outlined, size: 20),
+                      tooltip: 'Edit',
+                      onPressed: () => _edit(context, ref),
+                    ),
+                    const Icon(Icons.chevron_right),
+                  ],
+                ),
+                // The balance gets its own full-width row below the name
+                // instead of squeezing into a ListTile subtitle next to
+                // three trailing icons -- that left barely any room for
+                // the amount, ellipsis-truncating a real balance like
+                // "13,976.00" down to "13,9…" and making it unreadable.
+                if (!hideValues) ...[
+                  const SizedBox(height: 4),
+                  Padding(
+                    padding: const EdgeInsets.only(left: 52),
+                    child: balance == null
+                        ? const Text('Loading…')
+                        : balance == 0
+                            ? const Text('Settled up')
+                            : Row(
+                                children: [
+                                  Text(balance > 0 ? 'Owes you ' : 'You owe '),
+                                  Flexible(
+                                    child: MoneyText(
+                                      formatMoney(balance.abs(), defaultCurrency),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                  ),
+                ],
+              ],
+            ),
           ),
         ),
       ),

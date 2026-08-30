@@ -29,12 +29,12 @@ class DashboardScreen extends ConsumerStatefulWidget {
 }
 
 class _DashboardScreenState extends ConsumerState<DashboardScreen> {
-  /// When true, every category section shows just its summary card, with
-  /// the individual asset rows underneath hidden -- toggled by the two
-  /// "standard" collapse/expand AppBar buttons rather than per-section,
-  /// since the ask was "collapse -> everything hides, expand -> everything
-  /// shows".
-  bool _collapsed = false;
+  /// Category labels currently showing their individual asset rows --
+  /// every section starts collapsed (behind just its summary card) until
+  /// the user taps that summary to expand it, tapping again to collapse
+  /// it back. Replaces the earlier AppBar-level collapse-all/expand-all
+  /// buttons with this simpler, more direct per-section toggle.
+  final Set<String> _expandedSections = {};
 
   @override
   Widget build(BuildContext context) {
@@ -50,16 +50,6 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
         title: const Text('Net Worth'),
         actions: [
           const HideValuesAction(),
-          IconButton(
-            icon: const Icon(Icons.unfold_less),
-            tooltip: 'Collapse all',
-            onPressed: _collapsed ? null : () => setState(() => _collapsed = true),
-          ),
-          IconButton(
-            icon: const Icon(Icons.unfold_more),
-            tooltip: 'Expand all',
-            onPressed: _collapsed ? () => setState(() => _collapsed = false) : null,
-          ),
           IconButton(
             icon: refreshState.isRefreshing
                 ? const SizedBox(
@@ -112,23 +102,45 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                   child: Center(child: Text('No assets yet. Tap + to add one.')),
                 )
               else
-                ..._groupedByCategory(assets).expand(
-                      (section) => [
-                        Padding(
-                          padding: const EdgeInsets.fromLTRB(4, 12, 4, 6),
-                          child: Text(
-                            hideValues ? '••••••' : section.label.toUpperCase(),
-                            style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                                  color: context.appColors.textDim,
-                                  fontWeight: FontWeight.w800,
-                                  letterSpacing: 0.5,
-                                ),
+                ..._groupedByCategory(assets).expand((section) {
+                  final expanded = _expandedSections.contains(section.label);
+                  return [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(4, 12, 4, 6),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              hideValues ? '••••••' : section.label.toUpperCase(),
+                              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                                    color: context.appColors.textDim,
+                                    fontWeight: FontWeight.w800,
+                                    letterSpacing: 0.5,
+                                  ),
+                            ),
                           ),
-                        ),
-                        _CategorySummaryCard(label: section.label, isMetals: section.isMetals, assets: section.assets),
-                        if (!_collapsed) ...section.assets.map((asset) => _AssetTile(asset: asset)),
-                      ],
+                          Icon(
+                            expanded ? Icons.expand_less : Icons.expand_more,
+                            size: 18,
+                            color: context.appColors.textDim,
+                          ),
+                        ],
+                      ),
                     ),
+                    InkWell(
+                      borderRadius: BorderRadius.circular(14),
+                      onTap: () => setState(() {
+                        if (expanded) {
+                          _expandedSections.remove(section.label);
+                        } else {
+                          _expandedSections.add(section.label);
+                        }
+                      }),
+                      child: _CategorySummaryCard(label: section.label, isMetals: section.isMetals, assets: section.assets),
+                    ),
+                    if (expanded) ...section.assets.map((asset) => _AssetTile(asset: asset)),
+                  ];
+                }),
               // Clears the FAB, which otherwise sits directly over the
               // last row's value -- the FAB floats at a fixed screen
               // position, not accounted for by the ListView's own layout.
