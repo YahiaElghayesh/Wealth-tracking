@@ -147,6 +147,19 @@ class YahooFinancePriceProvider implements PriceProvider {
     if (aliased != null) {
       final (symbol, name, exchange) = aliased;
       results.add(StockSearchResult(symbol: symbol, name: name, exchange: exchange, country: ''));
+    } else if (RegExp(r'^[A-Za-z0-9]{1,12}$').hasMatch(trimmed)) {
+      // A bare alnum token with no space or dot reads as an already-known
+      // ticker, not a company-name search -- offer it directly as an
+      // Egyptian Exchange candidate ahead of anything Yahoo's own fuzzy
+      // search returns. This is the actual fix for EGX tickers
+      // specifically: Yahoo's free-text search has proven unreliable for
+      // smaller/EGX-listed names (COMI, PHDC, TMGH, ORHD, ACTF, ...) even
+      // though the exact `.CA`-suffixed symbol prices correctly once
+      // selected, and there's no real "search by company name" habit for
+      // EGX the way there is for US stocks -- a user typing one of these
+      // already knows the exact ticker.
+      final upper = trimmed.toUpperCase();
+      results.add(StockSearchResult(symbol: '$upper.CA', name: '$upper (Egyptian Exchange)', exchange: 'Cairo', country: ''));
     }
 
     try {
