@@ -179,6 +179,15 @@ class NetWorthSummaryCard extends ConsumerWidget {
 /// side, no value here is ever tight enough to wrap or overflow, and
 /// every row is trivially the same size as the others.
 class _LegendRow extends StatelessWidget {
+  /// Fixed width of the trailing EGP/USD value column -- the same on every
+  /// row regardless of how long that row's own figures are, so all three
+  /// rows' values line up on an identical right edge instead of each
+  /// row's value column only being as wide as its own longest line. Wide
+  /// enough for whole-EGP totals into the tens of millions
+  /// ("EGP 12,340,000") with room to spare; genuinely larger figures still
+  /// fall back to the existing ellipsis rather than overflowing.
+  static const _valueColumnWidth = 132.0;
+
   const _LegendRow({
     required this.icon,
     required this.label,
@@ -215,51 +224,71 @@ class _LegendRow extends StatelessWidget {
         children: [
           Icon(icon, size: 14, color: color),
           const SizedBox(width: 6),
-          Flexible(
-            child: Text(
-              label,
-              style: theme.textTheme.bodySmall?.copyWith(color: colors.textDim),
-              textAlign: TextAlign.left,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
+          // Everything to the left of the value column lives inside one
+          // Expanded -- as opposed to a Spacer after a loosely-sized label
+          // -- so the value column below gets the same fixed width
+          // (_valueColumnWidth) on every row regardless of how much room
+          // "Liquid"/"Current"/"Non-liquid" and their percent actually
+          // need. A Spacer alone still left the value column's own width
+          // (and so its left edge, and where wrapping/ellipsis kicked in)
+          // free to vary row to row with the value text's own length --
+          // its *right* edge landed in the same place either way, but a
+          // fixed width removes any doubt and matches what was asked for.
+          Expanded(
+            child: Row(
+              children: [
+                Flexible(
+                  child: Text(
+                    label,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: colors.textDim,
+                    ),
+                    textAlign: TextAlign.left,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                const SizedBox(width: 6),
+                MoneyText(
+                  pct,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
+                  maskLength: 3,
+                ),
+              ],
             ),
           ),
-          const SizedBox(width: 6),
-          MoneyText(
-            pct,
-            style: theme.textTheme.bodySmall?.copyWith(
-              fontWeight: FontWeight.w700,
+          SizedBox(
+            width: _valueColumnWidth,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                MoneyText(
+                  egpValue == null ? '—' : formatEgpWhole(egpValue!),
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: colors.textDim,
+                    fontWeight: FontWeight.w700,
+                  ),
+                  textAlign: TextAlign.right,
+                  maskLength: 7,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                MoneyText(
+                  '≈ ${formatUsdWhole(usdValue)}',
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: colors.textDim,
+                    fontSize: 10.5,
+                  ),
+                  textAlign: TextAlign.right,
+                  maskLength: 5,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
             ),
-            maskLength: 3,
-          ),
-          const Spacer(),
-          Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              MoneyText(
-                egpValue == null ? '—' : formatEgpWhole(egpValue!),
-                style: theme.textTheme.labelSmall?.copyWith(
-                  color: colors.textDim,
-                  fontWeight: FontWeight.w700,
-                ),
-                textAlign: TextAlign.right,
-                maskLength: 7,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-              MoneyText(
-                '≈ ${formatUsdWhole(usdValue)}',
-                style: theme.textTheme.labelSmall?.copyWith(
-                  color: colors.textDim,
-                  fontSize: 10.5,
-                ),
-                textAlign: TextAlign.right,
-                maskLength: 5,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ],
           ),
         ],
       ),
