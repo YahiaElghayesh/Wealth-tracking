@@ -14,6 +14,7 @@ import 'gold_api_com_price_provider.dart';
 import 'metals_price_provider.dart';
 import 'price_refresh_orchestrator.dart';
 import 'price_refresh_service.dart';
+import 'stockanalysis_price_provider.dart';
 import 'yahoo_finance_price_provider.dart';
 import 'yahoo_metals_price_provider.dart';
 
@@ -117,7 +118,10 @@ Future<void> runBackgroundPriceRefresh() async {
         ),
         secondary: YahooMetalsPriceProvider(),
       ),
-      stockProvider: YahooFinancePriceProvider(),
+      stockProvider: FallbackPriceProvider(
+        primary: YahooFinancePriceProvider(),
+        secondary: StockAnalysisPriceProvider(),
+      ),
     );
 
     final outcome = await refreshAndPersistPrices(

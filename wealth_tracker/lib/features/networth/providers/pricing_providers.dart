@@ -10,6 +10,8 @@ import '../../../data/pricing/metals_price_provider.dart';
 import '../../../data/pricing/price_provider.dart';
 import '../../../data/pricing/price_refresh_orchestrator.dart';
 import '../../../data/pricing/price_refresh_service.dart';
+import '../../../data/pricing/stock_search_aggregator.dart';
+import '../../../data/pricing/stockanalysis_price_provider.dart';
 import '../../../data/pricing/yahoo_finance_price_provider.dart';
 import '../../../data/pricing/yahoo_metals_price_provider.dart';
 import '../../../data/repositories/price_cache_repository.dart';
@@ -23,7 +25,28 @@ final priceCacheRepositoryProvider = Provider<PriceCacheRepository>((ref) {
 final cryptoPriceProviderProvider = Provider((ref) => CoinGeckoPriceProvider());
 final fxPriceProviderProvider = Provider((ref) => FxPriceProvider());
 
-final stockPriceProviderProvider = Provider((ref) => YahooFinancePriceProvider());
+final yahooFinancePriceProviderProvider = Provider((ref) => YahooFinancePriceProvider());
+final stockAnalysisPriceProviderProvider = Provider((ref) => StockAnalysisPriceProvider());
+
+/// Yahoo Finance first, stockanalysis.com filling in whatever Yahoo
+/// couldn't price -- primarily EGX names Yahoo indexes under an opaque
+/// code instead of the plain ticker. See [StockAnalysisPriceProvider]'s
+/// doc comment for why this is safe to add as a pure fallback.
+final stockPriceProviderProvider = Provider<PriceProvider>((ref) {
+  return FallbackPriceProvider(
+    primary: ref.watch(yahooFinancePriceProviderProvider),
+    secondary: ref.watch(stockAnalysisPriceProviderProvider),
+  );
+});
+
+/// Search, unlike price fetching, merges both sources rather than treating
+/// one as a fallback for the other -- see [StockSearchAggregator].
+final stockSearchAggregatorProvider = Provider((ref) {
+  return StockSearchAggregator(
+    yahoo: ref.watch(yahooFinancePriceProviderProvider),
+    stockAnalysis: ref.watch(stockAnalysisPriceProviderProvider),
+  );
+});
 
 /// The real, three-tier gold/silver fallback chain used both by the normal
 /// refresh flow and by the Settings > Live Prices "Test price sources"
@@ -179,7 +202,12 @@ class PriceSourceTestController extends Notifier<PriceSourceTestState> {
       await check('Currency exchange (open.er-api.com)', ref.read(fxPriceProviderProvider), {'EGP'}),
       await check('Gold', ref.read(metalsPriceProviderProvider), {'XAU_GRAM_24K'}),
       await check('Silver', ref.read(metalsPriceProviderProvider), {'XAG_GRAM'}),
-      await check('Stocks (Yahoo Finance)', ref.read(stockPriceProviderProvider), {'AAPL'}),
+      await check('Stocks (Yahoo Finance)', ref.read(yahooFinancePriceProviderProvider), {'AAPL'}),
+      await check(
+        'Stocks (StockAnalysis.com, EGX fallback)',
+        ref.read(stockAnalysisPriceProviderProvider),
+        {'SA:s:aapl'},
+      ),
     ];
 
     state = state.copyWith(isTesting: false, results: results);

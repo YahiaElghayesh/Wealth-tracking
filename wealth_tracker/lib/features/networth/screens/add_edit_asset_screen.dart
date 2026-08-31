@@ -136,7 +136,7 @@ class _AddEditAssetScreenState extends ConsumerState<AddEditAssetScreen> {
       return;
     }
     _stockSearchDebounce = Timer(const Duration(milliseconds: 350), () async {
-      final results = await ref.read(stockPriceProviderProvider).searchStocks(query);
+      final results = await ref.read(stockSearchAggregatorProvider).search(query);
       if (mounted && query == _lastStockQuery) {
         setState(() => _stockResults = results);
       }
