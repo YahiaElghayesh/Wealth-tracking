@@ -299,10 +299,26 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
       setState(() {
         _customItems.clear();
         _saving = false;
-        // Re-seed on the next build: cards back to their limits, manual
-        // inputs to what was just saved (now the latest snapshot).
+        // Re-seed cards back to their limits on the next build -- their
+        // seeding reads creditCardsStreamProvider directly, which this save
+        // never touches, so there's no race to worry about there.
+        //
+        // Manual inputs are deliberately NOT cleared the same way. Their
+        // seeding reads calculatorHistoryStreamProvider's latest entry --
+        // the exact stream this save just wrote a new row to -- and that
+        // stream's own async update is not guaranteed to have arrived by
+        // the time the next build's post-frame callback runs. Clearing
+        // here raced it and usually lost: the callback fired first,
+        // re-seeded from the *previous* (pre-save) snapshot instead of
+        // this one, and marked itself seeded before the real update ever
+        // landed -- silently overwriting what the user just typed and
+        // saved with a stale older value (the reported "manual input
+        // reverted to an old number by itself" bug). Every manual input's
+        // controller already holds exactly what was just saved -- that's
+        // literally where manualInputEntries above came from -- so nothing
+        // needs to change; leaving _seededManualInputIds alone here is what
+        // actually keeps it that way.
         _seededCardIds.clear();
-        _seededManualInputIds.clear();
       });
 
       final savedAt = TimeOfDay.now();
