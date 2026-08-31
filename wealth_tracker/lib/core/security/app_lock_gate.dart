@@ -61,6 +61,24 @@ class _AppLockGateState extends ConsumerState<AppLockGate>
   bool _checking = false;
   String? _error;
 
+  /// When a check last actually succeeded, in this same widget instance --
+  /// distinct from the persisted [SettingsRepository.lastBiometricUnlockAt]
+  /// (which exists to survive a process death) and used for a completely
+  /// different purpose: some devices fire a spurious pause-then-resume (or
+  /// resume-only) app-lifecycle transition on *this app's own Activity*
+  /// while the OS biometric sheet itself is showing or being dismissed --
+  /// an OEM quirk in how that sheet is hosted, nothing this app controls.
+  /// Without this guard, that spurious resume immediately re-evaluates the
+  /// grace period; at the default of 0 minutes that always reads as
+  /// "expired", so it re-locks and re-prompts on the spot -- which
+  /// succeeds, fires the same spurious resume again, and loops forever
+  /// (confirmed: a real "stuck scanning my face over and over" report).
+  /// [_resumeDebounce] is checked before any relock decision so a resume
+  /// landing implausibly soon after a real success is treated as an
+  /// artifact of that same success, not a new app-open event.
+  DateTime? _lastLocalUnlockAt;
+  static const _resumeDebounce = Duration(seconds: 2);
+
   @override
   void initState() {
     super.initState();
@@ -74,6 +92,7 @@ class _AppLockGateState extends ConsumerState<AppLockGate>
     _setUnlocked(
       !settings.biometricLockEnabled || _withinGracePeriod(settings),
     );
+    if (_unlocked) _lastLocalUnlockAt = DateTime.now();
     if (!_unlocked) _scheduleAutoPrompt();
   }
 
@@ -122,6 +141,11 @@ class _AppLockGateState extends ConsumerState<AppLockGate>
     // every single resume, exactly as pausing used to do unconditionally --
     // zero elapsed time never satisfies "still within a positive window".)
     if (state != AppLifecycleState.resumed || !_unlocked) return;
+    final lastLocalUnlock = _lastLocalUnlockAt;
+    if (lastLocalUnlock != null &&
+        DateTime.now().difference(lastLocalUnlock) < _resumeDebounce) {
+      return;
+    }
     final settings = ref.read(settingsRepositoryProvider);
     if (!settings.biometricLockEnabled || _withinGracePeriod(settings)) return;
     // Locks immediately, synchronously with the resume event -- not left
@@ -150,6 +174,7 @@ class _AppLockGateState extends ConsumerState<AppLockGate>
       if (!supported) {
         // No fingerprint/face/PIN lock available on this device at all --
         // don't trap the user behind a gate that could never open.
+        _lastLocalUnlockAt = DateTime.now();
         setState(() {
           _setUnlocked(true);
           _checking = false;
@@ -168,6 +193,7 @@ class _AppLockGateState extends ConsumerState<AppLockGate>
         persistAcrossBackgrounding: true,
       );
       if (ok) {
+        _lastLocalUnlockAt = DateTime.now();
         // Persisted, not just kept in [_unlocked] -- see
         // [SettingsRepository.lastBiometricUnlockAt]'s own doc comment for
         // why a grace period needs this to survive a process death.
