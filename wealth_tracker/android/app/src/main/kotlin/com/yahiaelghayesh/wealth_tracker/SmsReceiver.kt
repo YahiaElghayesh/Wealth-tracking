@@ -57,9 +57,13 @@ class SmsReceiver : BroadcastReceiver() {
 
         // A single logical SMS can arrive as multiple concatenated parts;
         // Android delivers them together in one broadcast.
-        val body = messages.joinToString(separator = "") { it.messageBody ?: "" }
+        val rawBody = messages.joinToString(separator = "") { it.messageBody ?: "" }
         val timestampMillis = messages.first().timestampMillis
-        if (body.isBlank()) return
+        if (rawBody.isBlank()) return
+        // See normalizeSmsBody's own doc comment -- strips invisible bidi
+        // marks banks embed around numbers in Arabic text before any of the
+        // checks below (or the Dart parser downstream) ever see this text.
+        val body = normalizeSmsBody(rawBody)
 
         // Every SMS used to trigger a notification, bank or not -- a
         // promotional text mentioning a percentage-off or a cash amount
@@ -161,6 +165,26 @@ class SmsReceiver : BroadcastReceiver() {
         // lib/data/sms/sms_ledger_processor.dart, which
         // priceRefreshCallbackDispatcher switches on.
         private const val SMS_AUTO_UPDATE_TASK_NAME = "smsAutoUpdate"
+
+        /**
+         * Strips invisible Unicode bidi/formatting characters banks commonly
+         * embed in Arabic SMS text to control how a Western-digit number (an
+         * amount, a card's last-4-digits) displays inside right-to-left prose
+         * -- RLM/LRM marks, explicit embedding/override/isolate direction
+         * controls, and zero-width joiners -- none of which \s matches in
+         * Kotlin's regex engine, so one sitting between two pieces a pattern
+         * below expects adjacent (e.g. a currency code and its amount) would
+         * silently defeat the match with no visible sign why, since these
+         * characters render as nothing at all. Mirrors _normalizeSmsBody in
+         * lib/data/sms/bank_sms_parser.dart -- kept in sync so this receiver's
+         * own gate and the Dart parser downstream never disagree about
+         * whether a given SMS looks like a bank alert.
+         */
+        private val bidiMarkPattern = Regex("[\u200B-\u200F\u202A-\u202E\u2066-\u2069\u061C]")
+
+        fun normalizeSmsBody(body: String): String {
+            return bidiMarkPattern.replace(body, "").replace('\u00A0', ' ')
+        }
 
         /**
          * The criteria a real bank card alert states together -- see the

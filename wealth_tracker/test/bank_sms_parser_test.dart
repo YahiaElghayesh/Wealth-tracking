@@ -139,5 +139,24 @@ void main() {
       expect(result.lastFourDigits, '4912');
       expect(result.availableBalanceAfter, isNull);
     });
+
+    test('parses the same refund format even with invisible RTL marks banks embed around numbers', () {
+      // Real Arabic bank SMS often surrounds a Western-digit number sitting
+      // inside right-to-left prose with invisible bidi control characters
+      // (here: RTL mark \u200f around "EGP1500.00" and "4912") so it
+      // displays correctly -- these aren't whitespace, so `\s*` in the
+      // pattern wouldn't bridge across one uncorrected. This is the same
+      // body as the previous test, just with those marks spliced in.
+      const body = 'لقد تم رد \u200fEGP1500.00\u200f على بطاقتكم الائتمانية المنتهية بـ# \u200f4912\u200f '
+          'من Amazon Marketpl. يرجى ملاحظة أن هذا المبلغ سيتم إضافته إلى رصيد بطاقتك ولا يتم اعتباره '
+          'بمثابة دفعة للمديونيات المستحقة لهذا الشهر.';
+
+      final result = parseBankSms(body);
+
+      expect(result, isNotNull);
+      expect(result!.currency, 'EGP');
+      expect(result.amount, 1500.0);
+      expect(result.lastFourDigits, '4912');
+    });
   });
 }

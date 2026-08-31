@@ -1,3 +1,44 @@
+/// Strips invisible Unicode bidi/formatting characters banks commonly
+/// embed in Arabic SMS text to control how a Western-digit number (an
+/// amount, a card's last-4-digits) displays inside right-to-left prose —
+/// RLM/LRM marks, explicit embedding/override/isolate direction controls,
+/// and zero-width joiners -- none of which `\s` matches in either Dart's
+/// or Kotlin's regex engine, so one sitting between two pieces every
+/// pattern below expects adjacent (e.g. "رد" and "EGP", or "بـ#" and
+/// "4912") would silently break the match with no visible sign why, since
+/// these characters render as nothing at all. Also folds a non-breaking
+/// space to a plain one and Arabic-Indic digits (٠-٩) to Western ones, for
+/// the same reason -- a locale-driven rendering choice, not a per-bank
+/// format difference, so this normalization applies uniformly before any
+/// pattern below ever runs rather than needing to be baked into each one.
+String _normalizeSmsBody(String body) {
+  // U+200B-U+200F: zero-width space/non-joiner/joiner, LTR mark, RTL mark.
+  // U+202A-U+202E: explicit embedding/override direction controls.
+  // U+2066-U+2069: explicit isolate direction controls.
+  // U+061C: Arabic letter mark.
+  final withoutBidiMarks = body.replaceAll(
+    RegExp('[\u200B-\u200F\u202A-\u202E\u2066-\u2069\u061C]'),
+    '',
+  );
+  final withNormalSpaces = withoutBidiMarks.replaceAll(' ', ' ');
+  const arabicIndicDigits = '٠١٢٣٤٥٦٧٨٩';
+  const extendedArabicIndicDigits = '۰۱۲۳۴۵۶۷۸۹';
+  final buffer = StringBuffer();
+  for (final rune in withNormalSpaces.runes) {
+    final char = String.fromCharCode(rune);
+    final arabicIndex = arabicIndicDigits.indexOf(char);
+    final extendedIndex = extendedArabicIndicDigits.indexOf(char);
+    if (arabicIndex != -1) {
+      buffer.write(arabicIndex);
+    } else if (extendedIndex != -1) {
+      buffer.write(extendedIndex);
+    } else {
+      buffer.write(char);
+    }
+  }
+  return buffer.toString();
+}
+
 /// A single card transaction extracted from a bank SMS — either a charge
 /// (a purchase, reduces the card's available balance) or a credit (a
 /// payment or refund, increases it).
@@ -330,12 +371,15 @@ final _patterns = [
 ];
 
 /// Parses a bank SMS body into a card transaction, or `null` if it doesn't
-/// match any known bank format.
+/// match any known bank format. [body] is run through [_normalizeSmsBody]
+/// first -- see its doc comment for why a raw, unnormalized SMS can defeat
+/// every pattern here despite looking identical to a human reader.
 ParsedBankSms? parseBankSms(String body) {
+  final normalized = _normalizeSmsBody(body);
   for (final pattern in _patterns) {
-    final match = pattern.regex.firstMatch(body);
+    final match = pattern.regex.firstMatch(normalized);
     if (match == null) continue;
-    final parsed = pattern.extract(match, body);
+    final parsed = pattern.extract(match, normalized);
     if (parsed != null) return parsed;
   }
   return null;
