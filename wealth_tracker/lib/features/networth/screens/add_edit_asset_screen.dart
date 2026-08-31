@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:drift/drift.dart' show Value;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/models/asset_category.dart';
 import '../../../core/models/currency.dart';
@@ -285,6 +286,25 @@ class _AddEditAssetScreenState extends ConsumerState<AddEditAssetScreen> {
           Text(
             'Covers US exchanges (NASDAQ/NYSE) and the Egyptian Exchange (EGX). No API key needed.',
             style: Theme.of(context).textTheme.bodySmall?.copyWith(color: context.appColors.textDim),
+          ),
+          const SizedBox(height: 4),
+          InkWell(
+            onTap: () {
+              final query = _symbolController.text.trim();
+              launchUrl(
+                Uri.https('finance.yahoo.com', '/lookup', {
+                  's': query.isEmpty ? 'EGX' : query,
+                }),
+                mode: LaunchMode.externalApplication,
+              );
+            },
+            child: Text(
+              "Not finding it? Look up the exact ticker on Yahoo Finance",
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: Theme.of(context).colorScheme.primary,
+                    decoration: TextDecoration.underline,
+                  ),
+            ),
           ),
           const SizedBox(height: 16),
           TextFormField(

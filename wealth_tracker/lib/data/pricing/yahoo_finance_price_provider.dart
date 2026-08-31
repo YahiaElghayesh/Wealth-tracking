@@ -147,20 +147,18 @@ class YahooFinancePriceProvider implements PriceProvider {
     if (aliased != null) {
       final (symbol, name, exchange) = aliased;
       results.add(StockSearchResult(symbol: symbol, name: name, exchange: exchange, country: ''));
-    } else if (RegExp(r'^[A-Za-z0-9]{1,12}$').hasMatch(trimmed)) {
-      // A bare alnum token with no space or dot reads as an already-known
-      // ticker, not a company-name search -- offer it directly as an
-      // Egyptian Exchange candidate ahead of anything Yahoo's own fuzzy
-      // search returns. This is the actual fix for EGX tickers
-      // specifically: Yahoo's free-text search has proven unreliable for
-      // smaller/EGX-listed names (COMI, PHDC, TMGH, ORHD, ACTF, ...) even
-      // though the exact `.CA`-suffixed symbol prices correctly once
-      // selected, and there's no real "search by company name" habit for
-      // EGX the way there is for US stocks -- a user typing one of these
-      // already knows the exact ticker.
-      final upper = trimmed.toUpperCase();
-      results.add(StockSearchResult(symbol: '$upper.CA', name: '$upper (Egyptian Exchange)', exchange: 'Cairo', country: ''));
     }
+    // No more "guess `<QUERY>.CA`" candidate here -- verified (via Yahoo's
+    // own listed quote pages) that this pattern is simply wrong for some
+    // EGX names: Yahoo indexes plenty of EGX-listed companies under an
+    // ISIN code instead of the plain ticker (Talaat Mostafa Group's real
+    // Yahoo symbol is EGS691S1C011.CA, not TMGH.CA), so guessing the
+    // suffix produced a *wrong*, silently-unpriceable result with false
+    // confidence -- worse than surfacing nothing. There's no general,
+    // non-hardcoded way to bridge that from this endpoint; see
+    // _rankedForQuery's name-match ranking below and the "Look up on
+    // Yahoo Finance" link on the asset entry screen for how this is
+    // handled instead.
 
     try {
       final response = await _dio.get<Map<String, dynamic>>(
@@ -201,16 +199,24 @@ class YahooFinancePriceProvider implements PriceProvider {
   /// user who already knows a symbol and types it exactly (e.g. "COMI")
   /// wants that result first, not buried under more Yahoo-prominent
   /// companies whose *name* happens to loosely match the query text too.
-  /// Reorders in place for exact symbol matches (ignoring a `.CA`/`.US`
-  /// style suffix and a leading `^`) first, then symbol-starts-with next,
-  /// leaving everything else in Yahoo's own relevance order.
+  /// Reorders in place: exact symbol match (ignoring a `.CA`/`.US` style
+  /// suffix and a leading `^`) first, symbol-starts-with next, then a
+  /// query-as-substring-of-name match -- this last tier matters
+  /// specifically for the EGX securities Yahoo indexes under an opaque ISIN
+  /// code instead of the plain ticker (e.g. Talaat Mostafa Group Holding's
+  /// real Yahoo symbol is an ISIN, not "TMGH"), where the symbol itself can
+  /// never match but the company name still can. Everything else stays in
+  /// Yahoo's own relevance order.
   List<StockSearchResult> _rankedForQuery(List<StockSearchResult> results, String query) {
     final normalizedQuery = query.toUpperCase().replaceAll(' ', '');
     int rank(StockSearchResult r) {
       final bareSymbol = r.symbol.toUpperCase().replaceAll('^', '').split('.').first;
       if (bareSymbol == normalizedQuery) return 0;
       if (bareSymbol.startsWith(normalizedQuery)) return 1;
-      return 2;
+      if (normalizedQuery.length >= 3 && r.name.toUpperCase().replaceAll(' ', '').contains(normalizedQuery)) {
+        return 2;
+      }
+      return 3;
     }
 
     final indexed = results.asMap().entries.toList()
