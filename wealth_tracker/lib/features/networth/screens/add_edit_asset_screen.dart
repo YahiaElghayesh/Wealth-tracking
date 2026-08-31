@@ -156,14 +156,25 @@ class _AddEditAssetScreenState extends ConsumerState<AddEditAssetScreen> {
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            // Crypto/stock assets get their name from the coin/ticker
-            // search below instead -- asking for it twice was redundant,
-            // and "Bitcoin" or "Apple Inc." is already exactly what the
-            // search selection carries.
-            if (_valuationMode != ValuationMode.crypto && _valuationMode != ValuationMode.stock) ...[
+            // Crypto assets get their name from the coin search below
+            // instead -- asking for it twice was redundant, and "Bitcoin"
+            // is already exactly what the search selection carries. Stock
+            // keeps this field: picking a search result still prefills it
+            // with the ticker, but a manually-typed symbol (needed for the
+            // EGX names Yahoo only indexes under an opaque ISIN-style code,
+            // e.g. EGS655L1C012.CA for Palm Hills) has no such prefill to
+            // fall back on, and that code is not a name anyone recognizes
+            // their own holding by.
+            if (_valuationMode != ValuationMode.crypto) ...[
               TextFormField(
                 controller: _nameController,
-                decoration: const InputDecoration(labelText: 'Name'),
+                decoration: InputDecoration(
+                  labelText: 'Name',
+                  helperText: _valuationMode == ValuationMode.stock
+                      ? 'Prefilled from the ticker -- edit it to whatever you actually recognize this holding by.'
+                      : null,
+                  helperMaxLines: 2,
+                ),
                 validator: (v) => (v == null || v.trim().isEmpty) ? 'Required' : null,
               ),
               const SizedBox(height: 16),
