@@ -52,10 +52,20 @@ class YahooFinancePriceProvider implements PriceProvider {
         final meta = await _fetchChartMeta(yahooSymbol);
         final price = meta?['regularMarketPrice'];
         if (price is! num) continue;
-        final currency = (meta?['currency'] as String?)?.toUpperCase();
+        // Yahoo omits `currency` outright for some ISIN-style EGX symbols
+        // (seen on Palm Hills' real symbol, EGS655L1C012.CA) -- falling
+        // through to "no conversion" in that case silently stored the raw
+        // EGP price as if it were already USD, a ~50x overstatement (the
+        // whole EGP/USD rate). [_inferCurrencyFromSuffix] covers that gap
+        // using Yahoo's own suffix convention, which every EGX symbol
+        // already carries regardless of which specific stock it is.
+        final currency = (meta?['currency'] as String?)?.toUpperCase() ?? _inferCurrencyFromSuffix(yahooSymbol);
+        // Still unknown (an unfamiliar suffix, no reported currency) --
+        // guessing USD is exactly the bug above; leave it unpriced instead.
+        if (currency == null) continue;
 
         var priceUsd = price.toDouble();
-        if (currency != null && currency != 'USD') {
+        if (currency != 'USD') {
           final rate = fxRateToUsd.containsKey(currency)
               ? fxRateToUsd[currency]
               : await _fetchFxRateToUsd(currency);
@@ -105,6 +115,20 @@ class YahooFinancePriceProvider implements PriceProvider {
     } on DioException {
       return null;
     }
+  }
+
+  /// Yahoo's own ticker-suffix convention already encodes the listing
+  /// exchange (see the class doc comment) -- and the exchange determines
+  /// the listing currency, so this is a per-*exchange* fallback (applies
+  /// identically to every symbol carrying that suffix), not a per-stock
+  /// mapping. Used only when Yahoo's chart meta itself omits `currency`.
+  static const _currencyBySuffix = {'.CA': 'EGP'};
+
+  String? _inferCurrencyFromSuffix(String yahooSymbol) {
+    final dotIndex = yahooSymbol.lastIndexOf('.');
+    // No suffix at all -- Yahoo's plain-ticker form, i.e. a US listing.
+    if (dotIndex == -1) return 'USD';
+    return _currencyBySuffix[yahooSymbol.substring(dotIndex).toUpperCase()];
   }
 
   /// Legacy `TICKER:EXCHANGE` assets (from this app's Twelve Data days)
