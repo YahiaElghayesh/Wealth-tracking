@@ -18,6 +18,7 @@ void main() {
     String currency = 'EGP',
     double limit = 100000,
     double? currentAvailableBalance,
+    String profileId = 'test-profile',
   }) async {
     final id = const Uuid().v4();
     await db.into(db.creditCards).insert(
@@ -29,7 +30,7 @@ void main() {
             currency: Value(currency),
             lastFourDigits: Value(lastFourDigits),
             currentAvailableBalance: Value(currentAvailableBalance),
-            profileId: const Value('test-profile'),
+            profileId: Value(profileId),
           ),
         );
     return (db.select(db.creditCards)..where((c) => c.id.equals(id))).getSingle();
@@ -47,7 +48,7 @@ void main() {
       availableBalanceAfter: 85891.16,
     );
 
-    final updated = await updateCardBalanceFromSms(db, parsed, profileId: 'test-profile');
+    final updated = await updateCardBalanceFromSms(db, parsed);
 
     expect(updated, isNotNull);
     expect(updated!.currentAvailableBalance, 85891.16);
@@ -66,7 +67,7 @@ void main() {
       lastFourDigits: '1234',
     );
 
-    final updated = await updateCardBalanceFromSms(db, parsed, profileId: 'test-profile');
+    final updated = await updateCardBalanceFromSms(db, parsed);
 
     expect(updated!.currentAvailableBalance, 9800);
   });
@@ -82,7 +83,7 @@ void main() {
       lastFourDigits: '1234',
     );
 
-    final updated = await updateCardBalanceFromSms(db, parsed, profileId: 'test-profile');
+    final updated = await updateCardBalanceFromSms(db, parsed);
 
     expect(updated!.currentAvailableBalance, 10500);
   });
@@ -98,7 +99,7 @@ void main() {
       lastFourDigits: '1234',
     );
 
-    final updated = await updateCardBalanceFromSms(db, parsed, profileId: 'test-profile');
+    final updated = await updateCardBalanceFromSms(db, parsed);
 
     expect(updated!.currentAvailableBalance, 4700);
   });
@@ -114,7 +115,7 @@ void main() {
       lastFourDigits: '9999',
     );
 
-    expect(await updateCardBalanceFromSms(db, parsed, profileId: 'test-profile'), isNull);
+    expect(await updateCardBalanceFromSms(db, parsed), isNull);
   });
 
   test('a currency mismatch between the SMS and the card is not applied', () async {
@@ -128,7 +129,7 @@ void main() {
       lastFourDigits: '1234',
     );
 
-    expect(await updateCardBalanceFromSms(db, parsed, profileId: 'test-profile'), isNull);
+    expect(await updateCardBalanceFromSms(db, parsed), isNull);
   });
 
   test('a stated balance in the card\'s currency is applied even if the charge itself was a different currency', () async {
@@ -144,7 +145,7 @@ void main() {
       availableBalanceCurrency: 'EGP',
     );
 
-    final updated = await updateCardBalanceFromSms(db, parsed, profileId: 'test-profile');
+    final updated = await updateCardBalanceFromSms(db, parsed);
 
     expect(updated, isNotNull);
     expect(updated!.currentAvailableBalance, 491269.64);
@@ -160,6 +161,27 @@ void main() {
       isCharge: true,
     );
 
-    expect(await updateCardBalanceFromSms(db, parsed, profileId: 'test-profile'), isNull);
+    expect(await updateCardBalanceFromSms(db, parsed), isNull);
+  });
+
+  test('updates a card on a different profile than whichever one is passed around elsewhere', () async {
+    // The active profile is never even passed to this function anymore --
+    // this locks in that a card belonging to any profile still gets
+    // matched, mirroring SmsReceiver.kt's own deliberately cross-profile
+    // native gate (see the doc comment on updateCardBalanceFromSms).
+    await insertCard(lastFourDigits: '4912', currentAvailableBalance: 50000, profileId: 'family-member-profile');
+    final parsed = ParsedBankSms(
+      vendor: 'Card refund',
+      amount: 1025,
+      currency: 'EGP',
+      occurredAt: DateTime(2026, 1, 1),
+      isCharge: false,
+      lastFourDigits: '4912',
+    );
+
+    final updated = await updateCardBalanceFromSms(db, parsed);
+
+    expect(updated, isNotNull);
+    expect(updated!.currentAvailableBalance, 51025);
   });
 }

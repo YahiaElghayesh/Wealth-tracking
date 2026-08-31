@@ -24,11 +24,20 @@ import 'bank_sms_parser.dart';
 /// Returns `null` when there's no matching card, or neither of those two
 /// paths can be trusted (mixing currencies here would silently corrupt the
 /// balance).
-Future<CreditCard?> updateCardBalanceFromSms(AppDatabase db, ParsedBankSms parsed, {required String profileId}) async {
+///
+/// Deliberately searches every profile's cards, not just whichever one is
+/// currently active -- matching SmsReceiver.kt's own native gate, which is
+/// intentionally cross-profile for the same reason (a card on a profile
+/// that isn't active right now should still get its SMS-driven balance
+/// updates). Scoping this to only the active profile silently dropped
+/// every update for a card on any other profile: the native side let the
+/// SMS through (it doesn't check which profile is active), but this then
+/// found no matching card in that one profile and did nothing.
+Future<CreditCard?> updateCardBalanceFromSms(AppDatabase db, ParsedBankSms parsed) async {
   final lastFour = parsed.lastFourDigits;
   if (lastFour == null) return null;
 
-  final cards = await (db.select(db.creditCards)..where((c) => c.profileId.equals(profileId))).get();
+  final cards = await db.select(db.creditCards).get();
   CreditCard? card;
   for (final c in cards) {
     if (c.lastFourDigits == lastFour) {
