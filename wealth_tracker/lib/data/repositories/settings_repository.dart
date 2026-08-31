@@ -22,9 +22,12 @@ class SettingsRepository {
   static const _themeModeKey = 'theme_mode';
   static const _hideValuesByDefaultKey = 'hide_values_by_default';
   static const _activeProfileIdKey = 'active_profile_id';
-  static const _defaultLedgerCounterpartyIdKey = 'default_ledger_counterparty_id';
+  static const _defaultLedgerCounterpartyIdKey =
+      'default_ledger_counterparty_id';
   static const _priceRefreshIntervalHoursKey = 'price_refresh_interval_hours';
   static const _biometricLockEnabledKey = 'biometric_lock_enabled';
+  static const _biometricGraceMinutesKey = 'biometric_grace_minutes';
+  static const _lastBiometricUnlockAtKey = 'last_biometric_unlock_at';
 
   /// Whether the app requires a successful fingerprint/Face ID (or device
   /// PIN/pattern, as local_auth's own fallback) check before showing any
@@ -34,10 +37,42 @@ class SettingsRepository {
   /// `AppLockGate` in `lib/core/security/app_lock_gate.dart` for why that's
   /// safe (that flow pushes its own route on top of the lock, never through
   /// it).
-  bool get biometricLockEnabled => _prefs.getBool(_biometricLockEnabledKey) ?? false;
+  bool get biometricLockEnabled =>
+      _prefs.getBool(_biometricLockEnabledKey) ?? false;
 
   Future<void> setBiometricLockEnabled(bool enabled) {
     return _prefs.setBool(_biometricLockEnabledKey, enabled);
+  }
+
+  /// How long a successful fingerprint/Face ID check stays valid before
+  /// [AppLockGate] asks again -- 0 (the default) means "every time",
+  /// matching this app's behavior before this became configurable.
+  /// Checked against [lastBiometricUnlockAt] on every resume (and at cold
+  /// start too, so relaunching within the window doesn't ask again either)
+  /// rather than only while the process happens to stay alive, since
+  /// Android can and does kill a backgrounded app within a much shorter
+  /// window than someone might reasonably set here.
+  int get biometricGraceMinutes =>
+      _prefs.getInt(_biometricGraceMinutesKey) ?? 0;
+
+  Future<void> setBiometricGraceMinutes(int minutes) {
+    return _prefs.setInt(_biometricGraceMinutesKey, minutes);
+  }
+
+  /// When the fingerprint/Face ID check last actually succeeded -- persisted
+  /// (not just kept in memory) specifically so [biometricGraceMinutes] still
+  /// works across a process death while backgrounded, not only while
+  /// [AppLockGate]'s own widget state happens to survive.
+  DateTime? get lastBiometricUnlockAt {
+    final millis = _prefs.getInt(_lastBiometricUnlockAtKey);
+    return millis == null ? null : DateTime.fromMillisecondsSinceEpoch(millis);
+  }
+
+  Future<void> setLastBiometricUnlockAt(DateTime time) {
+    return _prefs.setInt(
+      _lastBiometricUnlockAtKey,
+      time.millisecondsSinceEpoch,
+    );
   }
 
   /// How often the background price refresh runs -- also the effective
@@ -48,7 +83,8 @@ class SettingsRepository {
   static const defaultPriceRefreshIntervalHours = 4;
 
   int get priceRefreshIntervalHours =>
-      _prefs.getInt(_priceRefreshIntervalHoursKey) ?? defaultPriceRefreshIntervalHours;
+      _prefs.getInt(_priceRefreshIntervalHoursKey) ??
+      defaultPriceRefreshIntervalHours;
 
   Future<void> setPriceRefreshIntervalHours(int hours) {
     return _prefs.setInt(_priceRefreshIntervalHoursKey, hours);
@@ -71,7 +107,10 @@ class SettingsRepository {
   String? get desktopClientId => _prefs.getString(_desktopClientIdKey);
   String? get desktopClientSecret => _prefs.getString(_desktopClientSecretKey);
 
-  Future<void> setDesktopOAuthClient({required String? clientId, required String? clientSecret}) async {
+  Future<void> setDesktopOAuthClient({
+    required String? clientId,
+    required String? clientSecret,
+  }) async {
     if (clientId == null || clientId.isEmpty) {
       await _prefs.remove(_desktopClientIdKey);
     } else {
@@ -86,7 +125,8 @@ class SettingsRepository {
 
   /// Persisted `AccessCredentials.toJson()` so desktop sign-in can be
   /// restored silently across app restarts without a browser round trip.
-  String? get desktopCredentialsJson => _prefs.getString(_desktopCredentialsKey);
+  String? get desktopCredentialsJson =>
+      _prefs.getString(_desktopCredentialsKey);
 
   Future<void> setDesktopCredentialsJson(String? json) async {
     if (json == null) {
@@ -121,7 +161,8 @@ class SettingsRepository {
   /// Android — without it, sign-in fails with "server client ID must be
   /// provided". Create one in the same Google Cloud project as the Android
   /// OAuth client — see the README.
-  String? get androidServerClientId => _prefs.getString(_androidServerClientIdKey);
+  String? get androidServerClientId =>
+      _prefs.getString(_androidServerClientIdKey);
 
   Future<void> setAndroidServerClientId(String? clientId) async {
     if (clientId == null || clientId.isEmpty) {
@@ -136,7 +177,8 @@ class SettingsRepository {
   /// one bool-ish string key per category so a future category doesn't
   /// need a migration; a category with no stored override just falls back
   /// to its own [AssetCategory.defaultClass].
-  static String _classOverrideKey(AssetCategory category) => 'asset_class_override_${category.name}';
+  static String _classOverrideKey(AssetCategory category) =>
+      'asset_class_override_${category.name}';
 
   Map<AssetCategory, AssetClass> get assetClassOverrides {
     final overrides = <AssetCategory, AssetClass>{};
@@ -151,7 +193,10 @@ class SettingsRepository {
     return overrides;
   }
 
-  Future<void> setAssetClassOverride(AssetCategory category, AssetClass? assetClass) async {
+  Future<void> setAssetClassOverride(
+    AssetCategory category,
+    AssetClass? assetClass,
+  ) async {
     final key = _classOverrideKey(category);
     if (assetClass == null || assetClass == category.defaultClass) {
       // Matches the built-in default again — clear the override instead of
@@ -182,7 +227,8 @@ class SettingsRepository {
   /// Whether values start masked on every fresh app launch. The Dashboard's
   /// app-bar toggle still flips the in-memory state for the current
   /// session regardless of this -- this only decides the starting point.
-  bool get hideValuesByDefault => _prefs.getBool(_hideValuesByDefaultKey) ?? false;
+  bool get hideValuesByDefault =>
+      _prefs.getBool(_hideValuesByDefaultKey) ?? false;
 
   Future<void> setHideValuesByDefault(bool enabled) {
     return _prefs.setBool(_hideValuesByDefaultKey, enabled);
@@ -192,7 +238,8 @@ class SettingsRepository {
   /// Ledger, Statistics, Calculator) is scoped to this. Defaults to the
   /// profile every install/upgrade always has, so a brand-new user never
   /// needs to think about profiles until they deliberately add a second one.
-  String get activeProfileId => _prefs.getString(_activeProfileIdKey) ?? defaultProfileId;
+  String get activeProfileId =>
+      _prefs.getString(_activeProfileIdKey) ?? defaultProfileId;
 
   Future<void> setActiveProfileId(String id) {
     return _prefs.setString(_activeProfileIdKey, id);
@@ -203,7 +250,8 @@ class SettingsRepository {
   /// Settings > Bank SMS detection, but always still changeable per-charge
   /// on the review screen itself. Null means "no default, ask every time"
   /// (the behavior before this existed).
-  String? get defaultLedgerCounterpartyId => _prefs.getString(_defaultLedgerCounterpartyIdKey);
+  String? get defaultLedgerCounterpartyId =>
+      _prefs.getString(_defaultLedgerCounterpartyIdKey);
 
   Future<void> setDefaultLedgerCounterpartyId(String? counterpartyId) async {
     if (counterpartyId == null) {

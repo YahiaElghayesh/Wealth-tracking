@@ -53,3 +53,12 @@ final priceRefreshIntervalHoursProvider = StateProvider<int>((ref) {
 final biometricLockEnabledProvider = StateProvider<bool>((ref) {
   return ref.watch(settingsRepositoryProvider).biometricLockEnabled;
 });
+
+/// How long (in minutes) a successful unlock stays valid before
+/// [AppLockGate] asks again -- 0 means "every time". Same
+/// seeded-then-optimistically-updated pattern as [themeModeProvider]. Write
+/// via `ref.read(settingsRepositoryProvider).setBiometricGraceMinutes(m)`
+/// then `ref.read(biometricGraceMinutesProvider.notifier).state = m`.
+final biometricGraceMinutesProvider = StateProvider<int>((ref) {
+  return ref.watch(settingsRepositoryProvider).biometricGraceMinutes;
+});

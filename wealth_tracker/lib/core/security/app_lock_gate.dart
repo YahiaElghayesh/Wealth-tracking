@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:local_auth/local_auth.dart';
 
+import '../../data/repositories/settings_repository.dart';
 import '../../features/settings/providers/settings_providers.dart';
 import '../providers/core_providers.dart';
 import '../theme/app_colors.dart';
@@ -25,8 +26,17 @@ const _autoPromptDelay = Duration(milliseconds: 200);
 /// device PIN/pattern, local_auth's own fallback) lock whenever
 /// [biometricLockEnabledProvider] is on. The prompt fires automatically --
 /// on first showing the lock screen and every time the app returns from the
-/// background -- with no "Unlock" tap needed first; a manual retry button
-/// only appears if that automatic attempt fails or is cancelled.
+/// background (subject to [biometricGraceMinutesProvider], see below) --
+/// with no "Unlock" tap needed first; a manual retry button only appears if
+/// that automatic attempt fails or is cancelled.
+///
+/// A successful check stays valid for [biometricGraceMinutesProvider]
+/// minutes (0, the default, means "every time") -- resuming (or cold
+/// -starting) within that window skips the prompt entirely rather than
+/// re-asking. Checked against the persisted [SettingsRepository
+/// .lastBiometricUnlockAt], not just in-memory state, since Android can
+/// (and does) kill a backgrounded app well within a window someone might
+/// reasonably set here.
 ///
 /// The "Add Payment" pinned shortcuts and the home-screen widget's
 /// quick-add are exempt: while [quickAddScreenActive] is true (set by
@@ -56,7 +66,14 @@ class _AppLockGateState extends ConsumerState<AppLockGate>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     quickAddScreenActive.addListener(_onQuickAddExemptionChanged);
-    _setUnlocked(!ref.read(settingsRepositoryProvider).biometricLockEnabled);
+    final settings = ref.read(settingsRepositoryProvider);
+    // A cold start counts as "resuming" for grace-period purposes too --
+    // Android killing the process while backgrounded is common well within
+    // a window someone might reasonably set, and there'd be no way to tell
+    // that apart from a deliberate relaunch otherwise.
+    _setUnlocked(
+      !settings.biometricLockEnabled || _withinGracePeriod(settings),
+    );
     if (!_unlocked) _scheduleAutoPrompt();
   }
 
@@ -66,6 +83,20 @@ class _AppLockGateState extends ConsumerState<AppLockGate>
   void _setUnlocked(bool value) {
     _unlocked = value;
     appUnlocked.value = value;
+  }
+
+  /// Whether the last successful check is still within
+  /// [SettingsRepository.biometricGraceMinutes] of right now. 0 minutes
+  /// (the default) always answers false, matching this app's "every time"
+  /// behavior before the grace period existed -- a >=0 comparison against
+  /// zero elapsed time would otherwise flip that default's meaning.
+  bool _withinGracePeriod(SettingsRepository settings) {
+    final graceMinutes = settings.biometricGraceMinutes;
+    if (graceMinutes <= 0) return false;
+    final lastUnlock = settings.lastBiometricUnlockAt;
+    if (lastUnlock == null) return false;
+    return DateTime.now().difference(lastUnlock) <
+        Duration(minutes: graceMinutes);
   }
 
   @override
@@ -84,18 +115,21 @@ class _AppLockGateState extends ConsumerState<AppLockGate>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    // Re-lock on backgrounding, not just at cold start -- otherwise
-    // switching away and back would leave the app permanently unlocked for
-    // the rest of the process's life after the very first check.
-    if (state == AppLifecycleState.paused) {
-      if (ref.read(biometricLockEnabledProvider) && _unlocked) {
-        setState(() => _setUnlocked(false));
-      }
-      return;
-    }
-    if (state == AppLifecycleState.resumed && !_unlocked) {
-      _scheduleAutoPrompt();
-    }
+    // The re-lock decision now happens here, on resume, not at pause time --
+    // it has to: whether a grace period is still valid can only be known
+    // once we know *when* the app is coming back, not when it left. (With
+    // the grace period at its default of 0 minutes, this still re-locks on
+    // every single resume, exactly as pausing used to do unconditionally --
+    // zero elapsed time never satisfies "still within a positive window".)
+    if (state != AppLifecycleState.resumed || !_unlocked) return;
+    final settings = ref.read(settingsRepositoryProvider);
+    if (!settings.biometricLockEnabled || _withinGracePeriod(settings)) return;
+    // Locks immediately, synchronously with the resume event -- not left
+    // for whenever _authenticate's own state update happens to land --
+    // so the opaque lock overlay is what's on screen the instant this
+    // frame renders, with no gap a stale unlocked frame could show through.
+    setState(() => _setUnlocked(false));
+    _scheduleAutoPrompt();
   }
 
   void _scheduleAutoPrompt() {
@@ -133,6 +167,15 @@ class _AppLockGateState extends ConsumerState<AppLockGate>
         localizedReason: 'Unlock Money Hub',
         persistAcrossBackgrounding: true,
       );
+      if (ok) {
+        // Persisted, not just kept in [_unlocked] -- see
+        // [SettingsRepository.lastBiometricUnlockAt]'s own doc comment for
+        // why a grace period needs this to survive a process death.
+        await ref
+            .read(settingsRepositoryProvider)
+            .setLastBiometricUnlockAt(DateTime.now());
+      }
+      if (!mounted) return;
       setState(() {
         _setUnlocked(ok);
         _checking = false;

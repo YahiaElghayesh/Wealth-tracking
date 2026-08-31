@@ -29,8 +29,11 @@ class SettingsScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final themeMode = ref.watch(themeModeProvider);
-    final hideValuesByDefault = ref.watch(settingsRepositoryProvider).hideValuesByDefault;
+    final hideValuesByDefault = ref
+        .watch(settingsRepositoryProvider)
+        .hideValuesByDefault;
     final biometricLockEnabled = ref.watch(biometricLockEnabledProvider);
+    final biometricGraceMinutes = ref.watch(biometricGraceMinutesProvider);
 
     return Scaffold(
       appBar: AppBar(title: const Text('Settings')),
@@ -58,18 +61,34 @@ class SettingsScreen extends ConsumerWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('Theme', style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w700)),
+                      Text(
+                        'Theme',
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
                       const SizedBox(height: 9),
                       SegmentedButton<ThemeMode>(
                         segments: const [
-                          ButtonSegment(value: ThemeMode.light, label: Text('Light')),
-                          ButtonSegment(value: ThemeMode.system, label: Text('System')),
-                          ButtonSegment(value: ThemeMode.dark, label: Text('Dark')),
+                          ButtonSegment(
+                            value: ThemeMode.light,
+                            label: Text('Light'),
+                          ),
+                          ButtonSegment(
+                            value: ThemeMode.system,
+                            label: Text('System'),
+                          ),
+                          ButtonSegment(
+                            value: ThemeMode.dark,
+                            label: Text('Dark'),
+                          ),
                         ],
                         selected: {themeMode},
                         onSelectionChanged: (selection) {
                           final mode = selection.first;
-                          ref.read(settingsRepositoryProvider).setThemeMode(mode);
+                          ref
+                              .read(settingsRepositoryProvider)
+                              .setThemeMode(mode);
                           ref.read(themeModeProvider.notifier).state = mode;
                         },
                       ),
@@ -89,7 +108,9 @@ class SettingsScreen extends ConsumerWidget {
               subtitle: const Text('Also hides names, descriptions & icons'),
               value: hideValuesByDefault,
               onChanged: (enabled) {
-                ref.read(settingsRepositoryProvider).setHideValuesByDefault(enabled);
+                ref
+                    .read(settingsRepositoryProvider)
+                    .setHideValuesByDefault(enabled);
                 ref.invalidate(settingsRepositoryProvider);
               },
             ),
@@ -101,11 +122,56 @@ class SettingsScreen extends ConsumerWidget {
             child: SwitchListTile(
               secondary: _IconChip(Icons.fingerprint),
               title: const Text('App lock'),
-              subtitle: const Text('Require fingerprint or Face ID to open the app'),
+              subtitle: const Text(
+                'Require fingerprint or Face ID to open the app',
+              ),
               value: biometricLockEnabled,
               onChanged: (enabled) => _setBiometricLock(context, ref, enabled),
             ),
           ),
+          if (biometricLockEnabled) ...[
+            const SizedBox(height: 10),
+            Container(
+              padding: const EdgeInsets.all(13),
+              decoration: _rowDecoration(context),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _IconChip(Icons.timer_outlined),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Stay unlocked for',
+                          style: Theme.of(context).textTheme.bodyMedium
+                              ?.copyWith(fontWeight: FontWeight.w700),
+                        ),
+                        const SizedBox(height: 9),
+                        DropdownButtonFormField<int>(
+                          initialValue: biometricGraceMinutes,
+                          decoration: const InputDecoration(isDense: true),
+                          items: [
+                            for (final minutes in _biometricGraceMinuteOptions)
+                              DropdownMenuItem(
+                                value: minutes,
+                                child: Text(_graceMinutesLabel(minutes)),
+                              ),
+                          ],
+                          onChanged: (minutes) {
+                            if (minutes != null) {
+                              _setBiometricGraceMinutes(ref, minutes);
+                            }
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
           const SizedBox(height: 10),
           const _SectionLabel('Ledger'),
           _SettingsTile(
@@ -186,7 +252,11 @@ class SettingsScreen extends ConsumerWidget {
 /// on runs one real authentication first, so the user can't lock
 /// themselves out of the app with a setting that turns out not to work
 /// (no fingerprint/face/PIN enrolled, hardware unavailable, etc.).
-Future<void> _setBiometricLock(BuildContext context, WidgetRef ref, bool enabled) async {
+Future<void> _setBiometricLock(
+  BuildContext context,
+  WidgetRef ref,
+  bool enabled,
+) async {
   final messenger = ScaffoldMessenger.of(context);
 
   if (!enabled) {
@@ -199,7 +269,11 @@ Future<void> _setBiometricLock(BuildContext context, WidgetRef ref, bool enabled
   try {
     if (!await localAuth.isDeviceSupported()) {
       messenger.showSnackBar(
-        const SnackBar(content: Text('No fingerprint, face, or PIN lock is set up on this device.')),
+        const SnackBar(
+          content: Text(
+            'No fingerprint, face, or PIN lock is set up on this device.',
+          ),
+        ),
       );
       return;
     }
@@ -209,12 +283,34 @@ Future<void> _setBiometricLock(BuildContext context, WidgetRef ref, bool enabled
     );
     if (!confirmed) return;
   } catch (_) {
-    messenger.showSnackBar(const SnackBar(content: Text('Could not verify fingerprint/Face ID. App lock not enabled.')));
+    messenger.showSnackBar(
+      const SnackBar(
+        content: Text(
+          'Could not verify fingerprint/Face ID. App lock not enabled.',
+        ),
+      ),
+    );
     return;
   }
 
   await ref.read(settingsRepositoryProvider).setBiometricLockEnabled(true);
   ref.read(biometricLockEnabledProvider.notifier).state = true;
+}
+
+/// Options offered by the "Stay unlocked for" picker -- 0 keeps this app's
+/// original "every time" behavior as the default so nobody who doesn't
+/// touch this setting notices any change.
+const _biometricGraceMinuteOptions = [0, 1, 5, 15, 30, 60];
+
+String _graceMinutesLabel(int minutes) {
+  if (minutes == 0) return 'Every time';
+  if (minutes < 60) return '$minutes minute${minutes == 1 ? '' : 's'}';
+  return '1 hour';
+}
+
+void _setBiometricGraceMinutes(WidgetRef ref, int minutes) {
+  ref.read(settingsRepositoryProvider).setBiometricGraceMinutes(minutes);
+  ref.read(biometricGraceMinutesProvider.notifier).state = minutes;
 }
 
 BoxDecoration _rowDecoration(BuildContext context) {
@@ -237,10 +333,10 @@ class _SectionLabel extends StatelessWidget {
       child: Text(
         text.toUpperCase(),
         style: Theme.of(context).textTheme.labelSmall?.copyWith(
-              color: context.appColors.textDim,
-              fontWeight: FontWeight.w800,
-              letterSpacing: 0.5,
-            ),
+          color: context.appColors.textDim,
+          fontWeight: FontWeight.w800,
+          letterSpacing: 0.5,
+        ),
       ),
     );
   }
@@ -289,7 +385,8 @@ class _SettingsTile extends StatelessWidget {
         title: Text(title),
         subtitle: Text(subtitle),
         trailing: const Icon(Icons.chevron_right),
-        onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: builder)),
+        onTap: () =>
+            Navigator.of(context).push(MaterialPageRoute(builder: builder)),
       ),
     );
   }
