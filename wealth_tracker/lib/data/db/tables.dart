@@ -240,8 +240,10 @@ class CreditCards extends Table {
   /// remembered state, in [currency].
   RealColumn get currentAvailableBalance => real().nullable()();
 
-  /// When [currentAvailableBalance] was last set by a parsed SMS — null if
-  /// it's never been touched by SMS capture (e.g. only ever typed by hand).
+  /// When [currentAvailableBalance] was last set -- by a parsed SMS, or by
+  /// the user editing the Calculator tab's balance field directly (see
+  /// CalculatorScreen's debounced save-back) -- whichever happened most
+  /// recently. Null if it's never been touched by either.
   DateTimeColumn get balanceUpdatedAt => dateTime().nullable()();
 
   TextColumn get profileId => text().nullable().references(Profiles, #id)();

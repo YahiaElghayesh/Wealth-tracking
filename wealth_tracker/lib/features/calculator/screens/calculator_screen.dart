@@ -1,3 +1,6 @@
+import 'dart:async';
+
+import 'package:drift/drift.dart' show Value;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -60,6 +63,13 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
   bool _saving = false;
   bool _scrolled = false;
 
+  // True only while the seeding block itself is assigning `controller.text`
+  // -- the field's listener can't otherwise tell that write apart from the
+  // user actually typing, and only the latter should ever be persisted back
+  // to the card (see _scheduleCardBalanceSave).
+  bool _isSeedingCard = false;
+  final _cardBalanceSaveDebounce = <String, Timer>{};
+
   @override
   void initState() {
     super.initState();
@@ -79,8 +89,60 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
     for (final c in _manualInputControllers.values) {
       c.dispose();
     }
+    for (final t in _cardBalanceSaveDebounce.values) {
+      t.cancel();
+    }
     _scrollController.dispose();
     super.dispose();
+  }
+
+  /// Persists a manual edit of [cardId]'s balance field back to the card
+  /// itself, so it survives a restart instead of only ever existing as
+  /// this screen's in-memory snapshot input -- previously, a card's
+  /// `currentAvailableBalance` was only ever written by SMS capture, so a
+  /// manual edit here looked like it "took" (the field kept showing it,
+  /// this session) but silently reverted to the last SMS value the next
+  /// time the app opened. Debounced so every keystroke doesn't hit the
+  /// database, and skipped entirely while [_isSeedingCard] is true so
+  /// seeding a field from the database doesn't turn around and immediately
+  /// "edit" it right back.
+  void _scheduleCardBalanceSave(String cardId) {
+    if (_isSeedingCard) return;
+    _cardBalanceSaveDebounce[cardId]?.cancel();
+    _cardBalanceSaveDebounce[cardId] = Timer(const Duration(milliseconds: 600), () => _saveCardBalance(cardId));
+  }
+
+  Future<void> _saveCardBalance(String cardId) async {
+    if (!mounted) return;
+    final cards = ref.read(creditCardsStreamProvider).valueOrNull;
+    CreditCard? card;
+    for (final c in cards ?? const <CreditCard>[]) {
+      if (c.id == cardId) {
+        card = c;
+        break;
+      }
+    }
+    final controller = _cardControllers[cardId];
+    if (card == null || controller == null) return;
+
+    final newBalance = double.tryParse(controller.text.trim());
+    // Leave whatever's already tracked alone rather than persisting
+    // unparseable or unchanged input.
+    if (newBalance == null || newBalance == card.currentAvailableBalance) return;
+
+    final now = DateTime.now();
+    await ref.read(calculatorRepositoryProvider).updateCard(
+      card.copyWith(currentAvailableBalance: Value(newBalance), balanceUpdatedAt: Value(now)),
+    );
+    // Keeps this screen's own seed bookkeeping in sync with what it just
+    // wrote, so a later *genuine* SMS update (a newer `balanceUpdatedAt`
+    // than this one) is still correctly detected as new -- without this,
+    // the next rebuild would see `balanceUpdatedAt` change from under it
+    // and (harmlessly, since the field's text still matches) just update
+    // its bookkeeping anyway, but keeping it here in lockstep is more
+    // direct than relying on that.
+    _cardSeedBalanceUpdatedAt[cardId] = now;
+    _cardSeedText[cardId] = controller.text;
   }
 
   double _parse(TextEditingController controller) => double.tryParse(controller.text.trim()) ?? 0;
@@ -96,6 +158,7 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
     return _cardControllers.putIfAbsent(card.id, () {
       final controller = TextEditingController();
       controller.addListener(_onFieldChanged);
+      controller.addListener(() => _scheduleCardBalanceSave(card.id));
       return controller;
     });
   }
@@ -293,6 +356,7 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
         if (!mounted) return;
         setState(() {
           if (cardsNeedingSeed != null) {
+            _isSeedingCard = true;
             for (final card in cardsNeedingSeed) {
               final text = _formatSeed(card.currentAvailableBalance ?? card.limitAmount);
               _cardControllerFor(card).text = text;
@@ -300,6 +364,7 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
               _cardSeedBalanceUpdatedAt[card.id] = card.balanceUpdatedAt;
               _cardSeedText[card.id] = text;
             }
+            _isSeedingCard = false;
           }
           if (unseededManualInputs != null) {
             for (final input in unseededManualInputs) {
@@ -823,7 +888,11 @@ class _CardField extends ConsumerWidget {
           if (card.balanceUpdatedAt != null) ...[
             const SizedBox(height: 2),
             Text(
-              'Updated from SMS ${_relativeTime(card.balanceUpdatedAt!)}',
+              // Not "from SMS" specifically -- this now also covers a
+              // manual edit of the field above (see the debounced save-back
+              // in _scheduleCardBalanceSave), so it no longer always means
+              // an SMS set it.
+              'Updated ${_relativeTime(card.balanceUpdatedAt!)}',
               style: theme.textTheme.labelSmall?.copyWith(color: theme.colorScheme.primary),
             ),
           ],
