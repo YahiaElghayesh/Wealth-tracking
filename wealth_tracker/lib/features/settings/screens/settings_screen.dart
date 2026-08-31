@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:local_auth/local_auth.dart';
 
 import '../../../core/providers/core_providers.dart';
+import '../../../core/security/screenshot_channel.dart';
 import '../../../core/theme/app_colors.dart';
 import '../providers/settings_providers.dart';
 import 'app_updates_settings_screen.dart';
@@ -34,6 +35,7 @@ class SettingsScreen extends ConsumerWidget {
         .hideValuesByDefault;
     final biometricLockEnabled = ref.watch(biometricLockEnabledProvider);
     final biometricGraceMinutes = ref.watch(biometricGraceMinutesProvider);
+    final allowScreenshots = ref.watch(allowScreenshotsProvider);
 
     return Scaffold(
       appBar: AppBar(title: const Text('Settings')),
@@ -169,6 +171,22 @@ class SettingsScreen extends ConsumerWidget {
                     ),
                   ),
                 ],
+              ),
+            ),
+          ],
+          if (Platform.isAndroid) ...[
+            const SizedBox(height: 10),
+            Container(
+              decoration: _rowDecoration(context),
+              child: SwitchListTile(
+                secondary: _IconChip(Icons.screenshot_monitor_outlined),
+                title: const Text('Allow screenshots'),
+                subtitle: const Text(
+                  'Off blocks screenshots, screen recording, and the '
+                  'recent-apps preview',
+                ),
+                value: allowScreenshots,
+                onChanged: (allowed) => _setAllowScreenshots(ref, allowed),
               ),
             ),
           ],
@@ -311,6 +329,16 @@ String _graceMinutesLabel(int minutes) {
 void _setBiometricGraceMinutes(WidgetRef ref, int minutes) {
   ref.read(settingsRepositoryProvider).setBiometricGraceMinutes(minutes);
   ref.read(biometricGraceMinutesProvider.notifier).state = minutes;
+}
+
+/// Applied to the live window immediately via [applyScreenshotsAllowed] --
+/// `MainActivity.kt`'s own `onCreate` read only covers the next cold start,
+/// which would otherwise leave whatever this session started with in effect
+/// until the app is fully restarted.
+void _setAllowScreenshots(WidgetRef ref, bool allowed) {
+  ref.read(settingsRepositoryProvider).setAllowScreenshots(allowed);
+  ref.read(allowScreenshotsProvider.notifier).state = allowed;
+  applyScreenshotsAllowed(allowed);
 }
 
 BoxDecoration _rowDecoration(BuildContext context) {

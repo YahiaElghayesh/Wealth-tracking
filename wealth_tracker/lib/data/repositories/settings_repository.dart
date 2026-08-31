@@ -28,6 +28,7 @@ class SettingsRepository {
   static const _biometricLockEnabledKey = 'biometric_lock_enabled';
   static const _biometricGraceMinutesKey = 'biometric_grace_minutes';
   static const _lastBiometricUnlockAtKey = 'last_biometric_unlock_at';
+  static const _allowScreenshotsKey = 'allow_screenshots';
 
   /// Whether the app requires a successful fingerprint/Face ID (or device
   /// PIN/pattern, as local_auth's own fallback) check before showing any
@@ -73,6 +74,25 @@ class SettingsRepository {
       _lastBiometricUnlockAtKey,
       time.millisecondsSinceEpoch,
     );
+  }
+
+  /// Whether Android screenshots, the recent-apps thumbnail, and screen
+  /// recording are allowed for this app -- off (screenshots blocked) by
+  /// default, matching the behavior this app already shipped
+  /// unconditionally before this became a choice; see the `FLAG_SECURE`
+  /// doc comment in `MainActivity.kt` for what turning this on actually
+  /// gives up. Read there directly off `SharedPreferences` at `onCreate`
+  /// (before any Flutter engine, and thus any MethodChannel, exists) using
+  /// this exact key -- `shared_preferences`' Android implementation always
+  /// prefixes stored keys with `flutter.` and stores them in a
+  /// `FlutterSharedPreferences` file, both fixed implementation details of
+  /// that plugin, not anything configured here. A live toggle while the
+  /// app is already running goes over `money_hub/security` instead, since
+  /// `onCreate` only runs once per process.
+  bool get allowScreenshots => _prefs.getBool(_allowScreenshotsKey) ?? false;
+
+  Future<void> setAllowScreenshots(bool allowed) {
+    return _prefs.setBool(_allowScreenshotsKey, allowed);
   }
 
   /// How often the background price refresh runs -- also the effective

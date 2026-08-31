@@ -62,3 +62,14 @@ final biometricLockEnabledProvider = StateProvider<bool>((ref) {
 final biometricGraceMinutesProvider = StateProvider<int>((ref) {
   return ref.watch(settingsRepositoryProvider).biometricGraceMinutes;
 });
+
+/// Whether screenshots/recents-thumbnail/screen-recording are allowed --
+/// same seeded-then-optimistically-updated pattern as [themeModeProvider].
+/// Write via `ref.read(settingsRepositoryProvider).setAllowScreenshots(v)`
+/// then `ref.read(allowScreenshotsProvider.notifier).state = v`, and call
+/// `applyScreenshotsAllowed(v)` (`lib/core/security/screenshot_channel.dart`)
+/// so the running app's window picks it up immediately instead of only on
+/// the next cold start.
+final allowScreenshotsProvider = StateProvider<bool>((ref) {
+  return ref.watch(settingsRepositoryProvider).allowScreenshots;
+});

@@ -15,6 +15,7 @@ class MainActivity : FlutterFragmentActivity() {
     private var smsChannel: MethodChannel? = null
     private var shortcutsChannel: MethodChannel? = null
     private var updaterChannel: MethodChannel? = null
+    private var securityChannel: MethodChannel? = null
 
     // FLAG_SECURE blocks three things Android otherwise does with this
     // window's actual rendered pixels, none of which the Dart-level
@@ -28,13 +29,37 @@ class MainActivity : FlutterFragmentActivity() {
     // flag that stale, unlocked frame could still flash on screen for a
     // moment before Flutter's own re-lock repaint catches up -- with it,
     // Android can't cache that frame at all and substitutes a blank one
-    // instead. Set unconditionally (not tied to whether the biometric lock
+    // instead. On by default (not tied to whether the biometric lock
     // setting is on) -- this is a financial app; screenshot/recording
     // exposure of real balances is a risk regardless of whether app-open
-    // authentication happens to be enabled right now.
+    // authentication happens to be enabled right now. The user can opt out
+    // from Settings -- see [screenshotsAllowed] for how that choice is read
+    // this early, and the `money_hub/security` channel below for how it's
+    // applied live if flipped while the app is already running.
     override fun onCreate(savedInstanceState: Bundle?) {
-        window.setFlags(WindowManager.LayoutParams.FLAG_SECURE, WindowManager.LayoutParams.FLAG_SECURE)
+        applySecureFlag(!screenshotsAllowed())
         super.onCreate(savedInstanceState)
+    }
+
+    private fun applySecureFlag(secure: Boolean) {
+        if (secure) {
+            window.setFlags(WindowManager.LayoutParams.FLAG_SECURE, WindowManager.LayoutParams.FLAG_SECURE)
+        } else {
+            window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
+        }
+    }
+
+    /** Reads the same key `SettingsRepository.allowScreenshots` (Dart side)
+     * writes to. `shared_preferences`' Android implementation always
+     * prefixes stored keys with `flutter.` and stores them in a
+     * `FlutterSharedPreferences` file, both fixed implementation details of
+     * that plugin, not anything configured here -- read directly, rather
+     * than over a MethodChannel, because this runs before the Flutter
+     * engine (and thus any channel) exists yet. Defaults to false (screenshots
+     * blocked) to match `SettingsRepository.allowScreenshots`'s own default. */
+    private fun screenshotsAllowed(): Boolean {
+        val prefs = getSharedPreferences("FlutterSharedPreferences", MODE_PRIVATE)
+        return prefs.getBoolean("flutter.allow_screenshots", false)
     }
 
     // home_widget's click detection reads the launch Intent both from the
@@ -105,6 +130,21 @@ class MainActivity : FlutterFragmentActivity() {
                         AppUpdater.install(this, path)
                         result.success(null)
                     }
+                }
+                else -> result.notImplemented()
+            }
+        }
+
+        // Dart's counterpart lives in lib/core/security/screenshot_channel.dart
+        // -- covers only the *live* toggle case; the persisted default is
+        // already applied in onCreate, above, before this channel exists.
+        securityChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "money_hub/security")
+        securityChannel?.setMethodCallHandler { call, result ->
+            when (call.method) {
+                "setScreenshotsAllowed" -> {
+                    val allowed = call.argument<Boolean>("allowed") ?: false
+                    applySecureFlag(!allowed)
+                    result.success(null)
                 }
                 else -> result.notImplemented()
             }

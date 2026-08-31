@@ -35,14 +35,20 @@ class NetWorthSummaryCard extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final colors = context.appColors;
-    final calculatorHistory = ref.watch(calculatorHistoryStreamProvider).valueOrNull;
-    final latestSnapshot = (calculatorHistory == null || calculatorHistory.isEmpty) ? null : calculatorHistory.first;
+    final calculatorHistory = ref
+        .watch(calculatorHistoryStreamProvider)
+        .valueOrNull;
+    final latestSnapshot =
+        (calculatorHistory == null || calculatorHistory.isEmpty)
+        ? null
+        : calculatorHistory.first;
 
     // The Calculator snapshot is saved in EGP (its native settlement
     // currency); everything else here is USD-denominated, so it needs
     // converting before it can join the same total -- skipped (rather than
     // shown as a misleading zero) whenever the FX rate isn't known yet.
-    final currentUsd = (latestSnapshot != null && usdToEgpRate != null && usdToEgpRate! > 0)
+    final currentUsd =
+        (latestSnapshot != null && usdToEgpRate != null && usdToEgpRate! > 0)
         ? latestSnapshot.resultAmount / usdToEgpRate!
         : null;
 
@@ -73,7 +79,9 @@ class NetWorthSummaryCard extends ConsumerWidget {
           const SizedBox(height: 6),
           MoneyText(
             egpTotal == null ? '—' : formatEgpWhole(egpTotal),
-            style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w700),
+            style: theme.textTheme.headlineSmall?.copyWith(
+              fontWeight: FontWeight.w700,
+            ),
             maskLength: 9,
           ),
           const SizedBox(height: 2),
@@ -87,7 +95,7 @@ class NetWorthSummaryCard extends ConsumerWidget {
             ClipRRect(
               borderRadius: BorderRadius.circular(99),
               child: SizedBox(
-                height: 6,
+                height: 12,
                 child: Row(
                   children: [
                     Expanded(
@@ -121,7 +129,9 @@ class NetWorthSummaryCard extends ConsumerWidget {
               icon: Icons.water_drop_outlined,
               label: 'Liquid',
               fraction: liquidFraction,
-              egpValue: usdToEgpRate == null ? null : summary.liquidUsd * usdToEgpRate!,
+              egpValue: usdToEgpRate == null
+                  ? null
+                  : summary.liquidUsd * usdToEgpRate!,
               usdValue: summary.liquidUsd,
               color: theme.colorScheme.primary,
             ),
@@ -141,7 +151,9 @@ class NetWorthSummaryCard extends ConsumerWidget {
               icon: Icons.savings_outlined,
               label: 'Non-liquid',
               fraction: nonLiquidFraction,
-              egpValue: usdToEgpRate == null ? null : summary.nonLiquidUsd * usdToEgpRate!,
+              egpValue: usdToEgpRate == null
+                  ? null
+                  : summary.nonLiquidUsd * usdToEgpRate!,
               usdValue: summary.nonLiquidUsd,
               color: colors.gold,
             ),
@@ -207,26 +219,42 @@ class _LegendRow extends StatelessWidget {
             child: Text(
               label,
               style: theme.textTheme.bodySmall?.copyWith(color: colors.textDim),
+              textAlign: TextAlign.left,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
             ),
           ),
           const SizedBox(width: 6),
-          MoneyText(pct, style: theme.textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w700), maskLength: 3),
+          MoneyText(
+            pct,
+            style: theme.textTheme.bodySmall?.copyWith(
+              fontWeight: FontWeight.w700,
+            ),
+            maskLength: 3,
+          ),
           const Spacer(),
           Column(
+            mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               MoneyText(
                 egpValue == null ? '—' : formatEgpWhole(egpValue!),
-                style: theme.textTheme.labelSmall?.copyWith(color: colors.textDim, fontWeight: FontWeight.w700),
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: colors.textDim,
+                  fontWeight: FontWeight.w700,
+                ),
+                textAlign: TextAlign.right,
                 maskLength: 7,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
               MoneyText(
                 '≈ ${formatUsdWhole(usdValue)}',
-                style: theme.textTheme.labelSmall?.copyWith(color: colors.textDim, fontSize: 10.5),
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: colors.textDim,
+                  fontSize: 10.5,
+                ),
+                textAlign: TextAlign.right,
                 maskLength: 5,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
