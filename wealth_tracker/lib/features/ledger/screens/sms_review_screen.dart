@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/models/currency.dart';
+import '../../../core/security/quick_add_exemption.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../data/sms/bank_charge_payload.dart';
 import '../../settings/providers/settings_providers.dart';
@@ -36,21 +38,57 @@ class _SmsReviewScreenState extends ConsumerState<SmsReviewScreen> {
   late DateTime _date;
   bool _defaultLedgerApplied = false;
 
+  /// Whether the app was actually locked at the moment this screen opened
+  /// -- decides whether leaving it needs the same exempt-and-force-close
+  /// treatment [AddTransactionScreen]'s quick-add instance uses. An SMS
+  /// notification can arrive (and be tapped) at any time, including while
+  /// the app is already open and unlocked for something else entirely; in
+  /// that case this screen is just an ordinary pushed route and a plain pop
+  /// back to whatever the user was doing is correct -- exempting the lock
+  /// or force-closing the app would be pointless in the first case and a
+  /// jarring surprise in the second. Read once at open, not re-evaluated
+  /// afterward: the whole point is what was true the moment this screen
+  /// took over, not whatever [appUnlocked] happens to say later.
+  late final bool _wasLockedOnOpen;
+
   @override
   void initState() {
     super.initState();
-    _amountController = TextEditingController(text: widget.payload.amount.toStringAsFixed(2));
+    _amountController = TextEditingController(
+      text: widget.payload.amount.toStringAsFixed(2),
+    );
     _currency = widget.payload.currency;
     _date = widget.payload.occurredAt;
     _counterpartyId = widget.payload.counterpartyId;
     _category = widget.payload.category;
+    _wasLockedOnOpen = !appUnlocked.value;
+    if (_wasLockedOnOpen) {
+      quickAddScreenActive.value = true;
+    }
   }
 
   @override
   void dispose() {
+    if (_wasLockedOnOpen) {
+      quickAddScreenActive.value = false;
+    }
     _amountController.dispose();
     _customCategoryController.dispose();
     super.dispose();
+  }
+
+  /// Leaves this screen -- a plain pop when it was reached from an already
+  /// -unlocked app (see [_wasLockedOnOpen]), or the same close-the-app
+  /// sequence [AddTransactionScreen] uses when it wasn't: a plain pop in
+  /// that case would reveal the still-locked app underneath with no fresh
+  /// unlock check, the exact bug this mirrors the fix for.
+  void _leave() {
+    if (_wasLockedOnOpen) {
+      Navigator.of(context).popUntil((route) => route.isFirst);
+      SystemNavigator.pop();
+    } else {
+      Navigator.of(context).pop();
+    }
   }
 
   Future<void> _pickDate() async {
@@ -70,9 +108,13 @@ class _SmsReviewScreenState extends ConsumerState<SmsReviewScreen> {
 
     final amount = double.parse(_amountController.text.trim());
     final selectedCategory = _category ?? _categoryNames.first;
-    final category = selectedCategory == 'Other' ? _customCategoryController.text.trim() : selectedCategory;
+    final category = selectedCategory == 'Other'
+        ? _customCategoryController.text.trim()
+        : selectedCategory;
 
-    await ref.read(ledgerRepositoryProvider).addTransaction(
+    await ref
+        .read(ledgerRepositoryProvider)
+        .addTransaction(
           counterpartyId: counterpartyId,
           date: _date,
           amount: amount,
@@ -82,14 +124,15 @@ class _SmsReviewScreenState extends ConsumerState<SmsReviewScreen> {
         );
 
     if (!mounted) return;
-    Navigator.of(context).pop();
+    _leave();
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colors = context.appColors;
-    final counterparties = ref.watch(counterpartiesStreamProvider).valueOrNull ?? const [];
+    final counterparties =
+        ref.watch(counterpartiesStreamProvider).valueOrNull ?? const [];
     final matchedByRule = widget.payload.counterpartyId != null;
 
     final categoriesAsync = ref.watch(ledgerCategoriesStreamProvider);
@@ -97,14 +140,19 @@ class _SmsReviewScreenState extends ConsumerState<SmsReviewScreen> {
       ...categoriesAsync.valueOrNull?.map((c) => c.name) ?? const <String>[],
       'Other',
     ];
-    final selectedCategory = (_category != null && _categoryNames.contains(_category)) ? _category! : _categoryNames.first;
+    final selectedCategory =
+        (_category != null && _categoryNames.contains(_category))
+        ? _category!
+        : _categoryNames.first;
 
     // No vendor rule matched a ledger -- fall back to the Settings-picked
     // default (still just a starting point; the dropdown below stays fully
     // editable). Applied once, post-frame like the calculator screen's own
     // seeding, and only if that stored id still refers to a real ledger --
     // otherwise the dropdown would be handed a value with no matching item.
-    if (!_defaultLedgerApplied && _counterpartyId == null && counterparties.isNotEmpty) {
+    if (!_defaultLedgerApplied &&
+        _counterpartyId == null &&
+        counterparties.isNotEmpty) {
       _defaultLedgerApplied = true;
       final defaultId = ref.read(defaultLedgerCounterpartyIdProvider);
       if (counterparties.any((c) => c.id == defaultId)) {
@@ -113,176 +161,240 @@ class _SmsReviewScreenState extends ConsumerState<SmsReviewScreen> {
         });
       }
     }
-    final validCounterpartyId = counterparties.any((c) => c.id == _counterpartyId) ? _counterpartyId : null;
+    final validCounterpartyId =
+        counterparties.any((c) => c.id == _counterpartyId)
+        ? _counterpartyId
+        : null;
 
-    return Scaffold(
-      appBar: AppBar(title: const Text('Confirm payment')),
-      body: Form(
-        key: _formKey,
-        child: ListView(
-          padding: const EdgeInsets.all(16),
-          children: [
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: theme.colorScheme.surface,
-                borderRadius: BorderRadius.circular(18),
-                border: Border.all(color: colors.border),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
-                    decoration: BoxDecoration(color: colors.surface2, borderRadius: BorderRadius.circular(99)),
-                    child: Text(
-                      'From SMS · ${_date.year}-${_date.month.toString().padLeft(2, '0')}-${_date.day.toString().padLeft(2, '0')}',
-                      style: theme.textTheme.labelSmall?.copyWith(color: colors.textDim, fontWeight: FontWeight.w700),
+    return PopScope(
+      // Only true when this screen was itself what earned the lock
+      // exemption -- reached from an already-unlocked app, backing out is
+      // an ordinary pop, same as always.
+      canPop: !_wasLockedOnOpen,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        _leave();
+      },
+      child: Scaffold(
+        appBar: AppBar(title: const Text('Confirm payment')),
+        body: Form(
+          key: _formKey,
+          child: ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.surface,
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(color: colors.border),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 9,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: colors.surface2,
+                        borderRadius: BorderRadius.circular(99),
+                      ),
+                      child: Text(
+                        'From SMS · ${_date.year}-${_date.month.toString().padLeft(2, '0')}-${_date.day.toString().padLeft(2, '0')}',
+                        style: theme.textTheme.labelSmall?.copyWith(
+                          color: colors.textDim,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 10),
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        flex: 2,
-                        child: TextFormField(
-                          controller: _amountController,
-                          style: theme.textTheme.headlineSmall,
-                          decoration: const InputDecoration(hintText: '0.00'),
-                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                          validator: (v) {
-                            if (v == null || v.trim().isEmpty) return 'Required';
-                            final n = double.tryParse(v.trim());
-                            if (n == null || n <= 0) return 'Enter a number';
-                            return null;
-                          },
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: DropdownButtonFormField<String>(
-                          isExpanded: true,
-                          initialValue: _currency,
-                          items: supportedCurrencies
-                              .map((c) => DropdownMenuItem(value: c, child: Text(c)))
-                              .toList(),
-                          onChanged: (c) => setState(() => _currency = c!),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 4),
-                  Text.rich(
-                    TextSpan(
-                      style: theme.textTheme.bodySmall?.copyWith(color: colors.textDim),
+                    const SizedBox(height: 10),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const TextSpan(text: 'at '),
-                        TextSpan(
-                          text: widget.payload.vendor,
-                          style: TextStyle(color: colors.textBody, fontWeight: FontWeight.w700),
+                        Expanded(
+                          flex: 2,
+                          child: TextFormField(
+                            controller: _amountController,
+                            style: theme.textTheme.headlineSmall,
+                            decoration: const InputDecoration(hintText: '0.00'),
+                            keyboardType: const TextInputType.numberWithOptions(
+                              decimal: true,
+                            ),
+                            validator: (v) {
+                              if (v == null || v.trim().isEmpty) {
+                                return 'Required';
+                              }
+                              final n = double.tryParse(v.trim());
+                              if (n == null || n <= 0) return 'Enter a number';
+                              return null;
+                            },
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: DropdownButtonFormField<String>(
+                            isExpanded: true,
+                            initialValue: _currency,
+                            items: supportedCurrencies
+                                .map(
+                                  (c) => DropdownMenuItem(
+                                    value: c,
+                                    child: Text(c),
+                                  ),
+                                )
+                                .toList(),
+                            onChanged: (c) => setState(() => _currency = c!),
+                          ),
                         ),
                       ],
                     ),
-                  ),
-                  if (matchedByRule) ...[
-                    const SizedBox(height: 9),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                      decoration: BoxDecoration(
-                        color: colors.good.withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(99),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
+                    const SizedBox(height: 4),
+                    Text.rich(
+                      TextSpan(
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: colors.textDim,
+                        ),
                         children: [
-                          Icon(Icons.check_circle, size: 12, color: colors.good),
-                          const SizedBox(width: 4),
-                          Text(
-                            'Matched by vendor rule',
-                            style: theme.textTheme.labelSmall?.copyWith(color: colors.good, fontWeight: FontWeight.w700),
+                          const TextSpan(text: 'at '),
+                          TextSpan(
+                            text: widget.payload.vendor,
+                            style: TextStyle(
+                              color: colors.textBody,
+                              fontWeight: FontWeight.w700,
+                            ),
                           ),
                         ],
                       ),
                     ),
-                  ],
-                ],
-              ),
-            ),
-            const SizedBox(height: 20),
-            Text('Add to which ledger?', style: theme.textTheme.labelSmall?.copyWith(color: colors.textDim, fontWeight: FontWeight.w800)),
-            const SizedBox(height: 8),
-            DropdownButtonFormField<String>(
-              isExpanded: true,
-              initialValue: validCounterpartyId,
-              items: counterparties
-                  .map((c) => DropdownMenuItem(value: c.id, child: Text(c.name)))
-                  .toList(),
-              onChanged: (v) => setState(() => _counterpartyId = v),
-              validator: (v) => v == null ? 'Pick a ledger' : null,
-            ),
-            const SizedBox(height: 16),
-            Text('Category', style: theme.textTheme.labelSmall?.copyWith(color: colors.textDim, fontWeight: FontWeight.w800)),
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: _categoryNames.map((c) {
-                return ChoiceChip(
-                  label: Text(c),
-                  selected: selectedCategory == c,
-                  onSelected: (_) => setState(() => _category = c),
-                );
-              }).toList(),
-            ),
-            if (selectedCategory == 'Other') ...[
-              const SizedBox(height: 12),
-              TextFormField(
-                controller: _customCategoryController,
-                decoration: const InputDecoration(hintText: 'Category'),
-              ),
-            ],
-            const SizedBox(height: 16),
-            InkWell(
-              onTap: _pickDate,
-              borderRadius: BorderRadius.circular(12),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                child: Row(
-                  children: [
-                    Icon(Icons.calendar_today, size: 18, color: colors.textDim),
-                    const SizedBox(width: 12),
-                    Text(
-                      '${_date.year}-${_date.month.toString().padLeft(2, '0')}-${_date.day.toString().padLeft(2, '0')}',
-                    ),
+                    if (matchedByRule) ...[
+                      const SizedBox(height: 9),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 3,
+                        ),
+                        decoration: BoxDecoration(
+                          color: colors.good.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(99),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.check_circle,
+                              size: 12,
+                              color: colors.good,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              'Matched by vendor rule',
+                              style: theme.textTheme.labelSmall?.copyWith(
+                                color: colors.good,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),
-            ),
-            const SizedBox(height: 90),
-          ],
+              const SizedBox(height: 20),
+              Text(
+                'Add to which ledger?',
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: colors.textDim,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const SizedBox(height: 8),
+              DropdownButtonFormField<String>(
+                isExpanded: true,
+                initialValue: validCounterpartyId,
+                items: counterparties
+                    .map(
+                      (c) => DropdownMenuItem(value: c.id, child: Text(c.name)),
+                    )
+                    .toList(),
+                onChanged: (v) => setState(() => _counterpartyId = v),
+                validator: (v) => v == null ? 'Pick a ledger' : null,
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'Category',
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: colors.textDim,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: _categoryNames.map((c) {
+                  return ChoiceChip(
+                    label: Text(c),
+                    selected: selectedCategory == c,
+                    onSelected: (_) => setState(() => _category = c),
+                  );
+                }).toList(),
+              ),
+              if (selectedCategory == 'Other') ...[
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: _customCategoryController,
+                  decoration: const InputDecoration(hintText: 'Category'),
+                ),
+              ],
+              const SizedBox(height: 16),
+              InkWell(
+                onTap: _pickDate,
+                borderRadius: BorderRadius.circular(12),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.calendar_today,
+                        size: 18,
+                        color: colors.textDim,
+                      ),
+                      const SizedBox(width: 12),
+                      Text(
+                        '${_date.year}-${_date.month.toString().padLeft(2, '0')}-${_date.day.toString().padLeft(2, '0')}',
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 90),
+            ],
+          ),
         ),
-      ),
-      bottomSheet: SafeArea(
-        minimum: const EdgeInsets.only(bottom: 12),
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-          child: Row(
-            children: [
-              Expanded(
-                child: OutlinedButton(
-                  onPressed: () => Navigator.of(context).pop(),
-                  child: const Text('Not a payment'),
+        bottomSheet: SafeArea(
+          minimum: const EdgeInsets.only(bottom: 12),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+            child: Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: _leave,
+                    child: const Text('Not a payment'),
+                  ),
                 ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: FilledButton(
-                  onPressed: _save,
-                  child: const Text('Confirm & add'),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: FilledButton(
+                    onPressed: _save,
+                    child: const Text('Confirm & add'),
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),

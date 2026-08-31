@@ -44,7 +44,8 @@ class AppLockGate extends ConsumerStatefulWidget {
   ConsumerState<AppLockGate> createState() => _AppLockGateState();
 }
 
-class _AppLockGateState extends ConsumerState<AppLockGate> with WidgetsBindingObserver {
+class _AppLockGateState extends ConsumerState<AppLockGate>
+    with WidgetsBindingObserver {
   final _localAuth = LocalAuthentication();
   bool _unlocked = false;
   bool _checking = false;
@@ -55,8 +56,16 @@ class _AppLockGateState extends ConsumerState<AppLockGate> with WidgetsBindingOb
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     quickAddScreenActive.addListener(_onQuickAddExemptionChanged);
-    _unlocked = !ref.read(settingsRepositoryProvider).biometricLockEnabled;
+    _setUnlocked(!ref.read(settingsRepositoryProvider).biometricLockEnabled);
     if (!_unlocked) _scheduleAutoPrompt();
+  }
+
+  /// Updates [_unlocked] and mirrors it into [appUnlocked] together, so the
+  /// two can never drift -- every place this state changes goes through
+  /// here instead of assigning [_unlocked] directly.
+  void _setUnlocked(bool value) {
+    _unlocked = value;
+    appUnlocked.value = value;
   }
 
   @override
@@ -80,7 +89,7 @@ class _AppLockGateState extends ConsumerState<AppLockGate> with WidgetsBindingOb
     // the rest of the process's life after the very first check.
     if (state == AppLifecycleState.paused) {
       if (ref.read(biometricLockEnabledProvider) && _unlocked) {
-        setState(() => _unlocked = false);
+        setState(() => _setUnlocked(false));
       }
       return;
     }
@@ -108,7 +117,7 @@ class _AppLockGateState extends ConsumerState<AppLockGate> with WidgetsBindingOb
         // No fingerprint/face/PIN lock available on this device at all --
         // don't trap the user behind a gate that could never open.
         setState(() {
-          _unlocked = true;
+          _setUnlocked(true);
           _checking = false;
         });
         return;
@@ -125,7 +134,7 @@ class _AppLockGateState extends ConsumerState<AppLockGate> with WidgetsBindingOb
         persistAcrossBackgrounding: true,
       );
       setState(() {
-        _unlocked = ok;
+        _setUnlocked(ok);
         _checking = false;
       });
     } on PlatformException catch (e) {
@@ -144,14 +153,25 @@ class _AppLockGateState extends ConsumerState<AppLockGate> with WidgetsBindingOb
     return Stack(
       children: [
         widget.child,
-        if (locked) Positioned.fill(child: _LockScreen(checking: _checking, error: _error, onUnlock: _authenticate)),
+        if (locked)
+          Positioned.fill(
+            child: _LockScreen(
+              checking: _checking,
+              error: _error,
+              onUnlock: _authenticate,
+            ),
+          ),
       ],
     );
   }
 }
 
 class _LockScreen extends StatelessWidget {
-  const _LockScreen({required this.checking, required this.error, required this.onUnlock});
+  const _LockScreen({
+    required this.checking,
+    required this.error,
+    required this.onUnlock,
+  });
 
   final bool checking;
   final String? error;
@@ -181,21 +201,37 @@ class _LockScreen extends StatelessWidget {
                   Container(
                     width: 72,
                     height: 72,
-                    decoration: BoxDecoration(color: context.appColors.accentSoft, shape: BoxShape.circle),
+                    decoration: BoxDecoration(
+                      color: context.appColors.accentSoft,
+                      shape: BoxShape.circle,
+                    ),
                     alignment: Alignment.center,
-                    child: Icon(Icons.fingerprint, size: 36, color: theme.colorScheme.primary),
+                    child: Icon(
+                      Icons.fingerprint,
+                      size: 36,
+                      color: theme.colorScheme.primary,
+                    ),
                   ),
                   const SizedBox(height: 20),
-                  Text('Money Hub is locked', style: theme.textTheme.titleMedium),
+                  Text(
+                    'Money Hub is locked',
+                    style: theme.textTheme.titleMedium,
+                  ),
                   const SizedBox(height: 8),
                   Text(
-                    checking ? 'Checking your fingerprint or face…' : 'Waiting for fingerprint or Face ID…',
+                    checking
+                        ? 'Checking your fingerprint or face…'
+                        : 'Waiting for fingerprint or Face ID…',
                     textAlign: TextAlign.center,
                     style: TextStyle(color: context.appColors.textDim),
                   ),
                   if (error != null) ...[
                     const SizedBox(height: 12),
-                    Text(error!, textAlign: TextAlign.center, style: TextStyle(color: context.appColors.bad)),
+                    Text(
+                      error!,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: context.appColors.bad),
+                    ),
                   ],
                   const SizedBox(height: 24),
                   // Only ever needed as a fallback -- the prompt above fires
@@ -205,7 +241,11 @@ class _LockScreen extends StatelessWidget {
                   FilledButton.icon(
                     onPressed: checking ? null : onUnlock,
                     icon: checking
-                        ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
                         : const Icon(Icons.lock_open),
                     label: const Text('Try again'),
                   ),

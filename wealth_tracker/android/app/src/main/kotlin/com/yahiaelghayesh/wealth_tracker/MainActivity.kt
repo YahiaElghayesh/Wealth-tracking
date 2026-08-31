@@ -1,6 +1,8 @@
 package com.yahiaelghayesh.wealth_tracker
 
 import android.content.Intent
+import android.os.Bundle
+import android.view.WindowManager
 import io.flutter.embedding.android.FlutterFragmentActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
@@ -13,6 +15,27 @@ class MainActivity : FlutterFragmentActivity() {
     private var smsChannel: MethodChannel? = null
     private var shortcutsChannel: MethodChannel? = null
     private var updaterChannel: MethodChannel? = null
+
+    // FLAG_SECURE blocks three things Android otherwise does with this
+    // window's actual rendered pixels, none of which the Dart-level
+    // biometric lock overlay (AppLockGate) can reach since they all happen
+    // outside Flutter's own paint pipeline: screenshots, the recent-apps
+    // task switcher's thumbnail (real balances were showing there
+    // uncovered -- confirmed from a live screenshot), and screen
+    // recording. It also removes the specific bug those two things share a
+    // root cause with: Android's app-switch resume animation is built from
+    // a cached snapshot of the window's last real frame, so without this
+    // flag that stale, unlocked frame could still flash on screen for a
+    // moment before Flutter's own re-lock repaint catches up -- with it,
+    // Android can't cache that frame at all and substitutes a blank one
+    // instead. Set unconditionally (not tied to whether the biometric lock
+    // setting is on) -- this is a financial app; screenshot/recording
+    // exposure of real balances is a risk regardless of whether app-open
+    // authentication happens to be enabled right now.
+    override fun onCreate(savedInstanceState: Bundle?) {
+        window.setFlags(WindowManager.LayoutParams.FLAG_SECURE, WindowManager.LayoutParams.FLAG_SECURE)
+        super.onCreate(savedInstanceState)
+    }
 
     // home_widget's click detection reads the launch Intent both from the
     // "was I cold-started by a widget tap" check (activity.intent, i.e.
