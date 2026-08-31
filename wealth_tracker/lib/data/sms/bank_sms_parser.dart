@@ -271,19 +271,29 @@ final _nbePaymentPattern = _BankSmsPattern(
   },
 );
 
-/// Matches NBE's Arabic *refund* alert (money returned to the card, e.g. a
-/// refunded online order) -- distinct from a payment/settlement, and the
-/// SMS itself says so explicitly (this amount doesn't count toward the
+/// Matches this Arabic *refund* alert wording (money returned to the card,
+/// e.g. a refunded online order) -- distinct from a payment/settlement, and
+/// the SMS itself says so explicitly (this amount doesn't count toward the
 /// month's minimum due, only the available balance), e.g.:
 /// "لقد تم رد EGP1500.00 على بطاقتكم الائتمانية المنتهية بـ# 4912 من Amazon
 /// Marketplace. يرجى ملاحظة أن هذا المبلغ سيتم إضافته إلى رصيد بطاقتك ولا
 /// يتم اعتباره بمثابة دفعة للمديونيات المستحقة لهذا الشهر."
 ///
+/// Originally logged as NBE's wording from an earlier sample, but a later
+/// real sample of the identical text was confirmed sent by CIB -- so this
+/// wording isn't exclusive to one bank, and the pattern is (deliberately)
+/// not named or gated on either. Nothing in this file ever checks which
+/// bank sent a message: a pattern matches purely on the text itself, and
+/// [updateCardBalanceFromSms] matches the resulting last-4-digits against
+/// every registered card regardless of that card's own (user-typed, purely
+/// informational) "Bank" field. A new real sample should be added here by
+/// what it says, not by which bank is assumed to have sent it.
+///
 /// No date is stated anywhere in this format, unlike every other pattern
 /// here -- occurredAt falls back to the moment this SMS is processed. Like
 /// a payment alert, the amount is NOT rounded up (never becomes a ledger
 /// entry, only feeds the card balance's fallback add-the-amount math).
-final _nbeRefundPattern = _BankSmsPattern(
+final _arabicRefundPattern = _BankSmsPattern(
   RegExp(
     r'تم\s*رد\s*([A-Za-z]{3})\s*([\d,]+(?:\.\d+)?)\s*على\s*بطاقتكم\s*الائتمانية\s*المنتهية\s*بـ#?\s*(\d{4})',
     dotAll: true,
@@ -316,7 +326,7 @@ final _patterns = [
   _cibPaymentPattern,
   _nbeChargePattern,
   _nbePaymentPattern,
-  _nbeRefundPattern,
+  _arabicRefundPattern,
 ];
 
 /// Parses a bank SMS body into a card transaction, or `null` if it doesn't

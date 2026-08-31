@@ -125,7 +125,7 @@ void main() {
       expect(result.availableBalanceAfter, isNull);
     });
 
-    test('parses the real NBE Arabic refund-alert format', () {
+    test('parses the real Arabic refund-alert format', () {
       const body = 'لقد تم رد EGP1500.00 على بطاقتكم الائتمانية المنتهية بـ# 4912 من Amazon Marketpl'
           '. يرجى ملاحظة أن هذا المبلغ سيتم إضافته إلى رصيد بطاقتك ولا يتم اعتباره بمثابة دفعة '
           'للمديونيات المستحقة لهذا الشهر.';
