@@ -175,21 +175,33 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
 
     if (!mounted) return;
     if (widget.closeAppOnSave) {
-      // SystemNavigator.pop() isn't guaranteed to actually kill the task on
-      // every device/Android version -- on some it just backgrounds it,
-      // leaving the whole Flutter engine (and this route) alive. Popping
-      // this screen off the Navigator ourselves first, before asking the
-      // system to exit, means the *next* quick-add tap always finds a clean
-      // base route to push onto regardless of what SystemNavigator.pop()
-      // ends up doing -- this is what actually fixes the "have to back out
-      // of every payment I ever quick-added" bug: without it, an
-      // un-disposed, still-mounted AddTransactionScreen from last time was
-      // sitting right where the new one got pushed on top of it, every time.
-      Navigator.of(context).popUntil((route) => route.isFirst);
-      SystemNavigator.pop();
+      _closeQuickAdd();
     } else {
       Navigator.of(context).pop();
     }
+  }
+
+  /// Exits the app entirely rather than popping back to whatever's
+  /// underneath -- used both after a successful save and when the user
+  /// backs out without saving (see the `PopScope` in [build]). Quick-add is
+  /// exempt from the biometric lock (AppLockGate) specifically because it's
+  /// a narrow, single-purpose screen; leaving it via a plain pop would
+  /// reveal the full app (whatever screen happens to be underneath) with no
+  /// fresh unlock check at all, defeating the whole point of that
+  /// exemption being narrow in the first place.
+  void _closeQuickAdd() {
+    // SystemNavigator.pop() isn't guaranteed to actually kill the task on
+    // every device/Android version -- on some it just backgrounds it,
+    // leaving the whole Flutter engine (and this route) alive. Popping this
+    // screen off the Navigator ourselves first, before asking the system to
+    // exit, means the *next* quick-add tap always finds a clean base route
+    // to push onto regardless of what SystemNavigator.pop() ends up doing
+    // -- this is what actually fixes the "have to back out of every payment
+    // I ever quick-added" bug: without it, an un-disposed, still-mounted
+    // AddTransactionScreen from last time was sitting right where the new
+    // one got pushed on top of it, every time.
+    Navigator.of(context).popUntil((route) => route.isFirst);
+    SystemNavigator.pop();
   }
 
   Future<void> _delete() async {
@@ -232,133 +244,158 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
     ];
     final selectedCategory = _category ?? _categoryNames.first;
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(_isEditing ? 'Edit' : 'Add'),
-        actions: [
-          if (_isEditing)
-            IconButton(
-              icon: const Icon(Icons.delete_outline),
-              tooltip: 'Delete',
-              onPressed: _delete,
-            ),
-        ],
-      ),
-      // A plain Column, not a Scaffold-managed keyboard inset -- the number
-      // pad and Save bar are always-present layout, not something that
-      // slides in over content the way the system IME would, so there's
-      // nothing for either to ever hide behind.
-      body: SafeArea(
-        child: Column(
-          children: [
-            Expanded(
-              child: Form(
-                key: _formKey,
-                child: ListView(
-                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-                  children: [
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Expanded(
-                          flex: 2,
-                          child: TextFormField(
-                            controller: _amountController,
-                            readOnly: true,
-                            showCursor: true,
-                            style: Theme.of(context).textTheme.headlineMedium,
-                            decoration: const InputDecoration(hintText: '0.00'),
-                            validator: (v) {
-                              if (v == null || v.trim().isEmpty) return 'Required';
-                              final n = double.tryParse(v.trim());
-                              if (n == null || n <= 0) return 'Enter a number';
-                              return null;
-                            },
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: DropdownButtonFormField<String>(
-                            isExpanded: true,
-                            initialValue: _currency,
-                            items: supportedCurrencies
-                                .map(
-                                  (c) => DropdownMenuItem(value: c, child: Text(c)),
-                                )
-                                .toList(),
-                            onChanged: (c) => setState(() => _currency = c!),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    SegmentedButton<bool>(
-                      segments: const [
-                        ButtonSegment(value: true, label: Text('You Paid')),
-                        ButtonSegment(value: false, label: Text('Paid to You')),
-                      ],
-                      selected: {_isPayment},
-                      onSelectionChanged: (s) => setState(() => _isPayment = s.first),
-                    ),
-                    const SizedBox(height: 16),
-                    InkWell(
-                      onTap: _pickDate,
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 8),
-                        child: Row(
-                          children: [
-                            const Icon(Icons.calendar_today, size: 18),
-                            const SizedBox(width: 12),
-                            Text(
-                              '${_date.year}-${_date.month.toString().padLeft(2, '0')}-${_date.day.toString().padLeft(2, '0')}',
+    return PopScope(
+      // Only quick-add's instance of this screen needs interception --
+      // reached normally (via a ledger row's own "+" button), a plain pop
+      // is exactly right, same as always.
+      canPop: !widget.closeAppOnSave,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        _closeQuickAdd();
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          title: Text(_isEditing ? 'Edit' : 'Add'),
+          actions: [
+            if (_isEditing)
+              IconButton(
+                icon: const Icon(Icons.delete_outline),
+                tooltip: 'Delete',
+                onPressed: _delete,
+              ),
+          ],
+        ),
+        // A plain Column, not a Scaffold-managed keyboard inset -- the number
+        // pad and Save bar are always-present layout, not something that
+        // slides in over content the way the system IME would, so there's
+        // nothing for either to ever hide behind.
+        body: SafeArea(
+          child: Column(
+            children: [
+              Expanded(
+                child: Form(
+                  key: _formKey,
+                  child: ListView(
+                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                    children: [
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            flex: 2,
+                            child: TextFormField(
+                              controller: _amountController,
+                              readOnly: true,
+                              showCursor: true,
+                              style: Theme.of(context).textTheme.headlineMedium,
+                              decoration: const InputDecoration(
+                                hintText: '0.00',
+                              ),
+                              validator: (v) {
+                                if (v == null || v.trim().isEmpty) {
+                                  return 'Required';
+                                }
+                                final n = double.tryParse(v.trim());
+                                if (n == null || n <= 0) {
+                                  return 'Enter a number';
+                                }
+                                return null;
+                              },
                             ),
-                          ],
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: DropdownButtonFormField<String>(
+                              isExpanded: true,
+                              initialValue: _currency,
+                              items: supportedCurrencies
+                                  .map(
+                                    (c) => DropdownMenuItem(
+                                      value: c,
+                                      child: Text(c),
+                                    ),
+                                  )
+                                  .toList(),
+                              onChanged: (c) => setState(() => _currency = c!),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      SegmentedButton<bool>(
+                        segments: const [
+                          ButtonSegment(value: true, label: Text('You Paid')),
+                          ButtonSegment(
+                            value: false,
+                            label: Text('Paid to You'),
+                          ),
+                        ],
+                        selected: {_isPayment},
+                        onSelectionChanged: (s) =>
+                            setState(() => _isPayment = s.first),
+                      ),
+                      const SizedBox(height: 16),
+                      InkWell(
+                        onTap: _pickDate,
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 8),
+                          child: Row(
+                            children: [
+                              const Icon(Icons.calendar_today, size: 18),
+                              const SizedBox(width: 12),
+                              Text(
+                                '${_date.year}-${_date.month.toString().padLeft(2, '0')}-${_date.day.toString().padLeft(2, '0')}',
+                              ),
+                            ],
+                          ),
                         ),
                       ),
-                    ),
-                    // Categories sit last, closest to the bottom of the
-                    // scrollable content -- the control the user reaches for
-                    // most, kept within easy one-thumb reach instead of up
-                    // by the amount field.
-                    if (_isPayment) ...[
-                      const SizedBox(height: 20),
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: _categoryNames.map((c) {
-                          return ChoiceChip(
-                            label: Text(c),
-                            selected: selectedCategory == c,
-                            onSelected: (_) => setState(() => _category = c),
-                          );
-                        }).toList(),
-                      ),
-                      if (selectedCategory == 'Other') ...[
-                        const SizedBox(height: 12),
-                        TextFormField(
-                          controller: _customCategoryController,
-                          decoration: const InputDecoration(hintText: 'Category'),
+                      // Categories sit last, closest to the bottom of the
+                      // scrollable content -- the control the user reaches for
+                      // most, kept within easy one-thumb reach instead of up
+                      // by the amount field.
+                      if (_isPayment) ...[
+                        const SizedBox(height: 20),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: _categoryNames.map((c) {
+                            return ChoiceChip(
+                              label: Text(c),
+                              selected: selectedCategory == c,
+                              onSelected: (_) => setState(() => _category = c),
+                            );
+                          }).toList(),
                         ),
+                        if (selectedCategory == 'Other') ...[
+                          const SizedBox(height: 12),
+                          TextFormField(
+                            controller: _customCategoryController,
+                            decoration: const InputDecoration(
+                              hintText: 'Category',
+                            ),
+                          ),
+                        ],
                       ],
                     ],
-                  ],
+                  ),
                 ),
               ),
-            ),
-            _NumericKeypad(onDigit: _appendDigit, onBackspace: _backspace),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-              child: SizedBox(
-                width: double.infinity,
-                height: 48,
-                child: FilledButton.icon(
-                  onPressed: _save,
-                  icon: const Icon(Icons.check),
-                  label: const Text('Save'),
+              _NumericKeypad(onDigit: _appendDigit, onBackspace: _backspace),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+                child: SizedBox(
+                  width: double.infinity,
+                  height: 48,
+                  child: FilledButton.icon(
+                    onPressed: _save,
+                    icon: const Icon(Icons.check),
+                    label: const Text('Save'),
+                  ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -402,9 +439,7 @@ class _NumericKeypad extends StatelessWidget {
                   Expanded(
                     child: _KeypadKey(
                       label: key,
-                      onTap: key == '⌫'
-                          ? onBackspace
-                          : () => onDigit(key),
+                      onTap: key == '⌫' ? onBackspace : () => onDigit(key),
                     ),
                   ),
               ],
