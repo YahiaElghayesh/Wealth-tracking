@@ -29,6 +29,7 @@ const defaultProfileId = 'default-profile';
     ManualInputs,
     Profiles,
     RecurringPayments,
+    RecurringPaymentHistory,
   ],
 )
 class AppDatabase extends _$AppDatabase {
@@ -37,7 +38,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 19;
+  int get schemaVersion => 20;
 
   /// Public so `ProfileRepository.addProfile` can give a newly created
   /// profile the same starter categories a fresh install gets -- otherwise
@@ -349,6 +350,12 @@ class AppDatabase extends _$AppDatabase {
         await m.addColumn(recurringPayments, recurringPayments.yearlyMonth);
         await m.addColumn(recurringPayments, recurringPayments.yearlyDay);
         await m.addColumn(recurringPayments, recurringPayments.lastPaidAt);
+      }
+      if (from < 20) {
+        // Auto-recorded monthly history for recurring payments -- fully
+        // new data (no prior version could have written it), so a plain
+        // create with no backfill needed.
+        await m.createTable(recurringPaymentHistory);
       }
     },
     // The "Breakfast" quick-pick category was a voice-transcription

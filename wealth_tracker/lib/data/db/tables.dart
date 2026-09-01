@@ -371,6 +371,35 @@ class RecurringPayments extends Table {
   Set<Column> get primaryKey => {id};
 }
 
+/// One permanent, auto-recorded snapshot of a single past calendar month's
+/// recurring-payments totals -- written automatically (see
+/// RecurringPaymentHistoryRepository.ensureRecorded) the first time the app
+/// notices the calendar has moved past that month, since nothing else
+/// remembers what a month's total/paid/pending were once the current
+/// month's numbers take their place. [pendingAmount] isn't stored
+/// separately -- always `totalAmount - paidAmount`.
+class RecurringPaymentHistory extends Table {
+  TextColumn get id => text()();
+  TextColumn get profileId => text().nullable().references(Profiles, #id)();
+
+  /// The recorded month, as a plain calendar year/month pair rather than a
+  /// full date -- this row represents an entire month, not one instant in
+  /// it, and (unlike a single int count of months) stays unambiguous
+  /// across year boundaries.
+  IntColumn get year => integer()();
+
+  /// 1-12.
+  IntColumn get month => integer()();
+
+  TextColumn get currency => text().withDefault(const Constant('EGP'))();
+  RealColumn get totalAmount => real()();
+  RealColumn get paidAmount => real()();
+  DateTimeColumn get recordedAt => dateTime()();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
 /// A rule matching a bank SMS merchant name to where it should be recorded:
 /// "any charge at a merchant whose name contains [vendorPattern] (case
 /// insensitive) is a payment made on [counterpartyId]'s behalf, categorized

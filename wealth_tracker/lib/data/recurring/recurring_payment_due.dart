@@ -50,12 +50,13 @@ DateTime recurringPaymentOccurrenceDate(
 }
 
 /// The start of the billing cycle [recurringPaymentOccurrenceDate] belongs
-/// to -- the boundary a "mark as paid" tap has to land on or after in
-/// order to count for the *current* cycle rather than a previous one:
+/// to -- for 'interval' this doubles as the date that cycle's charge was
+/// actually due (see [recurringPaymentDueDateForCurrentCycle]):
 /// - 'monthly': the 1st of this calendar month.
 /// - 'yearly': January 1st of this calendar year.
 /// - 'interval': [intervalDays] before the current occurrence -- i.e. the
-///   previous occurrence date.
+///   previous occurrence date, which for an "every N days" bill *is* when
+///   this cycle's charge happened.
 DateTime recurringPaymentCycleStart(RecurringPayment payment, DateTime today) {
   final frequency = RecurringPaymentFrequency.fromStored(payment.frequency);
   switch (frequency) {
@@ -70,18 +71,48 @@ DateTime recurringPaymentCycleStart(RecurringPayment payment, DateTime today) {
   }
 }
 
-/// Whether [payment] has already been marked paid for its *current*
-/// billing cycle (see [recurringPaymentCycleStart]) -- a paid-mark left
-/// over from an earlier cycle doesn't count, so a payment automatically
-/// reads as pending again once a new cycle starts.
+/// The date [payment]'s charge for the *current* cycle is actually due --
+/// distinct from [recurringPaymentOccurrenceDate], which for 'interval'
+/// always points at the *next* (upcoming) occurrence and so can never
+/// itself be used to tell "already due" apart from "not yet due":
+/// - 'monthly'/'yearly': the specific day within the period (can be
+///   upcoming or already passed -- there's a real "before due" gap to
+///   detect, e.g. day 20 of a 30-day month).
+/// - 'interval': the previous occurrence -- the cycle's own charge date
+///   *is* the cycle's start, so once a cycle has begun its charge is
+///   already due, with no equivalent gap.
+DateTime recurringPaymentDueDateForCurrentCycle(
+  RecurringPayment payment,
+  DateTime today,
+) {
+  final frequency = RecurringPaymentFrequency.fromStored(payment.frequency);
+  return frequency == RecurringPaymentFrequency.interval
+      ? recurringPaymentCycleStart(payment, today)
+      : recurringPaymentOccurrenceDate(payment, today);
+}
+
+/// Whether [payment] counts as paid for its *current* billing cycle --
+/// either because the user tapped "mark as paid" for this cycle (a
+/// [RecurringPayment.lastPaidAt] on/after [recurringPaymentCycleStart]),
+/// or, automatically, because the cycle's due date has already arrived
+/// ([recurringPaymentDueDateForCurrentCycle] is on/before [today]) even
+/// without an explicit tap -- so a bill someone always pays on time (or
+/// that's charged automatically) reads as paid the moment its date comes
+/// due, not only once manually confirmed. Either way this reverts to
+/// pending on its own once a new cycle starts, since both the manual mark
+/// and the automatic date check are re-evaluated fresh against whatever
+/// "today" and "the current cycle" mean at read time.
 bool recurringPaymentIsPaidForCurrentCycle(
   RecurringPayment payment,
   DateTime today,
 ) {
   final lastPaidAt = payment.lastPaidAt;
-  if (lastPaidAt == null) return false;
-  final cycleStart = recurringPaymentCycleStart(payment, today);
-  return !_dateOnly(lastPaidAt).isBefore(cycleStart);
+  if (lastPaidAt != null) {
+    final cycleStart = recurringPaymentCycleStart(payment, today);
+    if (!_dateOnly(lastPaidAt).isBefore(cycleStart)) return true;
+  }
+  final dueDate = recurringPaymentDueDateForCurrentCycle(payment, today);
+  return !dueDate.isAfter(_dateOnly(today));
 }
 
 /// Whether [payment]'s current occurrence (see

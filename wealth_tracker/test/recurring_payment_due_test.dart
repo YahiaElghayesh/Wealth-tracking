@@ -113,13 +113,28 @@ void main() {
   });
 
   group('recurringPaymentIsPaidForCurrentCycle', () {
-    test('never marked paid reads as pending', () {
+    test('never marked paid, and not yet due, reads as pending', () {
       final payment = _payment(frequency: 'monthly', dayOfMonth: 15);
       expect(
-        recurringPaymentIsPaidForCurrentCycle(payment, DateTime(2026, 3, 20)),
+        recurringPaymentIsPaidForCurrentCycle(payment, DateTime(2026, 3, 10)),
         isFalse,
       );
     });
+
+    test(
+      'monthly: never manually marked, but the due date already passed, auto-reads as paid',
+      () {
+        // The reported bug: day 1 bills unpaid on day 2 still showed as
+        // pending with nothing marked -- a bill someone always pays on
+        // time should read as paid once its date comes, not only once
+        // someone taps it.
+        final payment = _payment(frequency: 'monthly', dayOfMonth: 1);
+        expect(
+          recurringPaymentIsPaidForCurrentCycle(payment, DateTime(2026, 3, 2)),
+          isTrue,
+        );
+      },
+    );
 
     test('monthly: paid earlier this month still reads as paid', () {
       final payment = _payment(
@@ -158,18 +173,36 @@ void main() {
       );
     });
 
-    test('yearly: a paid-mark from last year reads as pending again', () {
-      final payment = _payment(
-        frequency: 'yearly',
-        yearlyMonth: 1,
-        yearlyDay: 5,
-        lastPaidAt: DateTime(2025, 1, 5),
-      );
-      expect(
-        recurringPaymentIsPaidForCurrentCycle(payment, DateTime(2026, 1, 1)),
-        isFalse,
-      );
-    });
+    test(
+      'yearly: a paid-mark from last year, before this year\'s date is due, reads as pending',
+      () {
+        final payment = _payment(
+          frequency: 'yearly',
+          yearlyMonth: 1,
+          yearlyDay: 5,
+          lastPaidAt: DateTime(2025, 1, 5),
+        );
+        expect(
+          recurringPaymentIsPaidForCurrentCycle(payment, DateTime(2026, 1, 1)),
+          isFalse,
+        );
+      },
+    );
+
+    test(
+      'yearly: never manually marked, but this year\'s date already passed, auto-reads as paid',
+      () {
+        final payment = _payment(
+          frequency: 'yearly',
+          yearlyMonth: 1,
+          yearlyDay: 5,
+        );
+        expect(
+          recurringPaymentIsPaidForCurrentCycle(payment, DateTime(2026, 1, 10)),
+          isTrue,
+        );
+      },
+    );
 
     test('interval: paid within the current cycle window reads as paid', () {
       final payment = _payment(
@@ -186,17 +219,33 @@ void main() {
       );
     });
 
+    test('interval: an "every N days" bill has no gap before its due date -- '
+        'once its cycle has started, it auto-reads as paid even unmarked', () {
+      final payment = _payment(
+        frequency: 'interval',
+        intervalDays: 10,
+        intervalAnchorDate: DateTime(2026, 3, 1),
+      );
+      // Cycle start (the last actual charge date) for "today" 3/13 is
+      // 3/11 -- unlike monthly/yearly, an interval bill's charge date
+      // *is* its cycle's start, so there's no "not yet due" window
+      // inside an already-started cycle.
+      expect(
+        recurringPaymentIsPaidForCurrentCycle(payment, DateTime(2026, 3, 13)),
+        isTrue,
+      );
+    });
+
     test(
-      'interval: paid before the current cycle started reads as pending',
+      'interval: before the very first cycle has even started reads as pending',
       () {
         final payment = _payment(
           frequency: 'interval',
           intervalDays: 10,
-          intervalAnchorDate: DateTime(2026, 3, 1),
-          lastPaidAt: DateTime(2026, 3, 1),
+          intervalAnchorDate: DateTime(2026, 3, 15),
         );
         expect(
-          recurringPaymentIsPaidForCurrentCycle(payment, DateTime(2026, 3, 13)),
+          recurringPaymentIsPaidForCurrentCycle(payment, DateTime(2026, 3, 1)),
           isFalse,
         );
       },

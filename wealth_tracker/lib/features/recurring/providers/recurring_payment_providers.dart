@@ -1,8 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../data/db/database.dart';
 import '../../../data/ledger/ledger_calculator.dart';
 import '../../../data/recurring/recurring_payment_due.dart';
+import '../../../data/repositories/recurring_payment_history_repository.dart';
 import '../../../data/repositories/recurring_payment_repository.dart';
 import '../../networth/providers/asset_providers.dart'
     show pricesUsdPerUnitProvider, databaseProvider;
@@ -81,3 +84,31 @@ final recurringPaymentsMonthSummaryProvider =
         hasMinimums: hasMinimums,
       );
     });
+
+final recurringPaymentHistoryRepositoryProvider =
+    Provider<RecurringPaymentHistoryRepository>((ref) {
+      return RecurringPaymentHistoryRepository(
+        ref.watch(databaseProvider),
+        ref.watch(activeProfileIdProvider),
+      );
+    });
+
+final recurringPaymentHistoryStreamProvider =
+    StreamProvider<List<RecurringPaymentHistoryData>>((ref) {
+      return ref.watch(recurringPaymentHistoryRepositoryProvider).watchAll();
+    });
+
+/// Fires (fire-and-forget) whenever this rebuilds with a real payments
+/// list: if the calendar has moved past a month with no history record
+/// yet, writes one -- see [RecurringPaymentHistoryRepository.ensureRecorded]
+/// for why this can't just be computed live the way the current month's
+/// total is. Watched from `RecurringPaymentsScreen`'s build, the same
+/// "provider as a side-effect trigger" pattern `knownCardsSyncProvider`
+/// and friends already use elsewhere in this app.
+final recurringPaymentHistoryAutoRecordProvider = Provider<void>((ref) {
+  final repository = ref.watch(recurringPaymentHistoryRepositoryProvider);
+  final payments = ref.watch(recurringPaymentsStreamProvider).valueOrNull;
+  final prices = ref.watch(pricesUsdPerUnitProvider);
+  if (payments == null) return;
+  unawaited(repository.ensureRecorded(payments, prices));
+});

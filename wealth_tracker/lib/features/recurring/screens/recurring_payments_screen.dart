@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/format/money_formatter.dart';
-import '../../../core/models/currency.dart';
 import '../../../core/models/recurring_payment_frequency.dart';
 import '../../../core/providers/privacy_providers.dart';
 import '../../../core/theme/app_colors.dart';
@@ -11,8 +10,11 @@ import '../../../core/widgets/money_text.dart';
 import '../../../core/widgets/settings_action.dart';
 import '../../../data/db/database.dart';
 import '../../../data/recurring/recurring_payment_due.dart';
+import '../../networth/providers/asset_providers.dart'
+    show usdToEgpRateProvider;
 import '../providers/recurring_payment_providers.dart';
 import 'add_recurring_payment_screen.dart';
+import 'recurring_payment_history_screen.dart';
 
 const _monthNames = [
   'Jan',
@@ -51,18 +53,35 @@ class _RecurringPaymentsScreenState
 
   @override
   Widget build(BuildContext context) {
+    // Fire-and-forget: auto-records last month's totals into history the
+    // moment the calendar has moved past it -- see that provider's own
+    // doc comment.
+    ref.watch(recurringPaymentHistoryAutoRecordProvider);
     final paymentsAsync = ref.watch(recurringPaymentsStreamProvider);
     final summary = ref.watch(recurringPaymentsMonthSummaryProvider);
+    final usdToEgpRate = ref.watch(usdToEgpRateProvider);
     final today = DateTime.now();
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('Recurring payments'),
-        actions: const [HideValuesAction(), SettingsAction()],
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.history),
+            tooltip: 'History',
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => const RecurringPaymentHistoryScreen(),
+              ),
+            ),
+          ),
+          const HideValuesAction(),
+          const SettingsAction(),
+        ],
       ),
       body: Column(
         children: [
-          _TotalCard(summary: summary),
+          _TotalCard(summary: summary, usdToEgpRate: usdToEgpRate),
           Expanded(
             child: paymentsAsync.when(
               loading: () => const Center(child: CircularProgressIndicator()),
@@ -131,14 +150,29 @@ class _RecurringPaymentsScreenState
 }
 
 class _TotalCard extends StatelessWidget {
-  const _TotalCard({required this.summary});
+  const _TotalCard({required this.summary, required this.usdToEgpRate});
 
   final RecurringPaymentsMonthSummary summary;
+
+  /// Null while the FX rate hasn't been fetched yet -- the USD line and
+  /// legend USD values are hidden in that case rather than shown as a
+  /// misleading zero, same convention as [NetWorthSummaryCard].
+  final double? usdToEgpRate;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colors = context.appColors;
+    final usdTotal = (usdToEgpRate == null || usdToEgpRate == 0)
+        ? null
+        : summary.total / usdToEgpRate!;
+    final paidFraction = summary.total <= 0
+        ? 0.0
+        : summary.paid / summary.total;
+    final pendingFraction = summary.total <= 0
+        ? 0.0
+        : summary.pending / summary.total;
+
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
       padding: const EdgeInsets.fromLTRB(15, 12, 15, 12),
@@ -172,16 +206,22 @@ class _TotalCard extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 6),
           MoneyText(
-            formatMoney(summary.total, defaultCurrency),
+            formatEgpWhole(summary.total),
             style: theme.textTheme.headlineSmall?.copyWith(
               fontWeight: FontWeight.w700,
             ),
             maskLength: 9,
           ),
+          const SizedBox(height: 2),
+          MoneyText(
+            usdTotal == null ? '—' : '≈ ${formatUsdWhole(usdTotal)}',
+            style: theme.textTheme.bodyMedium?.copyWith(color: colors.textDim),
+            maskLength: 5,
+          ),
           if (summary.hasMinimums) ...[
-            const SizedBox(height: 3),
+            const SizedBox(height: 6),
             Text(
               'Actual total may be higher -- some payments are minimums.',
               style: theme.textTheme.labelSmall?.copyWith(
@@ -189,72 +229,164 @@ class _TotalCard extends StatelessWidget {
               ),
             ),
           ],
-          const SizedBox(height: 10),
-          Row(
-            children: [
-              Expanded(
-                child: _TotalSplitLine(
-                  label: 'Paid',
-                  amount: summary.paid,
-                  color: colors.good,
+          if (summary.total > 0) ...[
+            const SizedBox(height: 14),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(99),
+              child: SizedBox(
+                height: 12,
+                child: Row(
+                  children: [
+                    if (summary.paid > 0)
+                      Expanded(
+                        flex: (paidFraction * 1000).round().clamp(1, 999),
+                        child: Container(color: colors.good),
+                      ),
+                    if (summary.pending > 0)
+                      Expanded(
+                        flex: (pendingFraction * 1000).round().clamp(1, 999),
+                        child: Container(
+                          color: theme.colorScheme.primary.withValues(
+                            alpha: 0.25,
+                          ),
+                        ),
+                      ),
+                  ],
                 ),
               ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: _TotalSplitLine(
-                  label: 'Pending',
-                  amount: summary.pending,
-                  color: colors.textDim,
-                ),
-              ),
-            ],
-          ),
+            ),
+            const SizedBox(height: 10),
+            _PaymentLegendRow(
+              icon: Icons.check_circle_outline,
+              label: 'Paid',
+              fraction: paidFraction,
+              egpValue: summary.paid,
+              usdValue: usdToEgpRate == null || usdToEgpRate == 0
+                  ? null
+                  : summary.paid / usdToEgpRate!,
+              color: colors.good,
+            ),
+            const SizedBox(height: 8),
+            _PaymentLegendRow(
+              icon: Icons.hourglass_empty,
+              label: 'Pending',
+              fraction: pendingFraction,
+              egpValue: summary.pending,
+              usdValue: usdToEgpRate == null || usdToEgpRate == 0
+                  ? null
+                  : summary.pending / usdToEgpRate!,
+              color: theme.colorScheme.primary,
+            ),
+          ],
         ],
       ),
     );
   }
 }
 
-class _TotalSplitLine extends StatelessWidget {
-  const _TotalSplitLine({
+/// One full-width legend row below the split bar -- mirrors
+/// [NetWorthSummaryCard]'s own `_LegendRow` styling (a tinted box, icon,
+/// label + percent on the left, EGP/USD stacked and right-aligned) so the
+/// Paid/Pending split reads the same way the Net Worth tab's own
+/// liquid/non-liquid split does, instead of two lines that could wrap
+/// awkwardly next to each other on a narrow screen.
+class _PaymentLegendRow extends StatelessWidget {
+  static const _valueColumnWidth = 118.0;
+
+  const _PaymentLegendRow({
+    required this.icon,
     required this.label,
-    required this.amount,
+    required this.fraction,
+    required this.egpValue,
+    required this.usdValue,
     required this.color,
   });
 
+  final IconData icon;
   final String label;
-  final double amount;
+  final double fraction;
+  final double egpValue;
+
+  /// Null when the FX rate isn't known yet -- shown as "—" rather than a
+  /// misleading zero.
+  final double? usdValue;
   final Color color;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Row(
-      children: [
-        Container(
-          width: 7,
-          height: 7,
-          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-        ),
-        const SizedBox(width: 6),
-        Text(
-          '$label ',
-          style: theme.textTheme.labelSmall?.copyWith(
-            color: context.appColors.textDim,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-        Flexible(
-          child: MoneyText(
-            formatMoney(amount, defaultCurrency),
-            style: theme.textTheme.labelSmall?.copyWith(
-              color: color,
-              fontWeight: FontWeight.w800,
+    final colors = context.appColors;
+    final pct = '${(fraction * 100).round()}%';
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: color.withValues(alpha: 0.35)),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, size: 14, color: color),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Row(
+              children: [
+                Flexible(
+                  child: Text(
+                    label,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: colors.textDim,
+                    ),
+                    textAlign: TextAlign.left,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                const SizedBox(width: 6),
+                MoneyText(
+                  pct,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
+                  maskLength: 3,
+                ),
+              ],
             ),
-            maskLength: 7,
           ),
-        ),
-      ],
+          SizedBox(
+            width: _valueColumnWidth,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                MoneyText(
+                  formatEgpWhole(egpValue),
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: colors.textDim,
+                    fontWeight: FontWeight.w700,
+                  ),
+                  textAlign: TextAlign.right,
+                  maskLength: 7,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                MoneyText(
+                  usdValue == null ? '—' : '≈ ${formatUsdWhole(usdValue!)}',
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: colors.textDim,
+                    fontSize: 10.5,
+                  ),
+                  textAlign: TextAlign.right,
+                  maskLength: 5,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -440,22 +572,23 @@ class _RecurringPaymentTile extends ConsumerWidget {
                       ),
                       const SizedBox(height: 4),
                       Row(
-                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Icon(
-                            Icons.calendar_today,
-                            size: 11,
-                            color: colors.textDim,
+                          Padding(
+                            padding: const EdgeInsets.only(top: 2),
+                            child: Icon(
+                              Icons.calendar_today,
+                              size: 11,
+                              color: colors.textDim,
+                            ),
                           ),
                           const SizedBox(width: 4),
-                          Flexible(
+                          Expanded(
                             child: Text(
                               _dueDescription(today),
                               style: theme.textTheme.labelSmall?.copyWith(
                                 color: colors.textDim,
                               ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
                             ),
                           ),
                         ],
@@ -522,20 +655,46 @@ class _PaidToggle extends StatelessWidget {
         child: Container(
           width: 44,
           height: 44,
+          clipBehavior: Clip.antiAlias,
           decoration: BoxDecoration(
-            color: color.withValues(alpha: 0.14),
+            color: theme.colorScheme.surface,
             borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: color.withValues(alpha: 0.4)),
           ),
-          alignment: Alignment.center,
           child: paid
-              ? Icon(Icons.check_circle, size: 20, color: color)
-              : Text(
-                  dayLabel,
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    color: color,
-                    fontWeight: FontWeight.w800,
-                    height: 1,
-                  ),
+              ? Center(child: Icon(Icons.check_circle, size: 20, color: color))
+              // A miniature calendar-page icon -- a colored header strip
+              // (like a real calendar's month band) above the day number --
+              // rather than a plain colored box with a number in it, which
+              // read as an arbitrary counter/badge more than "this is a
+              // date."
+              : Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: double.infinity,
+                      height: 13,
+                      color: color,
+                      alignment: Alignment.center,
+                      child: Icon(
+                        Icons.circle,
+                        size: 3,
+                        color: theme.colorScheme.surface,
+                      ),
+                    ),
+                    Expanded(
+                      child: Center(
+                        child: Text(
+                          dayLabel,
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            color: colors.textBody,
+                            fontWeight: FontWeight.w800,
+                            height: 1,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
         ),
       ),

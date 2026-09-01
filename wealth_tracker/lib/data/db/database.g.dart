@@ -6705,6 +6705,539 @@ class RecurringPaymentsCompanion extends UpdateCompanion<RecurringPayment> {
   }
 }
 
+class $RecurringPaymentHistoryTable extends RecurringPaymentHistory
+    with TableInfo<$RecurringPaymentHistoryTable, RecurringPaymentHistoryData> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $RecurringPaymentHistoryTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _profileIdMeta = const VerificationMeta(
+    'profileId',
+  );
+  @override
+  late final GeneratedColumn<String> profileId = GeneratedColumn<String>(
+    'profile_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES profiles (id)',
+    ),
+  );
+  static const VerificationMeta _yearMeta = const VerificationMeta('year');
+  @override
+  late final GeneratedColumn<int> year = GeneratedColumn<int>(
+    'year',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _monthMeta = const VerificationMeta('month');
+  @override
+  late final GeneratedColumn<int> month = GeneratedColumn<int>(
+    'month',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _currencyMeta = const VerificationMeta(
+    'currency',
+  );
+  @override
+  late final GeneratedColumn<String> currency = GeneratedColumn<String>(
+    'currency',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('EGP'),
+  );
+  static const VerificationMeta _totalAmountMeta = const VerificationMeta(
+    'totalAmount',
+  );
+  @override
+  late final GeneratedColumn<double> totalAmount = GeneratedColumn<double>(
+    'total_amount',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _paidAmountMeta = const VerificationMeta(
+    'paidAmount',
+  );
+  @override
+  late final GeneratedColumn<double> paidAmount = GeneratedColumn<double>(
+    'paid_amount',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _recordedAtMeta = const VerificationMeta(
+    'recordedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> recordedAt = GeneratedColumn<DateTime>(
+    'recorded_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    profileId,
+    year,
+    month,
+    currency,
+    totalAmount,
+    paidAmount,
+    recordedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'recurring_payment_history';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<RecurringPaymentHistoryData> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('profile_id')) {
+      context.handle(
+        _profileIdMeta,
+        profileId.isAcceptableOrUnknown(data['profile_id']!, _profileIdMeta),
+      );
+    }
+    if (data.containsKey('year')) {
+      context.handle(
+        _yearMeta,
+        year.isAcceptableOrUnknown(data['year']!, _yearMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_yearMeta);
+    }
+    if (data.containsKey('month')) {
+      context.handle(
+        _monthMeta,
+        month.isAcceptableOrUnknown(data['month']!, _monthMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_monthMeta);
+    }
+    if (data.containsKey('currency')) {
+      context.handle(
+        _currencyMeta,
+        currency.isAcceptableOrUnknown(data['currency']!, _currencyMeta),
+      );
+    }
+    if (data.containsKey('total_amount')) {
+      context.handle(
+        _totalAmountMeta,
+        totalAmount.isAcceptableOrUnknown(
+          data['total_amount']!,
+          _totalAmountMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_totalAmountMeta);
+    }
+    if (data.containsKey('paid_amount')) {
+      context.handle(
+        _paidAmountMeta,
+        paidAmount.isAcceptableOrUnknown(data['paid_amount']!, _paidAmountMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_paidAmountMeta);
+    }
+    if (data.containsKey('recorded_at')) {
+      context.handle(
+        _recordedAtMeta,
+        recordedAt.isAcceptableOrUnknown(data['recorded_at']!, _recordedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_recordedAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  RecurringPaymentHistoryData map(
+    Map<String, dynamic> data, {
+    String? tablePrefix,
+  }) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return RecurringPaymentHistoryData(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      profileId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}profile_id'],
+      ),
+      year: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}year'],
+      )!,
+      month: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}month'],
+      )!,
+      currency: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}currency'],
+      )!,
+      totalAmount: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}total_amount'],
+      )!,
+      paidAmount: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}paid_amount'],
+      )!,
+      recordedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}recorded_at'],
+      )!,
+    );
+  }
+
+  @override
+  $RecurringPaymentHistoryTable createAlias(String alias) {
+    return $RecurringPaymentHistoryTable(attachedDatabase, alias);
+  }
+}
+
+class RecurringPaymentHistoryData extends DataClass
+    implements Insertable<RecurringPaymentHistoryData> {
+  final String id;
+  final String? profileId;
+
+  /// The recorded month, as a plain calendar year/month pair rather than a
+  /// full date -- this row represents an entire month, not one instant in
+  /// it, and (unlike a single int count of months) stays unambiguous
+  /// across year boundaries.
+  final int year;
+
+  /// 1-12.
+  final int month;
+  final String currency;
+  final double totalAmount;
+  final double paidAmount;
+  final DateTime recordedAt;
+  const RecurringPaymentHistoryData({
+    required this.id,
+    this.profileId,
+    required this.year,
+    required this.month,
+    required this.currency,
+    required this.totalAmount,
+    required this.paidAmount,
+    required this.recordedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    if (!nullToAbsent || profileId != null) {
+      map['profile_id'] = Variable<String>(profileId);
+    }
+    map['year'] = Variable<int>(year);
+    map['month'] = Variable<int>(month);
+    map['currency'] = Variable<String>(currency);
+    map['total_amount'] = Variable<double>(totalAmount);
+    map['paid_amount'] = Variable<double>(paidAmount);
+    map['recorded_at'] = Variable<DateTime>(recordedAt);
+    return map;
+  }
+
+  RecurringPaymentHistoryCompanion toCompanion(bool nullToAbsent) {
+    return RecurringPaymentHistoryCompanion(
+      id: Value(id),
+      profileId: profileId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(profileId),
+      year: Value(year),
+      month: Value(month),
+      currency: Value(currency),
+      totalAmount: Value(totalAmount),
+      paidAmount: Value(paidAmount),
+      recordedAt: Value(recordedAt),
+    );
+  }
+
+  factory RecurringPaymentHistoryData.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return RecurringPaymentHistoryData(
+      id: serializer.fromJson<String>(json['id']),
+      profileId: serializer.fromJson<String?>(json['profileId']),
+      year: serializer.fromJson<int>(json['year']),
+      month: serializer.fromJson<int>(json['month']),
+      currency: serializer.fromJson<String>(json['currency']),
+      totalAmount: serializer.fromJson<double>(json['totalAmount']),
+      paidAmount: serializer.fromJson<double>(json['paidAmount']),
+      recordedAt: serializer.fromJson<DateTime>(json['recordedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'profileId': serializer.toJson<String?>(profileId),
+      'year': serializer.toJson<int>(year),
+      'month': serializer.toJson<int>(month),
+      'currency': serializer.toJson<String>(currency),
+      'totalAmount': serializer.toJson<double>(totalAmount),
+      'paidAmount': serializer.toJson<double>(paidAmount),
+      'recordedAt': serializer.toJson<DateTime>(recordedAt),
+    };
+  }
+
+  RecurringPaymentHistoryData copyWith({
+    String? id,
+    Value<String?> profileId = const Value.absent(),
+    int? year,
+    int? month,
+    String? currency,
+    double? totalAmount,
+    double? paidAmount,
+    DateTime? recordedAt,
+  }) => RecurringPaymentHistoryData(
+    id: id ?? this.id,
+    profileId: profileId.present ? profileId.value : this.profileId,
+    year: year ?? this.year,
+    month: month ?? this.month,
+    currency: currency ?? this.currency,
+    totalAmount: totalAmount ?? this.totalAmount,
+    paidAmount: paidAmount ?? this.paidAmount,
+    recordedAt: recordedAt ?? this.recordedAt,
+  );
+  RecurringPaymentHistoryData copyWithCompanion(
+    RecurringPaymentHistoryCompanion data,
+  ) {
+    return RecurringPaymentHistoryData(
+      id: data.id.present ? data.id.value : this.id,
+      profileId: data.profileId.present ? data.profileId.value : this.profileId,
+      year: data.year.present ? data.year.value : this.year,
+      month: data.month.present ? data.month.value : this.month,
+      currency: data.currency.present ? data.currency.value : this.currency,
+      totalAmount: data.totalAmount.present
+          ? data.totalAmount.value
+          : this.totalAmount,
+      paidAmount: data.paidAmount.present
+          ? data.paidAmount.value
+          : this.paidAmount,
+      recordedAt: data.recordedAt.present
+          ? data.recordedAt.value
+          : this.recordedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('RecurringPaymentHistoryData(')
+          ..write('id: $id, ')
+          ..write('profileId: $profileId, ')
+          ..write('year: $year, ')
+          ..write('month: $month, ')
+          ..write('currency: $currency, ')
+          ..write('totalAmount: $totalAmount, ')
+          ..write('paidAmount: $paidAmount, ')
+          ..write('recordedAt: $recordedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    profileId,
+    year,
+    month,
+    currency,
+    totalAmount,
+    paidAmount,
+    recordedAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is RecurringPaymentHistoryData &&
+          other.id == this.id &&
+          other.profileId == this.profileId &&
+          other.year == this.year &&
+          other.month == this.month &&
+          other.currency == this.currency &&
+          other.totalAmount == this.totalAmount &&
+          other.paidAmount == this.paidAmount &&
+          other.recordedAt == this.recordedAt);
+}
+
+class RecurringPaymentHistoryCompanion
+    extends UpdateCompanion<RecurringPaymentHistoryData> {
+  final Value<String> id;
+  final Value<String?> profileId;
+  final Value<int> year;
+  final Value<int> month;
+  final Value<String> currency;
+  final Value<double> totalAmount;
+  final Value<double> paidAmount;
+  final Value<DateTime> recordedAt;
+  final Value<int> rowid;
+  const RecurringPaymentHistoryCompanion({
+    this.id = const Value.absent(),
+    this.profileId = const Value.absent(),
+    this.year = const Value.absent(),
+    this.month = const Value.absent(),
+    this.currency = const Value.absent(),
+    this.totalAmount = const Value.absent(),
+    this.paidAmount = const Value.absent(),
+    this.recordedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  RecurringPaymentHistoryCompanion.insert({
+    required String id,
+    this.profileId = const Value.absent(),
+    required int year,
+    required int month,
+    this.currency = const Value.absent(),
+    required double totalAmount,
+    required double paidAmount,
+    required DateTime recordedAt,
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       year = Value(year),
+       month = Value(month),
+       totalAmount = Value(totalAmount),
+       paidAmount = Value(paidAmount),
+       recordedAt = Value(recordedAt);
+  static Insertable<RecurringPaymentHistoryData> custom({
+    Expression<String>? id,
+    Expression<String>? profileId,
+    Expression<int>? year,
+    Expression<int>? month,
+    Expression<String>? currency,
+    Expression<double>? totalAmount,
+    Expression<double>? paidAmount,
+    Expression<DateTime>? recordedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (profileId != null) 'profile_id': profileId,
+      if (year != null) 'year': year,
+      if (month != null) 'month': month,
+      if (currency != null) 'currency': currency,
+      if (totalAmount != null) 'total_amount': totalAmount,
+      if (paidAmount != null) 'paid_amount': paidAmount,
+      if (recordedAt != null) 'recorded_at': recordedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  RecurringPaymentHistoryCompanion copyWith({
+    Value<String>? id,
+    Value<String?>? profileId,
+    Value<int>? year,
+    Value<int>? month,
+    Value<String>? currency,
+    Value<double>? totalAmount,
+    Value<double>? paidAmount,
+    Value<DateTime>? recordedAt,
+    Value<int>? rowid,
+  }) {
+    return RecurringPaymentHistoryCompanion(
+      id: id ?? this.id,
+      profileId: profileId ?? this.profileId,
+      year: year ?? this.year,
+      month: month ?? this.month,
+      currency: currency ?? this.currency,
+      totalAmount: totalAmount ?? this.totalAmount,
+      paidAmount: paidAmount ?? this.paidAmount,
+      recordedAt: recordedAt ?? this.recordedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (profileId.present) {
+      map['profile_id'] = Variable<String>(profileId.value);
+    }
+    if (year.present) {
+      map['year'] = Variable<int>(year.value);
+    }
+    if (month.present) {
+      map['month'] = Variable<int>(month.value);
+    }
+    if (currency.present) {
+      map['currency'] = Variable<String>(currency.value);
+    }
+    if (totalAmount.present) {
+      map['total_amount'] = Variable<double>(totalAmount.value);
+    }
+    if (paidAmount.present) {
+      map['paid_amount'] = Variable<double>(paidAmount.value);
+    }
+    if (recordedAt.present) {
+      map['recorded_at'] = Variable<DateTime>(recordedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('RecurringPaymentHistoryCompanion(')
+          ..write('id: $id, ')
+          ..write('profileId: $profileId, ')
+          ..write('year: $year, ')
+          ..write('month: $month, ')
+          ..write('currency: $currency, ')
+          ..write('totalAmount: $totalAmount, ')
+          ..write('paidAmount: $paidAmount, ')
+          ..write('recordedAt: $recordedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -6728,6 +7261,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $ManualInputsTable manualInputs = $ManualInputsTable(this);
   late final $RecurringPaymentsTable recurringPayments =
       $RecurringPaymentsTable(this);
+  late final $RecurringPaymentHistoryTable recurringPaymentHistory =
+      $RecurringPaymentHistoryTable(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -6746,6 +7281,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     ledgerCategories,
     manualInputs,
     recurringPayments,
+    recurringPaymentHistory,
   ];
 }
 
@@ -6941,6 +7477,31 @@ final class $$ProfilesTableReferences
 
     final cache = $_typedResult.readTableOrNull(
       _recurringPaymentsRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<
+    $RecurringPaymentHistoryTable,
+    List<RecurringPaymentHistoryData>
+  >
+  _recurringPaymentHistoryRefsTable(_$AppDatabase db) =>
+      MultiTypedResultKey.fromTable(
+        db.recurringPaymentHistory,
+        aliasName: 'profiles__id__recurring_payment_history__profile_id',
+      );
+
+  $$RecurringPaymentHistoryTableProcessedTableManager
+  get recurringPaymentHistoryRefs {
+    final manager = $$RecurringPaymentHistoryTableTableManager(
+      $_db,
+      $_db.recurringPaymentHistory,
+    ).filter((f) => f.profileId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _recurringPaymentHistoryRefsTable($_db),
     );
     return ProcessedTableManager(
       manager.$state.copyWith(prefetchedData: cache),
@@ -7199,6 +7760,32 @@ class $$ProfilesTableFilterComposer
                 $removeJoinBuilderFromRootComposer,
           ),
     );
+    return f(composer);
+  }
+
+  Expression<bool> recurringPaymentHistoryRefs(
+    Expression<bool> Function($$RecurringPaymentHistoryTableFilterComposer f) f,
+  ) {
+    final $$RecurringPaymentHistoryTableFilterComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.recurringPaymentHistory,
+          getReferencedColumn: (t) => t.profileId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$RecurringPaymentHistoryTableFilterComposer(
+                $db: $db,
+                $table: $db.recurringPaymentHistory,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
     return f(composer);
   }
 }
@@ -7481,6 +8068,33 @@ class $$ProfilesTableAnnotationComposer
         );
     return f(composer);
   }
+
+  Expression<T> recurringPaymentHistoryRefs<T extends Object>(
+    Expression<T> Function($$RecurringPaymentHistoryTableAnnotationComposer a)
+    f,
+  ) {
+    final $$RecurringPaymentHistoryTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.recurringPaymentHistory,
+          getReferencedColumn: (t) => t.profileId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$RecurringPaymentHistoryTableAnnotationComposer(
+                $db: $db,
+                $table: $db.recurringPaymentHistory,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
 }
 
 class $$ProfilesTableTableManager
@@ -7506,6 +8120,7 @@ class $$ProfilesTableTableManager
             bool ledgerCategoriesRefs,
             bool manualInputsRefs,
             bool recurringPaymentsRefs,
+            bool recurringPaymentHistoryRefs,
           })
         > {
   $$ProfilesTableTableManager(_$AppDatabase db, $ProfilesTable table)
@@ -7566,6 +8181,7 @@ class $$ProfilesTableTableManager
                 ledgerCategoriesRefs = false,
                 manualInputsRefs = false,
                 recurringPaymentsRefs = false,
+                recurringPaymentHistoryRefs = false,
               }) {
                 return PrefetchHooks(
                   db: db,
@@ -7579,6 +8195,7 @@ class $$ProfilesTableTableManager
                     if (ledgerCategoriesRefs) db.ledgerCategories,
                     if (manualInputsRefs) db.manualInputs,
                     if (recurringPaymentsRefs) db.recurringPayments,
+                    if (recurringPaymentHistoryRefs) db.recurringPaymentHistory,
                   ],
                   addJoins: null,
                   getPrefetchedDataCallback: (items) async {
@@ -7772,6 +8389,27 @@ class $$ProfilesTableTableManager
                               ),
                           typedResults: items,
                         ),
+                      if (recurringPaymentHistoryRefs)
+                        await $_getPrefetchedData<
+                          Profile,
+                          $ProfilesTable,
+                          RecurringPaymentHistoryData
+                        >(
+                          currentTable: table,
+                          referencedTable: $$ProfilesTableReferences
+                              ._recurringPaymentHistoryRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$ProfilesTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).recurringPaymentHistoryRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.profileId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
                     ];
                   },
                 );
@@ -7802,6 +8440,7 @@ typedef $$ProfilesTableProcessedTableManager =
         bool ledgerCategoriesRefs,
         bool manualInputsRefs,
         bool recurringPaymentsRefs,
+        bool recurringPaymentHistoryRefs,
       })
     >;
 typedef $$AssetsTableCreateCompanionBuilder =
@@ -12418,6 +13057,411 @@ typedef $$RecurringPaymentsTableProcessedTableManager =
       RecurringPayment,
       PrefetchHooks Function({bool profileId})
     >;
+typedef $$RecurringPaymentHistoryTableCreateCompanionBuilder =
+    RecurringPaymentHistoryCompanion Function({
+      required String id,
+      Value<String?> profileId,
+      required int year,
+      required int month,
+      Value<String> currency,
+      required double totalAmount,
+      required double paidAmount,
+      required DateTime recordedAt,
+      Value<int> rowid,
+    });
+typedef $$RecurringPaymentHistoryTableUpdateCompanionBuilder =
+    RecurringPaymentHistoryCompanion Function({
+      Value<String> id,
+      Value<String?> profileId,
+      Value<int> year,
+      Value<int> month,
+      Value<String> currency,
+      Value<double> totalAmount,
+      Value<double> paidAmount,
+      Value<DateTime> recordedAt,
+      Value<int> rowid,
+    });
+
+final class $$RecurringPaymentHistoryTableReferences
+    extends
+        BaseReferences<
+          _$AppDatabase,
+          $RecurringPaymentHistoryTable,
+          RecurringPaymentHistoryData
+        > {
+  $$RecurringPaymentHistoryTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static $ProfilesTable _profileIdTable(_$AppDatabase db) => db.profiles
+      .createAlias('recurring_payment_history__profile_id__profiles__id');
+
+  $$ProfilesTableProcessedTableManager? get profileId {
+    final $_column = $_itemColumn<String>('profile_id');
+    if ($_column == null) return null;
+    final manager = $$ProfilesTableTableManager(
+      $_db,
+      $_db.profiles,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_profileIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$RecurringPaymentHistoryTableFilterComposer
+    extends Composer<_$AppDatabase, $RecurringPaymentHistoryTable> {
+  $$RecurringPaymentHistoryTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get year => $composableBuilder(
+    column: $table.year,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get month => $composableBuilder(
+    column: $table.month,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get currency => $composableBuilder(
+    column: $table.currency,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get totalAmount => $composableBuilder(
+    column: $table.totalAmount,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get paidAmount => $composableBuilder(
+    column: $table.paidAmount,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get recordedAt => $composableBuilder(
+    column: $table.recordedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$ProfilesTableFilterComposer get profileId {
+    final $$ProfilesTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.profileId,
+      referencedTable: $db.profiles,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ProfilesTableFilterComposer(
+            $db: $db,
+            $table: $db.profiles,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$RecurringPaymentHistoryTableOrderingComposer
+    extends Composer<_$AppDatabase, $RecurringPaymentHistoryTable> {
+  $$RecurringPaymentHistoryTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get year => $composableBuilder(
+    column: $table.year,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get month => $composableBuilder(
+    column: $table.month,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get currency => $composableBuilder(
+    column: $table.currency,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get totalAmount => $composableBuilder(
+    column: $table.totalAmount,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get paidAmount => $composableBuilder(
+    column: $table.paidAmount,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get recordedAt => $composableBuilder(
+    column: $table.recordedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$ProfilesTableOrderingComposer get profileId {
+    final $$ProfilesTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.profileId,
+      referencedTable: $db.profiles,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ProfilesTableOrderingComposer(
+            $db: $db,
+            $table: $db.profiles,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$RecurringPaymentHistoryTableAnnotationComposer
+    extends Composer<_$AppDatabase, $RecurringPaymentHistoryTable> {
+  $$RecurringPaymentHistoryTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<int> get year =>
+      $composableBuilder(column: $table.year, builder: (column) => column);
+
+  GeneratedColumn<int> get month =>
+      $composableBuilder(column: $table.month, builder: (column) => column);
+
+  GeneratedColumn<String> get currency =>
+      $composableBuilder(column: $table.currency, builder: (column) => column);
+
+  GeneratedColumn<double> get totalAmount => $composableBuilder(
+    column: $table.totalAmount,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get paidAmount => $composableBuilder(
+    column: $table.paidAmount,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get recordedAt => $composableBuilder(
+    column: $table.recordedAt,
+    builder: (column) => column,
+  );
+
+  $$ProfilesTableAnnotationComposer get profileId {
+    final $$ProfilesTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.profileId,
+      referencedTable: $db.profiles,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ProfilesTableAnnotationComposer(
+            $db: $db,
+            $table: $db.profiles,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$RecurringPaymentHistoryTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $RecurringPaymentHistoryTable,
+          RecurringPaymentHistoryData,
+          $$RecurringPaymentHistoryTableFilterComposer,
+          $$RecurringPaymentHistoryTableOrderingComposer,
+          $$RecurringPaymentHistoryTableAnnotationComposer,
+          $$RecurringPaymentHistoryTableCreateCompanionBuilder,
+          $$RecurringPaymentHistoryTableUpdateCompanionBuilder,
+          (
+            RecurringPaymentHistoryData,
+            $$RecurringPaymentHistoryTableReferences,
+          ),
+          RecurringPaymentHistoryData,
+          PrefetchHooks Function({bool profileId})
+        > {
+  $$RecurringPaymentHistoryTableTableManager(
+    _$AppDatabase db,
+    $RecurringPaymentHistoryTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$RecurringPaymentHistoryTableFilterComposer(
+                $db: db,
+                $table: table,
+              ),
+          createOrderingComposer: () =>
+              $$RecurringPaymentHistoryTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$RecurringPaymentHistoryTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String?> profileId = const Value.absent(),
+                Value<int> year = const Value.absent(),
+                Value<int> month = const Value.absent(),
+                Value<String> currency = const Value.absent(),
+                Value<double> totalAmount = const Value.absent(),
+                Value<double> paidAmount = const Value.absent(),
+                Value<DateTime> recordedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => RecurringPaymentHistoryCompanion(
+                id: id,
+                profileId: profileId,
+                year: year,
+                month: month,
+                currency: currency,
+                totalAmount: totalAmount,
+                paidAmount: paidAmount,
+                recordedAt: recordedAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                Value<String?> profileId = const Value.absent(),
+                required int year,
+                required int month,
+                Value<String> currency = const Value.absent(),
+                required double totalAmount,
+                required double paidAmount,
+                required DateTime recordedAt,
+                Value<int> rowid = const Value.absent(),
+              }) => RecurringPaymentHistoryCompanion.insert(
+                id: id,
+                profileId: profileId,
+                year: year,
+                month: month,
+                currency: currency,
+                totalAmount: totalAmount,
+                paidAmount: paidAmount,
+                recordedAt: recordedAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable(table),
+                  $$RecurringPaymentHistoryTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({profileId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (profileId) {
+                      state =
+                          state.withJoin(
+                                currentTable: table,
+                                currentColumn: table.profileId,
+                                referencedTable:
+                                    $$RecurringPaymentHistoryTableReferences
+                                        ._profileIdTable(db),
+                                referencedColumn:
+                                    $$RecurringPaymentHistoryTableReferences
+                                        ._profileIdTable(db)
+                                        .id,
+                              )
+                              as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$RecurringPaymentHistoryTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $RecurringPaymentHistoryTable,
+      RecurringPaymentHistoryData,
+      $$RecurringPaymentHistoryTableFilterComposer,
+      $$RecurringPaymentHistoryTableOrderingComposer,
+      $$RecurringPaymentHistoryTableAnnotationComposer,
+      $$RecurringPaymentHistoryTableCreateCompanionBuilder,
+      $$RecurringPaymentHistoryTableUpdateCompanionBuilder,
+      (RecurringPaymentHistoryData, $$RecurringPaymentHistoryTableReferences),
+      RecurringPaymentHistoryData,
+      PrefetchHooks Function({bool profileId})
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -12448,4 +13492,9 @@ class $AppDatabaseManager {
       $$ManualInputsTableTableManager(_db, _db.manualInputs);
   $$RecurringPaymentsTableTableManager get recurringPayments =>
       $$RecurringPaymentsTableTableManager(_db, _db.recurringPayments);
+  $$RecurringPaymentHistoryTableTableManager get recurringPaymentHistory =>
+      $$RecurringPaymentHistoryTableTableManager(
+        _db,
+        _db.recurringPaymentHistory,
+      );
 }

@@ -14,7 +14,8 @@ import '../../../core/widgets/hide_values_action.dart';
 import '../../../core/widgets/money_text.dart';
 import '../../../core/widgets/settings_action.dart';
 import '../../../data/ledger/ledger_calculator.dart';
-import '../../networth/providers/asset_providers.dart' show pricesUsdPerUnitProvider;
+import '../../networth/providers/asset_providers.dart'
+    show pricesUsdPerUnitProvider;
 import '../providers/ledger_providers.dart';
 
 class StatisticsScreen extends ConsumerStatefulWidget {
@@ -46,7 +47,8 @@ class _StatisticsScreenState extends ConsumerState<StatisticsScreen> {
             );
           }
 
-          final selected = counterparties.any((c) => c.id == _selectedCounterpartyId)
+          final selected =
+              counterparties.any((c) => c.id == _selectedCounterpartyId)
               ? _selectedCounterpartyId!
               : counterparties.first.id;
 
@@ -60,9 +62,15 @@ class _StatisticsScreenState extends ConsumerState<StatisticsScreen> {
                     initialValue: selected,
                     decoration: const InputDecoration(labelText: 'Ledger'),
                     items: counterparties
-                        .map((c) => DropdownMenuItem(value: c.id, child: Text(c.name)))
+                        .map(
+                          (c) => DropdownMenuItem(
+                            value: c.id,
+                            child: Text(c.name),
+                          ),
+                        )
                         .toList(),
-                    onChanged: (id) => setState(() => _selectedCounterpartyId = id),
+                    onChanged: (id) =>
+                        setState(() => _selectedCounterpartyId = id),
                   ),
                 ),
               Expanded(child: _StatisticsBody(counterpartyId: selected)),
@@ -94,16 +102,22 @@ class _StatisticsBodyState extends ConsumerState<_StatisticsBody> {
   /// fine here -- unlike the trend chart below, which stays chronological.
   static List<DateTime> _recentMonths() {
     final now = DateTime.now();
-    final months = [for (var i = 11; i >= 0; i--) DateTime(now.year, now.month - i)];
+    final months = [
+      for (var i = 11; i >= 0; i--) DateTime(now.year, now.month - i),
+    ];
     months.sort((a, b) => a.month.compareTo(b.month));
     return months;
   }
 
-  late Set<DateTime> _selectedMonths = {DateTime(DateTime.now().year, DateTime.now().month)};
+  late Set<DateTime> _selectedMonths = {
+    DateTime(DateTime.now().year, DateTime.now().month),
+  };
 
   @override
   Widget build(BuildContext context) {
-    final transactionsAsync = ref.watch(transactionsStreamProvider(widget.counterpartyId));
+    final transactionsAsync = ref.watch(
+      transactionsStreamProvider(widget.counterpartyId),
+    );
     final prices = ref.watch(pricesUsdPerUnitProvider);
 
     return transactionsAsync.when(
@@ -115,7 +129,11 @@ class _StatisticsBodyState extends ConsumerState<_StatisticsBody> {
         }
 
         final trend = monthlySpendTrend(transactions, prices, months: 12);
-        final categoryTotals = categoryTotalsForMonths(transactions, _selectedMonths, prices);
+        final categoryTotals = categoryTotalsForMonths(
+          transactions,
+          _selectedMonths,
+          prices,
+        );
         final sortedCategories = categoryTotals.entries.toList()
           ..sort((a, b) => b.value.compareTo(a.value));
 
@@ -128,7 +146,10 @@ class _StatisticsBodyState extends ConsumerState<_StatisticsBody> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Spend by month', style: Theme.of(context).textTheme.titleMedium),
+                    Text(
+                      'Spend by month',
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
                     const SizedBox(height: 12),
                     _MonthlyTrendChart(trend: trend),
                   ],
@@ -142,7 +163,10 @@ class _StatisticsBodyState extends ConsumerState<_StatisticsBody> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('By category', style: Theme.of(context).textTheme.titleMedium),
+                    Text(
+                      'By category',
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
                     const SizedBox(height: 12),
                     Wrap(
                       spacing: 8,
@@ -160,7 +184,11 @@ class _StatisticsBodyState extends ConsumerState<_StatisticsBody> {
                                 _selectedMonths = {..._selectedMonths, month};
                               } else {
                                 _selectedMonths = _selectedMonths
-                                    .where((m) => !(m.year == month.year && m.month == month.month))
+                                    .where(
+                                      (m) =>
+                                          !(m.year == month.year &&
+                                              m.month == month.month),
+                                    )
                                     .toSet();
                               }
                             });
@@ -222,11 +250,9 @@ class _MonthlyTrendChart extends ConsumerWidget {
     final hideValues = ref.watch(hideValuesProvider);
     final color = Theme.of(context).colorScheme.primary;
     final colors = context.appColors;
-    final maxValue = trend.map((m) => m.amount).fold(0.0, (a, b) => a > b ? a : b);
-    // Only the current (last, right-most) month gets a permanent value
-    // label -- every month still shows a visible track slot underneath its
-    // bar so future/empty months don't read as literal gaps in the chart.
-    final currentIndex = trend.length - 1;
+    final maxValue = trend
+        .map((m) => m.amount)
+        .fold(0.0, (a, b) => a > b ? a : b);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -244,8 +270,13 @@ class _MonthlyTrendChart extends ConsumerWidget {
                       maxValue: maxValue,
                       areaHeight: _barAreaHeight,
                       width: _barWidth,
-                      isCurrent: i == currentIndex,
-                      barColor: i == currentIndex ? color : color.withValues(alpha: 0.3),
+                      // Every month with a real value gets the same full
+                      // -strength bar color and its own value label, not
+                      // just the current (right-most) one -- a muted color
+                      // and a hidden number on every past month read as
+                      // "no data" even though the bar itself was clearly
+                      // tall.
+                      barColor: color,
                       trackColor: colors.surface2,
                       hideValues: hideValues,
                     ),
@@ -262,7 +293,9 @@ class _MonthlyTrendChart extends ConsumerWidget {
                 child: Center(
                   child: Text(
                     DateFormat.MMM().format(trend[i].month),
-                    style: Theme.of(context).textTheme.labelSmall?.copyWith(color: colors.textDim),
+                    style: Theme.of(
+                      context,
+                    ).textTheme.labelSmall?.copyWith(color: colors.textDim),
                   ),
                 ),
               ),
@@ -279,7 +312,6 @@ class _MonthBar extends StatelessWidget {
     required this.maxValue,
     required this.areaHeight,
     required this.width,
-    required this.isCurrent,
     required this.barColor,
     required this.trackColor,
     required this.hideValues,
@@ -289,7 +321,6 @@ class _MonthBar extends StatelessWidget {
   final double maxValue;
   final double areaHeight;
   final double width;
-  final bool isCurrent;
   final Color barColor;
   final Color trackColor;
   final bool hideValues;
@@ -297,14 +328,17 @@ class _MonthBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final rawHeight = maxValue <= 0 ? 0.0 : (value / maxValue) * areaHeight;
-    // The current month's bar gets a taller floor than every other month's
-    // (44 vs 4) whenever it carries a value -- that's the only bar with a
-    // label painted inside it, and the label needs real room to sit in
-    // regardless of how small its own value happens to be relative to the
-    // rest of the trend.
-    final showsLabel = isCurrent && !hideValues && value > 0;
-    final barHeight = (isCurrent && value > 0 ? rawHeight.clamp(44.0, areaHeight) : rawHeight.clamp(4.0, areaHeight))
-        .toDouble();
+    final hasValue = value > 0;
+    // Every bar that carries a real value gets a taller floor (44 vs 4) --
+    // every one of them paints a label inside itself now, and the label
+    // needs real room to sit in regardless of how small its own value
+    // happens to be relative to the rest of the trend.
+    final showsLabel = hasValue && !hideValues;
+    final barHeight =
+        (hasValue
+                ? rawHeight.clamp(44.0, areaHeight)
+                : rawHeight.clamp(4.0, areaHeight))
+            .toDouble();
 
     return SizedBox(
       width: width,
@@ -315,7 +349,9 @@ class _MonthBar extends StatelessWidget {
           Container(
             decoration: BoxDecoration(
               color: trackColor,
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(4)),
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(4),
+              ),
             ),
           ),
           ClipRRect(
@@ -332,15 +368,22 @@ class _MonthBar extends StatelessWidget {
                         _shortMoney(value),
                         maxLines: 1,
                         softWrap: false,
-                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 10),
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 10,
+                        ),
                       ),
                     )
-                  : (isCurrent && value > 0 && hideValues)
-                      ? const Padding(
-                          padding: EdgeInsets.only(top: 2),
-                          child: Text('•••', style: TextStyle(color: Colors.white, fontSize: 9)),
-                        )
-                      : null,
+                  : (hasValue && hideValues)
+                  ? const Padding(
+                      padding: EdgeInsets.only(top: 2),
+                      child: Text(
+                        '•••',
+                        style: TextStyle(color: Colors.white, fontSize: 9),
+                      ),
+                    )
+                  : null,
             ),
           ),
         ],
@@ -406,10 +449,12 @@ class _CategoryPieChartState extends ConsumerState<_CategoryPieChart> {
                   pieTouchData: PieTouchData(
                     touchCallback: (event, response) {
                       setState(() {
-                        if (!event.isInterestedForInteractions || response?.touchedSection == null) {
+                        if (!event.isInterestedForInteractions ||
+                            response?.touchedSection == null) {
                           _touchedIndex = null;
                         } else {
-                          _touchedIndex = response!.touchedSection!.touchedSectionIndex;
+                          _touchedIndex =
+                              response!.touchedSection!.touchedSectionIndex;
                         }
                       });
                     },
@@ -509,9 +554,18 @@ class _PieOutsideLabelsPainter extends CustomPainter {
       final innerPoint = center + direction * _ringOuterRadius;
       final elbow = center + direction * (_ringOuterRadius + _leaderLength);
 
-      final label = hideValues ? '••' : '${fraction * 100 < 1 && fraction > 0 ? '<1' : (fraction * 100).round()}%';
+      final label = hideValues
+          ? '••'
+          : '${fraction * 100 < 1 && fraction > 0 ? '<1' : (fraction * 100).round()}%';
       final textPainter = TextPainter(
-        text: TextSpan(text: label, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: color)),
+        text: TextSpan(
+          text: label,
+          style: TextStyle(
+            fontSize: 10,
+            fontWeight: FontWeight.w800,
+            color: color,
+          ),
+        ),
         textDirection: ui.TextDirection.ltr,
       )..layout();
 
@@ -551,8 +605,14 @@ class _PieOutsideLabelsPainter extends CustomPainter {
       canvas.drawCircle(p.innerPoint, 2.2, Paint()..color = p.color);
 
       final labelOrigin = p.onRightHalf
-          ? Offset(outerPoint.dx + _labelGap, outerPoint.dy - p.textPainter.height / 2)
-          : Offset(outerPoint.dx - _labelGap - p.textPainter.width, outerPoint.dy - p.textPainter.height / 2);
+          ? Offset(
+              outerPoint.dx + _labelGap,
+              outerPoint.dy - p.textPainter.height / 2,
+            )
+          : Offset(
+              outerPoint.dx - _labelGap - p.textPainter.width,
+              outerPoint.dy - p.textPainter.height / 2,
+            );
       p.textPainter.paint(canvas, labelOrigin);
     }
   }
@@ -632,9 +692,16 @@ class _LegendEntry extends ConsumerWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Container(width: 10, height: 10, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+          Container(
+            width: 10,
+            height: 10,
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+          ),
           const SizedBox(width: 8),
-          Text(hideValues ? '••••••  ' : '$label  ', style: Theme.of(context).textTheme.bodyMedium),
+          Text(
+            hideValues ? '••••••  ' : '$label  ',
+            style: Theme.of(context).textTheme.bodyMedium,
+          ),
           MoneyText(
             '${formatMoney(amount, defaultCurrency)} (${(percent * 100).toStringAsFixed(0)}%)',
             style: Theme.of(context).textTheme.bodySmall,
