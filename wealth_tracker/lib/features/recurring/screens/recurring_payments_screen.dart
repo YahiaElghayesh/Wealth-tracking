@@ -23,6 +23,8 @@ class RecurringPaymentsScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final paymentsAsync = ref.watch(recurringPaymentsStreamProvider);
     final total = ref.watch(recurringPaymentsTotalProvider);
+    final payments = paymentsAsync.valueOrNull ?? const [];
+    final hasMinimums = payments.any((p) => !p.isExactAmount);
 
     return Scaffold(
       appBar: AppBar(
@@ -31,7 +33,7 @@ class RecurringPaymentsScreen extends ConsumerWidget {
       ),
       body: Column(
         children: [
-          _TotalCard(total: total),
+          _TotalCard(total: total, hasMinimums: hasMinimums),
           Expanded(
             child: paymentsAsync.when(
               loading: () => const Center(child: CircularProgressIndicator()),
@@ -42,10 +44,12 @@ class RecurringPaymentsScreen extends ConsumerWidget {
                     child: Text('Tap + to add your first recurring payment.'),
                   );
                 }
+                final sorted = [...payments]
+                  ..sort((a, b) => a.dayOfMonth.compareTo(b.dayOfMonth));
                 return ListView(
                   padding: const EdgeInsets.fromLTRB(16, 12, 16, 90),
                   children: [
-                    for (final payment in payments)
+                    for (final payment in sorted)
                       _RecurringPaymentTile(payment: payment),
                   ],
                 );
@@ -66,9 +70,14 @@ class RecurringPaymentsScreen extends ConsumerWidget {
 }
 
 class _TotalCard extends StatelessWidget {
-  const _TotalCard({required this.total});
+  const _TotalCard({required this.total, required this.hasMinimums});
 
   final double total;
+
+  /// Whether at least one payment in the list is a minimum-amount entry --
+  /// when true the total includes an estimate rather than only known-exact
+  /// figures, so the label says so instead of implying a hard total.
+  final bool hasMinimums;
 
   @override
   Widget build(BuildContext context) {
@@ -96,7 +105,7 @@ class _TotalCard extends StatelessWidget {
               ),
               const SizedBox(width: 6),
               Text(
-                'MONTHLY TOTAL',
+                hasMinimums ? 'MONTHLY MINIMUM TOTAL' : 'MONTHLY TOTAL',
                 style: theme.textTheme.labelSmall?.copyWith(
                   color: theme.colorScheme.primary,
                   fontWeight: FontWeight.w700,
@@ -113,6 +122,15 @@ class _TotalCard extends StatelessWidget {
             ),
             maskLength: 9,
           ),
+          if (hasMinimums) ...[
+            const SizedBox(height: 3),
+            Text(
+              'Actual total may be higher -- some payments are minimums.',
+              style: theme.textTheme.labelSmall?.copyWith(
+                color: colors.textDim,
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -189,17 +207,34 @@ class _RecurringPaymentTile extends ConsumerWidget {
             child: Row(
               children: [
                 Container(
-                  width: 40,
-                  height: 40,
+                  width: 44,
+                  height: 44,
                   decoration: BoxDecoration(
                     color: colors.accentSoft,
                     borderRadius: BorderRadius.circular(12),
                   ),
                   alignment: Alignment.center,
-                  child: Icon(
-                    Icons.event_repeat,
-                    size: 18,
-                    color: theme.colorScheme.primary,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        '${payment.dayOfMonth}',
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          color: theme.colorScheme.primary,
+                          fontWeight: FontWeight.w800,
+                          height: 1,
+                        ),
+                      ),
+                      Text(
+                        _ordinalSuffix(payment.dayOfMonth),
+                        style: theme.textTheme.labelSmall?.copyWith(
+                          color: theme.colorScheme.primary,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 9,
+                          height: 1,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -215,17 +250,30 @@ class _RecurringPaymentTile extends ConsumerWidget {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
-                      const SizedBox(height: 2),
-                      Text(
-                        'Bills on the ${payment.dayOfMonth}${_ordinalSuffix(payment.dayOfMonth)}'
-                        '${payment.isExactAmount ? '' : ' · min.'}',
-                        style: theme.textTheme.labelSmall?.copyWith(
-                          color: colors.textDim,
-                        ),
+                      const SizedBox(height: 4),
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.calendar_today,
+                            size: 11,
+                            color: colors.textDim,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            'Bills on the ${payment.dayOfMonth}${_ordinalSuffix(payment.dayOfMonth)} of the month',
+                            style: theme.textTheme.labelSmall?.copyWith(
+                              color: colors.textDim,
+                            ),
+                          ),
+                        ],
                       ),
+                      const SizedBox(height: 4),
+                      _AmountTypeBadge(isExactAmount: payment.isExactAmount),
                     ],
                   ),
                 ),
+                const SizedBox(width: 8),
                 MoneyText(
                   formatMoney(payment.amount, payment.currency),
                   style: theme.textTheme.bodyMedium?.copyWith(
@@ -236,6 +284,39 @@ class _RecurringPaymentTile extends ConsumerWidget {
               ],
             ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Small colored pill making it unmistakable at a glance whether a payment's
+/// amount is a fixed, known figure or just a floor the real bill could
+/// exceed -- distinct from the plain "· min." text suffix this replaces,
+/// which was easy to miss next to the amount.
+class _AmountTypeBadge extends StatelessWidget {
+  const _AmountTypeBadge({required this.isExactAmount});
+
+  final bool isExactAmount;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = context.appColors;
+    final color = isExactAmount ? colors.good : colors.gold;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.14),
+        borderRadius: BorderRadius.circular(99),
+      ),
+      child: Text(
+        isExactAmount ? 'EXACT AMOUNT' : 'MINIMUM AMOUNT',
+        style: theme.textTheme.labelSmall?.copyWith(
+          color: color,
+          fontWeight: FontWeight.w800,
+          fontSize: 9,
+          letterSpacing: 0.3,
         ),
       ),
     );
