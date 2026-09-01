@@ -25,8 +25,8 @@
          button: without this, Android can silently delay or drop the
          background WorkManager task that carries a detected charge/payment
          SMS to the card-balance update once the app hasn't been opened in
-         a while -- this is what lets bank_sms_settings_screen.dart send
-         the user straight to the "allow unrestricted background activity"
+         a while. This is what lets bank_sms_settings_screen.dart send the
+         user straight to the "allow unrestricted background activity"
          prompt for this app specifically, instead of a generic battery
          settings page they'd have to navigate manually. -->
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS"/>
