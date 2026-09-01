@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../core/navigation/app_navigator.dart';
+import '../../core/security/quick_add_exemption.dart';
 import '../../features/ledger/screens/sms_review_screen.dart';
 import '../db/database.dart';
 import 'bank_charge_payload.dart';
@@ -49,21 +50,54 @@ Future<void> processIncomingSms(
 }) async {
   if (body.trim().isEmpty) return;
 
+  // Claims the same "exempt from the biometric lock" flag [SmsReviewScreen]
+  // itself would claim once it actually mounts -- claimed here instead,
+  // immediately, before any of the real drift/SQLite I/O below runs (the
+  // dedupe check, the parse, the card-balance update, the vendor-rule
+  // lookup), because that chain can on a real device -- especially at cold
+  // start, while other providers are also hitting the database -- easily
+  // outlast [AppLockGate]'s short auto-prompt delay. Without this, the OS
+  // biometric sheet could fire before the exemption was ever set (the
+  // reported "asked for biometrics when adding a payment from an SMS
+  // notification" bug). Only claimed when the app is actually locked right
+  // now -- exactly [SmsReviewScreen]'s own condition -- since an
+  // already-unlocked app has nothing to exempt anything from. Every early
+  // return below that doesn't end in pushing that screen releases the claim
+  // explicitly; the one path that does push it needs no matching release
+  // here -- claiming this makes [AppLockGate]'s lock overlay (and thus its
+  // only "unlock" affordance) disappear for the duration, so nothing else
+  // can flip the app's unlocked state out from under this claim in the
+  // meantime, and [SmsReviewScreen]'s own initState/dispose take over
+  // managing it correctly from the moment it mounts.
+  final claimedExemption = !appUnlocked.value;
+  if (claimedExemption) quickAddScreenActive.value = true;
+
   final dedupeId = '$timestampMillis:${body.hashCode}';
-  if (await _alreadyProcessed(db, dedupeId)) return;
+  if (await _alreadyProcessed(db, dedupeId)) {
+    if (claimedExemption) quickAddScreenActive.value = false;
+    return;
+  }
   await _markProcessed(db, dedupeId);
 
   final parsed = parseBankSms(body);
-  if (parsed == null) return;
+  if (parsed == null) {
+    if (claimedExemption) quickAddScreenActive.value = false;
+    return;
+  }
 
   await updateCardBalanceFromSms(db, parsed);
   // A payment/settlement SMS (paying down the card, isCharge == false)
   // only ever updates that tracked balance -- it's not a purchase and
   // isn't a candidate for "who was this for", so it never opens the
   // review screen the way an actual charge does.
-  if (!parsed.isCharge) return;
+  if (!parsed.isCharge) {
+    if (claimedExemption) quickAddScreenActive.value = false;
+    return;
+  }
 
-  final rules = await (db.select(db.vendorRules)..where((r) => r.profileId.equals(profileId))).get();
+  final rules = await (db.select(
+    db.vendorRules,
+  )..where((r) => r.profileId.equals(profileId))).get();
   VendorRule? rule;
   for (final r in rules) {
     if (parsed.vendor.toLowerCase().contains(r.vendorPattern.toLowerCase())) {
@@ -83,7 +117,13 @@ Future<void> processIncomingSms(
   );
 
   final navigator = await _awaitNavigator();
-  navigator?.push(MaterialPageRoute(builder: (_) => SmsReviewScreen(payload: payload)));
+  if (navigator == null) {
+    if (claimedExemption) quickAddScreenActive.value = false;
+    return;
+  }
+  navigator.push(
+    MaterialPageRoute(builder: (_) => SmsReviewScreen(payload: payload)),
+  );
 }
 
 /// Headless counterpart to [processIncomingSms] for the notification's
@@ -119,7 +159,9 @@ Future<bool> commitSmsQuickAdd(
   // SMS never becomes a ledger entry, so there's nothing further to commit.
   if (!parsed.isCharge) return false;
 
-  final rules = await (db.select(db.vendorRules)..where((r) => r.profileId.equals(profileId))).get();
+  final rules = await (db.select(
+    db.vendorRules,
+  )..where((r) => r.profileId.equals(profileId))).get();
   VendorRule? rule;
   for (final r in rules) {
     if (parsed.vendor.toLowerCase().contains(r.vendorPattern.toLowerCase())) {
@@ -204,13 +246,17 @@ Future<void> _markProcessed(AppDatabase db, String dedupeId) async {
   while (ids.length > _dedupeCap) {
     ids.removeAt(0);
   }
-  await db.into(db.syncMeta).insertOnConflictUpdate(
+  await db
+      .into(db.syncMeta)
+      .insertOnConflictUpdate(
         SyncMetaCompanion.insert(key: _dedupeKey, value: jsonEncode(ids)),
       );
 }
 
 Future<List<String>> _loadProcessedIds(AppDatabase db) async {
-  final row = await (db.select(db.syncMeta)..where((m) => m.key.equals(_dedupeKey))).getSingleOrNull();
+  final row = await (db.select(
+    db.syncMeta,
+  )..where((m) => m.key.equals(_dedupeKey))).getSingleOrNull();
   if (row == null) return [];
   final decoded = jsonDecode(row.value);
   return decoded is List ? decoded.cast<String>() : [];

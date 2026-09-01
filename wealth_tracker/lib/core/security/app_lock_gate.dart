@@ -19,6 +19,20 @@ import 'quick_add_exemption.dart';
 /// race it and fire the OS biometric sheet over what's supposed to be a
 /// zero-auth shortcut. 200ms is well past the push's typical completion
 /// time but short enough that a normal app open still reads as instant.
+///
+/// The SMS-triggered `SmsReviewScreen` push used to share this same 200ms
+/// window despite needing much longer -- unlike the quick-add push, it
+/// first runs a chain of real drift/SQLite round-trips (dedupe check,
+/// parse, the card-balance update, a vendor-rule lookup) before ever
+/// reaching the point of pushing a screen, which on a real device
+/// (especially at cold start, while other providers are also hitting the
+/// database) could easily outlast this delay -- the biometric prompt would
+/// then fire before the exemption was ever set (the reported "asked for
+/// biometrics when adding a payment from an SMS notification" bug). Fixed
+/// at the source instead of by lengthening this delay for everyone:
+/// `processIncomingSms` (sms_ledger_processor.dart) now claims
+/// [quickAddScreenActive] itself immediately, before any of that I/O runs,
+/// rather than waiting for `SmsReviewScreen` to mount and claim it late.
 const _autoPromptDelay = Duration(milliseconds: 200);
 
 /// Wraps the app's current screen (via [MaterialApp.builder], so this sees
@@ -76,8 +90,20 @@ class _AppLockGateState extends ConsumerState<AppLockGate>
   /// [_resumeDebounce] is checked before any relock decision so a resume
   /// landing implausibly soon after a real success is treated as an
   /// artifact of that same success, not a new app-open event.
+  ///
+  /// Deliberately short -- long enough to cover the OEM artifact (which is
+  /// part of the same UI transaction as the sheet's own dismissal, so
+  /// effectively instant) but short enough that a genuinely fast deliberate
+  /// app-switch-and-return doesn't get mistaken for it. An earlier, much
+  /// longer window here (2 seconds) fixed the original lockout loop but
+  /// overcorrected: any real resume landing inside that whole 2-second span
+  /// -- not just the sheet's own immediate aftermath -- silently skipped
+  /// the relock check entirely, regardless of the user's chosen grace
+  /// period (the reported "app sometimes opens without biometrics" bug,
+  /// since a quick glance at another app and back easily lands inside 2
+  /// seconds but essentially never inside this shorter one).
   DateTime? _lastLocalUnlockAt;
-  static const _resumeDebounce = Duration(seconds: 2);
+  static const _resumeDebounce = Duration(milliseconds: 600);
 
   @override
   void initState() {

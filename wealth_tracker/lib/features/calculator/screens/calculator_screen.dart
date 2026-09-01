@@ -18,7 +18,8 @@ import '../../../data/calculator/current_money_calculator.dart';
 import '../../../data/db/database.dart';
 import '../../../data/ledger/ledger_calculator.dart';
 import '../../../data/repositories/calculator_repository.dart';
-import '../../networth/providers/asset_providers.dart' show pricesUsdPerUnitProvider;
+import '../../networth/providers/asset_providers.dart'
+    show pricesUsdPerUnitProvider;
 import '../../settings/screens/credit_cards_settings_screen.dart';
 import '../../settings/screens/manual_inputs_settings_screen.dart';
 import '../providers/calculator_providers.dart';
@@ -74,7 +75,8 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
   void initState() {
     super.initState();
     _scrollController.addListener(() {
-      final scrolled = _scrollController.hasClients && _scrollController.offset > 4;
+      final scrolled =
+          _scrollController.hasClients && _scrollController.offset > 4;
       if (scrolled != _scrolled) setState(() => _scrolled = scrolled);
     });
   }
@@ -109,7 +111,10 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
   void _scheduleCardBalanceSave(String cardId) {
     if (_isSeedingCard) return;
     _cardBalanceSaveDebounce[cardId]?.cancel();
-    _cardBalanceSaveDebounce[cardId] = Timer(const Duration(milliseconds: 600), () => _saveCardBalance(cardId));
+    _cardBalanceSaveDebounce[cardId] = Timer(
+      const Duration(milliseconds: 600),
+      () => _saveCardBalance(cardId),
+    );
   }
 
   Future<void> _saveCardBalance(String cardId) async {
@@ -128,12 +133,19 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
     final newBalance = double.tryParse(controller.text.trim());
     // Leave whatever's already tracked alone rather than persisting
     // unparseable or unchanged input.
-    if (newBalance == null || newBalance == card.currentAvailableBalance) return;
+    if (newBalance == null || newBalance == card.currentAvailableBalance) {
+      return;
+    }
 
     final now = DateTime.now();
-    await ref.read(calculatorRepositoryProvider).updateCard(
-      card.copyWith(currentAvailableBalance: Value(newBalance), balanceUpdatedAt: Value(now)),
-    );
+    await ref
+        .read(calculatorRepositoryProvider)
+        .updateCard(
+          card.copyWith(
+            currentAvailableBalance: Value(newBalance),
+            balanceUpdatedAt: Value(now),
+          ),
+        );
     // Keeps this screen's own seed bookkeeping in sync with what it just
     // wrote, so a later *genuine* SMS update (a newer `balanceUpdatedAt`
     // than this one) is still correctly detected as new -- without this,
@@ -145,10 +157,13 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
     _cardSeedText[cardId] = controller.text;
   }
 
-  double _parse(TextEditingController controller) => double.tryParse(controller.text.trim()) ?? 0;
+  double _parse(TextEditingController controller) =>
+      double.tryParse(controller.text.trim()) ?? 0;
 
   static String _formatSeed(double value) {
-    return value == value.roundToDouble() ? value.toInt().toString() : value.toString();
+    return value == value.roundToDouble()
+        ? value.toInt().toString()
+        : value.toString();
   }
 
   /// Lazily creates (and wires up) a controller for [card], so newly added
@@ -173,7 +188,10 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
 
   /// Owed amount per card, in the card's own currency (not yet converted).
   double _owedFor(CreditCard card) {
-    return cardOwedAmount(limit: card.limitAmount, availableBalance: _parse(_cardControllerFor(card)));
+    return cardOwedAmount(
+      limit: card.limitAmount,
+      availableBalance: _parse(_cardControllerFor(card)),
+    );
   }
 
   /// [_owedFor] converted to the app's settlement currency — falls back to
@@ -185,9 +203,14 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
     return convertToSettlement(owed, card.currency, prices) ?? owed;
   }
 
-  double _manualInputSignedAmount(ManualInput input, Map<String, double> prices) {
+  double _manualInputSignedAmount(
+    ManualInput input,
+    Map<String, double> prices,
+  ) {
     final raw = _parse(_manualInputControllerFor(input));
-    final converted = input.currency == defaultCurrency ? raw : (convertToSettlement(raw, input.currency, prices) ?? raw);
+    final converted = input.currency == defaultCurrency
+        ? raw
+        : (convertToSettlement(raw, input.currency, prices) ?? raw);
     return input.isAddition ? converted : -converted;
   }
 
@@ -211,8 +234,13 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
               const SizedBox(height: 12),
               TextField(
                 controller: amountController,
-                decoration: const InputDecoration(labelText: 'Amount', hintText: '0.00'),
-                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                decoration: const InputDecoration(
+                  labelText: 'Amount',
+                  hintText: '0.00',
+                ),
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
               ),
               const SizedBox(height: 12),
               SegmentedButton<bool>(
@@ -221,12 +249,16 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
                   ButtonSegment(value: false, label: Text('Subtract (−)')),
                 ],
                 selected: {isAddition},
-                onSelectionChanged: (s) => setDialogState(() => isAddition = s.first),
+                onSelectionChanged: (s) =>
+                    setDialogState(() => isAddition = s.first),
               ),
             ],
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel'),
+            ),
             FilledButton(
               onPressed: () {
                 final amount = double.tryParse(amountController.text.trim());
@@ -234,7 +266,11 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
                 if (amount == null || amount <= 0 || label.isEmpty) return;
                 Navigator.pop(
                   context,
-                  CustomCalculatorItem(label: label, amount: amount, isAddition: isAddition),
+                  CustomCalculatorItem(
+                    label: label,
+                    amount: amount,
+                    isAddition: isAddition,
+                  ),
                 );
               },
               child: const Text('Add'),
@@ -257,8 +293,13 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
     setState(() => _saving = true);
 
     try {
-      final cardOwedAmounts = [for (final card in cards) _owedInDefaultCurrency(card, prices)];
-      final manualInputAmounts = [for (final input in manualInputs) _manualInputSignedAmount(input, prices)];
+      final cardOwedAmounts = [
+        for (final card in cards) _owedInDefaultCurrency(card, prices),
+      ];
+      final manualInputAmounts = [
+        for (final input in manualInputs)
+          _manualInputSignedAmount(input, prices),
+      ];
       final result = calculateCurrentMoney(
         ledgersTotal: ledgersTotal,
         cardOwedAmounts: cardOwedAmounts,
@@ -287,7 +328,9 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
           ),
       ];
 
-      await ref.read(calculatorRepositoryProvider).saveSnapshot(
+      await ref
+          .read(calculatorRepositoryProvider)
+          .saveSnapshot(
             resultAmount: result,
             ledgersTotal: ledgersTotal,
             cardEntries: cardEntries,
@@ -339,7 +382,10 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
       if (!mounted) return;
       setState(() => _saving = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Save failed: $e'), backgroundColor: context.appColors.bad),
+        SnackBar(
+          content: Text('Save failed: $e'),
+          backgroundColor: context.appColors.bad,
+        ),
       );
     }
   }
@@ -360,9 +406,11 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
       if (c.balanceUpdatedAt == _cardSeedBalanceUpdatedAt[c.id]) return false;
       return _cardControllerFor(c).text == _cardSeedText[c.id];
     }).toList();
-    final unseededManualInputs =
-        currentManualInputs?.where((m) => !_seededManualInputIds.contains(m.id)).toList();
-    final needsSeeding = (cardsNeedingSeed != null && cardsNeedingSeed.isNotEmpty) ||
+    final unseededManualInputs = currentManualInputs
+        ?.where((m) => !_seededManualInputIds.contains(m.id))
+        .toList();
+    final needsSeeding =
+        (cardsNeedingSeed != null && cardsNeedingSeed.isNotEmpty) ||
         (unseededManualInputs != null && unseededManualInputs.isNotEmpty);
     if (needsSeeding) {
       // Setting controller.text synchronously here would fire the field
@@ -374,7 +422,9 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
           if (cardsNeedingSeed != null) {
             _isSeedingCard = true;
             for (final card in cardsNeedingSeed) {
-              final text = _formatSeed(card.currentAvailableBalance ?? card.limitAmount);
+              final text = _formatSeed(
+                card.currentAvailableBalance ?? card.limitAmount,
+              );
               _cardControllerFor(card).text = text;
               _seededCardIds.add(card.id);
               _cardSeedBalanceUpdatedAt[card.id] = card.balanceUpdatedAt;
@@ -384,13 +434,16 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
           }
           if (unseededManualInputs != null) {
             for (final input in unseededManualInputs) {
-              final lastEntry = latestHistory != null && latestHistory.isNotEmpty
+              final lastEntry =
+                  latestHistory != null && latestHistory.isNotEmpty
                   ? latestHistory.first.manualInputEntries
-                      .where((e) => e.name == input.name)
-                      .firstOrNull
+                        .where((e) => e.name == input.name)
+                        .firstOrNull
                   : null;
               if (lastEntry != null) {
-                _manualInputControllerFor(input).text = _formatSeed(lastEntry.amount);
+                _manualInputControllerFor(input).text = _formatSeed(
+                  lastEntry.amount,
+                );
               }
               _seededManualInputIds.add(input.id);
             }
@@ -408,7 +461,9 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
             icon: const Icon(Icons.history),
             tooltip: 'History',
             onPressed: () => Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => const CalculatorHistoryScreen()),
+              MaterialPageRoute(
+                builder: (_) => const CalculatorHistoryScreen(),
+              ),
             ),
           ),
           const SettingsAction(),
@@ -419,8 +474,13 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
         error: (e, st) => Center(child: Text('Error: $e')),
         data: (cards) {
           final manualInputs = currentManualInputs ?? const <ManualInput>[];
-          final cardOwedAmounts = [for (final card in cards) _owedInDefaultCurrency(card, prices)];
-          final manualInputAmounts = [for (final input in manualInputs) _manualInputSignedAmount(input, prices)];
+          final cardOwedAmounts = [
+            for (final card in cards) _owedInDefaultCurrency(card, prices),
+          ];
+          final manualInputAmounts = [
+            for (final input in manualInputs)
+              _manualInputSignedAmount(input, prices),
+          ];
           final result = calculateCurrentMoney(
             ledgersTotal: ledgersTotal,
             cardOwedAmounts: cardOwedAmounts,
@@ -452,24 +512,46 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
                     const SizedBox(height: 16),
                     _Section(
                       title: 'Manual inputs',
-                      subtitle: manualInputs.isEmpty ? 'No manual inputs yet — add one in Settings.' : null,
+                      subtitle: manualInputs.isEmpty
+                          ? 'No manual inputs yet — add one in Settings.'
+                          : null,
                       trailing: IconButton(
                         icon: const Icon(Icons.settings),
                         tooltip: 'Manage manual inputs',
                         onPressed: () => Navigator.of(context).push(
-                          MaterialPageRoute(builder: (_) => const ManualInputsSettingsScreen()),
+                          MaterialPageRoute(
+                            builder: (_) => const ManualInputsSettingsScreen(),
+                          ),
                         ),
                       ),
                       children: [
                         for (final input in manualInputs) ...[
                           _SignedAmountField(
-                            key: ValueKey('manual-${input.id}-${_seededManualInputIds.contains(input.id)}'),
+                            // Stable across a rebuild that merely flips this
+                            // input from unseeded to seeded -- an earlier
+                            // version of this key included that seeded flag,
+                            // which meant the moment the post-frame seeding
+                            // callback ran (right after this field first
+                            // appears), Flutter saw a changed Key and tore
+                            // down and rebuilt this field's Element (and its
+                            // FocusNode/EditableText) from scratch. If the
+                            // user had already tapped in and started typing
+                            // by then -- easy to do, since seeding fires on
+                            // the very next frame -- that remount could
+                            // silently drop what they were typing or yank
+                            // focus mid-entry (the reported "manual input
+                            // clears on its own" bug). The controller itself
+                            // already survives across rebuilds via
+                            // [_manualInputControllerFor]'s id-keyed map, so
+                            // nothing here needs a key tied to seeding at all.
+                            key: ValueKey('manual-${input.id}'),
                             isAddition: input.isAddition,
                             label: input.name,
                             controller: _manualInputControllerFor(input),
                             currency: input.currency,
                           ),
-                          if (input != manualInputs.last) const SizedBox(height: 14),
+                          if (input != manualInputs.last)
+                            const SizedBox(height: 14),
                         ],
                       ],
                     ),
@@ -479,12 +561,14 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
                       subtitle: cards.isEmpty
                           ? 'No cards yet — add one in Settings.'
                           : 'Enter the balance still available to spend, as shown in your banking '
-                              'app — not what you owe.',
+                                'app — not what you owe.',
                       trailing: IconButton(
                         icon: const Icon(Icons.settings),
                         tooltip: 'Manage cards',
                         onPressed: () => Navigator.of(context).push(
-                          MaterialPageRoute(builder: (_) => const CreditCardsSettingsScreen()),
+                          MaterialPageRoute(
+                            builder: (_) => const CreditCardsSettingsScreen(),
+                          ),
                         ),
                       ),
                       children: [
@@ -493,8 +577,10 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
                             card: card,
                             controller: _cardControllerFor(card),
                             owed: _owedFor(card),
-                            rateMissing: card.currency != defaultCurrency &&
-                                convertToSettlement(0, card.currency, prices) == null,
+                            rateMissing:
+                                card.currency != defaultCurrency &&
+                                convertToSettlement(0, card.currency, prices) ==
+                                    null,
                           ),
                           if (card != cards.last) const SizedBox(height: 14),
                         ],
@@ -515,12 +601,19 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
                                   MoneyText(
-                                    formatMoney(_customItems[i].amount, defaultCurrency),
-                                    style: Theme.of(context).textTheme.bodyMedium,
+                                    formatMoney(
+                                      _customItems[i].amount,
+                                      defaultCurrency,
+                                    ),
+                                    style: Theme.of(
+                                      context,
+                                    ).textTheme.bodyMedium,
                                   ),
                                   IconButton(
                                     icon: const Icon(Icons.close, size: 18),
-                                    onPressed: () => setState(() => _customItems.removeAt(i)),
+                                    onPressed: () => setState(
+                                      () => _customItems.removeAt(i),
+                                    ),
                                   ),
                                 ],
                               ),
@@ -544,7 +637,12 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
       bottomSheet: cardsAsync.hasValue
           ? _SaveBar(
               saving: _saving,
-              onPressed: () => _save(ledgersTotal, cardsAsync.value!, currentManualInputs ?? const [], prices),
+              onPressed: () => _save(
+                ledgersTotal,
+                cardsAsync.value!,
+                currentManualInputs ?? const [],
+                prices,
+              ),
             )
           : null,
     );
@@ -572,9 +670,17 @@ class _StickyTotalCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: colors.accentSoft,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: theme.colorScheme.primary.withValues(alpha: 0.28)),
+        border: Border.all(
+          color: theme.colorScheme.primary.withValues(alpha: 0.28),
+        ),
         boxShadow: scrolled
-            ? [BoxShadow(color: Colors.black.withValues(alpha: 0.12), blurRadius: 16, offset: const Offset(0, 10))]
+            ? [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.12),
+                  blurRadius: 16,
+                  offset: const Offset(0, 10),
+                ),
+              ]
             : null,
       ),
       child: Column(
@@ -582,7 +688,11 @@ class _StickyTotalCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              Icon(Icons.trending_up, size: 14, color: theme.colorScheme.primary),
+              Icon(
+                Icons.trending_up,
+                size: 14,
+                color: theme.colorScheme.primary,
+              ),
               const SizedBox(width: 6),
               Text(
                 'CURRENT LIQUID CASH',
@@ -597,7 +707,9 @@ class _StickyTotalCard extends StatelessWidget {
           const SizedBox(height: 4),
           MoneyText(
             formatMoney(result, defaultCurrency),
-            style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w700),
+            style: theme.textTheme.headlineSmall?.copyWith(
+              fontWeight: FontWeight.w700,
+            ),
             maskLength: 9,
           ),
         ],
@@ -636,14 +748,24 @@ class _SaveBar extends StatelessWidget {
                     const SizedBox(
                       width: 16,
                       height: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
                     )
                   else
-                    const Icon(Icons.save_outlined, color: Colors.white, size: 18),
+                    const Icon(
+                      Icons.save_outlined,
+                      color: Colors.white,
+                      size: 18,
+                    ),
                   const SizedBox(width: 10),
                   Text(
                     saving ? 'Saving…' : 'Save calculation',
-                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                 ],
               ),
@@ -658,7 +780,12 @@ class _SaveBar extends StatelessWidget {
 /// A titled, bordered group — makes it visually obvious where one set of
 /// inputs ends and the next begins.
 class _Section extends StatelessWidget {
-  const _Section({required this.title, required this.children, this.subtitle, this.trailing});
+  const _Section({
+    required this.title,
+    required this.children,
+    this.subtitle,
+    this.trailing,
+  });
 
   final String title;
   final String? subtitle;
@@ -675,7 +802,12 @@ class _Section extends StatelessWidget {
           children: [
             Row(
               children: [
-                Expanded(child: Text(title, style: Theme.of(context).textTheme.titleMedium)),
+                Expanded(
+                  child: Text(
+                    title,
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                ),
                 ?trailing,
               ],
             ),
@@ -706,18 +838,29 @@ class _SignBadge extends StatelessWidget {
     return Container(
       width: 22,
       height: 22,
-      decoration: BoxDecoration(color: color.withValues(alpha: 0.15), shape: BoxShape.circle),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.15),
+        shape: BoxShape.circle,
+      ),
       alignment: Alignment.center,
       child: Text(
         isAddition ? '+' : '−',
-        style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 14),
+        style: TextStyle(
+          color: color,
+          fontWeight: FontWeight.bold,
+          fontSize: 14,
+        ),
       ),
     );
   }
 }
 
 class _SignedRow extends StatelessWidget {
-  const _SignedRow({required this.isAddition, required this.label, required this.trailing});
+  const _SignedRow({
+    required this.isAddition,
+    required this.label,
+    required this.trailing,
+  });
 
   final bool isAddition;
   final String label;
@@ -729,7 +872,9 @@ class _SignedRow extends StatelessWidget {
       children: [
         _SignBadge(isAddition: isAddition),
         const SizedBox(width: 12),
-        Expanded(child: Text(label, style: Theme.of(context).textTheme.bodyMedium)),
+        Expanded(
+          child: Text(label, style: Theme.of(context).textTheme.bodyMedium),
+        ),
         trailing,
       ],
     );
@@ -815,7 +960,10 @@ class _SelectAllOnFocusFieldState extends State<_SelectAllOnFocusField> {
 
   void _onFocusChange() {
     if (_focusNode.hasFocus) {
-      widget.controller.selection = TextSelection(baseOffset: 0, extentOffset: widget.controller.text.length);
+      widget.controller.selection = TextSelection(
+        baseOffset: 0,
+        extentOffset: widget.controller.text.length,
+      );
     }
   }
 
@@ -889,7 +1037,9 @@ class _CardField extends ConsumerWidget {
               ),
               MoneyText(
                 'Limit ${formatMoney(card.limitAmount, card.currency)}',
-                style: theme.textTheme.labelSmall?.copyWith(color: colors.textDim),
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: colors.textDim,
+                ),
                 maskLength: 12,
               ),
             ],
@@ -897,7 +1047,10 @@ class _CardField extends ConsumerWidget {
           const SizedBox(height: 8),
           _SelectAllOnFocusField(
             controller: controller,
-            decoration: InputDecoration(labelText: 'Available balance (${card.currency})', hintText: '0.00'),
+            decoration: InputDecoration(
+              labelText: 'Available balance (${card.currency})',
+              hintText: '0.00',
+            ),
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
             obscureText: hideValues,
           ),
@@ -909,7 +1062,9 @@ class _CardField extends ConsumerWidget {
               // in _scheduleCardBalanceSave), so it no longer always means
               // an SMS set it.
               'Updated ${_relativeTime(card.balanceUpdatedAt!)}',
-              style: theme.textTheme.labelSmall?.copyWith(color: theme.colorScheme.primary),
+              style: theme.textTheme.labelSmall?.copyWith(
+                color: theme.colorScheme.primary,
+              ),
             ),
           ],
           const SizedBox(height: 8),
@@ -918,18 +1073,29 @@ class _CardField extends ConsumerWidget {
             decoration: BoxDecoration(
               color: colors.surface2,
               borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: colors.border, style: BorderStyle.solid),
+              border: Border.all(
+                color: colors.border,
+                style: BorderStyle.solid,
+              ),
             ),
             child: Row(
               children: [
                 Text(
-                  rateMissing ? 'Owed (no exchange rate yet, unconverted)' : 'Owed',
-                  style: theme.textTheme.labelSmall?.copyWith(color: colors.textDim, fontWeight: FontWeight.w700),
+                  rateMissing
+                      ? 'Owed (no exchange rate yet, unconverted)'
+                      : 'Owed',
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: colors.textDim,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
                 const Spacer(),
                 MoneyText(
                   formatMoney(owed, card.currency),
-                  style: theme.textTheme.bodyMedium?.copyWith(color: colors.bad, fontWeight: FontWeight.w700),
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: colors.bad,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
               ],
             ),

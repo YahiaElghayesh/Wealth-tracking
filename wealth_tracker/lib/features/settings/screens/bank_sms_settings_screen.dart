@@ -16,10 +16,12 @@ class BankSmsSettingsScreen extends ConsumerStatefulWidget {
   const BankSmsSettingsScreen({super.key});
 
   @override
-  ConsumerState<BankSmsSettingsScreen> createState() => _BankSmsSettingsScreenState();
+  ConsumerState<BankSmsSettingsScreen> createState() =>
+      _BankSmsSettingsScreenState();
 }
 
-class _BankSmsSettingsScreenState extends ConsumerState<BankSmsSettingsScreen> {
+class _BankSmsSettingsScreenState extends ConsumerState<BankSmsSettingsScreen>
+    with WidgetsBindingObserver {
   bool _enabled = false;
   bool _requesting = false;
 
@@ -29,16 +31,60 @@ class _BankSmsSettingsScreenState extends ConsumerState<BankSmsSettingsScreen> {
   /// looks "on" but detected charges were silently never surfacing.
   bool? _notificationsGranted;
 
+  /// Null while still checking. Whether Android is letting this app run
+  /// unrestricted in the background -- when it isn't, the OS can (and does)
+  /// silently delay or drop the WorkManager task that carries a detected
+  /// charge/payment SMS to the card-balance update and (for a Quick Add
+  /// match) the ledger entry itself, especially once the app hasn't been
+  /// opened in a while: reported as "the SMS balance update doesn't work
+  /// sometimes, especially when the app is closed." Checked at open and
+  /// re-checked on every app resume (see [didChangeAppLifecycleState])
+  /// rather than only once, since the user can flip this from outside the
+  /// app (a phone-wide battery saver mode, a manufacturer's own "manage
+  /// apps" screen, or the system settings screen
+  /// [_fixBackgroundRestriction] itself opens) at any time.
+  bool? _unrestrictedBackground;
+
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _enabled = ref.read(settingsRepositoryProvider).smsCaptureEnabled;
     if (_enabled) _checkNotificationPermission();
+    _checkBackgroundRestriction();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Re-checked every time the app resumes -- [_fixBackgroundRestriction]
+    // opens Android's own system settings screen for this, which has no
+    // result Flutter can await directly; picking it back up on resume is
+    // what actually reflects a choice made there once the user returns.
+    // Also covers the setting changing from outside the app entirely (a
+    // phone-wide battery saver mode, a manufacturer's own "manage apps"
+    // screen) rather than only the one path this screen's own button offers.
+    if (state == AppLifecycleState.resumed) _checkBackgroundRestriction();
   }
 
   Future<void> _checkNotificationPermission() async {
     final status = await Permission.notification.status;
     if (mounted) setState(() => _notificationsGranted = status.isGranted);
+  }
+
+  Future<void> _checkBackgroundRestriction() async {
+    final status = await Permission.ignoreBatteryOptimizations.status;
+    if (mounted) setState(() => _unrestrictedBackground = status.isGranted);
+  }
+
+  Future<void> _fixBackgroundRestriction() async {
+    final status = await Permission.ignoreBatteryOptimizations.request();
+    if (mounted) setState(() => _unrestrictedBackground = status.isGranted);
   }
 
   Future<void> _fixNotificationPermission() async {
@@ -98,7 +144,7 @@ class _BankSmsSettingsScreenState extends ConsumerState<BankSmsSettingsScreen> {
           content: Text(
             notificationStatus.isPermanentlyDenied
                 ? 'Notifications were denied. Enable them for Money Hub in your phone\'s app '
-                    'settings, or detected charges will never show up.'
+                      'settings, or detected charges will never show up.'
                 : 'Notification permission is needed too, or detected charges never show up.',
           ),
         ),
@@ -116,7 +162,8 @@ class _BankSmsSettingsScreenState extends ConsumerState<BankSmsSettingsScreen> {
   @override
   Widget build(BuildContext context) {
     final rulesAsync = ref.watch(vendorRulesStreamProvider);
-    final counterparties = ref.watch(counterpartiesStreamProvider).valueOrNull ?? const [];
+    final counterparties =
+        ref.watch(counterpartiesStreamProvider).valueOrNull ?? const [];
     final counterpartyNames = {for (final c in counterparties) c.id: c.name};
 
     final colors = context.appColors;
@@ -136,7 +183,9 @@ class _BankSmsSettingsScreenState extends ConsumerState<BankSmsSettingsScreen> {
             child: SwitchListTile(
               secondary: _IconChip(Icons.sms_outlined),
               title: const Text('Read bank SMS'),
-              subtitle: const Text('Notifies you — never adds automatically'),
+              subtitle: const Text(
+                'Auto-adds when a Vendor Rule matches; otherwise notifies you to confirm',
+              ),
               value: _enabled,
               onChanged: _requesting ? null : _toggle,
             ),
@@ -152,16 +201,60 @@ class _BankSmsSettingsScreenState extends ConsumerState<BankSmsSettingsScreen> {
               ),
               child: Row(
                 children: [
-                  Icon(Icons.notifications_off_outlined, color: colors.bad, size: 20),
+                  Icon(
+                    Icons.notifications_off_outlined,
+                    color: colors.bad,
+                    size: 20,
+                  ),
                   const SizedBox(width: 10),
                   Expanded(
                     child: Text(
                       'Notifications aren\'t granted, so detected charges never show up even '
                       'though SMS reading is on.',
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(color: colors.bad),
+                      style: Theme.of(
+                        context,
+                      ).textTheme.bodySmall?.copyWith(color: colors.bad),
                     ),
                   ),
-                  TextButton(onPressed: _fixNotificationPermission, child: const Text('Fix')),
+                  TextButton(
+                    onPressed: _fixNotificationPermission,
+                    child: const Text('Fix'),
+                  ),
+                ],
+              ),
+            ),
+          ],
+          if (_enabled && _unrestrictedBackground == false) ...[
+            const SizedBox(height: 10),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: colors.bad.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: colors.bad.withValues(alpha: 0.3)),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.battery_alert_outlined,
+                    color: colors.bad,
+                    size: 20,
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      'Your phone is restricting this app\'s background activity, so a bank '
+                      'text can arrive and never get processed -- especially once the app '
+                      'hasn\'t been opened in a while.',
+                      style: Theme.of(
+                        context,
+                      ).textTheme.bodySmall?.copyWith(color: colors.bad),
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: _fixBackgroundRestriction,
+                    child: const Text('Fix'),
+                  ),
                 ],
               ),
             ),
@@ -169,12 +262,15 @@ class _BankSmsSettingsScreenState extends ConsumerState<BankSmsSettingsScreen> {
           Padding(
             padding: const EdgeInsets.fromLTRB(4, 10, 4, 0),
             child: Text(
-              'When your bank texts you about a card charge or payment, this opens a quick '
-              'review screen so you can add it to a ledger — nothing is added without you '
-              'confirming. Also keeps a matching credit card\'s balance in Settings > Credit '
-              'cards up to date automatically, with no confirmation needed for that part. '
-              'Needs the sensitive "read SMS" permission to work.',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(color: colors.textDim),
+              'When your bank texts you about a card charge, this checks it against your '
+              'Vendor rules below -- a match adds it straight to that ledger with nothing to '
+              'confirm; otherwise it opens a quick review screen so you can pick where it '
+              'goes. Also keeps a matching credit card\'s balance in Settings > Credit cards '
+              'up to date automatically either way. Needs the sensitive "read SMS" '
+              'permission to work.',
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(color: colors.textDim),
             ),
           ),
           const SizedBox(height: 16),
@@ -183,17 +279,31 @@ class _BankSmsSettingsScreenState extends ConsumerState<BankSmsSettingsScreen> {
             child: ListTile(
               leading: _IconChip(Icons.account_balance_wallet_outlined),
               title: const Text('Default ledger'),
-              subtitle: const Text('Pre-selected on Confirm payment when no vendor rule matches'),
+              subtitle: const Text(
+                'Pre-selected on Confirm payment when no vendor rule matches',
+              ),
               trailing: DropdownButton<String>(
-                value: counterparties.any((c) => c.id == ref.watch(defaultLedgerCounterpartyIdProvider))
+                value:
+                    counterparties.any(
+                      (c) =>
+                          c.id ==
+                          ref.watch(defaultLedgerCounterpartyIdProvider),
+                    )
                     ? ref.watch(defaultLedgerCounterpartyIdProvider)
                     : null,
                 hint: const Text('None'),
                 underline: const SizedBox.shrink(),
-                items: counterparties.map((c) => DropdownMenuItem(value: c.id, child: Text(c.name))).toList(),
+                items: counterparties
+                    .map(
+                      (c) => DropdownMenuItem(value: c.id, child: Text(c.name)),
+                    )
+                    .toList(),
                 onChanged: (id) async {
-                  await ref.read(settingsRepositoryProvider).setDefaultLedgerCounterpartyId(id);
-                  ref.read(defaultLedgerCounterpartyIdProvider.notifier).state = id;
+                  await ref
+                      .read(settingsRepositoryProvider)
+                      .setDefaultLedgerCounterpartyId(id);
+                  ref.read(defaultLedgerCounterpartyIdProvider.notifier).state =
+                      id;
                 },
               ),
             ),
@@ -202,7 +312,10 @@ class _BankSmsSettingsScreenState extends ConsumerState<BankSmsSettingsScreen> {
           Row(
             children: [
               Expanded(
-                child: Text('Vendor rules', style: Theme.of(context).textTheme.titleMedium),
+                child: Text(
+                  'Vendor rules',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
               ),
               IconButton(
                 icon: const Icon(Icons.add),
@@ -212,9 +325,11 @@ class _BankSmsSettingsScreenState extends ConsumerState<BankSmsSettingsScreen> {
             ],
           ),
           Text(
-            'When a detected charge\'s merchant matches one of these, the review screen '
-            'pre-fills the ledger and category below instead of asking you to pick.',
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(color: colors.textDim),
+            'When a detected charge\'s merchant matches one of these, it\'s added straight to '
+            'that ledger and category -- no review screen, nothing to confirm.',
+            style: Theme.of(
+              context,
+            ).textTheme.bodySmall?.copyWith(color: colors.textDim),
           ),
           const SizedBox(height: 12),
           rulesAsync.when(
@@ -246,7 +361,9 @@ class _BankSmsSettingsScreenState extends ConsumerState<BankSmsSettingsScreen> {
                         padding: const EdgeInsets.symmetric(horizontal: 20),
                         child: const Icon(Icons.delete),
                       ),
-                      onDismissed: (_) => ref.read(vendorRuleRepositoryProvider).deleteRule(rule.id),
+                      onDismissed: (_) => ref
+                          .read(vendorRuleRepositoryProvider)
+                          .deleteRule(rule.id),
                       child: Container(
                         margin: const EdgeInsets.only(bottom: 10),
                         decoration: rowDecoration,
@@ -297,7 +414,8 @@ class _VendorRuleFormDialog extends ConsumerStatefulWidget {
   final VendorRule? existing;
 
   @override
-  ConsumerState<_VendorRuleFormDialog> createState() => _VendorRuleFormDialogState();
+  ConsumerState<_VendorRuleFormDialog> createState() =>
+      _VendorRuleFormDialogState();
 }
 
 class _VendorRuleFormDialogState extends ConsumerState<_VendorRuleFormDialog> {
@@ -312,7 +430,9 @@ class _VendorRuleFormDialogState extends ConsumerState<_VendorRuleFormDialog> {
   void initState() {
     super.initState();
     final existing = widget.existing;
-    _vendorController = TextEditingController(text: existing?.vendorPattern ?? '');
+    _vendorController = TextEditingController(
+      text: existing?.vendorPattern ?? '',
+    );
     _counterpartyId = existing?.counterpartyId;
     _category = existing?.category;
   }
@@ -331,7 +451,9 @@ class _VendorRuleFormDialogState extends ConsumerState<_VendorRuleFormDialog> {
 
     final vendorPattern = _vendorController.text.trim();
     if (_isEditing) {
-      await ref.read(vendorRuleRepositoryProvider).updateRule(
+      await ref
+          .read(vendorRuleRepositoryProvider)
+          .updateRule(
             widget.existing!.copyWith(
               vendorPattern: vendorPattern,
               counterpartyId: counterpartyId,
@@ -339,7 +461,9 @@ class _VendorRuleFormDialogState extends ConsumerState<_VendorRuleFormDialog> {
             ),
           );
     } else {
-      await ref.read(vendorRuleRepositoryProvider).addRule(
+      await ref
+          .read(vendorRuleRepositoryProvider)
+          .addRule(
             vendorPattern: vendorPattern,
             counterpartyId: counterpartyId,
             category: category,
@@ -350,14 +474,18 @@ class _VendorRuleFormDialogState extends ConsumerState<_VendorRuleFormDialog> {
   }
 
   Future<void> _delete() async {
-    await ref.read(vendorRuleRepositoryProvider).deleteRule(widget.existing!.id);
+    await ref
+        .read(vendorRuleRepositoryProvider)
+        .deleteRule(widget.existing!.id);
     if (mounted) Navigator.of(context).pop();
   }
 
   @override
   Widget build(BuildContext context) {
-    final counterparties = ref.watch(counterpartiesStreamProvider).valueOrNull ?? const [];
-    final categories = ref.watch(ledgerCategoriesStreamProvider).valueOrNull ?? const [];
+    final counterparties =
+        ref.watch(counterpartiesStreamProvider).valueOrNull ?? const [];
+    final categories =
+        ref.watch(ledgerCategoriesStreamProvider).valueOrNull ?? const [];
 
     return AlertDialog(
       title: Text(_isEditing ? 'Edit vendor rule' : 'Add vendor rule'),
@@ -373,23 +501,37 @@ class _VendorRuleFormDialogState extends ConsumerState<_VendorRuleFormDialog> {
                   labelText: 'Merchant contains',
                   hintText: 'e.g. Breadfast',
                 ),
-                validator: (v) => (v == null || v.trim().isEmpty) ? 'Required' : null,
+                validator: (v) =>
+                    (v == null || v.trim().isEmpty) ? 'Required' : null,
               ),
               const SizedBox(height: 12),
               DropdownButtonFormField<String>(
                 isExpanded: true,
-                initialValue: counterparties.any((c) => c.id == _counterpartyId) ? _counterpartyId : null,
+                initialValue: counterparties.any((c) => c.id == _counterpartyId)
+                    ? _counterpartyId
+                    : null,
                 decoration: const InputDecoration(labelText: 'Ledger'),
-                items: counterparties.map((c) => DropdownMenuItem(value: c.id, child: Text(c.name))).toList(),
+                items: counterparties
+                    .map(
+                      (c) => DropdownMenuItem(value: c.id, child: Text(c.name)),
+                    )
+                    .toList(),
                 onChanged: (v) => setState(() => _counterpartyId = v),
                 validator: (v) => v == null ? 'Pick a ledger' : null,
               ),
               const SizedBox(height: 12),
               DropdownButtonFormField<String>(
                 isExpanded: true,
-                initialValue: categories.any((c) => c.name == _category) ? _category : null,
+                initialValue: categories.any((c) => c.name == _category)
+                    ? _category
+                    : null,
                 decoration: const InputDecoration(labelText: 'Category'),
-                items: categories.map((c) => DropdownMenuItem(value: c.name, child: Text(c.name))).toList(),
+                items: categories
+                    .map(
+                      (c) =>
+                          DropdownMenuItem(value: c.name, child: Text(c.name)),
+                    )
+                    .toList(),
                 onChanged: (v) => setState(() => _category = v),
                 validator: (v) => v == null ? 'Pick a category' : null,
               ),
@@ -401,10 +543,15 @@ class _VendorRuleFormDialogState extends ConsumerState<_VendorRuleFormDialog> {
         if (_isEditing)
           TextButton(
             onPressed: _delete,
-            style: TextButton.styleFrom(foregroundColor: Theme.of(context).colorScheme.error),
+            style: TextButton.styleFrom(
+              foregroundColor: Theme.of(context).colorScheme.error,
+            ),
             child: const Text('Delete'),
           ),
-        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
         FilledButton(onPressed: _save, child: const Text('Save')),
       ],
     );

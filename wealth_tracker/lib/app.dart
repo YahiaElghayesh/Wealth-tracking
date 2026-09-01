@@ -12,6 +12,7 @@ import 'core/widgets/app_bottom_nav.dart';
 import 'data/sms/native_sms_channel.dart';
 import 'data/sms/sms_ledger_processor.dart';
 import 'features/calculator/providers/known_cards_sync.dart';
+import 'features/calculator/providers/known_vendor_patterns_sync.dart';
 import 'features/calculator/screens/calculator_screen.dart';
 import 'features/ledger/providers/quick_add_launch.dart';
 import 'features/ledger/providers/widget_counterparties_sync.dart';
@@ -44,7 +45,8 @@ class WealthTrackerApp extends ConsumerWidget {
       // quick-add screen, ...) visible if the app was backgrounded and
       // resumed while on one of those. AppLockGate's own doc comment covers
       // how it still exempts the quick-add flow specifically despite that.
-      builder: (context, child) => AppLockGate(child: child ?? const SizedBox.shrink()),
+      builder: (context, child) =>
+          AppLockGate(child: child ?? const SizedBox.shrink()),
     );
   }
 }
@@ -56,7 +58,8 @@ class _RootShell extends ConsumerStatefulWidget {
   ConsumerState<_RootShell> createState() => _RootShellState();
 }
 
-class _RootShellState extends ConsumerState<_RootShell> with WidgetsBindingObserver {
+class _RootShellState extends ConsumerState<_RootShell>
+    with WidgetsBindingObserver {
   int _index = 0;
   StreamSubscription<Uri?>? _widgetClickSubscription;
 
@@ -66,13 +69,17 @@ class _RootShellState extends ConsumerState<_RootShell> with WidgetsBindingObser
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _widgetClickSubscription = HomeWidget.widgetClicked.listen((uri) => handleQuickAddLaunch(uri, ref));
+    _widgetClickSubscription = HomeWidget.widgetClicked.listen(
+      (uri) => handleQuickAddLaunch(uri, ref),
+    );
     // Deferred to after the first frame: called this early, navigatorKey's
     // Navigator isn't mounted yet, so the cold-start deep link would
     // silently drop (this was the "sometimes it just opens the app"
     // report — a timing race, not a deterministic failure).
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      HomeWidget.initiallyLaunchedFromHomeWidget().then((uri) => handleQuickAddLaunch(uri, ref));
+      HomeWidget.initiallyLaunchedFromHomeWidget().then(
+        (uri) => handleQuickAddLaunch(uri, ref),
+      );
     });
     if (Platform.isAndroid) _initSmsCapture();
   }
@@ -120,7 +127,9 @@ class _RootShellState extends ConsumerState<_RootShell> with WidgetsBindingObser
     if (state != AppLifecycleState.resumed) return;
     final refreshState = ref.read(priceRefreshControllerProvider);
     final lastRefreshedAt = refreshState.lastRefreshedAt;
-    final isStale = lastRefreshedAt == null || DateTime.now().difference(lastRefreshedAt) > _staleAfter;
+    final isStale =
+        lastRefreshedAt == null ||
+        DateTime.now().difference(lastRefreshedAt) > _staleAfter;
     if (!refreshState.isRefreshing && isStale) {
       ref.read(priceRefreshControllerProvider.notifier).refresh();
     }
@@ -131,6 +140,7 @@ class _RootShellState extends ConsumerState<_RootShell> with WidgetsBindingObser
     ref.watch(homeWidgetSyncProvider);
     ref.watch(widgetCounterpartiesSyncProvider);
     ref.watch(knownCardsSyncProvider);
+    ref.watch(knownVendorPatternsSyncProvider);
     ref.watch(vendorRuleSeedProvider);
 
     return Scaffold(

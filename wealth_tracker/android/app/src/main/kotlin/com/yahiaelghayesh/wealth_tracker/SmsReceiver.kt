@@ -75,12 +75,55 @@ class SmsReceiver : BroadcastReceiver() {
         // four digits match a real card, before anything below even runs.
         if (!looksLikeBankCardSms(context, body)) return
 
+        // An OTP/verification-code SMS restates the amount, currency, and
+        // card it's for (to identify which purchase the code belongs to),
+        // so it can satisfy every criterion above despite not being a
+        // transaction of any kind -- see isOtpMessage's own doc comment.
+        if (isOtpMessage(body)) return
+
         if (isCardPaymentOrRefundAlert(body)) {
             enqueueAutoUpdate(context, body, timestampMillis)
             return
         }
 
+        // A charge whose vendor already matches a Vendor Rule (see
+        // matchesKnownVendorPattern) skips the notification entirely and
+        // commits straight to that rule's ledger, per the user's explicit
+        // ask to not have to confirm ones that are already resolved -- the
+        // same zero-tap outcome the notification's own "Quick add" button
+        // already gave, just triggered automatically instead of requiring
+        // that tap.
+        if (matchesKnownVendorPattern(context, body)) {
+            enqueueQuickAdd(context, body, timestampMillis)
+            return
+        }
+
         postNotification(context, body, timestampMillis)
+    }
+
+    /**
+     * Enqueues the same headless WorkManager task the notification's own
+     * "Quick add" action button does ([SmsQuickAddActionReceiver]), just
+     * triggered automatically here instead of by a tap -- runs
+     * `commitSmsQuickAdd` (lib/data/sms/sms_ledger_processor.dart) in a
+     * background Flutter engine, which re-verifies the vendor-rule match
+     * with the real, tested Dart logic (this native check is a fast,
+     * approximate pre-filter, not the actual decision) and, if it still
+     * matches, both updates the tracked card balance and adds the ledger
+     * entry -- with no notification and no confirmation needed.
+     */
+    private fun enqueueQuickAdd(context: Context, body: String, timestampMillis: Long) {
+        val inputData = buildTaskInputData(
+            dartTask = SMS_QUICK_ADD_TASK_NAME,
+            payload = mapOf(
+                "body" to body,
+                "timestampMillis" to timestampMillis,
+            ),
+        )
+        val request = OneTimeWorkRequestBuilder<BackgroundWorker>()
+            .setInputData(inputData)
+            .build()
+        WorkManager.getInstance(context).enqueue(request)
     }
 
     /**
@@ -166,6 +209,11 @@ class SmsReceiver : BroadcastReceiver() {
         // priceRefreshCallbackDispatcher switches on.
         private const val SMS_AUTO_UPDATE_TASK_NAME = "smsAutoUpdate"
 
+        // Must match smsQuickAddTaskName in
+        // lib/data/sms/sms_ledger_processor.dart -- the same task name
+        // SmsQuickAddActionReceiver's own button-triggered path uses.
+        private const val SMS_QUICK_ADD_TASK_NAME = "smsQuickAdd"
+
         /**
          * Strips invisible Unicode bidi/formatting characters banks commonly
          * embed in Arabic SMS text to control how a Western-digit number (an
@@ -233,6 +281,10 @@ class SmsReceiver : BroadcastReceiver() {
         private const val HOME_WIDGET_PREFERENCES = "HomeWidgetPreferences"
         private const val KNOWN_CARDS_KEY = "known_card_last_four_digits"
 
+        // Must match the key HomeWidget.saveWidgetData writes to from
+        // known_vendor_patterns_sync.dart.
+        private const val KNOWN_VENDOR_PATTERNS_KEY = "known_vendor_patterns"
+
         private fun looksLikeBankCardSms(context: Context, body: String): Boolean {
             return amountPattern.containsMatchIn(body) &&
                 currencyPattern.containsMatchIn(body) &&
@@ -260,6 +312,39 @@ class SmsReceiver : BroadcastReceiver() {
         }
 
         /**
+         * Whether [body] looks like it's for a vendor a Vendor Rule already
+         * resolves -- a plain case-insensitive substring check against
+         * [readKnownVendorPatterns], deliberately approximate (no attempt at
+         * locating exactly where a "vendor" segment starts/ends the way each
+         * bank-specific Dart pattern does) since this only decides whether to
+         * skip the notification and hand off to the background auto-commit
+         * task instead; the real match (and the actual ledger write) is
+         * still entirely `commitSmsQuickAdd`'s call, re-run separately with
+         * the tested Dart logic once that task starts. Unlike
+         * [matchesKnownCardIfAnyRegistered], an empty list answers false, not
+         * true -- no Vendor Rules configured yet means nothing here should
+         * ever silently skip the notification.
+         */
+        private fun matchesKnownVendorPattern(context: Context, body: String): Boolean {
+            val patterns = readKnownVendorPatterns(context)
+            if (patterns.isEmpty()) return false
+            val lowerBody = body.lowercase()
+            return patterns.any { lowerBody.contains(it) }
+        }
+
+        private fun readKnownVendorPatterns(context: Context): Set<String> {
+            val json = context
+                .getSharedPreferences(HOME_WIDGET_PREFERENCES, Context.MODE_PRIVATE)
+                .getString(KNOWN_VENDOR_PATTERNS_KEY, null) ?: return emptySet()
+            return try {
+                val array = org.json.JSONArray(json)
+                (0 until array.length()).map { array.getString(it) }.toSet()
+            } catch (e: org.json.JSONException) {
+                emptySet()
+            }
+        }
+
+        /**
          * Mirrors just the *trigger phrase* of `_cibPaymentPattern`,
          * `_nbePaymentPattern`, and `_nbeRefundPattern` in
          * lib/data/sms/bank_sms_parser.dart -- deliberately much looser
@@ -277,6 +362,28 @@ class SmsReceiver : BroadcastReceiver() {
         private val cibPaymentAlertPattern = Regex("نشكركم\\s*على\\s*سداد\\s*مبلغ")
         private val nbePaymentAlertPattern = Regex("تم\\s*سداد\\s*مبلغ.*?بطاقتكم\\s*الائتمانية")
         private val nbeRefundAlertPattern = Regex("تم\\s*رد.*?بطاقتكم\\s*الائتمانية")
+
+        /**
+         * A one-time-passcode SMS states a secret code for the user to type
+         * elsewhere -- never a completed charge, payment, or refund -- even
+         * though it commonly restates the purchase amount, currency, and
+         * card it's for (to tell the user which purchase the code is
+         * authorizing), which is exactly what lets it slip past
+         * [looksLikeBankCardSms]'s four criteria above despite not being a
+         * transaction at all (confirmed from a real message: "...لبطاقة رقم
+         * 4912 بمبلغ EGP 2844.90... OTP: 624303"). Checked on wording alone,
+         * not which bank sent it, same as every other pattern in this file
+         * -- "OTP" appears verbatim regardless of the surrounding language,
+         * and Arabic banks separately phrase this as "الرقم السري المتغير"
+         * (variable/dynamic secret number) or "رمز التحقق" (verification
+         * code).
+         */
+        private val otpPattern = Regex(
+            """\botp\b|الرقم\s*السري\s*المتغير|رمز\s*التحقق""",
+            RegexOption.IGNORE_CASE,
+        )
+
+        private fun isOtpMessage(body: String): Boolean = otpPattern.containsMatchIn(body)
 
         private fun isCardPaymentOrRefundAlert(body: String): Boolean {
             return cibPaymentAlertPattern.containsMatchIn(body) ||
