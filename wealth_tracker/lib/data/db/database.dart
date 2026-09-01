@@ -37,7 +37,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 18;
+  int get schemaVersion => 19;
 
   /// Public so `ProfileRepository.addProfile` can give a newly created
   /// profile the same starter categories a fresh install gets -- otherwise
@@ -332,6 +332,23 @@ class AppDatabase extends _$AppDatabase {
         // New "Recurring payments" tab -- fully new data, so a plain
         // create with no backfill needed.
         await m.createTable(recurringPayments);
+      }
+      if (from < 19) {
+        // Recurring payments: interval ("every N days") and yearly
+        // frequencies, alongside the original monthly one, plus the
+        // paid/pending tracking that drives the tab's green "paid" state
+        // and its this-month total split. Every pre-existing row has no
+        // stored frequency, which addColumn's default backfills to
+        // 'monthly' -- the only kind that existed before this migration.
+        await m.addColumn(recurringPayments, recurringPayments.frequency);
+        await m.addColumn(recurringPayments, recurringPayments.intervalDays);
+        await m.addColumn(
+          recurringPayments,
+          recurringPayments.intervalAnchorDate,
+        );
+        await m.addColumn(recurringPayments, recurringPayments.yearlyMonth);
+        await m.addColumn(recurringPayments, recurringPayments.yearlyDay);
+        await m.addColumn(recurringPayments, recurringPayments.lastPaidAt);
       }
     },
     // The "Breakfast" quick-pick category was a voice-transcription

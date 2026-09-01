@@ -1,6 +1,7 @@
 import 'package:drift/drift.dart';
 import 'package:uuid/uuid.dart';
 
+import '../../core/models/recurring_payment_frequency.dart';
 import '../db/database.dart';
 
 /// Scoped to one [profileId] -- see `CalculatorRepository`'s doc comment
@@ -25,7 +26,12 @@ class RecurringPaymentRepository {
     required double amount,
     required String currency,
     required bool isExactAmount,
-    required int dayOfMonth,
+    required RecurringPaymentFrequency frequency,
+    int? dayOfMonth,
+    int? intervalDays,
+    DateTime? intervalAnchorDate,
+    int? yearlyMonth,
+    int? yearlyDay,
   }) async {
     final count = await (_db.select(
       _db.recurringPayments,
@@ -39,15 +45,37 @@ class RecurringPaymentRepository {
             amount: amount,
             currency: Value(currency),
             isExactAmount: Value(isExactAmount),
-            dayOfMonth: dayOfMonth,
+            // The column is NOT NULL regardless of frequency (see its own
+            // doc comment in tables.dart) -- 1 is a meaningless
+            // placeholder for any frequency that doesn't actually use it.
+            dayOfMonth: dayOfMonth ?? 1,
             sortOrder: Value(count.length),
             profileId: Value(profileId),
+            frequency: Value(frequency.stored),
+            intervalDays: Value(intervalDays),
+            intervalAnchorDate: Value(intervalAnchorDate),
+            yearlyMonth: Value(yearlyMonth),
+            yearlyDay: Value(yearlyDay),
           ),
         );
   }
 
   Future<void> update(RecurringPayment payment) {
     return _db.update(_db.recurringPayments).replace(payment);
+  }
+
+  /// Toggles the "mark as paid" state for the payment's current billing
+  /// cycle -- see recurring_payment_due.dart for what "current" means per
+  /// frequency. `paid: false` clears it back to pending (an accidental-tap
+  /// undo), not just a one-way action.
+  Future<void> setPaid(String id, bool paid) {
+    return (_db.update(
+      _db.recurringPayments,
+    )..where((t) => t.id.equals(id))).write(
+      RecurringPaymentsCompanion(
+        lastPaidAt: Value(paid ? DateTime.now() : null),
+      ),
+    );
   }
 
   Future<void> delete(String id) {

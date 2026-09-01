@@ -322,6 +322,11 @@ class RecurringPayments extends Table {
   /// whole point is "every month on this day," not one specific
   /// occurrence. A day past a shorter month's own last day (e.g. 31 in
   /// February) is left for display logic to clamp, not stored specially.
+  /// Only meaningful when [frequency] is 'monthly'; for any other
+  /// frequency this still holds a value (never null -- see the column's
+  /// own NOT NULL constraint, kept rather than loosened to avoid an
+  /// ALTER-driven migration) but it's a meaningless placeholder the app
+  /// never reads.
   IntColumn get dayOfMonth => integer()();
 
   /// Manual ordering for display — set to insertion order by default, but
@@ -329,6 +334,38 @@ class RecurringPayments extends Table {
   IntColumn get sortOrder => integer().withDefault(const Constant(0))();
 
   TextColumn get profileId => text().nullable().references(Profiles, #id)();
+
+  /// 'monthly' | 'interval' | 'yearly' -- see
+  /// core/models/recurring_payment_frequency.dart. Defaults to 'monthly'
+  /// so every row created before this column existed (the only kind that
+  /// existed then) keeps reading correctly with no backfill needed.
+  TextColumn get frequency => text().withDefault(const Constant('monthly'))();
+
+  /// Only meaningful when [frequency] is 'interval': how many days between
+  /// occurrences (e.g. 10 for "every 10 days").
+  IntColumn get intervalDays => integer().nullable()();
+
+  /// Only meaningful when [frequency] is 'interval': the date the interval
+  /// counts from. The due date is always computed fresh as the next
+  /// multiple of [intervalDays] on/after this anchor (see
+  /// recurring_payment_due.dart) rather than stored and advanced, so it
+  /// can never drift out of sync with a missed "mark as paid" tap.
+  DateTimeColumn get intervalAnchorDate => dateTime().nullable()();
+
+  /// Only meaningful when [frequency] is 'yearly': the month (1-12) this
+  /// bills on every year.
+  IntColumn get yearlyMonth => integer().nullable()();
+
+  /// Only meaningful when [frequency] is 'yearly': the day of that month
+  /// (1-31), clamped the same way [dayOfMonth] is for a shorter month.
+  IntColumn get yearlyDay => integer().nullable()();
+
+  /// When the user last tapped "mark as paid" -- drives the green
+  /// paid/pending state and the total card's paid/pending split. Compared
+  /// against the *current* billing cycle (recurring_payment_due.dart), not
+  /// just "is this non-null", so a paid-mark from a previous cycle
+  /// automatically reads as pending again once a new one comes due.
+  DateTimeColumn get lastPaidAt => dateTime().nullable()();
 
   @override
   Set<Column> get primaryKey => {id};

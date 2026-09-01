@@ -5918,6 +5918,73 @@ class $RecurringPaymentsTable extends RecurringPayments
       'REFERENCES profiles (id)',
     ),
   );
+  static const VerificationMeta _frequencyMeta = const VerificationMeta(
+    'frequency',
+  );
+  @override
+  late final GeneratedColumn<String> frequency = GeneratedColumn<String>(
+    'frequency',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('monthly'),
+  );
+  static const VerificationMeta _intervalDaysMeta = const VerificationMeta(
+    'intervalDays',
+  );
+  @override
+  late final GeneratedColumn<int> intervalDays = GeneratedColumn<int>(
+    'interval_days',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _intervalAnchorDateMeta =
+      const VerificationMeta('intervalAnchorDate');
+  @override
+  late final GeneratedColumn<DateTime> intervalAnchorDate =
+      GeneratedColumn<DateTime>(
+        'interval_anchor_date',
+        aliasedName,
+        true,
+        type: DriftSqlType.dateTime,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _yearlyMonthMeta = const VerificationMeta(
+    'yearlyMonth',
+  );
+  @override
+  late final GeneratedColumn<int> yearlyMonth = GeneratedColumn<int>(
+    'yearly_month',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _yearlyDayMeta = const VerificationMeta(
+    'yearlyDay',
+  );
+  @override
+  late final GeneratedColumn<int> yearlyDay = GeneratedColumn<int>(
+    'yearly_day',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _lastPaidAtMeta = const VerificationMeta(
+    'lastPaidAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> lastPaidAt = GeneratedColumn<DateTime>(
+    'last_paid_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -5928,6 +5995,12 @@ class $RecurringPaymentsTable extends RecurringPayments
     dayOfMonth,
     sortOrder,
     profileId,
+    frequency,
+    intervalDays,
+    intervalAnchorDate,
+    yearlyMonth,
+    yearlyDay,
+    lastPaidAt,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -6000,6 +6073,54 @@ class $RecurringPaymentsTable extends RecurringPayments
         profileId.isAcceptableOrUnknown(data['profile_id']!, _profileIdMeta),
       );
     }
+    if (data.containsKey('frequency')) {
+      context.handle(
+        _frequencyMeta,
+        frequency.isAcceptableOrUnknown(data['frequency']!, _frequencyMeta),
+      );
+    }
+    if (data.containsKey('interval_days')) {
+      context.handle(
+        _intervalDaysMeta,
+        intervalDays.isAcceptableOrUnknown(
+          data['interval_days']!,
+          _intervalDaysMeta,
+        ),
+      );
+    }
+    if (data.containsKey('interval_anchor_date')) {
+      context.handle(
+        _intervalAnchorDateMeta,
+        intervalAnchorDate.isAcceptableOrUnknown(
+          data['interval_anchor_date']!,
+          _intervalAnchorDateMeta,
+        ),
+      );
+    }
+    if (data.containsKey('yearly_month')) {
+      context.handle(
+        _yearlyMonthMeta,
+        yearlyMonth.isAcceptableOrUnknown(
+          data['yearly_month']!,
+          _yearlyMonthMeta,
+        ),
+      );
+    }
+    if (data.containsKey('yearly_day')) {
+      context.handle(
+        _yearlyDayMeta,
+        yearlyDay.isAcceptableOrUnknown(data['yearly_day']!, _yearlyDayMeta),
+      );
+    }
+    if (data.containsKey('last_paid_at')) {
+      context.handle(
+        _lastPaidAtMeta,
+        lastPaidAt.isAcceptableOrUnknown(
+          data['last_paid_at']!,
+          _lastPaidAtMeta,
+        ),
+      );
+    }
     return context;
   }
 
@@ -6041,6 +6162,30 @@ class $RecurringPaymentsTable extends RecurringPayments
         DriftSqlType.string,
         data['${effectivePrefix}profile_id'],
       ),
+      frequency: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}frequency'],
+      )!,
+      intervalDays: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}interval_days'],
+      ),
+      intervalAnchorDate: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}interval_anchor_date'],
+      ),
+      yearlyMonth: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}yearly_month'],
+      ),
+      yearlyDay: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}yearly_day'],
+      ),
+      lastPaidAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}last_paid_at'],
+      ),
     );
   }
 
@@ -6069,12 +6214,49 @@ class RecurringPayment extends DataClass
   /// whole point is "every month on this day," not one specific
   /// occurrence. A day past a shorter month's own last day (e.g. 31 in
   /// February) is left for display logic to clamp, not stored specially.
+  /// Only meaningful when [frequency] is 'monthly'; for any other
+  /// frequency this still holds a value (never null -- see the column's
+  /// own NOT NULL constraint, kept rather than loosened to avoid an
+  /// ALTER-driven migration) but it's a meaningless placeholder the app
+  /// never reads.
   final int dayOfMonth;
 
   /// Manual ordering for display — set to insertion order by default, but
   /// not tied to it, so a future "reorder" gesture has somewhere to write.
   final int sortOrder;
   final String? profileId;
+
+  /// 'monthly' | 'interval' | 'yearly' -- see
+  /// core/models/recurring_payment_frequency.dart. Defaults to 'monthly'
+  /// so every row created before this column existed (the only kind that
+  /// existed then) keeps reading correctly with no backfill needed.
+  final String frequency;
+
+  /// Only meaningful when [frequency] is 'interval': how many days between
+  /// occurrences (e.g. 10 for "every 10 days").
+  final int? intervalDays;
+
+  /// Only meaningful when [frequency] is 'interval': the date the interval
+  /// counts from. The due date is always computed fresh as the next
+  /// multiple of [intervalDays] on/after this anchor (see
+  /// recurring_payment_due.dart) rather than stored and advanced, so it
+  /// can never drift out of sync with a missed "mark as paid" tap.
+  final DateTime? intervalAnchorDate;
+
+  /// Only meaningful when [frequency] is 'yearly': the month (1-12) this
+  /// bills on every year.
+  final int? yearlyMonth;
+
+  /// Only meaningful when [frequency] is 'yearly': the day of that month
+  /// (1-31), clamped the same way [dayOfMonth] is for a shorter month.
+  final int? yearlyDay;
+
+  /// When the user last tapped "mark as paid" -- drives the green
+  /// paid/pending state and the total card's paid/pending split. Compared
+  /// against the *current* billing cycle (recurring_payment_due.dart), not
+  /// just "is this non-null", so a paid-mark from a previous cycle
+  /// automatically reads as pending again once a new one comes due.
+  final DateTime? lastPaidAt;
   const RecurringPayment({
     required this.id,
     required this.name,
@@ -6084,6 +6266,12 @@ class RecurringPayment extends DataClass
     required this.dayOfMonth,
     required this.sortOrder,
     this.profileId,
+    required this.frequency,
+    this.intervalDays,
+    this.intervalAnchorDate,
+    this.yearlyMonth,
+    this.yearlyDay,
+    this.lastPaidAt,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -6097,6 +6285,22 @@ class RecurringPayment extends DataClass
     map['sort_order'] = Variable<int>(sortOrder);
     if (!nullToAbsent || profileId != null) {
       map['profile_id'] = Variable<String>(profileId);
+    }
+    map['frequency'] = Variable<String>(frequency);
+    if (!nullToAbsent || intervalDays != null) {
+      map['interval_days'] = Variable<int>(intervalDays);
+    }
+    if (!nullToAbsent || intervalAnchorDate != null) {
+      map['interval_anchor_date'] = Variable<DateTime>(intervalAnchorDate);
+    }
+    if (!nullToAbsent || yearlyMonth != null) {
+      map['yearly_month'] = Variable<int>(yearlyMonth);
+    }
+    if (!nullToAbsent || yearlyDay != null) {
+      map['yearly_day'] = Variable<int>(yearlyDay);
+    }
+    if (!nullToAbsent || lastPaidAt != null) {
+      map['last_paid_at'] = Variable<DateTime>(lastPaidAt);
     }
     return map;
   }
@@ -6113,6 +6317,22 @@ class RecurringPayment extends DataClass
       profileId: profileId == null && nullToAbsent
           ? const Value.absent()
           : Value(profileId),
+      frequency: Value(frequency),
+      intervalDays: intervalDays == null && nullToAbsent
+          ? const Value.absent()
+          : Value(intervalDays),
+      intervalAnchorDate: intervalAnchorDate == null && nullToAbsent
+          ? const Value.absent()
+          : Value(intervalAnchorDate),
+      yearlyMonth: yearlyMonth == null && nullToAbsent
+          ? const Value.absent()
+          : Value(yearlyMonth),
+      yearlyDay: yearlyDay == null && nullToAbsent
+          ? const Value.absent()
+          : Value(yearlyDay),
+      lastPaidAt: lastPaidAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(lastPaidAt),
     );
   }
 
@@ -6130,6 +6350,14 @@ class RecurringPayment extends DataClass
       dayOfMonth: serializer.fromJson<int>(json['dayOfMonth']),
       sortOrder: serializer.fromJson<int>(json['sortOrder']),
       profileId: serializer.fromJson<String?>(json['profileId']),
+      frequency: serializer.fromJson<String>(json['frequency']),
+      intervalDays: serializer.fromJson<int?>(json['intervalDays']),
+      intervalAnchorDate: serializer.fromJson<DateTime?>(
+        json['intervalAnchorDate'],
+      ),
+      yearlyMonth: serializer.fromJson<int?>(json['yearlyMonth']),
+      yearlyDay: serializer.fromJson<int?>(json['yearlyDay']),
+      lastPaidAt: serializer.fromJson<DateTime?>(json['lastPaidAt']),
     );
   }
   @override
@@ -6144,6 +6372,12 @@ class RecurringPayment extends DataClass
       'dayOfMonth': serializer.toJson<int>(dayOfMonth),
       'sortOrder': serializer.toJson<int>(sortOrder),
       'profileId': serializer.toJson<String?>(profileId),
+      'frequency': serializer.toJson<String>(frequency),
+      'intervalDays': serializer.toJson<int?>(intervalDays),
+      'intervalAnchorDate': serializer.toJson<DateTime?>(intervalAnchorDate),
+      'yearlyMonth': serializer.toJson<int?>(yearlyMonth),
+      'yearlyDay': serializer.toJson<int?>(yearlyDay),
+      'lastPaidAt': serializer.toJson<DateTime?>(lastPaidAt),
     };
   }
 
@@ -6156,6 +6390,12 @@ class RecurringPayment extends DataClass
     int? dayOfMonth,
     int? sortOrder,
     Value<String?> profileId = const Value.absent(),
+    String? frequency,
+    Value<int?> intervalDays = const Value.absent(),
+    Value<DateTime?> intervalAnchorDate = const Value.absent(),
+    Value<int?> yearlyMonth = const Value.absent(),
+    Value<int?> yearlyDay = const Value.absent(),
+    Value<DateTime?> lastPaidAt = const Value.absent(),
   }) => RecurringPayment(
     id: id ?? this.id,
     name: name ?? this.name,
@@ -6165,6 +6405,14 @@ class RecurringPayment extends DataClass
     dayOfMonth: dayOfMonth ?? this.dayOfMonth,
     sortOrder: sortOrder ?? this.sortOrder,
     profileId: profileId.present ? profileId.value : this.profileId,
+    frequency: frequency ?? this.frequency,
+    intervalDays: intervalDays.present ? intervalDays.value : this.intervalDays,
+    intervalAnchorDate: intervalAnchorDate.present
+        ? intervalAnchorDate.value
+        : this.intervalAnchorDate,
+    yearlyMonth: yearlyMonth.present ? yearlyMonth.value : this.yearlyMonth,
+    yearlyDay: yearlyDay.present ? yearlyDay.value : this.yearlyDay,
+    lastPaidAt: lastPaidAt.present ? lastPaidAt.value : this.lastPaidAt,
   );
   RecurringPayment copyWithCompanion(RecurringPaymentsCompanion data) {
     return RecurringPayment(
@@ -6180,6 +6428,20 @@ class RecurringPayment extends DataClass
           : this.dayOfMonth,
       sortOrder: data.sortOrder.present ? data.sortOrder.value : this.sortOrder,
       profileId: data.profileId.present ? data.profileId.value : this.profileId,
+      frequency: data.frequency.present ? data.frequency.value : this.frequency,
+      intervalDays: data.intervalDays.present
+          ? data.intervalDays.value
+          : this.intervalDays,
+      intervalAnchorDate: data.intervalAnchorDate.present
+          ? data.intervalAnchorDate.value
+          : this.intervalAnchorDate,
+      yearlyMonth: data.yearlyMonth.present
+          ? data.yearlyMonth.value
+          : this.yearlyMonth,
+      yearlyDay: data.yearlyDay.present ? data.yearlyDay.value : this.yearlyDay,
+      lastPaidAt: data.lastPaidAt.present
+          ? data.lastPaidAt.value
+          : this.lastPaidAt,
     );
   }
 
@@ -6193,7 +6455,13 @@ class RecurringPayment extends DataClass
           ..write('isExactAmount: $isExactAmount, ')
           ..write('dayOfMonth: $dayOfMonth, ')
           ..write('sortOrder: $sortOrder, ')
-          ..write('profileId: $profileId')
+          ..write('profileId: $profileId, ')
+          ..write('frequency: $frequency, ')
+          ..write('intervalDays: $intervalDays, ')
+          ..write('intervalAnchorDate: $intervalAnchorDate, ')
+          ..write('yearlyMonth: $yearlyMonth, ')
+          ..write('yearlyDay: $yearlyDay, ')
+          ..write('lastPaidAt: $lastPaidAt')
           ..write(')'))
         .toString();
   }
@@ -6208,6 +6476,12 @@ class RecurringPayment extends DataClass
     dayOfMonth,
     sortOrder,
     profileId,
+    frequency,
+    intervalDays,
+    intervalAnchorDate,
+    yearlyMonth,
+    yearlyDay,
+    lastPaidAt,
   );
   @override
   bool operator ==(Object other) =>
@@ -6220,7 +6494,13 @@ class RecurringPayment extends DataClass
           other.isExactAmount == this.isExactAmount &&
           other.dayOfMonth == this.dayOfMonth &&
           other.sortOrder == this.sortOrder &&
-          other.profileId == this.profileId);
+          other.profileId == this.profileId &&
+          other.frequency == this.frequency &&
+          other.intervalDays == this.intervalDays &&
+          other.intervalAnchorDate == this.intervalAnchorDate &&
+          other.yearlyMonth == this.yearlyMonth &&
+          other.yearlyDay == this.yearlyDay &&
+          other.lastPaidAt == this.lastPaidAt);
 }
 
 class RecurringPaymentsCompanion extends UpdateCompanion<RecurringPayment> {
@@ -6232,6 +6512,12 @@ class RecurringPaymentsCompanion extends UpdateCompanion<RecurringPayment> {
   final Value<int> dayOfMonth;
   final Value<int> sortOrder;
   final Value<String?> profileId;
+  final Value<String> frequency;
+  final Value<int?> intervalDays;
+  final Value<DateTime?> intervalAnchorDate;
+  final Value<int?> yearlyMonth;
+  final Value<int?> yearlyDay;
+  final Value<DateTime?> lastPaidAt;
   final Value<int> rowid;
   const RecurringPaymentsCompanion({
     this.id = const Value.absent(),
@@ -6242,6 +6528,12 @@ class RecurringPaymentsCompanion extends UpdateCompanion<RecurringPayment> {
     this.dayOfMonth = const Value.absent(),
     this.sortOrder = const Value.absent(),
     this.profileId = const Value.absent(),
+    this.frequency = const Value.absent(),
+    this.intervalDays = const Value.absent(),
+    this.intervalAnchorDate = const Value.absent(),
+    this.yearlyMonth = const Value.absent(),
+    this.yearlyDay = const Value.absent(),
+    this.lastPaidAt = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   RecurringPaymentsCompanion.insert({
@@ -6253,6 +6545,12 @@ class RecurringPaymentsCompanion extends UpdateCompanion<RecurringPayment> {
     required int dayOfMonth,
     this.sortOrder = const Value.absent(),
     this.profileId = const Value.absent(),
+    this.frequency = const Value.absent(),
+    this.intervalDays = const Value.absent(),
+    this.intervalAnchorDate = const Value.absent(),
+    this.yearlyMonth = const Value.absent(),
+    this.yearlyDay = const Value.absent(),
+    this.lastPaidAt = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
        name = Value(name),
@@ -6267,6 +6565,12 @@ class RecurringPaymentsCompanion extends UpdateCompanion<RecurringPayment> {
     Expression<int>? dayOfMonth,
     Expression<int>? sortOrder,
     Expression<String>? profileId,
+    Expression<String>? frequency,
+    Expression<int>? intervalDays,
+    Expression<DateTime>? intervalAnchorDate,
+    Expression<int>? yearlyMonth,
+    Expression<int>? yearlyDay,
+    Expression<DateTime>? lastPaidAt,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -6278,6 +6582,13 @@ class RecurringPaymentsCompanion extends UpdateCompanion<RecurringPayment> {
       if (dayOfMonth != null) 'day_of_month': dayOfMonth,
       if (sortOrder != null) 'sort_order': sortOrder,
       if (profileId != null) 'profile_id': profileId,
+      if (frequency != null) 'frequency': frequency,
+      if (intervalDays != null) 'interval_days': intervalDays,
+      if (intervalAnchorDate != null)
+        'interval_anchor_date': intervalAnchorDate,
+      if (yearlyMonth != null) 'yearly_month': yearlyMonth,
+      if (yearlyDay != null) 'yearly_day': yearlyDay,
+      if (lastPaidAt != null) 'last_paid_at': lastPaidAt,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -6291,6 +6602,12 @@ class RecurringPaymentsCompanion extends UpdateCompanion<RecurringPayment> {
     Value<int>? dayOfMonth,
     Value<int>? sortOrder,
     Value<String?>? profileId,
+    Value<String>? frequency,
+    Value<int?>? intervalDays,
+    Value<DateTime?>? intervalAnchorDate,
+    Value<int?>? yearlyMonth,
+    Value<int?>? yearlyDay,
+    Value<DateTime?>? lastPaidAt,
     Value<int>? rowid,
   }) {
     return RecurringPaymentsCompanion(
@@ -6302,6 +6619,12 @@ class RecurringPaymentsCompanion extends UpdateCompanion<RecurringPayment> {
       dayOfMonth: dayOfMonth ?? this.dayOfMonth,
       sortOrder: sortOrder ?? this.sortOrder,
       profileId: profileId ?? this.profileId,
+      frequency: frequency ?? this.frequency,
+      intervalDays: intervalDays ?? this.intervalDays,
+      intervalAnchorDate: intervalAnchorDate ?? this.intervalAnchorDate,
+      yearlyMonth: yearlyMonth ?? this.yearlyMonth,
+      yearlyDay: yearlyDay ?? this.yearlyDay,
+      lastPaidAt: lastPaidAt ?? this.lastPaidAt,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -6333,6 +6656,26 @@ class RecurringPaymentsCompanion extends UpdateCompanion<RecurringPayment> {
     if (profileId.present) {
       map['profile_id'] = Variable<String>(profileId.value);
     }
+    if (frequency.present) {
+      map['frequency'] = Variable<String>(frequency.value);
+    }
+    if (intervalDays.present) {
+      map['interval_days'] = Variable<int>(intervalDays.value);
+    }
+    if (intervalAnchorDate.present) {
+      map['interval_anchor_date'] = Variable<DateTime>(
+        intervalAnchorDate.value,
+      );
+    }
+    if (yearlyMonth.present) {
+      map['yearly_month'] = Variable<int>(yearlyMonth.value);
+    }
+    if (yearlyDay.present) {
+      map['yearly_day'] = Variable<int>(yearlyDay.value);
+    }
+    if (lastPaidAt.present) {
+      map['last_paid_at'] = Variable<DateTime>(lastPaidAt.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -6350,6 +6693,12 @@ class RecurringPaymentsCompanion extends UpdateCompanion<RecurringPayment> {
           ..write('dayOfMonth: $dayOfMonth, ')
           ..write('sortOrder: $sortOrder, ')
           ..write('profileId: $profileId, ')
+          ..write('frequency: $frequency, ')
+          ..write('intervalDays: $intervalDays, ')
+          ..write('intervalAnchorDate: $intervalAnchorDate, ')
+          ..write('yearlyMonth: $yearlyMonth, ')
+          ..write('yearlyDay: $yearlyDay, ')
+          ..write('lastPaidAt: $lastPaidAt, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -11563,6 +11912,12 @@ typedef $$RecurringPaymentsTableCreateCompanionBuilder =
       required int dayOfMonth,
       Value<int> sortOrder,
       Value<String?> profileId,
+      Value<String> frequency,
+      Value<int?> intervalDays,
+      Value<DateTime?> intervalAnchorDate,
+      Value<int?> yearlyMonth,
+      Value<int?> yearlyDay,
+      Value<DateTime?> lastPaidAt,
       Value<int> rowid,
     });
 typedef $$RecurringPaymentsTableUpdateCompanionBuilder =
@@ -11575,6 +11930,12 @@ typedef $$RecurringPaymentsTableUpdateCompanionBuilder =
       Value<int> dayOfMonth,
       Value<int> sortOrder,
       Value<String?> profileId,
+      Value<String> frequency,
+      Value<int?> intervalDays,
+      Value<DateTime?> intervalAnchorDate,
+      Value<int?> yearlyMonth,
+      Value<int?> yearlyDay,
+      Value<DateTime?> lastPaidAt,
       Value<int> rowid,
     });
 
@@ -11653,6 +12014,36 @@ class $$RecurringPaymentsTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
+  ColumnFilters<String> get frequency => $composableBuilder(
+    column: $table.frequency,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get intervalDays => $composableBuilder(
+    column: $table.intervalDays,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get intervalAnchorDate => $composableBuilder(
+    column: $table.intervalAnchorDate,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get yearlyMonth => $composableBuilder(
+    column: $table.yearlyMonth,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get yearlyDay => $composableBuilder(
+    column: $table.yearlyDay,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get lastPaidAt => $composableBuilder(
+    column: $table.lastPaidAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
   $$ProfilesTableFilterComposer get profileId {
     final $$ProfilesTableFilterComposer composer = $composerBuilder(
       composer: this,
@@ -11721,6 +12112,36 @@ class $$RecurringPaymentsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get frequency => $composableBuilder(
+    column: $table.frequency,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get intervalDays => $composableBuilder(
+    column: $table.intervalDays,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get intervalAnchorDate => $composableBuilder(
+    column: $table.intervalAnchorDate,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get yearlyMonth => $composableBuilder(
+    column: $table.yearlyMonth,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get yearlyDay => $composableBuilder(
+    column: $table.yearlyDay,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get lastPaidAt => $composableBuilder(
+    column: $table.lastPaidAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   $$ProfilesTableOrderingComposer get profileId {
     final $$ProfilesTableOrderingComposer composer = $composerBuilder(
       composer: this,
@@ -11778,6 +12199,32 @@ class $$RecurringPaymentsTableAnnotationComposer
 
   GeneratedColumn<int> get sortOrder =>
       $composableBuilder(column: $table.sortOrder, builder: (column) => column);
+
+  GeneratedColumn<String> get frequency =>
+      $composableBuilder(column: $table.frequency, builder: (column) => column);
+
+  GeneratedColumn<int> get intervalDays => $composableBuilder(
+    column: $table.intervalDays,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get intervalAnchorDate => $composableBuilder(
+    column: $table.intervalAnchorDate,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get yearlyMonth => $composableBuilder(
+    column: $table.yearlyMonth,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get yearlyDay =>
+      $composableBuilder(column: $table.yearlyDay, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get lastPaidAt => $composableBuilder(
+    column: $table.lastPaidAt,
+    builder: (column) => column,
+  );
 
   $$ProfilesTableAnnotationComposer get profileId {
     final $$ProfilesTableAnnotationComposer composer = $composerBuilder(
@@ -11844,6 +12291,12 @@ class $$RecurringPaymentsTableTableManager
                 Value<int> dayOfMonth = const Value.absent(),
                 Value<int> sortOrder = const Value.absent(),
                 Value<String?> profileId = const Value.absent(),
+                Value<String> frequency = const Value.absent(),
+                Value<int?> intervalDays = const Value.absent(),
+                Value<DateTime?> intervalAnchorDate = const Value.absent(),
+                Value<int?> yearlyMonth = const Value.absent(),
+                Value<int?> yearlyDay = const Value.absent(),
+                Value<DateTime?> lastPaidAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => RecurringPaymentsCompanion(
                 id: id,
@@ -11854,6 +12307,12 @@ class $$RecurringPaymentsTableTableManager
                 dayOfMonth: dayOfMonth,
                 sortOrder: sortOrder,
                 profileId: profileId,
+                frequency: frequency,
+                intervalDays: intervalDays,
+                intervalAnchorDate: intervalAnchorDate,
+                yearlyMonth: yearlyMonth,
+                yearlyDay: yearlyDay,
+                lastPaidAt: lastPaidAt,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -11866,6 +12325,12 @@ class $$RecurringPaymentsTableTableManager
                 required int dayOfMonth,
                 Value<int> sortOrder = const Value.absent(),
                 Value<String?> profileId = const Value.absent(),
+                Value<String> frequency = const Value.absent(),
+                Value<int?> intervalDays = const Value.absent(),
+                Value<DateTime?> intervalAnchorDate = const Value.absent(),
+                Value<int?> yearlyMonth = const Value.absent(),
+                Value<int?> yearlyDay = const Value.absent(),
+                Value<DateTime?> lastPaidAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => RecurringPaymentsCompanion.insert(
                 id: id,
@@ -11876,6 +12341,12 @@ class $$RecurringPaymentsTableTableManager
                 dayOfMonth: dayOfMonth,
                 sortOrder: sortOrder,
                 profileId: profileId,
+                frequency: frequency,
+                intervalDays: intervalDays,
+                intervalAnchorDate: intervalAnchorDate,
+                yearlyMonth: yearlyMonth,
+                yearlyDay: yearlyDay,
+                lastPaidAt: lastPaidAt,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
