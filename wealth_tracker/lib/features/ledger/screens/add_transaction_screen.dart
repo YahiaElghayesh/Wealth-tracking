@@ -57,12 +57,19 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
   List<String> _categoryNames = const ['Other'];
   String _currency = defaultCurrency;
   DateTime _date = DateTime.now();
+  // Mutable even though it starts from widget.counterpartyId -- the "Add a
+  // new ledger" option below lets this change without leaving this screen,
+  // instead of the ledger being fixed for good by however this screen was
+  // reached (a specific ledger row's "+", or a per-ledger quick-add
+  // shortcut/widget).
+  late String _counterpartyId;
 
   bool get _isEditing => widget.existing != null;
 
   @override
   void initState() {
     super.initState();
+    _counterpartyId = widget.counterpartyId;
     final existing = widget.existing;
     if (existing != null) {
       _isPayment = existing.amount >= 0;
@@ -179,6 +186,69 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
     if (picked != null) setState(() => _date = picked);
   }
 
+  /// Same "add ledger" form as `LedgerHomeScreen`'s own FAB -- offered here
+  /// too so a ledger that doesn't exist yet doesn't force backing all the
+  /// way out to the Ledger tab, creating it there, and re-opening this
+  /// screen from scratch. Selects the new ledger immediately once created.
+  Future<void> _addNewLedger() async {
+    final controller = TextEditingController();
+    var includeInStatistics = true;
+    var includeInCalculator = true;
+    final name = await showDialog<String>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Add ledger'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: controller,
+                autofocus: true,
+                decoration: const InputDecoration(
+                  labelText: 'Name',
+                  hintText: 'e.g. Dad',
+                ),
+              ),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Include in Statistics'),
+                value: includeInStatistics,
+                onChanged: (v) => setDialogState(() => includeInStatistics = v),
+              ),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Include in Calculator'),
+                value: includeInCalculator,
+                onChanged: (v) => setDialogState(() => includeInCalculator = v),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, controller.text.trim()),
+              child: const Text('Add'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (name == null || name.isEmpty) return;
+
+    final newId = await ref
+        .read(ledgerRepositoryProvider)
+        .addCounterparty(
+          name,
+          includeInStatistics: includeInStatistics,
+          includeInCalculator: includeInCalculator,
+        );
+    if (mounted) setState(() => _counterpartyId = newId);
+  }
+
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -198,6 +268,7 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
           .read(ledgerRepositoryProvider)
           .updateTransaction(
             existing.copyWith(
+              counterpartyId: _counterpartyId,
               date: _date,
               amount: signedAmount,
               currency: _currency,
@@ -208,7 +279,7 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
       await ref
           .read(ledgerRepositoryProvider)
           .addTransaction(
-            counterpartyId: widget.counterpartyId,
+            counterpartyId: _counterpartyId,
             date: _date,
             amount: signedAmount,
             currency: _currency,
@@ -322,6 +393,12 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
                   child: ListView(
                     padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
                     children: [
+                      _LedgerPicker(
+                        counterpartyId: _counterpartyId,
+                        onChanged: (id) => setState(() => _counterpartyId = id),
+                        onAddNew: _addNewLedger,
+                      ),
+                      const SizedBox(height: 16),
                       Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
@@ -446,6 +523,68 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// The "which ledger?" row at the top of the form -- a dropdown over every
+/// existing ledger plus a trailing "add new" button that opens the same
+/// form `LedgerHomeScreen`'s own FAB does, so a ledger that doesn't exist
+/// yet doesn't force leaving this screen to create one first.
+class _LedgerPicker extends ConsumerWidget {
+  const _LedgerPicker({
+    required this.counterpartyId,
+    required this.onChanged,
+    required this.onAddNew,
+  });
+
+  final String counterpartyId;
+  final ValueChanged<String> onChanged;
+  final VoidCallback onAddNew;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final counterparties =
+        ref.watch(counterpartiesStreamProvider).valueOrNull ?? const [];
+    // The currently-selected id can briefly be absent from the list right
+    // after this screen first opens (the stream hasn't emitted yet) or the
+    // instant a brand-new ledger is created (this build can race the
+    // stream's own update) -- null in either case rather than handing the
+    // dropdown a value with no matching item, which would throw.
+    final value = counterparties.any((c) => c.id == counterpartyId)
+        ? counterpartyId
+        : null;
+    return Row(
+      children: [
+        Expanded(
+          child: DropdownButtonFormField<String>(
+            // DropdownButtonFormField only ever reads initialValue once, at
+            // creation -- it won't notice counterpartyId changing from
+            // outside the dropdown itself (specifically, right after
+            // [onAddNew] creates and selects a brand-new ledger) unless the
+            // widget is actually torn down and rebuilt, which keying on the
+            // value itself forces. A selection made through the dropdown
+            // doesn't need this (Flutter's own FormField state already
+            // tracks that correctly) but remounting for it too is harmless.
+            key: ValueKey('ledger-$value'),
+            isExpanded: true,
+            initialValue: value,
+            decoration: const InputDecoration(labelText: 'Ledger'),
+            items: counterparties
+                .map((c) => DropdownMenuItem(value: c.id, child: Text(c.name)))
+                .toList(),
+            onChanged: (id) {
+              if (id != null) onChanged(id);
+            },
+          ),
+        ),
+        const SizedBox(width: 8),
+        IconButton(
+          icon: const Icon(Icons.add_circle_outline),
+          tooltip: 'Add new ledger',
+          onPressed: onAddNew,
+        ),
+      ],
     );
   }
 }

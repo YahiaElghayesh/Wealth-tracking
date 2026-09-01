@@ -20,22 +20,28 @@ class LedgerRepository {
         .watch();
   }
 
-  Future<void> addCounterparty(
+  /// Returns the new ledger's id -- callers that need to select it right
+  /// away (e.g. the "add a new ledger" option inline on Add Payment) don't
+  /// have any other way to get it, since it's generated here rather than
+  /// passed in.
+  Future<String> addCounterparty(
     String name, {
     bool includeInStatistics = true,
     bool includeInCalculator = true,
-  }) {
-    return _db
+  }) async {
+    final id = _uuid.v4();
+    await _db
         .into(_db.counterparties)
         .insert(
           CounterpartiesCompanion.insert(
-            id: _uuid.v4(),
+            id: id,
             name: name,
             includeInStatistics: Value(includeInStatistics),
             includeInCalculator: Value(includeInCalculator),
             profileId: Value(profileId),
           ),
         );
+    return id;
   }
 
   Future<void> deleteCounterparty(String id) async {

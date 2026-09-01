@@ -25,6 +25,15 @@ import '../../settings/screens/manual_inputs_settings_screen.dart';
 import '../providers/calculator_providers.dart';
 import 'calculator_history_screen.dart';
 
+/// Whole numbers print without a trailing ".0" -- shared by the seeding
+/// logic below and [_AdjustButton], both of which write a computed amount
+/// straight into a field's text.
+String _formatAmount(double value) {
+  return value == value.roundToDouble()
+      ? value.toInt().toString()
+      : value.toString();
+}
+
 class CalculatorScreen extends ConsumerStatefulWidget {
   const CalculatorScreen({super.key});
 
@@ -159,12 +168,6 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
 
   double _parse(TextEditingController controller) =>
       double.tryParse(controller.text.trim()) ?? 0;
-
-  static String _formatSeed(double value) {
-    return value == value.roundToDouble()
-        ? value.toInt().toString()
-        : value.toString();
-  }
 
   /// Lazily creates (and wires up) a controller for [card], so newly added
   /// cards get one without disturbing controllers for cards already on
@@ -422,7 +425,7 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
           if (cardsNeedingSeed != null) {
             _isSeedingCard = true;
             for (final card in cardsNeedingSeed) {
-              final text = _formatSeed(
+              final text = _formatAmount(
                 card.currentAvailableBalance ?? card.limitAmount,
               );
               _cardControllerFor(card).text = text;
@@ -441,7 +444,7 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
                         .firstOrNull
                   : null;
               if (lastEntry != null) {
-                _manualInputControllerFor(input).text = _formatSeed(
+                _manualInputControllerFor(input).text = _formatAmount(
                   lastEntry.amount,
                 );
               }
@@ -916,9 +919,99 @@ class _SignedAmountField extends ConsumerWidget {
             obscureText: hideValues,
           ),
         ),
+        _AdjustButton(controller: controller, currency: currency),
       ],
     );
   }
+}
+
+/// A small icon button next to a manual-input or credit-card-balance field
+/// that adds or subtracts a delta from whatever the field currently holds,
+/// instead of the user having to do that arithmetic themselves and retype
+/// the whole new total -- e.g. "I know I spent 200 more since I last set
+/// this" becomes entering "200" and picking Subtract, not computing and
+/// typing the resulting balance by hand.
+class _AdjustButton extends StatelessWidget {
+  const _AdjustButton({required this.controller, required this.currency});
+
+  final TextEditingController controller;
+  final String currency;
+
+  Future<void> _adjust(BuildContext context) async {
+    final delta = await _showAdjustDialog(context, currency);
+    if (delta == null) return;
+    final current = double.tryParse(controller.text.trim()) ?? 0;
+    final text = _formatAmount(current + delta);
+    controller.value = TextEditingValue(
+      text: text,
+      selection: TextSelection.collapsed(offset: text.length),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return IconButton(
+      icon: const Icon(Icons.exposure, size: 20),
+      tooltip: 'Add or subtract',
+      onPressed: () => _adjust(context),
+    );
+  }
+}
+
+/// Prompts for an amount and a +/- sign, returning the signed delta (never
+/// zero, never null unless canceled) -- shared by every [_AdjustButton].
+Future<double?> _showAdjustDialog(BuildContext context, String currency) {
+  final amountController = TextEditingController();
+  var isAddition = true;
+  return showDialog<double>(
+    context: context,
+    builder: (context) => StatefulBuilder(
+      builder: (context, setDialogState) => AlertDialog(
+        title: const Text('Add or subtract'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: amountController,
+              autofocus: true,
+              decoration: InputDecoration(
+                labelText: 'Amount',
+                hintText: '0.00',
+                suffixText: currency,
+              ),
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
+            ),
+            const SizedBox(height: 12),
+            SegmentedButton<bool>(
+              segments: const [
+                ButtonSegment(value: true, label: Text('Add (+)')),
+                ButtonSegment(value: false, label: Text('Subtract (−)')),
+              ],
+              selected: {isAddition},
+              onSelectionChanged: (s) =>
+                  setDialogState(() => isAddition = s.first),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () {
+              final amount = double.tryParse(amountController.text.trim());
+              if (amount == null || amount <= 0) return;
+              Navigator.pop(context, isAddition ? amount : -amount);
+            },
+            child: const Text('Apply'),
+          ),
+        ],
+      ),
+    ),
+  );
 }
 
 /// A numeric field that selects its entire current value the moment it
@@ -1045,14 +1138,24 @@ class _CardField extends ConsumerWidget {
             ],
           ),
           const SizedBox(height: 8),
-          _SelectAllOnFocusField(
-            controller: controller,
-            decoration: InputDecoration(
-              labelText: 'Available balance (${card.currency})',
-              hintText: '0.00',
-            ),
-            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            obscureText: hideValues,
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Expanded(
+                child: _SelectAllOnFocusField(
+                  controller: controller,
+                  decoration: InputDecoration(
+                    labelText: 'Available balance (${card.currency})',
+                    hintText: '0.00',
+                  ),
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
+                  obscureText: hideValues,
+                ),
+              ),
+              _AdjustButton(controller: controller, currency: card.currency),
+            ],
           ),
           if (card.balanceUpdatedAt != null) ...[
             const SizedBox(height: 2),
