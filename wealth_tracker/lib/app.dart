@@ -22,6 +22,7 @@ import 'features/networth/providers/asset_providers.dart' show databaseProvider;
 import 'features/networth/providers/home_widget_providers.dart';
 import 'features/networth/providers/pricing_providers.dart';
 import 'features/networth/screens/dashboard_screen.dart';
+import 'features/recurring/screens/recurring_payments_screen.dart';
 import 'features/settings/providers/settings_providers.dart';
 import 'features/settings/providers/vendor_rule_providers.dart';
 
@@ -151,6 +152,7 @@ class _RootShellState extends ConsumerState<_RootShell>
           LedgerHomeScreen(),
           StatisticsScreen(),
           CalculatorScreen(),
+          RecurringPaymentsScreen(),
         ],
       ),
       bottomNavigationBar: AppBottomNav(

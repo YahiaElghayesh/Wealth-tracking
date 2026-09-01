@@ -86,11 +86,13 @@ class Counterparties extends Table {
   /// Whether this ledger's data appears in the Statistics tab. Defaults to
   /// true so existing ledgers keep behaving exactly as before until the
   /// user explicitly opts one out.
-  BoolColumn get includeInStatistics => boolean().withDefault(const Constant(true))();
+  BoolColumn get includeInStatistics =>
+      boolean().withDefault(const Constant(true))();
 
   /// Whether this ledger's balance is summed into the Calculator tab's
   /// "current liquid cash" total. Defaults to true for the same reason.
-  BoolColumn get includeInCalculator => boolean().withDefault(const Constant(true))();
+  BoolColumn get includeInCalculator =>
+      boolean().withDefault(const Constant(true))();
 
   TextColumn get profileId => text().nullable().references(Profiles, #id)();
 
@@ -171,9 +173,12 @@ class CalculatorSnapshots extends Table {
   RealColumn get cibAccountBalance => real()();
   RealColumn get nbeAvailable => real().withDefault(const Constant(0))();
   RealColumn get nbeOwed => real().withDefault(const Constant(0))();
-  RealColumn get cibExplorerWalletAvailable => real().withDefault(const Constant(0))();
-  RealColumn get cibExplorerWalletOwed => real().withDefault(const Constant(0))();
-  RealColumn get cibPlatinumAvailable => real().withDefault(const Constant(0))();
+  RealColumn get cibExplorerWalletAvailable =>
+      real().withDefault(const Constant(0))();
+  RealColumn get cibExplorerWalletOwed =>
+      real().withDefault(const Constant(0))();
+  RealColumn get cibPlatinumAvailable =>
+      real().withDefault(const Constant(0))();
   RealColumn get cibPlatinumOwed => real().withDefault(const Constant(0))();
 
   /// JSON-encoded list of `{label, amount, isAddition}` custom line items.
@@ -190,7 +195,8 @@ class CalculatorSnapshots extends Table {
   /// inputs became user-managed; the fixed apartmentSavings/
   /// cibAccountBalance columns above carry those instead, and are never
   /// written to again by any snapshot saved after this point.
-  TextColumn get manualInputEntriesJson => text().withDefault(const Constant('[]'))();
+  TextColumn get manualInputEntriesJson =>
+      text().withDefault(const Constant('[]'))();
 
   /// True once [cardEntriesJson] is the authoritative source for this
   /// snapshot's card breakdown -- distinct from [cardEntriesJson] simply
@@ -208,7 +214,8 @@ class CalculatorSnapshots extends Table {
   BoolColumn get cardsRecorded => boolean().withDefault(const Constant(true))();
 
   /// Same idea as [cardsRecorded], for [manualInputEntriesJson].
-  BoolColumn get manualInputsRecorded => boolean().withDefault(const Constant(true))();
+  BoolColumn get manualInputsRecorded =>
+      boolean().withDefault(const Constant(true))();
 
   TextColumn get profileId => text().nullable().references(Profiles, #id)();
 
@@ -286,6 +293,40 @@ class LedgerCategories extends Table {
   /// Settings -> Categories & icons. Null falls back to a generic receipt
   /// glyph wherever it's displayed.
   TextColumn get icon => text().nullable()();
+
+  TextColumn get profileId => text().nullable().references(Profiles, #id)();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
+/// A monthly bill/subscription the user wants tracked and totaled (e.g.
+/// Netflix, YouTube Premium, Amazon Prime) -- fully user-managed, added
+/// either directly from the Recurring Payments tab or from a matched bank
+/// SMS charge (see SmsReviewScreen).
+class RecurringPayments extends Table {
+  TextColumn get id => text()();
+  TextColumn get name => text()();
+  RealColumn get amount => real()();
+  TextColumn get currency => text().withDefault(const Constant('EGP'))();
+
+  /// True when [amount] is the exact charge every month; false when it's
+  /// only a floor -- a usage-based bill that's never less than this but can
+  /// run higher (e.g. a metered utility). Surfaced as a small "min." badge
+  /// wherever this shows; still summed at face value into the tab's
+  /// monthly total either way, since that's the best available estimate
+  /// without knowing the real bill in advance.
+  BoolColumn get isExactAmount => boolean().withDefault(const Constant(true))();
+
+  /// Day of the month (1-31) this bills on -- not a full date, since the
+  /// whole point is "every month on this day," not one specific
+  /// occurrence. A day past a shorter month's own last day (e.g. 31 in
+  /// February) is left for display logic to clamp, not stored specially.
+  IntColumn get dayOfMonth => integer()();
+
+  /// Manual ordering for display — set to insertion order by default, but
+  /// not tied to it, so a future "reorder" gesture has somewhere to write.
+  IntColumn get sortOrder => integer().withDefault(const Constant(0))();
 
   TextColumn get profileId => text().nullable().references(Profiles, #id)();
 

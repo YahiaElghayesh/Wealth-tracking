@@ -4683,8 +4683,10 @@ class CreditCard extends DataClass implements Insertable<CreditCard> {
   /// remembered state, in [currency].
   final double? currentAvailableBalance;
 
-  /// When [currentAvailableBalance] was last set by a parsed SMS — null if
-  /// it's never been touched by SMS capture (e.g. only ever typed by hand).
+  /// When [currentAvailableBalance] was last set -- by a parsed SMS, or by
+  /// the user editing the Calculator tab's balance field directly (see
+  /// CalculatorScreen's debounced save-back) -- whichever happened most
+  /// recently. Null if it's never been touched by either.
   final DateTime? balanceUpdatedAt;
   final String? profileId;
   const CreditCard({
@@ -5819,6 +5821,541 @@ class ManualInputsCompanion extends UpdateCompanion<ManualInput> {
   }
 }
 
+class $RecurringPaymentsTable extends RecurringPayments
+    with TableInfo<$RecurringPaymentsTable, RecurringPayment> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $RecurringPaymentsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _nameMeta = const VerificationMeta('name');
+  @override
+  late final GeneratedColumn<String> name = GeneratedColumn<String>(
+    'name',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _amountMeta = const VerificationMeta('amount');
+  @override
+  late final GeneratedColumn<double> amount = GeneratedColumn<double>(
+    'amount',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _currencyMeta = const VerificationMeta(
+    'currency',
+  );
+  @override
+  late final GeneratedColumn<String> currency = GeneratedColumn<String>(
+    'currency',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('EGP'),
+  );
+  static const VerificationMeta _isExactAmountMeta = const VerificationMeta(
+    'isExactAmount',
+  );
+  @override
+  late final GeneratedColumn<bool> isExactAmount = GeneratedColumn<bool>(
+    'is_exact_amount',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("is_exact_amount" IN (0, 1))',
+    ),
+    defaultValue: const Constant(true),
+  );
+  static const VerificationMeta _dayOfMonthMeta = const VerificationMeta(
+    'dayOfMonth',
+  );
+  @override
+  late final GeneratedColumn<int> dayOfMonth = GeneratedColumn<int>(
+    'day_of_month',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _sortOrderMeta = const VerificationMeta(
+    'sortOrder',
+  );
+  @override
+  late final GeneratedColumn<int> sortOrder = GeneratedColumn<int>(
+    'sort_order',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _profileIdMeta = const VerificationMeta(
+    'profileId',
+  );
+  @override
+  late final GeneratedColumn<String> profileId = GeneratedColumn<String>(
+    'profile_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES profiles (id)',
+    ),
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    name,
+    amount,
+    currency,
+    isExactAmount,
+    dayOfMonth,
+    sortOrder,
+    profileId,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'recurring_payments';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<RecurringPayment> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('name')) {
+      context.handle(
+        _nameMeta,
+        name.isAcceptableOrUnknown(data['name']!, _nameMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_nameMeta);
+    }
+    if (data.containsKey('amount')) {
+      context.handle(
+        _amountMeta,
+        amount.isAcceptableOrUnknown(data['amount']!, _amountMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_amountMeta);
+    }
+    if (data.containsKey('currency')) {
+      context.handle(
+        _currencyMeta,
+        currency.isAcceptableOrUnknown(data['currency']!, _currencyMeta),
+      );
+    }
+    if (data.containsKey('is_exact_amount')) {
+      context.handle(
+        _isExactAmountMeta,
+        isExactAmount.isAcceptableOrUnknown(
+          data['is_exact_amount']!,
+          _isExactAmountMeta,
+        ),
+      );
+    }
+    if (data.containsKey('day_of_month')) {
+      context.handle(
+        _dayOfMonthMeta,
+        dayOfMonth.isAcceptableOrUnknown(
+          data['day_of_month']!,
+          _dayOfMonthMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_dayOfMonthMeta);
+    }
+    if (data.containsKey('sort_order')) {
+      context.handle(
+        _sortOrderMeta,
+        sortOrder.isAcceptableOrUnknown(data['sort_order']!, _sortOrderMeta),
+      );
+    }
+    if (data.containsKey('profile_id')) {
+      context.handle(
+        _profileIdMeta,
+        profileId.isAcceptableOrUnknown(data['profile_id']!, _profileIdMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  RecurringPayment map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return RecurringPayment(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      name: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}name'],
+      )!,
+      amount: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}amount'],
+      )!,
+      currency: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}currency'],
+      )!,
+      isExactAmount: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}is_exact_amount'],
+      )!,
+      dayOfMonth: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}day_of_month'],
+      )!,
+      sortOrder: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}sort_order'],
+      )!,
+      profileId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}profile_id'],
+      ),
+    );
+  }
+
+  @override
+  $RecurringPaymentsTable createAlias(String alias) {
+    return $RecurringPaymentsTable(attachedDatabase, alias);
+  }
+}
+
+class RecurringPayment extends DataClass
+    implements Insertable<RecurringPayment> {
+  final String id;
+  final String name;
+  final double amount;
+  final String currency;
+
+  /// True when [amount] is the exact charge every month; false when it's
+  /// only a floor -- a usage-based bill that's never less than this but can
+  /// run higher (e.g. a metered utility). Surfaced as a small "min." badge
+  /// wherever this shows; still summed at face value into the tab's
+  /// monthly total either way, since that's the best available estimate
+  /// without knowing the real bill in advance.
+  final bool isExactAmount;
+
+  /// Day of the month (1-31) this bills on -- not a full date, since the
+  /// whole point is "every month on this day," not one specific
+  /// occurrence. A day past a shorter month's own last day (e.g. 31 in
+  /// February) is left for display logic to clamp, not stored specially.
+  final int dayOfMonth;
+
+  /// Manual ordering for display — set to insertion order by default, but
+  /// not tied to it, so a future "reorder" gesture has somewhere to write.
+  final int sortOrder;
+  final String? profileId;
+  const RecurringPayment({
+    required this.id,
+    required this.name,
+    required this.amount,
+    required this.currency,
+    required this.isExactAmount,
+    required this.dayOfMonth,
+    required this.sortOrder,
+    this.profileId,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['name'] = Variable<String>(name);
+    map['amount'] = Variable<double>(amount);
+    map['currency'] = Variable<String>(currency);
+    map['is_exact_amount'] = Variable<bool>(isExactAmount);
+    map['day_of_month'] = Variable<int>(dayOfMonth);
+    map['sort_order'] = Variable<int>(sortOrder);
+    if (!nullToAbsent || profileId != null) {
+      map['profile_id'] = Variable<String>(profileId);
+    }
+    return map;
+  }
+
+  RecurringPaymentsCompanion toCompanion(bool nullToAbsent) {
+    return RecurringPaymentsCompanion(
+      id: Value(id),
+      name: Value(name),
+      amount: Value(amount),
+      currency: Value(currency),
+      isExactAmount: Value(isExactAmount),
+      dayOfMonth: Value(dayOfMonth),
+      sortOrder: Value(sortOrder),
+      profileId: profileId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(profileId),
+    );
+  }
+
+  factory RecurringPayment.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return RecurringPayment(
+      id: serializer.fromJson<String>(json['id']),
+      name: serializer.fromJson<String>(json['name']),
+      amount: serializer.fromJson<double>(json['amount']),
+      currency: serializer.fromJson<String>(json['currency']),
+      isExactAmount: serializer.fromJson<bool>(json['isExactAmount']),
+      dayOfMonth: serializer.fromJson<int>(json['dayOfMonth']),
+      sortOrder: serializer.fromJson<int>(json['sortOrder']),
+      profileId: serializer.fromJson<String?>(json['profileId']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'name': serializer.toJson<String>(name),
+      'amount': serializer.toJson<double>(amount),
+      'currency': serializer.toJson<String>(currency),
+      'isExactAmount': serializer.toJson<bool>(isExactAmount),
+      'dayOfMonth': serializer.toJson<int>(dayOfMonth),
+      'sortOrder': serializer.toJson<int>(sortOrder),
+      'profileId': serializer.toJson<String?>(profileId),
+    };
+  }
+
+  RecurringPayment copyWith({
+    String? id,
+    String? name,
+    double? amount,
+    String? currency,
+    bool? isExactAmount,
+    int? dayOfMonth,
+    int? sortOrder,
+    Value<String?> profileId = const Value.absent(),
+  }) => RecurringPayment(
+    id: id ?? this.id,
+    name: name ?? this.name,
+    amount: amount ?? this.amount,
+    currency: currency ?? this.currency,
+    isExactAmount: isExactAmount ?? this.isExactAmount,
+    dayOfMonth: dayOfMonth ?? this.dayOfMonth,
+    sortOrder: sortOrder ?? this.sortOrder,
+    profileId: profileId.present ? profileId.value : this.profileId,
+  );
+  RecurringPayment copyWithCompanion(RecurringPaymentsCompanion data) {
+    return RecurringPayment(
+      id: data.id.present ? data.id.value : this.id,
+      name: data.name.present ? data.name.value : this.name,
+      amount: data.amount.present ? data.amount.value : this.amount,
+      currency: data.currency.present ? data.currency.value : this.currency,
+      isExactAmount: data.isExactAmount.present
+          ? data.isExactAmount.value
+          : this.isExactAmount,
+      dayOfMonth: data.dayOfMonth.present
+          ? data.dayOfMonth.value
+          : this.dayOfMonth,
+      sortOrder: data.sortOrder.present ? data.sortOrder.value : this.sortOrder,
+      profileId: data.profileId.present ? data.profileId.value : this.profileId,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('RecurringPayment(')
+          ..write('id: $id, ')
+          ..write('name: $name, ')
+          ..write('amount: $amount, ')
+          ..write('currency: $currency, ')
+          ..write('isExactAmount: $isExactAmount, ')
+          ..write('dayOfMonth: $dayOfMonth, ')
+          ..write('sortOrder: $sortOrder, ')
+          ..write('profileId: $profileId')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    name,
+    amount,
+    currency,
+    isExactAmount,
+    dayOfMonth,
+    sortOrder,
+    profileId,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is RecurringPayment &&
+          other.id == this.id &&
+          other.name == this.name &&
+          other.amount == this.amount &&
+          other.currency == this.currency &&
+          other.isExactAmount == this.isExactAmount &&
+          other.dayOfMonth == this.dayOfMonth &&
+          other.sortOrder == this.sortOrder &&
+          other.profileId == this.profileId);
+}
+
+class RecurringPaymentsCompanion extends UpdateCompanion<RecurringPayment> {
+  final Value<String> id;
+  final Value<String> name;
+  final Value<double> amount;
+  final Value<String> currency;
+  final Value<bool> isExactAmount;
+  final Value<int> dayOfMonth;
+  final Value<int> sortOrder;
+  final Value<String?> profileId;
+  final Value<int> rowid;
+  const RecurringPaymentsCompanion({
+    this.id = const Value.absent(),
+    this.name = const Value.absent(),
+    this.amount = const Value.absent(),
+    this.currency = const Value.absent(),
+    this.isExactAmount = const Value.absent(),
+    this.dayOfMonth = const Value.absent(),
+    this.sortOrder = const Value.absent(),
+    this.profileId = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  RecurringPaymentsCompanion.insert({
+    required String id,
+    required String name,
+    required double amount,
+    this.currency = const Value.absent(),
+    this.isExactAmount = const Value.absent(),
+    required int dayOfMonth,
+    this.sortOrder = const Value.absent(),
+    this.profileId = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       name = Value(name),
+       amount = Value(amount),
+       dayOfMonth = Value(dayOfMonth);
+  static Insertable<RecurringPayment> custom({
+    Expression<String>? id,
+    Expression<String>? name,
+    Expression<double>? amount,
+    Expression<String>? currency,
+    Expression<bool>? isExactAmount,
+    Expression<int>? dayOfMonth,
+    Expression<int>? sortOrder,
+    Expression<String>? profileId,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (name != null) 'name': name,
+      if (amount != null) 'amount': amount,
+      if (currency != null) 'currency': currency,
+      if (isExactAmount != null) 'is_exact_amount': isExactAmount,
+      if (dayOfMonth != null) 'day_of_month': dayOfMonth,
+      if (sortOrder != null) 'sort_order': sortOrder,
+      if (profileId != null) 'profile_id': profileId,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  RecurringPaymentsCompanion copyWith({
+    Value<String>? id,
+    Value<String>? name,
+    Value<double>? amount,
+    Value<String>? currency,
+    Value<bool>? isExactAmount,
+    Value<int>? dayOfMonth,
+    Value<int>? sortOrder,
+    Value<String?>? profileId,
+    Value<int>? rowid,
+  }) {
+    return RecurringPaymentsCompanion(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      amount: amount ?? this.amount,
+      currency: currency ?? this.currency,
+      isExactAmount: isExactAmount ?? this.isExactAmount,
+      dayOfMonth: dayOfMonth ?? this.dayOfMonth,
+      sortOrder: sortOrder ?? this.sortOrder,
+      profileId: profileId ?? this.profileId,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (name.present) {
+      map['name'] = Variable<String>(name.value);
+    }
+    if (amount.present) {
+      map['amount'] = Variable<double>(amount.value);
+    }
+    if (currency.present) {
+      map['currency'] = Variable<String>(currency.value);
+    }
+    if (isExactAmount.present) {
+      map['is_exact_amount'] = Variable<bool>(isExactAmount.value);
+    }
+    if (dayOfMonth.present) {
+      map['day_of_month'] = Variable<int>(dayOfMonth.value);
+    }
+    if (sortOrder.present) {
+      map['sort_order'] = Variable<int>(sortOrder.value);
+    }
+    if (profileId.present) {
+      map['profile_id'] = Variable<String>(profileId.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('RecurringPaymentsCompanion(')
+          ..write('id: $id, ')
+          ..write('name: $name, ')
+          ..write('amount: $amount, ')
+          ..write('currency: $currency, ')
+          ..write('isExactAmount: $isExactAmount, ')
+          ..write('dayOfMonth: $dayOfMonth, ')
+          ..write('sortOrder: $sortOrder, ')
+          ..write('profileId: $profileId, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -5840,6 +6377,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     this,
   );
   late final $ManualInputsTable manualInputs = $ManualInputsTable(this);
+  late final $RecurringPaymentsTable recurringPayments =
+      $RecurringPaymentsTable(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -5857,6 +6396,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     creditCards,
     ledgerCategories,
     manualInputs,
+    recurringPayments,
   ];
 }
 
@@ -6032,6 +6572,27 @@ final class $$ProfilesTableReferences
     ).filter((f) => f.profileId.id.sqlEquals($_itemColumn<String>('id')!));
 
     final cache = $_typedResult.readTableOrNull(_manualInputsRefsTable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<$RecurringPaymentsTable, List<RecurringPayment>>
+  _recurringPaymentsRefsTable(_$AppDatabase db) =>
+      MultiTypedResultKey.fromTable(
+        db.recurringPayments,
+        aliasName: 'profiles__id__recurring_payments__profile_id',
+      );
+
+  $$RecurringPaymentsTableProcessedTableManager get recurringPaymentsRefs {
+    final manager = $$RecurringPaymentsTableTableManager(
+      $_db,
+      $_db.recurringPayments,
+    ).filter((f) => f.profileId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _recurringPaymentsRefsTable($_db),
+    );
     return ProcessedTableManager(
       manager.$state.copyWith(prefetchedData: cache),
     );
@@ -6258,6 +6819,31 @@ class $$ProfilesTableFilterComposer
           }) => $$ManualInputsTableFilterComposer(
             $db: $db,
             $table: $db.manualInputs,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> recurringPaymentsRefs(
+    Expression<bool> Function($$RecurringPaymentsTableFilterComposer f) f,
+  ) {
+    final $$RecurringPaymentsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.recurringPayments,
+      getReferencedColumn: (t) => t.profileId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$RecurringPaymentsTableFilterComposer(
+            $db: $db,
+            $table: $db.recurringPayments,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -6520,6 +7106,32 @@ class $$ProfilesTableAnnotationComposer
     );
     return f(composer);
   }
+
+  Expression<T> recurringPaymentsRefs<T extends Object>(
+    Expression<T> Function($$RecurringPaymentsTableAnnotationComposer a) f,
+  ) {
+    final $$RecurringPaymentsTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.recurringPayments,
+          getReferencedColumn: (t) => t.profileId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$RecurringPaymentsTableAnnotationComposer(
+                $db: $db,
+                $table: $db.recurringPayments,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
 }
 
 class $$ProfilesTableTableManager
@@ -6544,6 +7156,7 @@ class $$ProfilesTableTableManager
             bool creditCardsRefs,
             bool ledgerCategoriesRefs,
             bool manualInputsRefs,
+            bool recurringPaymentsRefs,
           })
         > {
   $$ProfilesTableTableManager(_$AppDatabase db, $ProfilesTable table)
@@ -6603,6 +7216,7 @@ class $$ProfilesTableTableManager
                 creditCardsRefs = false,
                 ledgerCategoriesRefs = false,
                 manualInputsRefs = false,
+                recurringPaymentsRefs = false,
               }) {
                 return PrefetchHooks(
                   db: db,
@@ -6615,6 +7229,7 @@ class $$ProfilesTableTableManager
                     if (creditCardsRefs) db.creditCards,
                     if (ledgerCategoriesRefs) db.ledgerCategories,
                     if (manualInputsRefs) db.manualInputs,
+                    if (recurringPaymentsRefs) db.recurringPayments,
                   ],
                   addJoins: null,
                   getPrefetchedDataCallback: (items) async {
@@ -6787,6 +7402,27 @@ class $$ProfilesTableTableManager
                               ),
                           typedResults: items,
                         ),
+                      if (recurringPaymentsRefs)
+                        await $_getPrefetchedData<
+                          Profile,
+                          $ProfilesTable,
+                          RecurringPayment
+                        >(
+                          currentTable: table,
+                          referencedTable: $$ProfilesTableReferences
+                              ._recurringPaymentsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$ProfilesTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).recurringPaymentsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.profileId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
                     ];
                   },
                 );
@@ -6816,6 +7452,7 @@ typedef $$ProfilesTableProcessedTableManager =
         bool creditCardsRefs,
         bool ledgerCategoriesRefs,
         bool manualInputsRefs,
+        bool recurringPaymentsRefs,
       })
     >;
 typedef $$AssetsTableCreateCompanionBuilder =
@@ -10916,6 +11553,400 @@ typedef $$ManualInputsTableProcessedTableManager =
       ManualInput,
       PrefetchHooks Function({bool profileId})
     >;
+typedef $$RecurringPaymentsTableCreateCompanionBuilder =
+    RecurringPaymentsCompanion Function({
+      required String id,
+      required String name,
+      required double amount,
+      Value<String> currency,
+      Value<bool> isExactAmount,
+      required int dayOfMonth,
+      Value<int> sortOrder,
+      Value<String?> profileId,
+      Value<int> rowid,
+    });
+typedef $$RecurringPaymentsTableUpdateCompanionBuilder =
+    RecurringPaymentsCompanion Function({
+      Value<String> id,
+      Value<String> name,
+      Value<double> amount,
+      Value<String> currency,
+      Value<bool> isExactAmount,
+      Value<int> dayOfMonth,
+      Value<int> sortOrder,
+      Value<String?> profileId,
+      Value<int> rowid,
+    });
+
+final class $$RecurringPaymentsTableReferences
+    extends
+        BaseReferences<
+          _$AppDatabase,
+          $RecurringPaymentsTable,
+          RecurringPayment
+        > {
+  $$RecurringPaymentsTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static $ProfilesTable _profileIdTable(_$AppDatabase db) =>
+      db.profiles.createAlias('recurring_payments__profile_id__profiles__id');
+
+  $$ProfilesTableProcessedTableManager? get profileId {
+    final $_column = $_itemColumn<String>('profile_id');
+    if ($_column == null) return null;
+    final manager = $$ProfilesTableTableManager(
+      $_db,
+      $_db.profiles,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_profileIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$RecurringPaymentsTableFilterComposer
+    extends Composer<_$AppDatabase, $RecurringPaymentsTable> {
+  $$RecurringPaymentsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get amount => $composableBuilder(
+    column: $table.amount,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get currency => $composableBuilder(
+    column: $table.currency,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get isExactAmount => $composableBuilder(
+    column: $table.isExactAmount,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get dayOfMonth => $composableBuilder(
+    column: $table.dayOfMonth,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get sortOrder => $composableBuilder(
+    column: $table.sortOrder,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$ProfilesTableFilterComposer get profileId {
+    final $$ProfilesTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.profileId,
+      referencedTable: $db.profiles,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ProfilesTableFilterComposer(
+            $db: $db,
+            $table: $db.profiles,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$RecurringPaymentsTableOrderingComposer
+    extends Composer<_$AppDatabase, $RecurringPaymentsTable> {
+  $$RecurringPaymentsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get amount => $composableBuilder(
+    column: $table.amount,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get currency => $composableBuilder(
+    column: $table.currency,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get isExactAmount => $composableBuilder(
+    column: $table.isExactAmount,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get dayOfMonth => $composableBuilder(
+    column: $table.dayOfMonth,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get sortOrder => $composableBuilder(
+    column: $table.sortOrder,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$ProfilesTableOrderingComposer get profileId {
+    final $$ProfilesTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.profileId,
+      referencedTable: $db.profiles,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ProfilesTableOrderingComposer(
+            $db: $db,
+            $table: $db.profiles,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$RecurringPaymentsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $RecurringPaymentsTable> {
+  $$RecurringPaymentsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get name =>
+      $composableBuilder(column: $table.name, builder: (column) => column);
+
+  GeneratedColumn<double> get amount =>
+      $composableBuilder(column: $table.amount, builder: (column) => column);
+
+  GeneratedColumn<String> get currency =>
+      $composableBuilder(column: $table.currency, builder: (column) => column);
+
+  GeneratedColumn<bool> get isExactAmount => $composableBuilder(
+    column: $table.isExactAmount,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get dayOfMonth => $composableBuilder(
+    column: $table.dayOfMonth,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get sortOrder =>
+      $composableBuilder(column: $table.sortOrder, builder: (column) => column);
+
+  $$ProfilesTableAnnotationComposer get profileId {
+    final $$ProfilesTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.profileId,
+      referencedTable: $db.profiles,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ProfilesTableAnnotationComposer(
+            $db: $db,
+            $table: $db.profiles,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$RecurringPaymentsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $RecurringPaymentsTable,
+          RecurringPayment,
+          $$RecurringPaymentsTableFilterComposer,
+          $$RecurringPaymentsTableOrderingComposer,
+          $$RecurringPaymentsTableAnnotationComposer,
+          $$RecurringPaymentsTableCreateCompanionBuilder,
+          $$RecurringPaymentsTableUpdateCompanionBuilder,
+          (RecurringPayment, $$RecurringPaymentsTableReferences),
+          RecurringPayment,
+          PrefetchHooks Function({bool profileId})
+        > {
+  $$RecurringPaymentsTableTableManager(
+    _$AppDatabase db,
+    $RecurringPaymentsTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$RecurringPaymentsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$RecurringPaymentsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$RecurringPaymentsTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> name = const Value.absent(),
+                Value<double> amount = const Value.absent(),
+                Value<String> currency = const Value.absent(),
+                Value<bool> isExactAmount = const Value.absent(),
+                Value<int> dayOfMonth = const Value.absent(),
+                Value<int> sortOrder = const Value.absent(),
+                Value<String?> profileId = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => RecurringPaymentsCompanion(
+                id: id,
+                name: name,
+                amount: amount,
+                currency: currency,
+                isExactAmount: isExactAmount,
+                dayOfMonth: dayOfMonth,
+                sortOrder: sortOrder,
+                profileId: profileId,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String name,
+                required double amount,
+                Value<String> currency = const Value.absent(),
+                Value<bool> isExactAmount = const Value.absent(),
+                required int dayOfMonth,
+                Value<int> sortOrder = const Value.absent(),
+                Value<String?> profileId = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => RecurringPaymentsCompanion.insert(
+                id: id,
+                name: name,
+                amount: amount,
+                currency: currency,
+                isExactAmount: isExactAmount,
+                dayOfMonth: dayOfMonth,
+                sortOrder: sortOrder,
+                profileId: profileId,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable(table),
+                  $$RecurringPaymentsTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({profileId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (profileId) {
+                      state =
+                          state.withJoin(
+                                currentTable: table,
+                                currentColumn: table.profileId,
+                                referencedTable:
+                                    $$RecurringPaymentsTableReferences
+                                        ._profileIdTable(db),
+                                referencedColumn:
+                                    $$RecurringPaymentsTableReferences
+                                        ._profileIdTable(db)
+                                        .id,
+                              )
+                              as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$RecurringPaymentsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $RecurringPaymentsTable,
+      RecurringPayment,
+      $$RecurringPaymentsTableFilterComposer,
+      $$RecurringPaymentsTableOrderingComposer,
+      $$RecurringPaymentsTableAnnotationComposer,
+      $$RecurringPaymentsTableCreateCompanionBuilder,
+      $$RecurringPaymentsTableUpdateCompanionBuilder,
+      (RecurringPayment, $$RecurringPaymentsTableReferences),
+      RecurringPayment,
+      PrefetchHooks Function({bool profileId})
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -10944,4 +11975,6 @@ class $AppDatabaseManager {
       $$LedgerCategoriesTableTableManager(_db, _db.ledgerCategories);
   $$ManualInputsTableTableManager get manualInputs =>
       $$ManualInputsTableTableManager(_db, _db.manualInputs);
+  $$RecurringPaymentsTableTableManager get recurringPayments =>
+      $$RecurringPaymentsTableTableManager(_db, _db.recurringPayments);
 }

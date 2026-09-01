@@ -6,8 +6,15 @@ import '../../../core/models/currency.dart';
 import '../../../core/security/quick_add_exemption.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../data/sms/bank_charge_payload.dart';
+import '../../recurring/providers/recurring_payment_providers.dart';
+import '../../recurring/screens/add_recurring_payment_screen.dart';
 import '../../settings/providers/settings_providers.dart';
 import '../providers/ledger_providers.dart';
+
+/// Sentinel [DropdownMenuItem] value for "this is a new recurring payment"
+/// -- distinct from `null` (not recurring) and from any real
+/// [RecurringPayment.id] (an existing one).
+const _newRecurringSentinel = '__new_recurring__';
 
 /// Opened when a bank-charge notification's body is tapped — either there
 /// was no clean vendor-rule default, or the user wants to change the
@@ -37,6 +44,11 @@ class _SmsReviewScreenState extends ConsumerState<SmsReviewScreen> {
   late String _currency;
   late DateTime _date;
   bool _defaultLedgerApplied = false;
+  // null = not recurring, [_newRecurringSentinel] = create a new recurring
+  // payment after saving, or an existing RecurringPayment.id to just link
+  // this charge to one already tracked (no new row created either way --
+  // see [_save]).
+  String? _recurringSelection;
 
   /// Whether the app was actually locked at the moment this screen opened
   /// -- decides whether leaving it needs the same exempt-and-force-close
@@ -124,6 +136,25 @@ class _SmsReviewScreenState extends ConsumerState<SmsReviewScreen> {
         );
 
     if (!mounted) return;
+    if (_recurringSelection == _newRecurringSentinel) {
+      // Let the user name/finalize it before it's actually created --
+      // AddRecurringPaymentScreen pops itself once saved (or deleted/
+      // cancelled), and only then do we leave this screen too.
+      await Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => AddRecurringPaymentScreen(
+            initialName: widget.payload.vendor,
+            initialAmount: amount,
+            initialCurrency: _currency,
+            initialDayOfMonth: _date.day,
+          ),
+        ),
+      );
+      if (!mounted) return;
+    }
+    // Picking an existing recurring payment just links this charge
+    // mentally to one already tracked -- it doesn't create or touch any
+    // row, so nothing further to do before leaving.
     _leave();
   }
 
@@ -369,6 +400,53 @@ class _SmsReviewScreenState extends ConsumerState<SmsReviewScreen> {
                     ],
                   ),
                 ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'Recurring payment',
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: colors.textDim,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Builder(
+                builder: (context) {
+                  final recurringPayments =
+                      ref.watch(recurringPaymentsStreamProvider).valueOrNull ??
+                      const [];
+                  final validSelection =
+                      _recurringSelection == null ||
+                          _recurringSelection == _newRecurringSentinel ||
+                          recurringPayments.any(
+                            (p) => p.id == _recurringSelection,
+                          )
+                      ? _recurringSelection
+                      : null;
+                  return DropdownButtonFormField<String?>(
+                    isExpanded: true,
+                    initialValue: validSelection,
+                    decoration: const InputDecoration(
+                      hintText: 'Not a recurring payment',
+                    ),
+                    items: [
+                      const DropdownMenuItem(
+                        value: null,
+                        child: Text('Not a recurring payment'),
+                      ),
+                      const DropdownMenuItem(
+                        value: _newRecurringSentinel,
+                        child: Text('New recurring payment'),
+                      ),
+                      for (final payment in recurringPayments)
+                        DropdownMenuItem(
+                          value: payment.id,
+                          child: Text(payment.name),
+                        ),
+                    ],
+                    onChanged: (v) => setState(() => _recurringSelection = v),
+                  );
+                },
               ),
               const SizedBox(height: 90),
             ],
