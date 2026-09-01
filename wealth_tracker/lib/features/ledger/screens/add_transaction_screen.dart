@@ -92,35 +92,79 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
     super.dispose();
   }
 
-  /// Appends [input] (a digit, or ".") to the amount, matching how a plain
-  /// numeric keyboard would -- a lone leading "0" is replaced rather than
-  /// prefixed (typing "5" after "0" gives "5", not "05"), and a second "."
-  /// is ignored rather than accepted, same as [TextInputType.number]'s own
-  /// decimal filtering.
+  /// Inserts [input] (a digit, or ".") at the amount field's current
+  /// selection, matching how typing normally feels: with nothing selected
+  /// this just lands at the cursor (in practice almost always the end,
+  /// since every prior keypad tap leaves it collapsed there), but if the
+  /// value is currently highlighted -- the field still supports the
+  /// system's own tap-to-position/long-press-to-select gestures despite
+  /// being `readOnly`, which was the "I mark the value and typing a number
+  /// doesn't replace it" bug: this used to always append to the end
+  /// regardless of what was selected -- the selected range is replaced
+  /// outright instead. A lone leading "0" with nothing after it is
+  /// replaced rather than prefixed (typing "5" gives "5", not "05"), and a
+  /// second "." is rejected, same as [TextInputType.number]'s own decimal
+  /// filtering.
   void _appendDigit(String input) {
     final text = _amountController.text;
+    final selection = _amountController.selection;
+    final start = selection.isValid ? selection.start : text.length;
+    final end = selection.isValid ? selection.end : text.length;
+    var before = text.substring(0, start);
+    final after = text.substring(end);
     if (input == '.') {
-      if (text.contains('.')) return;
-      _setAmountText(text.isEmpty ? '0.' : '$text.');
-    } else {
-      _setAmountText(text == '0' ? input : text + input);
+      if (before.contains('.') || after.contains('.')) return;
+      _setAmountText('$before.$after', caretOffset: before.length + 1);
+      return;
     }
+    if (before == '0' && after.isEmpty) before = '';
+    _setAmountText(
+      '$before$input$after',
+      caretOffset: before.length + input.length,
+    );
   }
 
+  /// A single tap deletes one character -- the one just before the cursor,
+  /// or the whole highlighted range if the value is currently selected
+  /// (see [_appendDigit]'s doc comment for why that's possible despite
+  /// `readOnly`), matching how typing over a selection works everywhere
+  /// else rather than always chopping the very last character regardless
+  /// of what's selected or where the cursor actually sits.
   void _backspace() {
     final text = _amountController.text;
-    if (text.isEmpty) return;
-    _setAmountText(text.substring(0, text.length - 1));
+    final selection = _amountController.selection;
+    if (selection.isValid && !selection.isCollapsed) {
+      final before = text.substring(0, selection.start);
+      final after = text.substring(selection.end);
+      _setAmountText('$before$after', caretOffset: before.length);
+      return;
+    }
+    final caret = selection.isValid ? selection.start : text.length;
+    if (caret <= 0) return;
+    final before = text.substring(0, caret - 1);
+    final after = text.substring(caret);
+    _setAmountText('$before$after', caretOffset: before.length);
+  }
+
+  /// Long-pressing the backspace key clears the whole amount at once
+  /// instead of requiring a tap per character for a long value -- the same
+  /// "hold to clear" convention most calculator/numeric keypads already
+  /// use.
+  void _clearAmount() {
+    if (_amountController.text.isEmpty) return;
+    _setAmountText('');
   }
 
   /// Setting [TextEditingController.text] on its own resets the cursor to
-  /// the start; every keypad tap should instead leave it at the end, where
-  /// the next tap's digit will land, matching how typing normally feels.
-  void _setAmountText(String text) {
+  /// the very start; [caretOffset] leaves it wherever the edit that just
+  /// happened should logically put it (defaulting to the end, matching how
+  /// every keypad tap used to always behave before edits could land
+  /// mid-string).
+  void _setAmountText(String text, {int? caretOffset}) {
     setState(() {
       _amountController.value = TextEditingValue(
         text: text,
-        selection: TextSelection.collapsed(offset: text.length),
+        selection: TextSelection.collapsed(offset: caretOffset ?? text.length),
       );
     });
   }
@@ -381,7 +425,11 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
                   ),
                 ),
               ),
-              _NumericKeypad(onDigit: _appendDigit, onBackspace: _backspace),
+              _NumericKeypad(
+                onDigit: _appendDigit,
+                onBackspace: _backspace,
+                onClear: _clearAmount,
+              ),
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
                 child: SizedBox(
@@ -406,12 +454,19 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
 /// screen's amount field -- see the field doc comment on
 /// [_AddTransactionScreenState._amountController] for why. Four rows of
 /// three: digits 1-9, then "." / 0 / backspace, each a full-width tappable
-/// cell rather than a small icon-sized target.
+/// cell rather than a small icon-sized target. The backspace key alone
+/// also responds to a long press -- [onClear] -- clearing the whole amount
+/// at once instead of requiring a tap per character for a long value.
 class _NumericKeypad extends StatelessWidget {
-  const _NumericKeypad({required this.onDigit, required this.onBackspace});
+  const _NumericKeypad({
+    required this.onDigit,
+    required this.onBackspace,
+    required this.onClear,
+  });
 
   final void Function(String digit) onDigit;
   final VoidCallback onBackspace;
+  final VoidCallback onClear;
 
   static const _rows = [
     ['1', '2', '3'],
@@ -440,6 +495,7 @@ class _NumericKeypad extends StatelessWidget {
                     child: _KeypadKey(
                       label: key,
                       onTap: key == '⌫' ? onBackspace : () => onDigit(key),
+                      onLongPress: key == '⌫' ? onClear : null,
                     ),
                   ),
               ],
@@ -451,15 +507,21 @@ class _NumericKeypad extends StatelessWidget {
 }
 
 class _KeypadKey extends StatelessWidget {
-  const _KeypadKey({required this.label, required this.onTap});
+  const _KeypadKey({
+    required this.label,
+    required this.onTap,
+    this.onLongPress,
+  });
 
   final String label;
   final VoidCallback onTap;
+  final VoidCallback? onLongPress;
 
   @override
   Widget build(BuildContext context) {
     return InkWell(
       onTap: onTap,
+      onLongPress: onLongPress,
       borderRadius: BorderRadius.circular(12),
       child: SizedBox(
         height: 52,
