@@ -23,10 +23,10 @@ const _monthNames = [
   'Dec',
 ];
 
-/// One bar's worth of data -- either an auto-recorded past month (see
-/// [RecurringPaymentHistoryRepository]) or the current, still-live month
-/// (computed the same way the tab's own total card is, so the bar for
-/// "now" always matches what that card currently shows).
+/// One past (or the current, still-live) month's totals -- either an
+/// auto-recorded row (see [RecurringPaymentHistoryRepository]) or the
+/// current month, computed the same way the tab's own total card is, so
+/// this list always ends with "now" instead of stopping one month short.
 class _MonthPoint {
   const _MonthPoint({
     required this.year,
@@ -42,10 +42,9 @@ class _MonthPoint {
 }
 
 /// Auto-generated month-by-month history for the Recurring Payments tab --
-/// mirrors Ledger Statistics' "Spend by month" chart (same bar styling: a
-/// visible track under every month, a full-strength color and a value
-/// label on every bar that actually carries an amount, not just the most
-/// recent one) plus a plain list underneath for exact figures.
+/// a plain list of each month's total plus its paid/pending breakdown, no
+/// chart (the tab's own total card already covers "how are we doing right
+/// now" visually; this screen is for looking back at exact past figures).
 class RecurringPaymentHistoryScreen extends ConsumerWidget {
   const RecurringPaymentHistoryScreen({super.key});
 
@@ -69,10 +68,6 @@ class RecurringPaymentHistoryScreen extends ConsumerWidget {
                 total: entry.totalAmount,
                 paid: entry.paidAmount,
               ),
-            // The current month is never itself in the recorded history
-            // (it only gets recorded once it's over) -- appended live here
-            // so the chart always ends with "now" instead of stopping one
-            // month short.
             _MonthPoint(
               year: today.year,
               month: today.month,
@@ -98,23 +93,6 @@ class RecurringPaymentHistoryScreen extends ConsumerWidget {
           return ListView(
             padding: const EdgeInsets.all(16),
             children: [
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Total by month',
-                        style: Theme.of(context).textTheme.titleMedium,
-                      ),
-                      const SizedBox(height: 12),
-                      _MonthlyHistoryChart(points: points),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
               for (final point in points.reversed)
                 _MonthHistoryTile(point: point),
             ],
@@ -123,179 +101,6 @@ class RecurringPaymentHistoryScreen extends ConsumerWidget {
       ),
     );
   }
-}
-
-/// Whether [points] spans more than one calendar year -- when it does,
-/// every month label also carries a 2-digit year so a run like
-/// "...Nov Dec Jan Feb..." doesn't read as one ambiguous year.
-bool _spansMultipleYears(List<_MonthPoint> points) {
-  if (points.isEmpty) return false;
-  final years = points.map((p) => p.year).toSet();
-  return years.length > 1;
-}
-
-String _monthLabel(_MonthPoint point, bool showYear) {
-  final month = _monthNames[point.month - 1];
-  return showYear
-      ? "$month '${(point.year % 100).toString().padLeft(2, '0')}"
-      : month;
-}
-
-class _MonthlyHistoryChart extends ConsumerWidget {
-  const _MonthlyHistoryChart({required this.points});
-
-  final List<_MonthPoint> points;
-
-  static const _barAreaHeight = 170.0;
-  static const _barWidth = 22.0;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final hideValues = ref.watch(hideValuesProvider);
-    final color = Theme.of(context).colorScheme.primary;
-    final colors = context.appColors;
-    final maxValue = points
-        .map((p) => p.total)
-        .fold(0.0, (a, b) => a > b ? a : b);
-    final showYear = _spansMultipleYears(points);
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        SizedBox(
-          height: _barAreaHeight,
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              for (final point in points)
-                Expanded(
-                  child: Center(
-                    child: _HistoryBar(
-                      value: point.total,
-                      maxValue: maxValue,
-                      areaHeight: _barAreaHeight,
-                      width: _barWidth,
-                      barColor: color,
-                      trackColor: colors.surface2,
-                      hideValues: hideValues,
-                    ),
-                  ),
-                ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 6),
-        Row(
-          children: [
-            for (final point in points)
-              Expanded(
-                child: Center(
-                  child: Text(
-                    _monthLabel(point, showYear),
-                    style: Theme.of(
-                      context,
-                    ).textTheme.labelSmall?.copyWith(color: colors.textDim),
-                  ),
-                ),
-              ),
-          ],
-        ),
-      ],
-    );
-  }
-}
-
-/// Same bar-rendering approach as Ledger Statistics' `_MonthBar` -- a
-/// literal child of the bar's own `Container`, clipped to it, so the
-/// value label can never be anything other than genuinely inside the bar.
-class _HistoryBar extends StatelessWidget {
-  const _HistoryBar({
-    required this.value,
-    required this.maxValue,
-    required this.areaHeight,
-    required this.width,
-    required this.barColor,
-    required this.trackColor,
-    required this.hideValues,
-  });
-
-  final double value;
-  final double maxValue;
-  final double areaHeight;
-  final double width;
-  final Color barColor;
-  final Color trackColor;
-  final bool hideValues;
-
-  @override
-  Widget build(BuildContext context) {
-    final rawHeight = maxValue <= 0 ? 0.0 : (value / maxValue) * areaHeight;
-    final hasValue = value > 0;
-    final showsLabel = hasValue && !hideValues;
-    final barHeight =
-        (hasValue
-                ? rawHeight.clamp(44.0, areaHeight)
-                : rawHeight.clamp(4.0, areaHeight))
-            .toDouble();
-
-    return SizedBox(
-      width: width,
-      height: areaHeight,
-      child: Stack(
-        alignment: Alignment.bottomCenter,
-        children: [
-          Container(
-            decoration: BoxDecoration(
-              color: trackColor,
-              borderRadius: const BorderRadius.vertical(
-                top: Radius.circular(4),
-              ),
-            ),
-          ),
-          ClipRRect(
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(4)),
-            child: Container(
-              height: barHeight,
-              color: barColor,
-              alignment: Alignment.topCenter,
-              padding: const EdgeInsets.only(top: 4),
-              child: showsLabel
-                  ? RotatedBox(
-                      quarterTurns: 3,
-                      child: Text(
-                        _shortMoney(value),
-                        maxLines: 1,
-                        softWrap: false,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 10,
-                        ),
-                      ),
-                    )
-                  : (hasValue && hideValues)
-                  ? const Padding(
-                      padding: EdgeInsets.only(top: 2),
-                      child: Text(
-                        '•••',
-                        style: TextStyle(color: Colors.white, fontSize: 9),
-                      ),
-                    )
-                  : null,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-String _shortMoney(double value) {
-  final abs = value.abs();
-  final sign = value < 0 ? '-' : '';
-  if (abs >= 1000000) return '$sign${(abs / 1000000).toStringAsFixed(1)}M';
-  if (abs >= 1000) return '$sign${(abs / 1000).toStringAsFixed(1)}K';
-  return '$sign${abs.round()}';
 }
 
 class _MonthHistoryTile extends ConsumerWidget {
@@ -311,50 +116,52 @@ class _MonthHistoryTile extends ConsumerWidget {
     final now = DateTime.now();
     final isCurrentMonth = point.year == now.year && point.month == now.month;
 
+    final pending = point.total - point.paid;
+
     return Card(
       margin: const EdgeInsets.only(bottom: 10),
       child: Padding(
         padding: const EdgeInsets.all(13),
-        child: Row(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Expanded(
-              child: Row(
-                children: [
-                  Text(
-                    '${_monthNames[point.month - 1]} ${point.year}',
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  if (isCurrentMonth) ...[
-                    const SizedBox(width: 6),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 6,
-                        vertical: 2,
-                      ),
-                      decoration: BoxDecoration(
-                        color: theme.colorScheme.primary.withValues(
-                          alpha: 0.14,
-                        ),
-                        borderRadius: BorderRadius.circular(99),
-                      ),
-                      child: Text(
-                        'IN PROGRESS',
-                        style: theme.textTheme.labelSmall?.copyWith(
-                          color: theme.colorScheme.primary,
-                          fontWeight: FontWeight.w800,
-                          fontSize: 9,
-                        ),
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
+            Row(
               children: [
+                Expanded(
+                  child: Row(
+                    children: [
+                      Text(
+                        '${_monthNames[point.month - 1]} ${point.year}',
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      if (isCurrentMonth) ...[
+                        const SizedBox(width: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: theme.colorScheme.primary.withValues(
+                              alpha: 0.14,
+                            ),
+                            borderRadius: BorderRadius.circular(99),
+                          ),
+                          child: Text(
+                            'IN PROGRESS',
+                            style: theme.textTheme.labelSmall?.copyWith(
+                              color: theme.colorScheme.primary,
+                              fontWeight: FontWeight.w800,
+                              fontSize: 9,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
                 MoneyText(
                   formatMoney(point.total, defaultCurrency),
                   style: theme.textTheme.bodyMedium?.copyWith(
@@ -362,18 +169,82 @@ class _MonthHistoryTile extends ConsumerWidget {
                   ),
                   maskLength: 8,
                 ),
-                Text(
-                  hideValues
-                      ? '••••'
-                      : 'Paid ${formatMoney(point.paid, defaultCurrency)}',
-                  style: theme.textTheme.labelSmall?.copyWith(
+              ],
+            ),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Expanded(
+                  child: _BreakdownStat(
+                    label: 'Paid',
+                    amount: point.paid,
+                    color: colors.good,
+                    hideValues: hideValues,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _BreakdownStat(
+                    label: 'Pending',
+                    amount: pending,
                     color: colors.textDim,
+                    hideValues: hideValues,
                   ),
                 ),
               ],
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _BreakdownStat extends StatelessWidget {
+  const _BreakdownStat({
+    required this.label,
+    required this.amount,
+    required this.color,
+    required this.hideValues,
+  });
+
+  final String label;
+  final double amount;
+  final Color color;
+  final bool hideValues;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = context.appColors;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label.toUpperCase(),
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: colors.textDim,
+              fontWeight: FontWeight.w700,
+              fontSize: 9,
+              letterSpacing: 0.4,
+            ),
+          ),
+          const SizedBox(height: 2),
+          MoneyText(
+            hideValues ? '••••' : formatMoney(amount, defaultCurrency),
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: color,
+              fontWeight: FontWeight.w800,
+            ),
+            maskLength: 7,
+          ),
+        ],
       ),
     );
   }
