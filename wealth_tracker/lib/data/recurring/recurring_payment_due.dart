@@ -56,7 +56,19 @@ DateTime recurringPaymentOccurrenceDate(
 /// - 'yearly': January 1st of this calendar year.
 /// - 'interval': [intervalDays] before the current occurrence -- i.e. the
 ///   previous occurrence date, which for an "every N days" bill *is* when
-///   this cycle's charge happened.
+///   this cycle's charge happened -- except that can never land before
+///   [RecurringPayment.intervalAnchorDate] itself: when the current
+///   occurrence *is* the anchor (the very first cycle hasn't happened
+///   yet), there is no real "previous charge" to point at, and blindly
+///   subtracting [intervalDays] anyway produced a fictitious cycle start
+///   arbitrarily far in the past whenever the interval was longer than
+///   the gap from today to the anchor -- e.g. an anchor just 2 days out
+///   with a 30-day interval landed 28 days *before* today, which the
+///   automatic due-date check below then read as "already due", showing
+///   a bill as paid nearly a month before it had ever actually started
+///   (the reported "shows paid days before its first charge" bug). This
+///   clamps to the anchor instead, matching what [recurringPaymentDueDateForCurrentCycle]
+///   already means in that case: the upcoming anchor date itself.
 DateTime recurringPaymentCycleStart(RecurringPayment payment, DateTime today) {
   final frequency = RecurringPaymentFrequency.fromStored(payment.frequency);
   switch (frequency) {
@@ -66,8 +78,11 @@ DateTime recurringPaymentCycleStart(RecurringPayment payment, DateTime today) {
       return DateTime(today.year, 1, 1);
     case RecurringPaymentFrequency.interval:
       final interval = payment.intervalDays ?? 30;
+      final anchor = _dateOnly(payment.intervalAnchorDate ?? today);
       final occurrence = recurringPaymentOccurrenceDate(payment, today);
-      return occurrence.subtract(Duration(days: interval));
+      if (interval <= 0) return anchor;
+      final cycleStart = occurrence.subtract(Duration(days: interval));
+      return cycleStart.isBefore(anchor) ? anchor : cycleStart;
   }
 }
 

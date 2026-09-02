@@ -266,6 +266,24 @@ void main() {
         );
       },
     );
+
+    test('interval: a long interval whose anchor is only a few days out does '
+        'not read as already paid -- the real "Talabat Pro" bug (30-day '
+        'interval, anchor 2 days ahead of today) reproduced exactly', () {
+      // recurringPaymentCycleStart used to compute this as
+      // occurrence(9/4) - 30 days = 8/5, and since 8/5 is before today
+      // (9/2) that read as "already due" -- weeks before the anchor
+      // (the bill's actual first-ever charge) had even arrived.
+      final payment = _payment(
+        frequency: 'interval',
+        intervalDays: 30,
+        intervalAnchorDate: DateTime(2026, 9, 4),
+      );
+      expect(
+        recurringPaymentIsPaidForCurrentCycle(payment, DateTime(2026, 9, 2)),
+        isFalse,
+      );
+    });
   });
 
   group('recurringPaymentIsDueThisMonth', () {
