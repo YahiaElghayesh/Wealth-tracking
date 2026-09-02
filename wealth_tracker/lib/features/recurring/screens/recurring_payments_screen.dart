@@ -556,90 +556,102 @@ class _RecurringPaymentTile extends ConsumerWidget {
           ),
           child: Padding(
             padding: const EdgeInsets.all(13),
-            child: Row(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _PaidToggle(
-                  paid: paid,
-                  dayLabel: '${occurrence.day}',
-                  onTap: () => ref
-                      .read(recurringPaymentRepositoryProvider)
-                      .setPaid(payment.id, !paid),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        hideValues ? '••••••' : payment.name,
-                        style: theme.textTheme.bodyMedium?.copyWith(
-                          fontWeight: FontWeight.w700,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      const SizedBox(height: 4),
-                      Row(
+                Row(
+                  children: [
+                    _PaidToggle(
+                      paid: paid,
+                      dayLabel: '${occurrence.day}',
+                      onTap: () => ref
+                          .read(recurringPaymentRepositoryProvider)
+                          .setPaid(payment.id, !paid),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Padding(
-                            padding: const EdgeInsets.only(top: 2),
-                            child: Icon(
-                              Icons.calendar_today,
-                              size: 11,
-                              color: colors.textDim,
+                          Text(
+                            hideValues ? '••••••' : payment.name,
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              fontWeight: FontWeight.w700,
                             ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                           ),
-                          const SizedBox(width: 4),
-                          Expanded(
-                            child: Text(
-                              _dueDescription(today),
-                              style: theme.textTheme.labelSmall?.copyWith(
-                                color: colors.textDim,
+                          const SizedBox(height: 4),
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              _AmountTypeBadge(
+                                isExactAmount: payment.isExactAmount,
                               ),
-                            ),
+                              if (paid) ...[
+                                const SizedBox(width: 6),
+                                _PaidBadge(color: colors.good),
+                              ],
+                            ],
                           ),
                         ],
                       ),
-                      const SizedBox(height: 4),
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          _AmountTypeBadge(
-                            isExactAmount: payment.isExactAmount,
-                          ),
-                          if (paid) ...[
-                            const SizedBox(width: 6),
-                            _PaidBadge(color: colors.good),
-                          ],
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    MoneyText(
-                      formatCurrencyWhole(
-                        dualAmount.nativeAmount,
-                        dualAmount.nativeCurrency,
-                      ),
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        fontWeight: FontWeight.w700,
-                      ),
-                      maskLength: 8,
                     ),
-                    MoneyText(
-                      dualAmount.convertedAmount == null
-                          ? '—'
-                          : '≈ ${formatCurrencyWhole(dualAmount.convertedAmount!, dualAmount.convertedCurrency)}',
-                      style: theme.textTheme.labelSmall?.copyWith(
+                    const SizedBox(width: 8),
+                    Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        MoneyText(
+                          formatCurrencyWhole(
+                            dualAmount.nativeAmount,
+                            dualAmount.nativeCurrency,
+                          ),
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            fontWeight: FontWeight.w700,
+                          ),
+                          maskLength: 8,
+                        ),
+                        MoneyText(
+                          dualAmount.convertedAmount == null
+                              ? '—'
+                              : '≈ ${formatCurrencyWhole(dualAmount.convertedAmount!, dualAmount.convertedCurrency)}',
+                          style: theme.textTheme.labelSmall?.copyWith(
+                            color: colors.textDim,
+                          ),
+                          maskLength: 6,
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                // Its own full-width row below everything else -- packed
+                // into the middle column above (next to the leading badge
+                // and the trailing amount) it only had a narrow strip to
+                // work with, so a longer due description (interval's
+                // "Every N days · next Mon D", especially) wrapped
+                // mid-sentence in a way that read as badly justified text
+                // rather than one clean line.
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.only(top: 2),
+                      child: Icon(
+                        Icons.calendar_today,
+                        size: 11,
                         color: colors.textDim,
                       ),
-                      maskLength: 6,
+                    ),
+                    const SizedBox(width: 4),
+                    Expanded(
+                      child: Text(
+                        _dueDescription(today),
+                        style: theme.textTheme.labelSmall?.copyWith(
+                          color: colors.textDim,
+                        ),
+                      ),
                     ),
                   ],
                 ),
