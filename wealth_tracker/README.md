@@ -108,28 +108,30 @@ immediately after you open the app and its data changes.
 ### 6. In-app update checking (optional)
 
 Settings → App updates lets the app check GitHub for a newer CI build and install it
-directly, without going back to GitHub Actions to download an APK by hand. Since this
-repo is private, that requires a token baked into the app at build time:
+directly, without going back to GitHub Actions to download an APK by hand. It reads
+from a separate, **public** repo (`YahiaElghayesh/app-releases`) that CI publishes
+every build to — a public release's assets are plain, unauthenticated HTTPS URLs, so
+the installed app never needs to carry any GitHub credential of its own. There's
+nothing to set up on the app side.
+
+CI still needs a credential to *publish* into that other repo (a cross-repo write
+always needs one, no matter how it's done) — but that one lives only in CI, never
+baked into anything a user installs:
 
 1. Create a **fine-grained personal access token**: GitHub → Settings → Developer
    settings → Personal access tokens → Fine-grained tokens → Generate new token.
-2. Repository access → Only select repositories → this repo.
-3. Permissions → Repository permissions → **Contents: Read-only** (Metadata: Read-only
-   comes along automatically).
-4. Set an expiration long enough that you won't need to regenerate it often — the app
-   can't reach GitHub at all with an expired token, and there's no in-app way to update
-   just the token once it's baked into an already-installed build.
-5. Add the generated token as a repository secret named `APP_UPDATE_TOKEN`
-   (Settings → Secrets and variables → Actions → New repository secret).
+2. Repository access → Only select repositories → **app-releases** (not this repo).
+3. Permissions → Repository permissions → **Contents: Read and write** — CI needs to
+   create releases there, not just read them.
+4. Set an expiration long enough that you won't need to regenerate it often — CI can't
+   publish a new build's release at all with an expired token (the build itself still
+   succeeds; only that last step fails).
+5. Add the generated token as a repository secret on **this** repo, named
+   `RELEASES_REPO_TOKEN` (Settings → Secrets and variables → Actions → New repository
+   secret).
 
-CI passes it to `flutter build apk` via `--dart-define` on every build; builds made
-without that secret configured leave the update-checking screen showing a plain
-"not configured" message instead of failing confusingly.
-
-Because that token only grants read access to this one repository's contents, it's a
-low-risk thing to embed in a distributed APK — but it's still a real credential, and
-anyone with a copy of the installed APK file could extract it. Revoke and rotate it
-(same GitHub settings page) if that's ever a concern.
+If `app-releases` doesn't exist yet, create it first (public, empty is fine — `gh
+release create` populates it).
 
 ## Architecture
 

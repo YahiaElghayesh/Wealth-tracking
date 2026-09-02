@@ -38,16 +38,13 @@ jobs:
       # --build-number becomes the APK's versionCode -- the in-app "Check
       # for updates" feature (Settings > App updates) compares its own
       # installed versionCode against this same run number read back from
-      # the GitHub Release below, so it has to be injected here, not left
-      # to whatever pubspec.yaml's build number says (that isn't bumped on
-      # every commit). --dart-define bakes in the token the app needs to
-      # read this private repo's Releases API -- see APP_UPDATE_TOKEN setup
-      # in the README; the check/download feature just no-ops with a clear
-      # message if this secret isn't configured.
+      # the public app-releases repo below, so it has to be injected here,
+      # not left to whatever pubspec.yaml's build number says (that isn't
+      # bumped on every commit). No token needs baking in any more -- see
+      # the "Publish GitHub Release" step below for why.
       - run: |
           flutter build apk --debug \
-            --build-number=${{ github.run_number }} \
-            --dart-define=GITHUB_UPDATE_TOKEN=${{ secrets.APP_UPDATE_TOKEN }}
+            --build-number=${{ github.run_number }}
 
       - name: Verify built APK (installability diagnostics)
         run: |
@@ -72,15 +69,25 @@ jobs:
 
       # Gives the in-app updater a stable, permanent place to check/download
       # from -- unlike the artifact above (requires a GitHub login, expires
-      # in 30 days), a Release asset is addressable by a fixed API URL for
-      # as long as the release exists, which is what the app polls.
+      # in 30 days), a Release asset is addressable by a fixed URL for as
+      # long as the release exists, which is what the app polls.
+      #
+      # Published to a separate, *public* repo (YahiaElghayesh/app-releases)
+      # rather than this one -- this repo stays private, but a public
+      # release's assets are plain, unauthenticated HTTPS URLs, so the
+      # installed app never needs to carry a GitHub credential of its own
+      # to check for or download an update (see app_update_service.dart's
+      # own doc comment). The default `github.token` only has permissions
+      # within *this* repo, not app-releases, so publishing there needs its
+      # own credential: RELEASES_REPO_TOKEN, a fine-grained PAT scoped to
+      # app-releases with Contents: Read and write (see README).
       - name: Publish GitHub Release
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.RELEASES_REPO_TOKEN }}
         run: |
           cp build/app/outputs/flutter-apk/app-debug.apk wealth-tracker-debug.apk
           gh release create "build-${{ github.run_number }}" wealth-tracker-debug.apk \
-            --repo "${{ github.repository }}" \
+            --repo "YahiaElghayesh/app-releases" \
             --title "Build ${{ github.run_number }}" \
             --notes "Automated debug build from commit ${{ github.sha }}." \
             --latest

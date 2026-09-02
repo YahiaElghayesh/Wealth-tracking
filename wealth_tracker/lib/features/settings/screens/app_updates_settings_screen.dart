@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/update/app_update_controller.dart';
-import '../../../core/update/app_update_service.dart';
 
 class AppUpdatesSettingsScreen extends ConsumerStatefulWidget {
   const AppUpdatesSettingsScreen({super.key});
@@ -49,28 +48,14 @@ class _AppUpdatesSettingsScreenState
             ),
             const SizedBox(height: 16),
           ],
-          if (!isUpdateCheckConfigured)
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Text(
-                  "This build wasn't produced with update checking configured "
-                  '(no APP_UPDATE_TOKEN secret set in CI), so this screen can\'t '
-                  'reach GitHub. See the README for how to set that up.',
-                  style: TextStyle(color: Theme.of(context).colorScheme.error),
-                ),
-              ),
-            )
-          else ...[
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: _StatusView(state: state),
-              ),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: _StatusView(state: state),
             ),
-            const SizedBox(height: 16),
-            _ActionButton(state: state, controller: controller),
-          ],
+          ),
+          const SizedBox(height: 16),
+          _ActionButton(state: state, controller: controller),
         ],
       ),
     );

@@ -68,15 +68,13 @@ class AppUpdateController extends Notifier<AppUpdateState> {
     );
     // Reading the installed build number is a local, offline call --
     // recorded into state immediately, before the network call below that
-    // can throw (most commonly because this build has no
-    // APP_UPDATE_TOKEN configured, see isUpdateCheckConfigured), so the
+    // can throw (a network error, or nothing published yet), so the
     // installed build number is always known even when the rest of the
     // check can't run. Previously this only ever landed in state after
-    // fetchLatest() succeeded, so a build without that token showed no
-    // build number at all -- leaving no way to tell what was actually
-    // installed, which is exactly the information needed to confirm
-    // whether a given bug report was against a build that already
-    // contained a given fix.
+    // fetchLatest() succeeded, so a failed check showed no build number at
+    // all -- leaving no way to tell what was actually installed, which is
+    // exactly the information needed to confirm whether a given bug report
+    // was against a build that already contained a given fix.
     final info = await PackageInfo.fromPlatform();
     final currentBuild = int.tryParse(info.buildNumber) ?? 0;
     state = state.copyWith(currentBuildNumber: currentBuild);
