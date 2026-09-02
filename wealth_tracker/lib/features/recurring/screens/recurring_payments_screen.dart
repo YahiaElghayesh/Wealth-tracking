@@ -664,11 +664,14 @@ class _RecurringPaymentTile extends ConsumerWidget {
   }
 }
 
-/// The leading badge in each tile -- shows the day this payment is next
-/// due, or a checkmark once it's been marked paid for the current cycle.
-/// Its own tap target (separate from the tile's onTap, which opens Edit)
-/// toggles that paid state -- this is the "make payment look green" action
-/// the total card's Paid/Pending split reads from.
+/// The leading badge in each tile -- always shows the day this payment is
+/// next due, whether paid or not; the calendar's header strip turns green
+/// and a small checkmark badge overlays its corner once marked paid, but
+/// the date itself stays visible instead of being replaced by a checkmark
+/// (which used to hide it entirely). Its own tap target (separate from
+/// the tile's onTap, which opens Edit) toggles that paid state -- this is
+/// the "make payment look green" action the total card's Paid/Pending
+/// split reads from.
 class _PaidToggle extends StatelessWidget {
   const _PaidToggle({
     required this.paid,
@@ -690,23 +693,27 @@ class _PaidToggle extends StatelessWidget {
       borderRadius: BorderRadius.circular(12),
       child: Tooltip(
         message: paid ? 'Mark as pending' : 'Mark as paid',
-        child: Container(
+        child: SizedBox(
           width: 44,
           height: 44,
-          clipBehavior: Clip.antiAlias,
-          decoration: BoxDecoration(
-            color: theme.colorScheme.surface,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: color.withValues(alpha: 0.4)),
-          ),
-          child: paid
-              ? Center(child: Icon(Icons.check_circle, size: 20, color: color))
-              // A miniature calendar-page icon -- a colored header strip
-              // (like a real calendar's month band) above the day number --
-              // rather than a plain colored box with a number in it, which
-              // read as an arbitrary counter/badge more than "this is a
-              // date."
-              : Column(
+          child: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                clipBehavior: Clip.antiAlias,
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.surface,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: color.withValues(alpha: 0.4)),
+                ),
+                // A miniature calendar-page icon -- a colored header strip
+                // (like a real calendar's month band) above the day
+                // number -- rather than a plain colored box with a number
+                // in it, which read as an arbitrary counter/badge more
+                // than "this is a date."
+                child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Container(
@@ -734,6 +741,26 @@ class _PaidToggle extends StatelessWidget {
                     ),
                   ],
                 ),
+              ),
+              if (paid)
+                Positioned(
+                  right: -4,
+                  bottom: -4,
+                  child: Container(
+                    padding: const EdgeInsets.all(1),
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.surface,
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      Icons.check_circle,
+                      size: 16,
+                      color: colors.good,
+                    ),
+                  ),
+                ),
+            ],
+          ),
         ),
       ),
     );
