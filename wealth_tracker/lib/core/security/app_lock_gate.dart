@@ -100,13 +100,30 @@ class _AppLockGateState extends ConsumerState<AppLockGate>
     super.dispose();
   }
 
-  /// The lock overlay's own visibility already reacts to this (see
-  /// [build]), but a rebuild alone doesn't affect a biometric prompt
-  /// that's already showing -- there's nothing more to do here beyond
-  /// that rebuild; this listener exists so the overlay's disappearance
-  /// the moment a quick action takes over is immediate rather than
-  /// waiting on some other rebuild.
-  void _onExemptionChanged() => setState(() {});
+  /// While a claim is active, the lock overlay's own visibility already
+  /// reacts to [QuickActionExemption.isActive] (see [build]) -- a plain
+  /// rebuild is all that's needed there, so the overlay's disappearance
+  /// the moment a quick action takes over is immediate rather than waiting
+  /// on some other rebuild.
+  ///
+  /// Once the claim ends, a plain rebuild isn't enough: [_locked] may have
+  /// been set `true` by an [_evaluateLock] that ran *before* (or
+  /// concurrently with) this exemption existed -- a lifecycle resume
+  /// racing a quick-add/SMS launch on cold start, most commonly -- and
+  /// nothing since then has corrected it, even if the grace period would
+  /// actually have said "don't lock" had [_evaluateLock] been given the
+  /// chance to run without an exemption in the way. Re-running it here
+  /// instead of just repainting is what stopped a stray lock screen (with
+  /// its fingerprint prompt) from appearing the instant someone backed out
+  /// of or saved a quick-add screen, even within an otherwise-satisfied
+  /// grace period.
+  void _onExemptionChanged() {
+    if (QuickActionExemption.isActive) {
+      setState(() {});
+    } else {
+      _evaluateLock();
+    }
+  }
 
   /// Single entry point for "decide whether the app should be locked right
   /// now" -- called from [initState] (cold start counts as a resume for

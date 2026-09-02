@@ -47,13 +47,48 @@ class RecurringPaymentsScreen extends ConsumerStatefulWidget {
 }
 
 class _RecurringPaymentsScreenState
-    extends ConsumerState<RecurringPaymentsScreen> {
+    extends ConsumerState<RecurringPaymentsScreen>
+    with WidgetsBindingObserver {
   /// Both sections start expanded -- unlike the Net Worth tab's
   /// per-category sections, there are only ever two of these and the
   /// whole point of this tab is seeing what's due, so hiding it behind an
   /// extra tap by default doesn't pull its weight here.
   bool _monthlyExpanded = true;
   bool _yearlyExpanded = true;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  /// This tab's whole "what's paid/pending" picture is computed from
+  /// `DateTime.now()` at build time (see [recurringPaymentIsPaidForCurrentCycle]
+  /// and friends) -- but this screen sits inside the bottom nav's
+  /// `IndexedStack`, which keeps every tab's widget tree alive and never
+  /// tears it down when it's not the active tab, and nothing about a plain
+  /// Riverpod watch on the payments stream fires again just because real
+  /// time passed with no database write. Left alone, a payment correctly
+  /// auto-marked "paid" (its due date had passed) the last time this tab
+  /// actually rebuilt kept showing paid long after a new billing cycle
+  /// started -- until *something* forced a rebuild -- which is exactly the
+  /// reported "still shows paid for a bill that isn't due till the 4th, and
+  /// today's only the 2nd" bug: the day/month had rolled over since this
+  /// tab was last built, and nothing told it to look again. Forcing a
+  /// rebuild on every foreground (locking/unlocking the phone, switching
+  /// apps and back -- by far the common way a day boundary is crossed while
+  /// this tab is sitting open) re-evaluates every payment's paid/pending
+  /// state fresh against the real current date.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && mounted) setState(() {});
+  }
 
   @override
   Widget build(BuildContext context) {

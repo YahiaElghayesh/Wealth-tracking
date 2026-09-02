@@ -436,16 +436,36 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
             _isSeedingCard = false;
           }
           if (unseededManualInputs != null) {
+            final latest = latestHistory != null && latestHistory.isNotEmpty
+                ? latestHistory.first
+                : null;
             for (final input in unseededManualInputs) {
-              final lastEntry =
-                  latestHistory != null && latestHistory.isNotEmpty
-                  ? latestHistory.first.manualInputEntries
-                        .where((e) => e.name == input.name)
-                        .firstOrNull
-                  : null;
-              if (lastEntry != null) {
+              final lastEntry = latest?.manualInputEntries
+                  .where((e) => e.name == input.name)
+                  .firstOrNull;
+              // Falls back to the fixed legacy apartmentSavings/
+              // cibAccountBalance columns, by their known fixed names, when
+              // the latest snapshot predates user-managed manual inputs
+              // (manualInputEntries is always empty then -- see
+              // usesLegacyFixedManualInputs's own doc comment). Without
+              // this, anyone who saved a calculator snapshot before this
+              // feature existed and then updated the app saw both fields
+              // seed blank instead of their real last-saved figures (the
+              // reported "manual inputs cleared on their own after
+              // updating" bug) -- their real numbers were never lost, this
+              // screen just never looked at the column holding them.
+              final seedAmount =
+                  lastEntry?.amount ??
+                  (latest != null && latest.usesLegacyFixedManualInputs
+                      ? switch (input.name) {
+                          'Apartment savings' => latest.apartmentSavings,
+                          'CIB Accounts Balance' => latest.cibAccountBalance,
+                          _ => null,
+                        }
+                      : null);
+              if (seedAmount != null && seedAmount != 0) {
                 _manualInputControllerFor(input).text = _formatAmount(
-                  lastEntry.amount,
+                  seedAmount,
                 );
               }
               _seededManualInputIds.add(input.id);
