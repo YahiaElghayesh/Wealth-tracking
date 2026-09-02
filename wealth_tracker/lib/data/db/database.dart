@@ -38,7 +38,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 20;
+  int get schemaVersion => 21;
 
   /// Public so `ProfileRepository.addProfile` can give a newly created
   /// profile the same starter categories a fresh install gets -- otherwise
@@ -356,6 +356,16 @@ class AppDatabase extends _$AppDatabase {
         // new data (no prior version could have written it), so a plain
         // create with no backfill needed.
         await m.createTable(recurringPaymentHistory);
+      }
+      if (from < 21) {
+        // Per-item breakdown for each recorded month -- addColumn's
+        // '[]' default correctly marks every pre-existing row as
+        // predating this feature (see itemsJson's own doc comment for how
+        // that stays distinguishable from a real, empty month).
+        await m.addColumn(
+          recurringPaymentHistory,
+          recurringPaymentHistory.itemsJson,
+        );
       }
     },
     // The "Breakfast" quick-pick category was a voice-transcription

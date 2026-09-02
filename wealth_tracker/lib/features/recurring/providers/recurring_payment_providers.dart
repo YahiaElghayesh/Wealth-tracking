@@ -2,9 +2,9 @@ import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/models/recurring_payment_history_item.dart';
 import '../../../data/db/database.dart';
-import '../../../data/ledger/ledger_calculator.dart';
-import '../../../data/recurring/recurring_payment_due.dart';
+import '../../../data/recurring/recurring_payment_month_breakdown.dart';
 import '../../../data/repositories/recurring_payment_history_repository.dart';
 import '../../../data/repositories/recurring_payment_repository.dart';
 import '../../networth/providers/asset_providers.dart'
@@ -41,6 +41,7 @@ class RecurringPaymentsMonthSummary {
     required this.paid,
     required this.pending,
     required this.hasMinimums,
+    required this.items,
   });
 
   final double total;
@@ -51,6 +52,11 @@ class RecurringPaymentsMonthSummary {
   /// minimum-amount entry -- callers use this to label the total as an
   /// estimate rather than a hard figure.
   final bool hasMinimums;
+
+  /// Which specific payments make up [total]/[paid] this month -- lets a
+  /// caller (the history screen's "in progress" current-month tile) show
+  /// the same per-item breakdown a past, already-recorded month does.
+  final List<RecurringPaymentHistoryItem> items;
 }
 
 final recurringPaymentsMonthSummaryProvider =
@@ -58,30 +64,17 @@ final recurringPaymentsMonthSummaryProvider =
       final payments =
           ref.watch(recurringPaymentsStreamProvider).valueOrNull ?? const [];
       final prices = ref.watch(pricesUsdPerUnitProvider);
-      final today = DateTime.now();
-
-      var total = 0.0;
-      var paid = 0.0;
-      var hasMinimums = false;
-      for (final payment in payments) {
-        if (!recurringPaymentIsDueThisMonth(payment, today)) continue;
-        final converted = convertToSettlement(
-          payment.amount,
-          payment.currency,
-          prices,
-        );
-        if (converted == null) continue;
-        total += converted;
-        if (!payment.isExactAmount) hasMinimums = true;
-        if (recurringPaymentIsPaidForCurrentCycle(payment, today)) {
-          paid += converted;
-        }
-      }
+      final breakdown = computeRecurringPaymentsMonthBreakdown(
+        payments,
+        DateTime.now(),
+        prices,
+      );
       return RecurringPaymentsMonthSummary(
-        total: total,
-        paid: paid,
-        pending: total - paid,
-        hasMinimums: hasMinimums,
+        total: breakdown.total,
+        paid: breakdown.paid,
+        pending: breakdown.pending,
+        hasMinimums: breakdown.hasMinimums,
+        items: breakdown.items,
       );
     });
 

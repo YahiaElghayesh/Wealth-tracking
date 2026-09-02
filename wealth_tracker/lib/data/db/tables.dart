@@ -396,6 +396,17 @@ class RecurringPaymentHistory extends Table {
   RealColumn get paidAmount => real()();
   DateTimeColumn get recordedAt => dateTime()();
 
+  /// JSON-encoded list of `{name, amount, paid}` -- one per payment that
+  /// was due this month, each `amount` already converted to the
+  /// settlement currency at record time (see
+  /// RecurringPaymentHistoryItem). Empty list (`'[]'`, the default) on
+  /// every row recorded before this per-item breakdown existed --
+  /// distinguishable from a genuinely-empty month by `totalAmount > 0`,
+  /// since ensureRecorded never inserts a row at all when nothing was due
+  /// (see that method's own doc comment), so a real recorded total always
+  /// implies at least one contributing item.
+  TextColumn get itemsJson => text().withDefault(const Constant('[]'))();
+
   @override
   Set<Column> get primaryKey => {id};
 }

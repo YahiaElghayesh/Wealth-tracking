@@ -6797,6 +6797,18 @@ class $RecurringPaymentHistoryTable extends RecurringPaymentHistory
     type: DriftSqlType.dateTime,
     requiredDuringInsert: true,
   );
+  static const VerificationMeta _itemsJsonMeta = const VerificationMeta(
+    'itemsJson',
+  );
+  @override
+  late final GeneratedColumn<String> itemsJson = GeneratedColumn<String>(
+    'items_json',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('[]'),
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -6807,6 +6819,7 @@ class $RecurringPaymentHistoryTable extends RecurringPaymentHistory
     totalAmount,
     paidAmount,
     recordedAt,
+    itemsJson,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -6880,6 +6893,12 @@ class $RecurringPaymentHistoryTable extends RecurringPaymentHistory
     } else if (isInserting) {
       context.missing(_recordedAtMeta);
     }
+    if (data.containsKey('items_json')) {
+      context.handle(
+        _itemsJsonMeta,
+        itemsJson.isAcceptableOrUnknown(data['items_json']!, _itemsJsonMeta),
+      );
+    }
     return context;
   }
 
@@ -6924,6 +6943,10 @@ class $RecurringPaymentHistoryTable extends RecurringPaymentHistory
         DriftSqlType.dateTime,
         data['${effectivePrefix}recorded_at'],
       )!,
+      itemsJson: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}items_json'],
+      )!,
     );
   }
 
@@ -6950,6 +6973,17 @@ class RecurringPaymentHistoryData extends DataClass
   final double totalAmount;
   final double paidAmount;
   final DateTime recordedAt;
+
+  /// JSON-encoded list of `{name, amount, paid}` -- one per payment that
+  /// was due this month, each `amount` already converted to the
+  /// settlement currency at record time (see
+  /// RecurringPaymentHistoryItem). Empty list (`'[]'`, the default) on
+  /// every row recorded before this per-item breakdown existed --
+  /// distinguishable from a genuinely-empty month by `totalAmount > 0`,
+  /// since ensureRecorded never inserts a row at all when nothing was due
+  /// (see that method's own doc comment), so a real recorded total always
+  /// implies at least one contributing item.
+  final String itemsJson;
   const RecurringPaymentHistoryData({
     required this.id,
     this.profileId,
@@ -6959,6 +6993,7 @@ class RecurringPaymentHistoryData extends DataClass
     required this.totalAmount,
     required this.paidAmount,
     required this.recordedAt,
+    required this.itemsJson,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -6973,6 +7008,7 @@ class RecurringPaymentHistoryData extends DataClass
     map['total_amount'] = Variable<double>(totalAmount);
     map['paid_amount'] = Variable<double>(paidAmount);
     map['recorded_at'] = Variable<DateTime>(recordedAt);
+    map['items_json'] = Variable<String>(itemsJson);
     return map;
   }
 
@@ -6988,6 +7024,7 @@ class RecurringPaymentHistoryData extends DataClass
       totalAmount: Value(totalAmount),
       paidAmount: Value(paidAmount),
       recordedAt: Value(recordedAt),
+      itemsJson: Value(itemsJson),
     );
   }
 
@@ -7005,6 +7042,7 @@ class RecurringPaymentHistoryData extends DataClass
       totalAmount: serializer.fromJson<double>(json['totalAmount']),
       paidAmount: serializer.fromJson<double>(json['paidAmount']),
       recordedAt: serializer.fromJson<DateTime>(json['recordedAt']),
+      itemsJson: serializer.fromJson<String>(json['itemsJson']),
     );
   }
   @override
@@ -7019,6 +7057,7 @@ class RecurringPaymentHistoryData extends DataClass
       'totalAmount': serializer.toJson<double>(totalAmount),
       'paidAmount': serializer.toJson<double>(paidAmount),
       'recordedAt': serializer.toJson<DateTime>(recordedAt),
+      'itemsJson': serializer.toJson<String>(itemsJson),
     };
   }
 
@@ -7031,6 +7070,7 @@ class RecurringPaymentHistoryData extends DataClass
     double? totalAmount,
     double? paidAmount,
     DateTime? recordedAt,
+    String? itemsJson,
   }) => RecurringPaymentHistoryData(
     id: id ?? this.id,
     profileId: profileId.present ? profileId.value : this.profileId,
@@ -7040,6 +7080,7 @@ class RecurringPaymentHistoryData extends DataClass
     totalAmount: totalAmount ?? this.totalAmount,
     paidAmount: paidAmount ?? this.paidAmount,
     recordedAt: recordedAt ?? this.recordedAt,
+    itemsJson: itemsJson ?? this.itemsJson,
   );
   RecurringPaymentHistoryData copyWithCompanion(
     RecurringPaymentHistoryCompanion data,
@@ -7059,6 +7100,7 @@ class RecurringPaymentHistoryData extends DataClass
       recordedAt: data.recordedAt.present
           ? data.recordedAt.value
           : this.recordedAt,
+      itemsJson: data.itemsJson.present ? data.itemsJson.value : this.itemsJson,
     );
   }
 
@@ -7072,7 +7114,8 @@ class RecurringPaymentHistoryData extends DataClass
           ..write('currency: $currency, ')
           ..write('totalAmount: $totalAmount, ')
           ..write('paidAmount: $paidAmount, ')
-          ..write('recordedAt: $recordedAt')
+          ..write('recordedAt: $recordedAt, ')
+          ..write('itemsJson: $itemsJson')
           ..write(')'))
         .toString();
   }
@@ -7087,6 +7130,7 @@ class RecurringPaymentHistoryData extends DataClass
     totalAmount,
     paidAmount,
     recordedAt,
+    itemsJson,
   );
   @override
   bool operator ==(Object other) =>
@@ -7099,7 +7143,8 @@ class RecurringPaymentHistoryData extends DataClass
           other.currency == this.currency &&
           other.totalAmount == this.totalAmount &&
           other.paidAmount == this.paidAmount &&
-          other.recordedAt == this.recordedAt);
+          other.recordedAt == this.recordedAt &&
+          other.itemsJson == this.itemsJson);
 }
 
 class RecurringPaymentHistoryCompanion
@@ -7112,6 +7157,7 @@ class RecurringPaymentHistoryCompanion
   final Value<double> totalAmount;
   final Value<double> paidAmount;
   final Value<DateTime> recordedAt;
+  final Value<String> itemsJson;
   final Value<int> rowid;
   const RecurringPaymentHistoryCompanion({
     this.id = const Value.absent(),
@@ -7122,6 +7168,7 @@ class RecurringPaymentHistoryCompanion
     this.totalAmount = const Value.absent(),
     this.paidAmount = const Value.absent(),
     this.recordedAt = const Value.absent(),
+    this.itemsJson = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   RecurringPaymentHistoryCompanion.insert({
@@ -7133,6 +7180,7 @@ class RecurringPaymentHistoryCompanion
     required double totalAmount,
     required double paidAmount,
     required DateTime recordedAt,
+    this.itemsJson = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
        year = Value(year),
@@ -7149,6 +7197,7 @@ class RecurringPaymentHistoryCompanion
     Expression<double>? totalAmount,
     Expression<double>? paidAmount,
     Expression<DateTime>? recordedAt,
+    Expression<String>? itemsJson,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -7160,6 +7209,7 @@ class RecurringPaymentHistoryCompanion
       if (totalAmount != null) 'total_amount': totalAmount,
       if (paidAmount != null) 'paid_amount': paidAmount,
       if (recordedAt != null) 'recorded_at': recordedAt,
+      if (itemsJson != null) 'items_json': itemsJson,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -7173,6 +7223,7 @@ class RecurringPaymentHistoryCompanion
     Value<double>? totalAmount,
     Value<double>? paidAmount,
     Value<DateTime>? recordedAt,
+    Value<String>? itemsJson,
     Value<int>? rowid,
   }) {
     return RecurringPaymentHistoryCompanion(
@@ -7184,6 +7235,7 @@ class RecurringPaymentHistoryCompanion
       totalAmount: totalAmount ?? this.totalAmount,
       paidAmount: paidAmount ?? this.paidAmount,
       recordedAt: recordedAt ?? this.recordedAt,
+      itemsJson: itemsJson ?? this.itemsJson,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -7215,6 +7267,9 @@ class RecurringPaymentHistoryCompanion
     if (recordedAt.present) {
       map['recorded_at'] = Variable<DateTime>(recordedAt.value);
     }
+    if (itemsJson.present) {
+      map['items_json'] = Variable<String>(itemsJson.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -7232,6 +7287,7 @@ class RecurringPaymentHistoryCompanion
           ..write('totalAmount: $totalAmount, ')
           ..write('paidAmount: $paidAmount, ')
           ..write('recordedAt: $recordedAt, ')
+          ..write('itemsJson: $itemsJson, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -13067,6 +13123,7 @@ typedef $$RecurringPaymentHistoryTableCreateCompanionBuilder =
       required double totalAmount,
       required double paidAmount,
       required DateTime recordedAt,
+      Value<String> itemsJson,
       Value<int> rowid,
     });
 typedef $$RecurringPaymentHistoryTableUpdateCompanionBuilder =
@@ -13079,6 +13136,7 @@ typedef $$RecurringPaymentHistoryTableUpdateCompanionBuilder =
       Value<double> totalAmount,
       Value<double> paidAmount,
       Value<DateTime> recordedAt,
+      Value<String> itemsJson,
       Value<int> rowid,
     });
 
@@ -13157,6 +13215,11 @@ class $$RecurringPaymentHistoryTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
+  ColumnFilters<String> get itemsJson => $composableBuilder(
+    column: $table.itemsJson,
+    builder: (column) => ColumnFilters(column),
+  );
+
   $$ProfilesTableFilterComposer get profileId {
     final $$ProfilesTableFilterComposer composer = $composerBuilder(
       composer: this,
@@ -13225,6 +13288,11 @@ class $$RecurringPaymentHistoryTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get itemsJson => $composableBuilder(
+    column: $table.itemsJson,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   $$ProfilesTableOrderingComposer get profileId {
     final $$ProfilesTableOrderingComposer composer = $composerBuilder(
       composer: this,
@@ -13284,6 +13352,9 @@ class $$RecurringPaymentHistoryTableAnnotationComposer
     column: $table.recordedAt,
     builder: (column) => column,
   );
+
+  GeneratedColumn<String> get itemsJson =>
+      $composableBuilder(column: $table.itemsJson, builder: (column) => column);
 
   $$ProfilesTableAnnotationComposer get profileId {
     final $$ProfilesTableAnnotationComposer composer = $composerBuilder(
@@ -13359,6 +13430,7 @@ class $$RecurringPaymentHistoryTableTableManager
                 Value<double> totalAmount = const Value.absent(),
                 Value<double> paidAmount = const Value.absent(),
                 Value<DateTime> recordedAt = const Value.absent(),
+                Value<String> itemsJson = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => RecurringPaymentHistoryCompanion(
                 id: id,
@@ -13369,6 +13441,7 @@ class $$RecurringPaymentHistoryTableTableManager
                 totalAmount: totalAmount,
                 paidAmount: paidAmount,
                 recordedAt: recordedAt,
+                itemsJson: itemsJson,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -13381,6 +13454,7 @@ class $$RecurringPaymentHistoryTableTableManager
                 required double totalAmount,
                 required double paidAmount,
                 required DateTime recordedAt,
+                Value<String> itemsJson = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => RecurringPaymentHistoryCompanion.insert(
                 id: id,
@@ -13391,6 +13465,7 @@ class $$RecurringPaymentHistoryTableTableManager
                 totalAmount: totalAmount,
                 paidAmount: paidAmount,
                 recordedAt: recordedAt,
+                itemsJson: itemsJson,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0

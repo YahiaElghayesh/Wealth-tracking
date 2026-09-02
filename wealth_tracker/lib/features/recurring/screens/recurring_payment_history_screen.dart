@@ -3,9 +3,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/format/money_formatter.dart';
 import '../../../core/models/currency.dart';
+import '../../../core/models/recurring_payment_history_item.dart';
 import '../../../core/providers/privacy_providers.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/money_text.dart';
+import '../../../data/repositories/recurring_payment_history_repository.dart'
+    show RecurringPaymentHistoryDataItems;
 import '../providers/recurring_payment_providers.dart';
 
 const _monthNames = [
@@ -33,16 +36,25 @@ class _MonthPoint {
     required this.month,
     required this.total,
     required this.paid,
+    required this.items,
+    required this.itemsAreLegacyMissing,
   });
 
   final int year;
   final int month;
   final double total;
   final double paid;
+
+  /// Which specific payments made up [total]/[paid] -- empty (with
+  /// [itemsAreLegacyMissing] true) for a month recorded before this
+  /// breakdown existed.
+  final List<RecurringPaymentHistoryItem> items;
+  final bool itemsAreLegacyMissing;
 }
 
 /// Auto-generated month-by-month history for the Recurring Payments tab --
-/// a plain list of each month's total plus its paid/pending breakdown, no
+/// a plain list of each month's total, its paid/pending breakdown, and
+/// which specific payments were paid vs. still pending that month, no
 /// chart (the tab's own total card already covers "how are we doing right
 /// now" visually; this screen is for looking back at exact past figures).
 class RecurringPaymentHistoryScreen extends ConsumerWidget {
@@ -67,12 +79,16 @@ class RecurringPaymentHistoryScreen extends ConsumerWidget {
                 month: entry.month,
                 total: entry.totalAmount,
                 paid: entry.paidAmount,
+                items: entry.items,
+                itemsAreLegacyMissing: entry.itemsAreLegacyMissing,
               ),
             _MonthPoint(
               year: today.year,
               month: today.month,
               total: liveSummary.total,
               paid: liveSummary.paid,
+              items: liveSummary.items,
+              itemsAreLegacyMissing: false,
             ),
           ];
 
@@ -193,8 +209,80 @@ class _MonthHistoryTile extends ConsumerWidget {
                 ),
               ],
             ),
+            if (point.items.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              const Divider(height: 1),
+              const SizedBox(height: 10),
+              for (final item in point.items)
+                _ItemRow(item: item, hideValues: hideValues),
+            ] else if (point.itemsAreLegacyMissing) ...[
+              const SizedBox(height: 10),
+              Text(
+                'Item breakdown not available for this month.',
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: colors.textDim,
+                  fontStyle: FontStyle.italic,
+                ),
+              ),
+            ],
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// One payment's name, amount, and paid/pending state within a month's
+/// tile -- a plain colored dot rather than a full badge (unlike the main
+/// tab's own tile, this is a dense list of every payment in the month, not
+/// one payment given a whole card's worth of space).
+class _ItemRow extends StatelessWidget {
+  const _ItemRow({required this.item, required this.hideValues});
+
+  final RecurringPaymentHistoryItem item;
+  final bool hideValues;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = context.appColors;
+    final color = item.paid ? colors.good : colors.textDim;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 3),
+      child: Row(
+        children: [
+          Container(
+            width: 7,
+            height: 7,
+            margin: const EdgeInsets.only(right: 8),
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+          ),
+          Expanded(
+            child: Text(
+              hideValues ? '••••••' : item.name,
+              style: theme.textTheme.bodySmall,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            item.paid ? 'Paid' : 'Pending',
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: color,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(width: 8),
+          MoneyText(
+            formatMoney(item.amount, defaultCurrency),
+            style: theme.textTheme.bodySmall?.copyWith(
+              fontWeight: FontWeight.w600,
+            ),
+            maskLength: 7,
+          ),
+        ],
       ),
     );
   }
