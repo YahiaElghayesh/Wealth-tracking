@@ -90,7 +90,8 @@ class _AppLockGateState extends ConsumerState<AppLockGate>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     QuickActionExemption.listenable.addListener(_onExemptionChanged);
-    _evaluateLock();
+    // No wait needed here -- see _evaluateLock's `wait` parameter.
+    _evaluateLock(wait: false);
   }
 
   @override
@@ -129,18 +130,34 @@ class _AppLockGateState extends ConsumerState<AppLockGate>
   /// now" -- called from [initState] (cold start counts as a resume for
   /// grace-period purposes too, since Android killing the process while
   /// backgrounded is common well within a window someone might reasonably
-  /// set) and from every genuine resume in [didChangeAppLifecycleState].
-  /// Replaces what used to be two separately-maintained code paths (one in
-  /// each caller) that could -- and did -- drift out of sync with each
-  /// other.
-  void _evaluateLock() {
+  /// set), from every genuine resume in [didChangeAppLifecycleState], and
+  /// from [_onExemptionChanged] once a claim ends. Replaces what used to
+  /// be two separately-maintained code paths (one in each caller) that
+  /// could -- and did -- drift out of sync with each other.
+  ///
+  /// [wait] controls whether [_promptWhenReady] waits out
+  /// [_waitForExemptionOrTimeout] before prompting -- true everywhere
+  /// except [initState]. That wait exists for exactly one race: a
+  /// resume's lifecycle callback firing *before* a concurrently-arriving
+  /// quick-add/SMS launch (delivered over its own, independent stream)
+  /// has claimed its exemption yet. On a cold start there's no such race
+  /// to wait out -- `main.dart` already resolved the same question
+  /// synchronously, claiming the exemption itself if warranted, before
+  /// `runApp` ever built this widget in the first place -- so by the time
+  /// this first evaluation runs, [QuickActionExemption.isActive] already
+  /// has its final answer. Waiting the full [_maxExemptionWait] anyway on
+  /// every ordinary cold start (the overwhelming majority of opens, which
+  /// never claim anything) added a flat, pointless delay before the
+  /// fingerprint prompt could even appear -- the reported "app takes
+  /// longer to open" regression.
+  void _evaluateLock({bool wait = true}) {
     final settings = ref.read(settingsRepositoryProvider);
     if (!settings.biometricLockEnabled || _withinGracePeriod(settings)) {
       setState(() => _locked = false);
       return;
     }
     setState(() => _locked = true);
-    _promptWhenReady();
+    _promptWhenReady(wait: wait);
   }
 
   /// Whether the last successful check is still within
@@ -192,8 +209,8 @@ class _AppLockGateState extends ConsumerState<AppLockGate>
     }
   }
 
-  Future<void> _promptWhenReady() async {
-    await _waitForExemptionOrTimeout();
+  Future<void> _promptWhenReady({bool wait = true}) async {
+    if (wait) await _waitForExemptionOrTimeout();
     if (!mounted || !_locked || QuickActionExemption.isActive) return;
     _authenticate();
   }
