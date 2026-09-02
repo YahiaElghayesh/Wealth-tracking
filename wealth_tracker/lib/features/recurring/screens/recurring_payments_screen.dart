@@ -551,6 +551,15 @@ class _RecurringPaymentTile extends ConsumerWidget {
     final today = DateTime.now();
     final paid = recurringPaymentIsPaidForCurrentCycle(payment, today);
     final occurrence = recurringPaymentOccurrenceDate(payment, today);
+    // Whether this cycle's actual due date is still ahead of today --
+    // used only to give a tap on the not-yet-paid toggle honest feedback
+    // (see below) instead of silently doing nothing, since
+    // recurringPaymentIsPaidForCurrentCycle no longer lets a mark before
+    // the due date register as paid.
+    final dueDate = recurringPaymentDueDateForCurrentCycle(payment, today);
+    final notYetDue = dueDate.isAfter(
+      DateTime(today.year, today.month, today.day),
+    );
     final dualAmount = dualCurrencyAmounts(
       nativeCurrency: payment.currency,
       nativeAmount: payment.amount,
@@ -599,9 +608,34 @@ class _RecurringPaymentTile extends ConsumerWidget {
                     _PaidToggle(
                       paid: paid,
                       dayLabel: '${occurrence.day}',
-                      onTap: () => ref
-                          .read(recurringPaymentRepositoryProvider)
-                          .setPaid(payment.id, !paid),
+                      onTap: () {
+                        if (!paid && notYetDue) {
+                          // A tap here before the due date used to look
+                          // like it "worked" -- the badge went green
+                          // immediately -- but that's exactly the
+                          // reported "shows paid days before it's even
+                          // due" bug (whether from a deliberate early
+                          // confirmation or a stray tap while scrolling
+                          // past this row's badge). It's not a no-op --
+                          // setPaid below still records it -- but the
+                          // badge now only turns green once the cycle
+                          // actually arrives, so this explains that
+                          // instead of leaving the tap looking broken.
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                '${payment.name} isn\'t due until '
+                                '${_monthNames[dueDate.month - 1]} '
+                                '${dueDate.day} -- it\'ll show as paid then.',
+                              ),
+                              duration: const Duration(seconds: 3),
+                            ),
+                          );
+                        }
+                        ref
+                            .read(recurringPaymentRepositoryProvider)
+                            .setPaid(payment.id, !paid);
+                      },
                     ),
                     const SizedBox(width: 12),
                     Expanded(

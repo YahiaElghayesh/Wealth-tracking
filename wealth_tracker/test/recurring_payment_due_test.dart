@@ -136,6 +136,22 @@ void main() {
       },
     );
 
+    test(
+      'monthly: marked paid before the due date itself does not read as '
+      'paid yet -- the reported "shows paid days before it\'s even due" bug',
+      () {
+        final payment = _payment(
+          frequency: 'monthly',
+          dayOfMonth: 4,
+          lastPaidAt: DateTime(2026, 9, 2),
+        );
+        expect(
+          recurringPaymentIsPaidForCurrentCycle(payment, DateTime(2026, 9, 2)),
+          isFalse,
+        );
+      },
+    );
+
     test('monthly: paid earlier this month still reads as paid', () {
       final payment = _payment(
         frequency: 'monthly',

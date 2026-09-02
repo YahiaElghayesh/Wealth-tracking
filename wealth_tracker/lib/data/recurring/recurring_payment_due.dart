@@ -92,26 +92,28 @@ DateTime recurringPaymentDueDateForCurrentCycle(
 }
 
 /// Whether [payment] counts as paid for its *current* billing cycle --
-/// either because the user tapped "mark as paid" for this cycle (a
-/// [RecurringPayment.lastPaidAt] on/after [recurringPaymentCycleStart]),
-/// or, automatically, because the cycle's due date has already arrived
-/// ([recurringPaymentDueDateForCurrentCycle] is on/before [today]) even
-/// without an explicit tap -- so a bill someone always pays on time (or
-/// that's charged automatically) reads as paid the moment its date comes
-/// due, not only once manually confirmed. Either way this reverts to
-/// pending on its own once a new cycle starts, since both the manual mark
-/// and the automatic date check are re-evaluated fresh against whatever
-/// "today" and "the current cycle" mean at read time.
+/// either because the user tapped "mark as paid" *on or after the cycle's
+/// actual due date* (a [RecurringPayment.lastPaidAt] on/after
+/// [recurringPaymentDueDateForCurrentCycle], not merely
+/// [recurringPaymentCycleStart] -- a tap before the due date itself is
+/// recorded but doesn't count as paid yet, see [_PaidToggle]'s own
+/// handling of that case), or, automatically, because the cycle's due
+/// date has already arrived even without an explicit tap -- so a bill
+/// someone always pays on time (or that's charged automatically) reads as
+/// paid the moment its date comes due, not only once manually confirmed.
+/// Either way this reverts to pending on its own once a new cycle starts,
+/// since both the manual mark and the automatic date check are
+/// re-evaluated fresh against whatever "today" and "the current cycle"
+/// mean at read time.
 bool recurringPaymentIsPaidForCurrentCycle(
   RecurringPayment payment,
   DateTime today,
 ) {
-  final lastPaidAt = payment.lastPaidAt;
-  if (lastPaidAt != null) {
-    final cycleStart = recurringPaymentCycleStart(payment, today);
-    if (!_dateOnly(lastPaidAt).isBefore(cycleStart)) return true;
-  }
   final dueDate = recurringPaymentDueDateForCurrentCycle(payment, today);
+  final lastPaidAt = payment.lastPaidAt;
+  if (lastPaidAt != null && !_dateOnly(lastPaidAt).isBefore(dueDate)) {
+    return true;
+  }
   return !dueDate.isAfter(_dateOnly(today));
 }
 
