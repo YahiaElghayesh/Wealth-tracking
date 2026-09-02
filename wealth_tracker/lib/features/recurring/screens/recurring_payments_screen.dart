@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/format/dual_currency.dart';
 import '../../../core/format/money_formatter.dart';
 import '../../../core/models/recurring_payment_frequency.dart';
 import '../../../core/providers/privacy_providers.dart';
@@ -11,7 +12,7 @@ import '../../../core/widgets/settings_action.dart';
 import '../../../data/db/database.dart';
 import '../../../data/recurring/recurring_payment_due.dart';
 import '../../networth/providers/asset_providers.dart'
-    show usdToEgpRateProvider;
+    show pricesUsdPerUnitProvider, usdToEgpRateProvider;
 import '../providers/recurring_payment_providers.dart';
 import 'add_recurring_payment_screen.dart';
 import 'recurring_payment_history_screen.dart';
@@ -34,8 +35,9 @@ const _monthNames = [
 /// The "Recurring payments" tab -- monthly bills/subscriptions (Netflix,
 /// YouTube, Amazon Prime, ...) and yearly ones (a domain renewal, an
 /// annual membership) tracked and totaled the same way the Calculator tab
-/// totals cards and manual inputs: a sticky total up top, split into two
-/// collapsible sections below it.
+/// totals cards and manual inputs: a total card up top (scrolling away
+/// with the rest of the list, not pinned), split into two collapsible
+/// sections below it.
 class RecurringPaymentsScreen extends ConsumerStatefulWidget {
   const RecurringPaymentsScreen({super.key});
 
@@ -46,10 +48,12 @@ class RecurringPaymentsScreen extends ConsumerStatefulWidget {
 
 class _RecurringPaymentsScreenState
     extends ConsumerState<RecurringPaymentsScreen> {
-  /// Both sections start collapsed, behind just their summary header --
-  /// same convention as the Net Worth tab's per-category sections.
-  bool _monthlyExpanded = false;
-  bool _yearlyExpanded = false;
+  /// Both sections start expanded -- unlike the Net Worth tab's
+  /// per-category sections, there are only ever two of these and the
+  /// whole point of this tab is seeing what's due, so hiding it behind an
+  /// extra tap by default doesn't pull its weight here.
+  bool _monthlyExpanded = true;
+  bool _yearlyExpanded = true;
 
   @override
   Widget build(BuildContext context) {
@@ -79,64 +83,63 @@ class _RecurringPaymentsScreenState
           const SettingsAction(),
         ],
       ),
-      body: Column(
-        children: [
-          _TotalCard(summary: summary, usdToEgpRate: usdToEgpRate),
-          Expanded(
-            child: paymentsAsync.when(
-              loading: () => const Center(child: CircularProgressIndicator()),
-              error: (e, st) => Center(child: Text('Error: $e')),
-              data: (payments) {
-                if (payments.isEmpty) {
-                  return const Center(
-                    child: Text('Tap + to add your first recurring payment.'),
-                  );
-                }
-                final monthly = <RecurringPayment>[];
-                final yearly = <RecurringPayment>[];
-                for (final payment in payments) {
-                  final frequency = RecurringPaymentFrequency.fromStored(
-                    payment.frequency,
-                  );
-                  if (frequency == RecurringPaymentFrequency.yearly) {
-                    yearly.add(payment);
-                  } else {
-                    monthly.add(payment);
-                  }
-                }
-                int byOccurrence(RecurringPayment a, RecurringPayment b) {
-                  return recurringPaymentOccurrenceDate(
-                    a,
-                    today,
-                  ).compareTo(recurringPaymentOccurrenceDate(b, today));
-                }
+      body: paymentsAsync.when(
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (e, st) => Center(child: Text('Error: $e')),
+        data: (payments) {
+          final monthly = <RecurringPayment>[];
+          final yearly = <RecurringPayment>[];
+          for (final payment in payments) {
+            final frequency = RecurringPaymentFrequency.fromStored(
+              payment.frequency,
+            );
+            if (frequency == RecurringPaymentFrequency.yearly) {
+              yearly.add(payment);
+            } else {
+              monthly.add(payment);
+            }
+          }
+          int byOccurrence(RecurringPayment a, RecurringPayment b) {
+            return recurringPaymentOccurrenceDate(
+              a,
+              today,
+            ).compareTo(recurringPaymentOccurrenceDate(b, today));
+          }
 
-                monthly.sort(byOccurrence);
-                yearly.sort(byOccurrence);
-                return ListView(
-                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 90),
-                  children: [
-                    _PaymentSection(
-                      title: 'Monthly payments',
-                      payments: monthly,
-                      expanded: _monthlyExpanded,
-                      onToggle: () =>
-                          setState(() => _monthlyExpanded = !_monthlyExpanded),
-                    ),
-                    const SizedBox(height: 12),
-                    _PaymentSection(
-                      title: 'Yearly payments',
-                      payments: yearly,
-                      expanded: _yearlyExpanded,
-                      onToggle: () =>
-                          setState(() => _yearlyExpanded = !_yearlyExpanded),
-                    ),
-                  ],
-                );
-              },
-            ),
-          ),
-        ],
+          monthly.sort(byOccurrence);
+          yearly.sort(byOccurrence);
+          return ListView(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 90),
+            children: [
+              _TotalCard(summary: summary, usdToEgpRate: usdToEgpRate),
+              const SizedBox(height: 16),
+              if (payments.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 24),
+                  child: Center(
+                    child: Text('Tap + to add your first recurring payment.'),
+                  ),
+                )
+              else ...[
+                _PaymentSection(
+                  title: 'Monthly payments',
+                  payments: monthly,
+                  expanded: _monthlyExpanded,
+                  onToggle: () =>
+                      setState(() => _monthlyExpanded = !_monthlyExpanded),
+                ),
+                const SizedBox(height: 12),
+                _PaymentSection(
+                  title: 'Yearly payments',
+                  payments: yearly,
+                  expanded: _yearlyExpanded,
+                  onToggle: () =>
+                      setState(() => _yearlyExpanded = !_yearlyExpanded),
+                ),
+              ],
+            ],
+          );
+        },
       ),
       floatingActionButton: FloatingActionButton(
         tooltip: 'Add payment',
@@ -174,7 +177,6 @@ class _TotalCard extends StatelessWidget {
         : summary.pending / summary.total;
 
     return Container(
-      margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
       padding: const EdgeInsets.fromLTRB(15, 12, 15, 12),
       decoration: BoxDecoration(
         color: colors.accentSoft,
@@ -510,9 +512,15 @@ class _RecurringPaymentTile extends ConsumerWidget {
     final theme = Theme.of(context);
     final colors = context.appColors;
     final hideValues = ref.watch(hideValuesProvider);
+    final prices = ref.watch(pricesUsdPerUnitProvider);
     final today = DateTime.now();
     final paid = recurringPaymentIsPaidForCurrentCycle(payment, today);
     final occurrence = recurringPaymentOccurrenceDate(payment, today);
+    final dualAmount = dualCurrencyAmounts(
+      nativeCurrency: payment.currency,
+      nativeAmount: payment.amount,
+      pricesUsdPerUnit: prices,
+    );
 
     return Dismissible(
       key: ValueKey(payment.id),
@@ -610,12 +618,30 @@ class _RecurringPaymentTile extends ConsumerWidget {
                   ),
                 ),
                 const SizedBox(width: 8),
-                MoneyText(
-                  formatMoney(payment.amount, payment.currency),
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    fontWeight: FontWeight.w700,
-                  ),
-                  maskLength: 8,
+                Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    MoneyText(
+                      formatCurrencyWhole(
+                        dualAmount.nativeAmount,
+                        dualAmount.nativeCurrency,
+                      ),
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                      maskLength: 8,
+                    ),
+                    MoneyText(
+                      dualAmount.convertedAmount == null
+                          ? '—'
+                          : '≈ ${formatCurrencyWhole(dualAmount.convertedAmount!, dualAmount.convertedCurrency)}',
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        color: colors.textDim,
+                      ),
+                      maskLength: 6,
+                    ),
+                  ],
                 ),
               ],
             ),

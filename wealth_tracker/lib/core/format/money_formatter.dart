@@ -24,6 +24,23 @@ String formatMoney(double value, String currencyCode) {
   return '${_plainNumber.format(value)} $currencyCode';
 }
 
+/// Whole-number form for an arbitrary currency code -- [formatEgpWhole]/
+/// [formatUsdWhole] for EGP/USD (their own symbol-based formatting), and
+/// [formatMoney]'s plain "N CODE" form, rounded, for anything else. Used
+/// wherever a value's currency isn't fixed ahead of time (e.g. an asset or
+/// recurring payment shown in whichever currency it's actually
+/// denominated in).
+String formatCurrencyWhole(double value, String currencyCode) {
+  switch (currencyCode) {
+    case 'EGP':
+      return formatEgpWhole(value);
+    case 'USD':
+      return formatUsdWhole(value);
+    default:
+      return '${value.round()} $currencyCode';
+  }
+}
+
 /// K/M-abbreviated form for space-constrained spots (the home-screen
 /// widget's liquid/non-liquid rows) — "E£1.25M" / "$103.4K" instead of the
 /// full "EGP 1,250,000.00" / "$103,400.00", matching the mockup's `.wv`
@@ -31,7 +48,8 @@ String formatMoney(double value, String currencyCode) {
 String _short(double value, String prefix) {
   final abs = value.abs();
   final sign = value < 0 ? '-' : '';
-  if (abs >= 1000000) return '$sign$prefix${(abs / 1000000).toStringAsFixed(2)}M';
+  if (abs >= 1000000)
+    return '$sign$prefix${(abs / 1000000).toStringAsFixed(2)}M';
   if (abs >= 1000) return '$sign$prefix${(abs / 1000).toStringAsFixed(1)}K';
   return '$sign$prefix${abs.toStringAsFixed(0)}';
 }

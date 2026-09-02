@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/format/dual_currency.dart';
 import '../../../core/format/money_formatter.dart';
 import '../../../core/models/asset_category.dart';
 import '../../../core/models/gold_karat.dart';
@@ -60,7 +61,9 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                 : const Icon(Icons.refresh),
             onPressed: refreshState.isRefreshing
                 ? null
-                : () => ref.read(priceRefreshControllerProvider.notifier).refresh(),
+                : () => ref
+                      .read(priceRefreshControllerProvider.notifier)
+                      .refresh(),
           ),
           const _ProfileSwitcherAction(),
           const SettingsAction(),
@@ -73,14 +76,19 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
           return ListView(
             padding: const EdgeInsets.all(16),
             children: [
-              NetWorthSummaryCard(summary: netWorth.summary, usdToEgpRate: usdToEgpRate),
+              NetWorthSummaryCard(
+                summary: netWorth.summary,
+                usdToEgpRate: usdToEgpRate,
+              ),
               if (netWorth.unpricedAssets.isNotEmpty)
                 Padding(
                   padding: const EdgeInsets.only(top: 12),
                   child: Text(
                     '${netWorth.unpricedAssets.length} asset(s) missing a live price — '
                     'excluded from the totals above. Tap refresh above, or check Settings for errors.',
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Colors.orange),
+                    style: Theme.of(
+                      context,
+                    ).textTheme.bodySmall?.copyWith(color: Colors.orange),
                   ),
                 ),
               if (refreshState.errors.isNotEmpty)
@@ -89,7 +97,12 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: refreshState.errors
-                        .map((e) => Text(e, style: const TextStyle(color: Colors.red)))
+                        .map(
+                          (e) => Text(
+                            e,
+                            style: const TextStyle(color: Colors.red),
+                          ),
+                        )
                         .toList(),
                   ),
                 ),
@@ -99,7 +112,9 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
               if (assets.isEmpty)
                 const Padding(
                   padding: EdgeInsets.symmetric(vertical: 24),
-                  child: Center(child: Text('No assets yet. Tap + to add one.')),
+                  child: Center(
+                    child: Text('No assets yet. Tap + to add one.'),
+                  ),
                 )
               else
                 ..._groupedByCategory(assets).expand((section) {
@@ -111,8 +126,11 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                         children: [
                           Expanded(
                             child: Text(
-                              hideValues ? '••••••' : section.label.toUpperCase(),
-                              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                              hideValues
+                                  ? '••••••'
+                                  : section.label.toUpperCase(),
+                              style: Theme.of(context).textTheme.labelSmall
+                                  ?.copyWith(
                                     color: context.appColors.textDim,
                                     fontWeight: FontWeight.w800,
                                     letterSpacing: 0.5,
@@ -136,9 +154,16 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                           _expandedSections.add(section.label);
                         }
                       }),
-                      child: _CategorySummaryCard(label: section.label, isMetals: section.isMetals, assets: section.assets),
+                      child: _CategorySummaryCard(
+                        label: section.label,
+                        isMetals: section.isMetals,
+                        assets: section.assets,
+                      ),
                     ),
-                    if (expanded) ...section.assets.map((asset) => _AssetTile(asset: asset)),
+                    if (expanded)
+                      ...section.assets.map(
+                        (asset) => _AssetTile(asset: asset),
+                      ),
                   ];
                 }),
               // Clears the FAB, which otherwise sits directly over the
@@ -150,9 +175,9 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
         },
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: () => Navigator.of(context).push(
-          MaterialPageRoute(builder: (_) => const AddEditAssetScreen()),
-        ),
+        onPressed: () => Navigator.of(
+          context,
+        ).push(MaterialPageRoute(builder: (_) => const AddEditAssetScreen())),
         child: const Icon(Icons.add),
       ),
     );
@@ -163,7 +188,11 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
 /// under it, and whether it's the combined Gold+Silver "Metals" group
 /// (which gets the karat/weight breakdown card instead of a plain total).
 class _AssetSection {
-  const _AssetSection({required this.label, required this.assets, required this.isMetals});
+  const _AssetSection({
+    required this.label,
+    required this.assets,
+    required this.isMetals,
+  });
 
   final String label;
   final List<Asset> assets;
@@ -191,15 +220,22 @@ List<_AssetSection> _groupedByCategory(List<Asset> assets) {
     if (category == AssetCategory.gold || category == AssetCategory.silver) {
       if (metalsAdded) continue;
       metalsAdded = true;
-      final combined = [...?byCategory[AssetCategory.gold], ...?byCategory[AssetCategory.silver]];
+      final combined = [
+        ...?byCategory[AssetCategory.gold],
+        ...?byCategory[AssetCategory.silver],
+      ];
       if (combined.isNotEmpty) {
-        sections.add(_AssetSection(label: 'Metals', assets: combined, isMetals: true));
+        sections.add(
+          _AssetSection(label: 'Metals', assets: combined, isMetals: true),
+        );
       }
       continue;
     }
     final matches = byCategory[category];
     if (matches != null) {
-      sections.add(_AssetSection(label: category.label, assets: matches, isMetals: false));
+      sections.add(
+        _AssetSection(label: category.label, assets: matches, isMetals: false),
+      );
     }
   }
   return sections;
@@ -249,7 +285,11 @@ String? _quantityLabel(Asset asset) {
 /// goes through [MoneyText] so it masks itself automatically when
 /// hide-values is on.
 class _CategorySummaryCard extends ConsumerWidget {
-  const _CategorySummaryCard({required this.label, required this.isMetals, required this.assets});
+  const _CategorySummaryCard({
+    required this.label,
+    required this.isMetals,
+    required this.assets,
+  });
 
   final String label;
   final bool isMetals;
@@ -283,7 +323,11 @@ class _CategorySummaryCard extends ConsumerWidget {
       decoration: _summaryCardDecoration(theme),
       child: Row(
         children: [
-          Icon(Icons.summarize_outlined, size: 16, color: theme.colorScheme.primary),
+          Icon(
+            Icons.summarize_outlined,
+            size: 16,
+            color: theme.colorScheme.primary,
+          ),
           const SizedBox(width: 8),
           Expanded(
             child: Text(
@@ -299,12 +343,16 @@ class _CategorySummaryCard extends ConsumerWidget {
             children: [
               MoneyText(
                 totalEgp == null ? '—' : formatEgpWhole(totalEgp),
-                style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800),
+                style: theme.textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.w800,
+                ),
                 maskLength: 8,
               ),
               MoneyText(
                 formatUsdWhole(totalUsd),
-                style: theme.textTheme.labelSmall?.copyWith(color: theme.colorScheme.primary),
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: theme.colorScheme.primary,
+                ),
                 maskLength: 6,
               ),
             ],
@@ -323,7 +371,9 @@ BoxDecoration _summaryCardDecoration(ThemeData theme) {
   return BoxDecoration(
     color: theme.colorScheme.primary.withValues(alpha: 0.07),
     borderRadius: BorderRadius.circular(14),
-    border: Border.all(color: theme.colorScheme.primary.withValues(alpha: 0.28)),
+    border: Border.all(
+      color: theme.colorScheme.primary.withValues(alpha: 0.28),
+    ),
   );
 }
 
@@ -375,8 +425,12 @@ class _MetalsSummaryCard extends ConsumerWidget {
         }
       }
     }
-    final totalValueEgp = usdToEgpRate == null ? null : totalValueUsd * usdToEgpRate;
-    final totalCostEgp = usdToEgpRate == null ? null : totalCostUsd * usdToEgpRate;
+    final totalValueEgp = usdToEgpRate == null
+        ? null
+        : totalValueUsd * usdToEgpRate;
+    final totalCostEgp = usdToEgpRate == null
+        ? null
+        : totalCostUsd * usdToEgpRate;
 
     final goldTotal = goldByKarat.values.fold(0.0, (a, b) => a + b);
     final theme = Theme.of(context);
@@ -391,7 +445,11 @@ class _MetalsSummaryCard extends ConsumerWidget {
         children: [
           Row(
             children: [
-              Icon(Icons.summarize_outlined, size: 16, color: theme.colorScheme.primary),
+              Icon(
+                Icons.summarize_outlined,
+                size: 16,
+                color: theme.colorScheme.primary,
+              ),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
@@ -407,12 +465,16 @@ class _MetalsSummaryCard extends ConsumerWidget {
                 children: [
                   MoneyText(
                     totalValueEgp == null ? '—' : formatEgpWhole(totalValueEgp),
-                    style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800),
+                    style: theme.textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w800,
+                    ),
                     maskLength: 8,
                   ),
                   MoneyText(
                     formatUsdWhole(totalValueUsd),
-                    style: theme.textTheme.labelSmall?.copyWith(color: theme.colorScheme.primary),
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      color: theme.colorScheme.primary,
+                    ),
                     maskLength: 6,
                   ),
                 ],
@@ -426,27 +488,39 @@ class _MetalsSummaryCard extends ConsumerWidget {
                 const Spacer(),
                 Text(
                   'Cost: ',
-                  style: theme.textTheme.labelSmall?.copyWith(color: colors.textDim),
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: colors.textDim,
+                  ),
                 ),
                 MoneyText(
                   totalCostEgp == null ? '—' : formatEgpWhole(totalCostEgp),
-                  style: theme.textTheme.labelSmall?.copyWith(color: colors.textDim, fontWeight: FontWeight.w700),
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: colors.textDim,
+                    fontWeight: FontWeight.w700,
+                  ),
                   maskLength: 8,
                 ),
                 Text(
                   ' · ',
-                  style: theme.textTheme.labelSmall?.copyWith(color: colors.textDim),
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: colors.textDim,
+                  ),
                 ),
                 MoneyText(
                   formatUsdWhole(totalCostUsd),
-                  style: theme.textTheme.labelSmall?.copyWith(color: colors.textDim),
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: colors.textDim,
+                  ),
                   maskLength: 6,
                 ),
               ],
             ),
           ],
           const SizedBox(height: 10),
-          Container(height: 1, color: theme.colorScheme.primary.withValues(alpha: 0.15)),
+          Container(
+            height: 1,
+            color: theme.colorScheme.primary.withValues(alpha: 0.15),
+          ),
           const SizedBox(height: 10),
           if (goldByKarat.isNotEmpty) ...[
             Row(
@@ -456,7 +530,9 @@ class _MetalsSummaryCard extends ConsumerWidget {
                 Expanded(
                   child: MoneyText(
                     'Gold — total ${_trimmedQuantity(goldTotal)}g',
-                    style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+                    style: theme.textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
                     maskLength: 14,
                   ),
                 ),
@@ -466,22 +542,37 @@ class _MetalsSummaryCard extends ConsumerWidget {
             Wrap(
               spacing: 6,
               runSpacing: 6,
-              children: (goldByKarat.entries.toList()..sort((a, b) => b.key.purityFraction.compareTo(a.key.purityFraction)))
-                  .map(
-                    (e) => Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                      decoration: BoxDecoration(color: colors.surface2, borderRadius: BorderRadius.circular(8)),
-                      child: MoneyText(
-                        '${e.key.label}: ${_trimmedQuantity(e.value)}g',
-                        style: theme.textTheme.bodySmall?.copyWith(color: colors.textDim, fontWeight: FontWeight.w600),
-                        maskLength: 10,
-                      ),
-                    ),
-                  )
-                  .toList(),
+              children:
+                  (goldByKarat.entries.toList()..sort(
+                        (a, b) => b.key.purityFraction.compareTo(
+                          a.key.purityFraction,
+                        ),
+                      ))
+                      .map(
+                        (e) => Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 6,
+                          ),
+                          decoration: BoxDecoration(
+                            color: colors.surface2,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: MoneyText(
+                            '${e.key.label}: ${_trimmedQuantity(e.value)}g',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: colors.textDim,
+                              fontWeight: FontWeight.w600,
+                            ),
+                            maskLength: 10,
+                          ),
+                        ),
+                      )
+                      .toList(),
             ),
           ],
-          if (goldByKarat.isNotEmpty && silverTotal > 0) const SizedBox(height: 10),
+          if (goldByKarat.isNotEmpty && silverTotal > 0)
+            const SizedBox(height: 10),
           if (silverTotal > 0)
             Row(
               children: [
@@ -489,7 +580,9 @@ class _MetalsSummaryCard extends ConsumerWidget {
                 const SizedBox(width: 8),
                 MoneyText(
                   'Silver — total ${_trimmedQuantity(silverTotal)}g',
-                  style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
                   maskLength: 16,
                 ),
               ],
@@ -514,16 +607,43 @@ class _AssetTile extends ConsumerWidget {
     final classOverrides = ref.watch(assetClassOverridesProvider);
     final assetClass = classOverrides[category] ?? category.defaultClass;
     final value = valueUsdForAsset(asset, prices);
-    final egpValue = value == null || usdToEgpRate == null ? null : value * usdToEgpRate;
+    // The currency the value is actually denominated in -- the raw stored
+    // amount for a currency-valued asset (cash, a manually-priced
+    // vehicle/real estate/...), or USD for anything priced via a symbol
+    // (crypto/metal/stock), since that's the currency the price feed
+    // itself returns. Shown first/bigger; its EGP or USD conversion
+    // (whichever it isn't) shows second/smaller.
+    final dualValue = value == null
+        ? null
+        : dualCurrencyAmounts(
+            nativeCurrency:
+                ValuationMode.values.byName(asset.valuationMode) ==
+                    ValuationMode.currency
+                ? asset.symbolOrCurrency
+                : 'USD',
+            nativeAmount:
+                ValuationMode.values.byName(asset.valuationMode) ==
+                    ValuationMode.currency
+                ? asset.quantity
+                : value,
+            pricesUsdPerUnit: prices,
+          );
     final karat = category == AssetCategory.gold
         ? GoldKarat.fromPriceSymbol(asset.symbolOrCurrency)
         : null;
-    final categoryLabel = karat == null ? category.label : '${category.label} (${karat.label})';
+    final categoryLabel = karat == null
+        ? category.label
+        : '${category.label} (${karat.label})';
     final quantityLabel = _quantityLabel(asset);
 
     final theme = Theme.of(context);
     final colors = context.appColors;
-    final (icon, tint) = _iconFor(category, asset.symbolOrCurrency, asset.vehicleType, colors);
+    final (icon, tint) = _iconFor(
+      category,
+      asset.symbolOrCurrency,
+      asset.vehicleType,
+      colors,
+    );
 
     double? gainLossUsd;
     double? gainLossEgp;
@@ -542,7 +662,9 @@ class _AssetTile extends ConsumerWidget {
         // A 0 cost basis makes "percent gained" undefined (division by
         // zero) rather than meaningful -- shown as just the amount instead
         // of a bogus/infinite percentage.
-        gainLossPct = purchaseTotalUsd > 0 ? gainLossUsd / purchaseTotalUsd * 100 : null;
+        gainLossPct = purchaseTotalUsd > 0
+            ? gainLossUsd / purchaseTotalUsd * 100
+            : null;
         gainLossEgp = usdToEgpRate == null ? null : gainLossUsd * usdToEgpRate;
       }
     }
@@ -561,7 +683,9 @@ class _AssetTile extends ConsumerWidget {
       child: InkWell(
         borderRadius: BorderRadius.circular(16),
         onTap: () => Navigator.of(context).push(
-          MaterialPageRoute(builder: (_) => AddEditAssetScreen(existing: asset)),
+          MaterialPageRoute(
+            builder: (_) => AddEditAssetScreen(existing: asset),
+          ),
         ),
         child: Container(
           margin: const EdgeInsets.only(bottom: 10),
@@ -579,9 +703,18 @@ class _AssetTile extends ConsumerWidget {
                   Container(
                     width: 40,
                     height: 40,
-                    decoration: BoxDecoration(color: tint, borderRadius: BorderRadius.circular(12)),
+                    decoration: BoxDecoration(
+                      color: tint,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                     alignment: Alignment.center,
-                    child: hideValues ? Icon(Icons.lock_outline, size: 16, color: colors.textDim) : icon,
+                    child: hideValues
+                        ? Icon(
+                            Icons.lock_outline,
+                            size: 16,
+                            color: colors.textDim,
+                          )
+                        : icon,
                   ),
                   const SizedBox(width: 12),
                   // Both sides are flex-constrained (rather than the
@@ -595,7 +728,9 @@ class _AssetTile extends ConsumerWidget {
                       children: [
                         Text(
                           hideValues ? '••••••' : asset.name,
-                          style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w700),
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            fontWeight: FontWeight.w700,
+                          ),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
@@ -604,7 +739,9 @@ class _AssetTile extends ConsumerWidget {
                           hideValues
                               ? '••••••'
                               : '$categoryLabel · ${assetClass == AssetClass.liquid ? "Liquid" : "Non-liquid"}',
-                          style: theme.textTheme.labelSmall?.copyWith(color: colors.textDim),
+                          style: theme.textTheme.labelSmall?.copyWith(
+                            color: colors.textDim,
+                          ),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
@@ -612,7 +749,10 @@ class _AssetTile extends ConsumerWidget {
                           const SizedBox(height: 3),
                           MoneyText(
                             quantityLabel,
-                            style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700, color: colors.textBody),
+                            style: theme.textTheme.titleSmall?.copyWith(
+                              fontWeight: FontWeight.w700,
+                              color: colors.textBody,
+                            ),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           ),
@@ -620,7 +760,7 @@ class _AssetTile extends ConsumerWidget {
                       ],
                     ),
                   ),
-                  if (value != null)
+                  if (dualValue != null)
                     Expanded(
                       flex: 2,
                       child: Column(
@@ -628,14 +768,23 @@ class _AssetTile extends ConsumerWidget {
                         crossAxisAlignment: CrossAxisAlignment.end,
                         children: [
                           MoneyText(
-                            egpValue == null ? '—' : formatEgpWhole(egpValue),
-                            style: theme.textTheme.bodyMedium,
+                            formatCurrencyWhole(
+                              dualValue.nativeAmount,
+                              dualValue.nativeCurrency,
+                            ),
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              fontWeight: FontWeight.w700,
+                            ),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           ),
                           MoneyText(
-                            formatUsdWhole(value),
-                            style: theme.textTheme.labelSmall?.copyWith(color: colors.textDim),
+                            dualValue.convertedAmount == null
+                                ? '—'
+                                : '≈ ${formatCurrencyWhole(dualValue.convertedAmount!, dualValue.convertedCurrency)}',
+                            style: theme.textTheme.labelSmall?.copyWith(
+                              color: colors.textDim,
+                            ),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           ),
@@ -666,7 +815,8 @@ class _AssetTile extends ConsumerWidget {
                       width: 22,
                       height: 22,
                       decoration: BoxDecoration(
-                        color: (gainLossUsd >= 0 ? colors.good : colors.bad).withValues(alpha: 0.15),
+                        color: (gainLossUsd >= 0 ? colors.good : colors.bad)
+                            .withValues(alpha: 0.15),
                         shape: BoxShape.circle,
                       ),
                       alignment: Alignment.center,
@@ -690,7 +840,9 @@ class _AssetTile extends ConsumerWidget {
                           MoneyText(
                             '${gainLossPct.abs().toStringAsFixed(1)}%',
                             style: theme.textTheme.labelSmall?.copyWith(
-                              color: gainLossUsd >= 0 ? colors.good : colors.bad,
+                              color: gainLossUsd >= 0
+                                  ? colors.good
+                                  : colors.bad,
                               fontWeight: FontWeight.w700,
                             ),
                             maskLength: 5,
@@ -701,7 +853,9 @@ class _AssetTile extends ConsumerWidget {
                           MoneyText(
                             formatEgpWhole(gainLossEgp.abs()),
                             style: theme.textTheme.labelSmall?.copyWith(
-                              color: gainLossUsd >= 0 ? colors.good : colors.bad,
+                              color: gainLossUsd >= 0
+                                  ? colors.good
+                                  : colors.bad,
                               fontWeight: FontWeight.w700,
                             ),
                             maskLength: 8,
@@ -729,7 +883,9 @@ class _AssetTile extends ConsumerWidget {
                   alignment: Alignment.centerRight,
                   child: Text(
                     'Purchased ${_formatPurchaseDate(asset.purchaseDate!)}',
-                    style: theme.textTheme.labelSmall?.copyWith(color: colors.textDim),
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      color: colors.textDim,
+                    ),
                   ),
                 ),
               ],
@@ -746,11 +902,18 @@ Future<bool> _confirmDeleteAsset(BuildContext context, Asset asset) async {
         context: context,
         builder: (context) => AlertDialog(
           title: const Text('Delete asset?'),
-          content: Text('This removes "${asset.name}" from your net worth. This can\'t be undone.'),
+          content: Text(
+            'This removes "${asset.name}" from your net worth. This can\'t be undone.',
+          ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancel'),
+            ),
             FilledButton(
-              style: FilledButton.styleFrom(backgroundColor: Theme.of(context).colorScheme.error),
+              style: FilledButton.styleFrom(
+                backgroundColor: Theme.of(context).colorScheme.error,
+              ),
               onPressed: () => Navigator.pop(context, true),
               child: const Text('Delete'),
             ),
@@ -760,34 +923,64 @@ Future<bool> _confirmDeleteAsset(BuildContext context, Asset asset) async {
       false;
 }
 
-(Widget, Color) _iconFor(AssetCategory category, String symbolOrCurrency, String? vehicleType, AppColors colors) {
+(Widget, Color) _iconFor(
+  AssetCategory category,
+  String symbolOrCurrency,
+  String? vehicleType,
+  AppColors colors,
+) {
   switch (category) {
     case AssetCategory.crypto:
       final isBtc = symbolOrCurrency.toLowerCase() == 'bitcoin';
       return isBtc
           ? (AppIcon.btc(size: 20), colors.btc.withValues(alpha: 0.12))
-          : (Icon(Icons.currency_exchange, size: 18, color: colors.textDim), colors.surface2);
+          : (
+              Icon(Icons.currency_exchange, size: 18, color: colors.textDim),
+              colors.surface2,
+            );
     case AssetCategory.gold:
       return (AppIcon.goldBar(size: 20), colors.gold.withValues(alpha: 0.13));
     case AssetCategory.silver:
-      return (AppIcon.silverBar(size: 20), colors.silver.withValues(alpha: 0.16));
+      return (
+        AppIcon.silverBar(size: 20),
+        colors.silver.withValues(alpha: 0.16),
+      );
     case AssetCategory.cash:
-      return (AppIcon.cash(size: 18, color: colors.good), colors.good.withValues(alpha: 0.13));
+      return (
+        AppIcon.cash(size: 18, color: colors.good),
+        colors.good.withValues(alpha: 0.13),
+      );
     case AssetCategory.vehicle:
       final vehicleIcon = switch (vehicleType) {
         'motorcycle' => AppIcon.motorcycle(size: 18, color: colors.bad),
         'scooter' => AppIcon.scooter(size: 18, color: colors.bad),
-        _ => AppIcon.car(size: 18, color: colors.bad, holeColor: colors.surface2),
+        _ => AppIcon.car(
+          size: 18,
+          color: colors.bad,
+          holeColor: colors.surface2,
+        ),
       };
       return (vehicleIcon, colors.bad.withValues(alpha: 0.1));
     case AssetCategory.realEstate:
-      return (Icon(Icons.home_work_outlined, size: 18, color: colors.textDim), colors.surface2);
+      return (
+        Icon(Icons.home_work_outlined, size: 18, color: colors.textDim),
+        colors.surface2,
+      );
     case AssetCategory.other:
-      return (Icon(Icons.inventory_2_outlined, size: 18, color: colors.textDim), colors.surface2);
+      return (
+        Icon(Icons.inventory_2_outlined, size: 18, color: colors.textDim),
+        colors.surface2,
+      );
     case AssetCategory.certificate:
-      return (Icon(Icons.workspace_premium_outlined, size: 18, color: colors.gold), colors.gold.withValues(alpha: 0.13));
+      return (
+        Icon(Icons.workspace_premium_outlined, size: 18, color: colors.gold),
+        colors.gold.withValues(alpha: 0.13),
+      );
     case AssetCategory.stock:
-      return (Icon(Icons.show_chart, size: 18, color: colors.good), colors.good.withValues(alpha: 0.1));
+      return (
+        Icon(Icons.show_chart, size: 18, color: colors.good),
+        colors.good.withValues(alpha: 0.1),
+      );
   }
 }
 
@@ -816,13 +1009,22 @@ class _ProfileSwitcherAction extends ConsumerWidget {
           children: [
             const Padding(
               padding: EdgeInsets.fromLTRB(16, 16, 16, 4),
-              child: Align(alignment: Alignment.centerLeft, child: Text('Switch profile')),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text('Switch profile'),
+              ),
             ),
             for (final profile in profiles)
               ListTile(
-                leading: CircleAvatar(child: Text(profile.name.isEmpty ? '?' : profile.name[0].toUpperCase())),
+                leading: CircleAvatar(
+                  child: Text(
+                    profile.name.isEmpty ? '?' : profile.name[0].toUpperCase(),
+                  ),
+                ),
                 title: Text(profile.name),
-                trailing: profile.id == activeId ? const Icon(Icons.check) : null,
+                trailing: profile.id == activeId
+                    ? const Icon(Icons.check)
+                    : null,
                 onTap: () => _switchTo(sheetContext, ref, profile.id),
               ),
             ListTile(
@@ -831,7 +1033,9 @@ class _ProfileSwitcherAction extends ConsumerWidget {
               onTap: () {
                 Navigator.pop(sheetContext);
                 Navigator.of(context).push(
-                  MaterialPageRoute(builder: (_) => const ProfilesSettingsScreen()),
+                  MaterialPageRoute(
+                    builder: (_) => const ProfilesSettingsScreen(),
+                  ),
                 );
               },
             ),

@@ -129,6 +129,36 @@ class _AddRecurringPaymentScreenState
 
     final existing = widget.existing;
     if (existing != null) {
+      final newDayOfMonth = _frequency == RecurringPaymentFrequency.monthly
+          ? _dayOfMonth
+          : existing.dayOfMonth;
+      final newIntervalDays = _frequency == RecurringPaymentFrequency.interval
+          ? intervalDays
+          : null;
+      final newIntervalAnchorDate =
+          _frequency == RecurringPaymentFrequency.interval
+          ? _intervalAnchorDate
+          : null;
+      final newYearlyMonth = _frequency == RecurringPaymentFrequency.yearly
+          ? _yearlyMonth
+          : null;
+      final newYearlyDay = _frequency == RecurringPaymentFrequency.yearly
+          ? _yearlyDay
+          : null;
+      // A "paid" mark answers "did this cycle's bill go out" for the
+      // *old* schedule -- changing what actually determines the due date
+      // invalidates that answer, so it resets to pending rather than
+      // silently carrying an unrelated confirmation over onto the new
+      // schedule (e.g. marking day 1 paid, then editing the day to 4,
+      // shouldn't leave day 4 showing paid before it's even arrived).
+      final scheduleChanged =
+          existing.frequency != _frequency.stored ||
+          existing.dayOfMonth != newDayOfMonth ||
+          existing.intervalDays != newIntervalDays ||
+          existing.intervalAnchorDate != newIntervalAnchorDate ||
+          existing.yearlyMonth != newYearlyMonth ||
+          existing.yearlyDay != newYearlyDay;
+
       await ref
           .read(recurringPaymentRepositoryProvider)
           .update(
@@ -138,29 +168,14 @@ class _AddRecurringPaymentScreenState
               currency: _currency,
               isExactAmount: _isExactAmount,
               frequency: _frequency.stored,
-              dayOfMonth: _frequency == RecurringPaymentFrequency.monthly
-                  ? _dayOfMonth
-                  : existing.dayOfMonth,
-              intervalDays: Value(
-                _frequency == RecurringPaymentFrequency.interval
-                    ? intervalDays
-                    : null,
-              ),
-              intervalAnchorDate: Value(
-                _frequency == RecurringPaymentFrequency.interval
-                    ? _intervalAnchorDate
-                    : null,
-              ),
-              yearlyMonth: Value(
-                _frequency == RecurringPaymentFrequency.yearly
-                    ? _yearlyMonth
-                    : null,
-              ),
-              yearlyDay: Value(
-                _frequency == RecurringPaymentFrequency.yearly
-                    ? _yearlyDay
-                    : null,
-              ),
+              dayOfMonth: newDayOfMonth,
+              intervalDays: Value(newIntervalDays),
+              intervalAnchorDate: Value(newIntervalAnchorDate),
+              yearlyMonth: Value(newYearlyMonth),
+              yearlyDay: Value(newYearlyDay),
+              lastPaidAt: scheduleChanged
+                  ? const Value(null)
+                  : const Value.absent(),
             ),
           );
     } else {
