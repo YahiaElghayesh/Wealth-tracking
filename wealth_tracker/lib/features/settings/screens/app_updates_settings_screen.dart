@@ -8,10 +8,12 @@ class AppUpdatesSettingsScreen extends ConsumerStatefulWidget {
   const AppUpdatesSettingsScreen({super.key});
 
   @override
-  ConsumerState<AppUpdatesSettingsScreen> createState() => _AppUpdatesSettingsScreenState();
+  ConsumerState<AppUpdatesSettingsScreen> createState() =>
+      _AppUpdatesSettingsScreenState();
 }
 
-class _AppUpdatesSettingsScreenState extends ConsumerState<AppUpdatesSettingsScreen> {
+class _AppUpdatesSettingsScreenState
+    extends ConsumerState<AppUpdatesSettingsScreen> {
   @override
   void initState() {
     super.initState();
@@ -33,6 +35,20 @@ class _AppUpdatesSettingsScreenState extends ConsumerState<AppUpdatesSettingsScr
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
+          // Shown unconditionally -- reading it is a local PackageInfo call
+          // with nothing to do with GitHub, so it's known (and worth
+          // showing) even when the check below can't run at all. This is
+          // also the one piece of information needed to confirm whether an
+          // installed build already contains a given fix.
+          if (state.currentBuildNumber > 0) ...[
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Text('Installed build: ${state.currentBuildNumber}'),
+              ),
+            ),
+            const SizedBox(height: 16),
+          ],
           if (!isUpdateCheckConfigured)
             Card(
               child: Padding(
@@ -49,15 +65,7 @@ class _AppUpdatesSettingsScreenState extends ConsumerState<AppUpdatesSettingsScr
             Card(
               child: Padding(
                 padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    if (state.currentBuildNumber > 0)
-                      Text('Installed build: ${state.currentBuildNumber}'),
-                    const SizedBox(height: 12),
-                    _StatusView(state: state),
-                  ],
-                ),
+                child: _StatusView(state: state),
               ),
             ),
             const SizedBox(height: 16),
@@ -81,7 +89,11 @@ class _StatusView extends StatelessWidget {
       case AppUpdateStatus.checking:
         return const Row(
           children: [
-            SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
+            SizedBox(
+              width: 16,
+              height: 16,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
             SizedBox(width: 12),
             Text('Checking for updates…'),
           ],
@@ -100,7 +112,9 @@ class _StatusView extends StatelessWidget {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Downloading update… ${(state.downloadProgress * 100).toStringAsFixed(0)}%'),
+            Text(
+              'Downloading update… ${(state.downloadProgress * 100).toStringAsFixed(0)}%',
+            ),
             const SizedBox(height: 8),
             LinearProgressIndicator(value: state.downloadProgress),
           ],

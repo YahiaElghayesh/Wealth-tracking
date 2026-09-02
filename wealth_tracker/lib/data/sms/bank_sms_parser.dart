@@ -108,14 +108,25 @@ class _BankSmsPattern {
   final ParsedBankSms? Function(RegExpMatch match, String body) extract;
 }
 
-/// Extracts the card's last 4 digits from wording like "ending with#4912",
-/// independently of whichever bank pattern matched — CIB's charge alert
-/// puts this before "charged for" as an optional segment, and an optional
-/// group positioned at the very start of a match only ever gets tried at
-/// the match's starting offset; since skipping it doesn't cause the rest
-/// of the regex to fail, the engine never backtracks to actually find it
-/// further into the string. So this is extracted independently instead.
-final _cibLastFourPattern = RegExp(r'ending with#\s*(\d{4})', caseSensitive: false);
+/// Extracts the card's last 4 digits from wording like "ending with#4912"
+/// or the shorter "card #4912" / "card#4912" (a second, real CIB charge
+/// wording -- "Your credit card #4912 was charged for USD 1.00 at
+/// DIGITALOCEAN.CO..." -- that says just as much but without "ending
+/// with"), independently of whichever bank pattern matched — CIB's charge
+/// alert puts this before "charged for" as an optional segment, and an
+/// optional group positioned at the very start of a match only ever gets
+/// tried at the match's starting offset; since skipping it doesn't cause
+/// the rest of the regex to fail, the engine never backtracks to actually
+/// find it further into the string. So this is extracted independently
+/// instead. Without the shorter form, a real charge with this wording
+/// still parsed (vendor/amount/date all came through) but with a null
+/// last-four, which [updateCardBalanceFromSms] treats as "no card to
+/// update" and silently no-ops on -- the reported "charge notification
+/// never updates the tracked balance" bug.
+final _cibLastFourPattern = RegExp(
+  r'card\s*(?:ending with)?\s*#\s*(\d{4})',
+  caseSensitive: false,
+);
 
 /// Matches CIB's card-charge alert, e.g.:
 /// "Your credit card ending with#4912 was charged for EGP 958.54 at
@@ -154,11 +165,16 @@ final _cibChargePattern = _BankSmsPattern(
     final lastFour = _cibLastFourPattern.firstMatch(body)?.group(1);
     final availCurrency = match.group(9);
     final availAmountStr = match.group(10)?.replaceAll(',', '');
-    final availAmount = availAmountStr == null ? null : double.tryParse(availAmountStr);
+    final availAmount = availAmountStr == null
+        ? null
+        : double.tryParse(availAmountStr);
     // Only trust the stated balance when it's actually in the same
     // currency as the charge — mixing currencies here would silently
     // corrupt a tracked balance.
-    final availableBalanceAfter = (availAmount != null && availCurrency?.toUpperCase() == currency) ? availAmount : null;
+    final availableBalanceAfter =
+        (availAmount != null && availCurrency?.toUpperCase() == currency)
+        ? availAmount
+        : null;
 
     return ParsedBankSms(
       vendor: vendor,
@@ -358,6 +374,55 @@ final _arabicRefundPattern = _BankSmsPattern(
   },
 );
 
+/// Matches CIB's *English* card-refund alert, e.g.:
+/// "The transaction on your credit card#4912 from DIGITALOCEAN.CO with
+/// USD 1.00 on 02/09/26 at 14:52 has been refunded. Please try again.
+/// Thank you"
+///
+/// A different wording from [_arabicRefundPattern] for the same kind of
+/// event -- money returned to the card -- and, unlike that one, this
+/// English format states the vendor, currency, amount, date and time
+/// explicitly (the same information [_cibChargePattern]'s charge alert
+/// states), all captured here the same way. Like every other
+/// payment/refund alert, the amount is NOT rounded up (never becomes a
+/// ledger entry, only feeds the card balance's fallback add-the-amount
+/// math).
+final _cibEnglishRefundPattern = _BankSmsPattern(
+  RegExp(
+    r'transaction on your credit\s*card\s*#?\s*(\d{4})\s+from\s+(.+?)\s+with\s+'
+    r'([A-Za-z]{3})\s*([\d,]+(?:\.\d+)?)\s+on\s+(\d{1,2})/(\d{1,2})/(\d{2,4})'
+    r'\s+at\s+(\d{1,2}):(\d{2})\s+has\s*been\s*refunded',
+    caseSensitive: false,
+    dotAll: true,
+  ),
+  (match, body) {
+    final lastFour = match.group(1);
+    final vendor = match.group(2)!.trim();
+    if (vendor.isEmpty) return null;
+
+    final currency = match.group(3)!.toUpperCase();
+    final amountStr = match.group(4)!.replaceAll(',', '');
+    final amount = double.tryParse(amountStr);
+    if (amount == null) return null;
+
+    final day = int.parse(match.group(5)!);
+    final month = int.parse(match.group(6)!);
+    var year = int.parse(match.group(7)!);
+    if (year < 100) year += 2000;
+    final hour = int.parse(match.group(8)!);
+    final minute = int.parse(match.group(9)!);
+
+    return ParsedBankSms(
+      vendor: vendor,
+      amount: amount,
+      currency: currency,
+      occurredAt: DateTime(year, month, day, hour, minute),
+      isCharge: false,
+      lastFourDigits: lastFour,
+    );
+  },
+);
+
 /// Every recognized bank format, tried in order — add a new bank or a new
 /// message type (e.g. a payment/refund alert) here once a real sample of
 /// its exact wording is available. Guessing at wording without one risks a
@@ -365,6 +430,7 @@ final _arabicRefundPattern = _BankSmsPattern(
 final _patterns = [
   _cibChargePattern,
   _cibPaymentPattern,
+  _cibEnglishRefundPattern,
   _nbeChargePattern,
   _nbePaymentPattern,
   _arabicRefundPattern,
