@@ -4,7 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/models/currency.dart';
 import '../../../core/models/ledger_category.dart';
-import '../../../core/security/quick_add_exemption.dart';
+import '../../../core/security/app_lock_exemption.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../data/db/database.dart';
 import '../providers/ledger_providers.dart';
@@ -85,14 +85,14 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
     // button instead, closeAppOnSave is false and this never fires, so
     // that path stays behind the lock like everything else.
     if (widget.closeAppOnSave) {
-      quickAddScreenActive.value = true;
+      QuickActionExemption.claim();
     }
   }
 
   @override
   void dispose() {
     if (widget.closeAppOnSave) {
-      quickAddScreenActive.value = false;
+      QuickActionExemption.release();
     }
     _amountController.dispose();
     _customCategoryController.dispose();

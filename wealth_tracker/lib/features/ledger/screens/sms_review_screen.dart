@@ -3,7 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/models/currency.dart';
-import '../../../core/security/quick_add_exemption.dart';
+import '../../../core/security/app_lock_exemption.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../data/sms/bank_charge_payload.dart';
 import '../../recurring/providers/recurring_payment_providers.dart';
@@ -75,14 +75,14 @@ class _SmsReviewScreenState extends ConsumerState<SmsReviewScreen> {
     _category = widget.payload.category;
     _wasLockedOnOpen = !appUnlocked.value;
     if (_wasLockedOnOpen) {
-      quickAddScreenActive.value = true;
+      QuickActionExemption.claim();
     }
   }
 
   @override
   void dispose() {
     if (_wasLockedOnOpen) {
-      quickAddScreenActive.value = false;
+      QuickActionExemption.release();
     }
     _amountController.dispose();
     _customCategoryController.dispose();

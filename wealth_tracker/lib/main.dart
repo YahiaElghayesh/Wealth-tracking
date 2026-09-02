@@ -7,10 +7,11 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'app.dart';
 import 'core/providers/core_providers.dart';
-import 'core/security/quick_add_exemption.dart';
+import 'core/security/app_lock_exemption.dart';
 import 'data/pricing/background_refresh.dart';
 import 'data/repositories/settings_repository.dart';
 import 'data/sms/native_sms_channel.dart';
+import 'features/ledger/providers/quick_add_launch.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -27,20 +28,25 @@ void main() async {
 
     // Claims the biometric-lock exemption *before* AppLockGate (built as
     // part of WealthTrackerApp below) even mounts, closing a race
-    // app.dart's own equivalent, later check can't: AppLockGate's
-    // auto-prompt only waits a fixed short delay for that later check to
-    // claim the exemption, and on a loaded cold start this native
-    // round-trip -- reading the Intent that launched the app, in case it's
-    // a "bank text detected" notification tap -- can outlast that delay.
-    // Awaiting it here, before the first frame, removes the race instead
-    // of tuning the delay. `takePendingSms` is memoized (see
-    // native_sms_channel.dart) so the real handling in app.dart, which
-    // still needs to run once the Navigator exists, sees the exact same
-    // result rather than the native side's already-cleared "nothing
-    // pending" on a second call.
-    final pendingSms = await takePendingSms();
-    if (pendingSms != null) {
-      quickAddScreenActive.value = true;
+    // app.dart's own equivalent, later checks can't: AppLockGate only
+    // waits a bounded amount of time for a later check to claim the
+    // exemption, and on a loaded cold start these native round-trips --
+    // reading the Intent that launched the app, in case it's a "bank text
+    // detected" notification tap or a quick-add widget/shortcut tap -- can
+    // outlast that wait. Awaiting them here, before the first frame,
+    // removes the race instead of tuning a delay. Both checks are
+    // memoized (see native_sms_channel.dart and quick_add_launch.dart) so
+    // the real handling in app.dart, which still needs to run once the
+    // Navigator exists, sees the exact same result rather than the native
+    // side's already-cleared "nothing pending" on a second call. Run
+    // together rather than sequentially -- neither depends on the other,
+    // so both futures are started before either is awaited.
+    final pendingSmsFuture = takePendingSms();
+    final widgetLaunchUriFuture = takeInitialWidgetLaunchUri();
+    final pendingSms = await pendingSmsFuture;
+    final widgetLaunchUri = await widgetLaunchUriFuture;
+    if (pendingSms != null || widgetLaunchUri != null) {
+      QuickActionExemption.claim();
     }
   }
 

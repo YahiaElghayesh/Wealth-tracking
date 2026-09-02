@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../core/navigation/app_navigator.dart';
-import '../../core/security/quick_add_exemption.dart';
+import '../../core/security/app_lock_exemption.dart';
 import '../../features/ledger/screens/sms_review_screen.dart';
 import '../db/database.dart';
 import 'bank_charge_payload.dart';
@@ -50,38 +50,37 @@ Future<void> processIncomingSms(
 }) async {
   if (body.trim().isEmpty) return;
 
-  // Claims the same "exempt from the biometric lock" flag [SmsReviewScreen]
-  // itself would claim once it actually mounts -- claimed here instead,
-  // immediately, before any of the real drift/SQLite I/O below runs (the
-  // dedupe check, the parse, the card-balance update, the vendor-rule
-  // lookup), because that chain can on a real device -- especially at cold
-  // start, while other providers are also hitting the database -- easily
-  // outlast [AppLockGate]'s short auto-prompt delay. Without this, the OS
-  // biometric sheet could fire before the exemption was ever set (the
-  // reported "asked for biometrics when adding a payment from an SMS
-  // notification" bug). Only claimed when the app is actually locked right
-  // now -- exactly [SmsReviewScreen]'s own condition -- since an
-  // already-unlocked app has nothing to exempt anything from. Every early
-  // return below that doesn't end in pushing that screen releases the claim
-  // explicitly; the one path that does push it needs no matching release
-  // here -- claiming this makes [AppLockGate]'s lock overlay (and thus its
-  // only "unlock" affordance) disappear for the duration, so nothing else
-  // can flip the app's unlocked state out from under this claim in the
-  // meantime, and [SmsReviewScreen]'s own initState/dispose take over
-  // managing it correctly from the moment it mounts.
+  // Claims the same [QuickActionExemption] [SmsReviewScreen] itself would
+  // claim once it actually mounts -- claimed here instead, immediately,
+  // before any of the real drift/SQLite I/O below runs (the dedupe check,
+  // the parse, the card-balance update, the vendor-rule lookup), because
+  // that chain can on a real device -- especially at cold start, while
+  // other providers are also hitting the database -- easily outlast
+  // [AppLockGate]'s bounded wait for an exemption to appear. Without this,
+  // the OS biometric sheet could fire before the exemption was ever
+  // claimed (the reported "asked for biometrics when adding a payment from
+  // an SMS notification" bug). Only claimed when the app is actually
+  // locked right now -- exactly [SmsReviewScreen]'s own condition -- since
+  // an already-unlocked app has nothing to exempt anything from. Every
+  // early return below releases the claim explicitly; the one path that
+  // pushes [SmsReviewScreen] releases it a frame later (via
+  // `addPostFrameCallback`, scheduled right after the `push`), which is
+  // guaranteed to run after that screen's own `initState` -- and thus its
+  // own claim -- has already landed, so the exemption never drops to zero
+  // in between even for a single frame.
   final claimedExemption = !appUnlocked.value;
-  if (claimedExemption) quickAddScreenActive.value = true;
+  if (claimedExemption) QuickActionExemption.claim();
 
   final dedupeId = '$timestampMillis:${body.hashCode}';
   if (await _alreadyProcessed(db, dedupeId)) {
-    if (claimedExemption) quickAddScreenActive.value = false;
+    if (claimedExemption) QuickActionExemption.release();
     return;
   }
   await _markProcessed(db, dedupeId);
 
   final parsed = parseBankSms(body);
   if (parsed == null) {
-    if (claimedExemption) quickAddScreenActive.value = false;
+    if (claimedExemption) QuickActionExemption.release();
     return;
   }
 
@@ -91,7 +90,7 @@ Future<void> processIncomingSms(
   // isn't a candidate for "who was this for", so it never opens the
   // review screen the way an actual charge does.
   if (!parsed.isCharge) {
-    if (claimedExemption) quickAddScreenActive.value = false;
+    if (claimedExemption) QuickActionExemption.release();
     return;
   }
 
@@ -118,12 +117,22 @@ Future<void> processIncomingSms(
 
   final navigator = await _awaitNavigator();
   if (navigator == null) {
-    if (claimedExemption) quickAddScreenActive.value = false;
+    if (claimedExemption) QuickActionExemption.release();
     return;
   }
   navigator.push(
     MaterialPageRoute(builder: (_) => SmsReviewScreen(payload: payload)),
   );
+  // [SmsReviewScreen]'s own initState claims its lifecycle-tied exemption
+  // synchronously during this same frame's build phase, strictly before
+  // any postFrameCallback fires -- so releasing here, once the frame is
+  // done, can never let the exemption count touch zero while the app is
+  // still locked and that screen is on screen.
+  if (claimedExemption) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      QuickActionExemption.release();
+    });
+  }
 }
 
 /// Headless counterpart to [processIncomingSms] for the notification's

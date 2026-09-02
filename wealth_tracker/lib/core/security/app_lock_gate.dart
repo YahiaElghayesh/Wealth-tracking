@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -7,33 +9,16 @@ import '../../data/repositories/settings_repository.dart';
 import '../../features/settings/providers/settings_providers.dart';
 import '../providers/core_providers.dart';
 import '../theme/app_colors.dart';
-import 'quick_add_exemption.dart';
+import 'app_lock_exemption.dart';
 
-/// Waited before every auto-triggered biometric prompt (cold start, and
-/// every resume from the background) -- not for pacing, but to give a
-/// concurrently-arriving "Add Payment" quick-add push (see
-/// `quick_add_launch.dart`) time to mount `AddTransactionScreen` and flip
-/// [quickAddScreenActive] first. That push is asynchronous (it polls for
-/// the root [Navigator] to be mounted, normally resolving well inside one
-/// frame), so evaluating the exemption flag immediately would sometimes
-/// race it and fire the OS biometric sheet over what's supposed to be a
-/// zero-auth shortcut. 200ms is well past the push's typical completion
-/// time but short enough that a normal app open still reads as instant.
-///
-/// The SMS-triggered `SmsReviewScreen` push used to share this same 200ms
-/// window despite needing much longer -- unlike the quick-add push, it
-/// first runs a chain of real drift/SQLite round-trips (dedupe check,
-/// parse, the card-balance update, a vendor-rule lookup) before ever
-/// reaching the point of pushing a screen, which on a real device
-/// (especially at cold start, while other providers are also hitting the
-/// database) could easily outlast this delay -- the biometric prompt would
-/// then fire before the exemption was ever set (the reported "asked for
-/// biometrics when adding a payment from an SMS notification" bug). Fixed
-/// at the source instead of by lengthening this delay for everyone:
-/// `processIncomingSms` (sms_ledger_processor.dart) now claims
-/// [quickAddScreenActive] itself immediately, before any of that I/O runs,
-/// rather than waiting for `SmsReviewScreen` to mount and claim it late.
-const _autoPromptDelay = Duration(milliseconds: 200);
+/// Longest [AppLockGate] will hold off its automatic biometric prompt
+/// waiting for a concurrently-arriving quick-add/SMS launch to claim
+/// [QuickActionExemption] -- a safety net, not the primary mechanism:
+/// [_waitForExemptionOrTimeout] returns the instant that claim actually
+/// happens (see that method), so this only matters in the rare case
+/// nothing ever claims it, where it bounds how long a genuinely locked
+/// open stays on the "waiting" state before the prompt fires.
+const _maxExemptionWait = Duration(milliseconds: 900);
 
 /// Wraps the app's current screen (via [MaterialApp.builder], so this sees
 /// *every* route, not just the first one) with a fingerprint/Face ID (or
@@ -52,13 +37,14 @@ const _autoPromptDelay = Duration(milliseconds: 200);
 /// (and does) kill a backgrounded app well within a window someone might
 /// reasonably set here.
 ///
-/// The "Add Payment" pinned shortcuts and the home-screen widget's
-/// quick-add are exempt: while [quickAddScreenActive] is true (set by
-/// `AddTransactionScreen` itself, only for the quick-add-invoked instance),
-/// this neither shows the lock overlay nor fires the biometric prompt, so
-/// quick-adding a payment never requires fingerprint/Face ID. Everything
-/// else -- including screens reached by regular in-app navigation while
-/// backgrounded and resumed -- stays behind the lock.
+/// The "Add Payment" pinned shortcuts, the home-screen widget's quick-add,
+/// and a tapped bank-SMS notification are all exempt: while
+/// [QuickActionExemption.isActive] is true, this neither shows the lock
+/// overlay nor fires the biometric prompt, so none of those three ever
+/// require fingerprint/Face ID. Everything else -- including screens
+/// reached by regular in-app navigation while backgrounded and resumed --
+/// stays behind the lock. See app_lock_exemption.dart for exactly how (and
+/// how early) that gets claimed for each of the three.
 class AppLockGate extends ConsumerStatefulWidget {
   const AppLockGate({super.key, required this.child});
 
@@ -71,7 +57,13 @@ class AppLockGate extends ConsumerStatefulWidget {
 class _AppLockGateState extends ConsumerState<AppLockGate>
     with WidgetsBindingObserver {
   final _localAuth = LocalAuthentication();
-  bool _unlocked = false;
+
+  /// The lock overlay's own on/off state -- the *only* flag that decides
+  /// whether it's painted (see [build]); [QuickActionExemption.isActive]
+  /// is folded into that same [build] check rather than kept in sync with
+  /// this field, so there's exactly one place either can go stale instead
+  /// of two.
+  bool _locked = false;
   bool _checking = false;
   String? _error;
 
@@ -82,52 +74,56 @@ class _AppLockGateState extends ConsumerState<AppLockGate>
   /// resume-only) app-lifecycle transition on *this app's own Activity*
   /// while the OS biometric sheet itself is showing or being dismissed --
   /// an OEM quirk in how that sheet is hosted, nothing this app controls.
-  /// Without this guard, that spurious resume immediately re-evaluates the
-  /// grace period; at the default of 0 minutes that always reads as
-  /// "expired", so it re-locks and re-prompts on the spot -- which
-  /// succeeds, fires the same spurious resume again, and loops forever
-  /// (confirmed: a real "stuck scanning my face over and over" report).
-  /// [_resumeDebounce] is checked before any relock decision so a resume
-  /// landing implausibly soon after a real success is treated as an
+  /// Without this guard, that spurious resume would immediately re-run the
+  /// relock check; at the default grace period of 0 minutes that always
+  /// reads as "expired", so it would re-lock and re-prompt on the spot --
+  /// which succeeds, fires the same spurious resume again, and loops
+  /// forever (confirmed: a real "stuck scanning my face over and over"
+  /// report). [_resumeDebounce] is checked before any relock decision so a
+  /// resume landing implausibly soon after a real success is treated as an
   /// artifact of that same success, not a new app-open event.
-  ///
-  /// Deliberately short -- long enough to cover the OEM artifact (which is
-  /// part of the same UI transaction as the sheet's own dismissal, so
-  /// effectively instant) but short enough that a genuinely fast deliberate
-  /// app-switch-and-return doesn't get mistaken for it. An earlier, much
-  /// longer window here (2 seconds) fixed the original lockout loop but
-  /// overcorrected: any real resume landing inside that whole 2-second span
-  /// -- not just the sheet's own immediate aftermath -- silently skipped
-  /// the relock check entirely, regardless of the user's chosen grace
-  /// period (the reported "app sometimes opens without biometrics" bug,
-  /// since a quick glance at another app and back easily lands inside 2
-  /// seconds but essentially never inside this shorter one).
-  DateTime? _lastLocalUnlockAt;
+  DateTime? _lastSuccessAt;
   static const _resumeDebounce = Duration(milliseconds: 600);
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    quickAddScreenActive.addListener(_onQuickAddExemptionChanged);
-    final settings = ref.read(settingsRepositoryProvider);
-    // A cold start counts as "resuming" for grace-period purposes too --
-    // Android killing the process while backgrounded is common well within
-    // a window someone might reasonably set, and there'd be no way to tell
-    // that apart from a deliberate relaunch otherwise.
-    _setUnlocked(
-      !settings.biometricLockEnabled || _withinGracePeriod(settings),
-    );
-    if (_unlocked) _lastLocalUnlockAt = DateTime.now();
-    if (!_unlocked) _scheduleAutoPrompt();
+    QuickActionExemption.listenable.addListener(_onExemptionChanged);
+    _evaluateLock();
   }
 
-  /// Updates [_unlocked] and mirrors it into [appUnlocked] together, so the
-  /// two can never drift -- every place this state changes goes through
-  /// here instead of assigning [_unlocked] directly.
-  void _setUnlocked(bool value) {
-    _unlocked = value;
-    appUnlocked.value = value;
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    QuickActionExemption.listenable.removeListener(_onExemptionChanged);
+    super.dispose();
+  }
+
+  /// The lock overlay's own visibility already reacts to this (see
+  /// [build]), but a rebuild alone doesn't affect a biometric prompt
+  /// that's already showing -- there's nothing more to do here beyond
+  /// that rebuild; this listener exists so the overlay's disappearance
+  /// the moment a quick action takes over is immediate rather than
+  /// waiting on some other rebuild.
+  void _onExemptionChanged() => setState(() {});
+
+  /// Single entry point for "decide whether the app should be locked right
+  /// now" -- called from [initState] (cold start counts as a resume for
+  /// grace-period purposes too, since Android killing the process while
+  /// backgrounded is common well within a window someone might reasonably
+  /// set) and from every genuine resume in [didChangeAppLifecycleState].
+  /// Replaces what used to be two separately-maintained code paths (one in
+  /// each caller) that could -- and did -- drift out of sync with each
+  /// other.
+  void _evaluateLock() {
+    final settings = ref.read(settingsRepositoryProvider);
+    if (!settings.biometricLockEnabled || _withinGracePeriod(settings)) {
+      setState(() => _locked = false);
+      return;
+    }
+    setState(() => _locked = true);
+    _promptWhenReady();
   }
 
   /// Whether the last successful check is still within
@@ -145,48 +141,44 @@ class _AppLockGateState extends ConsumerState<AppLockGate>
   }
 
   @override
-  void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
-    quickAddScreenActive.removeListener(_onQuickAddExemptionChanged);
-    super.dispose();
-  }
-
-  /// The lock overlay's own visibility already reacts to this (see [build]),
-  /// but a rebuild alone doesn't affect a biometric prompt that's already
-  /// showing -- there's nothing more to do here beyond that rebuild; this
-  /// listener exists so the overlay's disappearance the moment quick-add
-  /// takes over is immediate rather than waiting on some other rebuild.
-  void _onQuickAddExemptionChanged() => setState(() {});
-
-  @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    // The re-lock decision now happens here, on resume, not at pause time --
-    // it has to: whether a grace period is still valid can only be known
-    // once we know *when* the app is coming back, not when it left. (With
-    // the grace period at its default of 0 minutes, this still re-locks on
-    // every single resume, exactly as pausing used to do unconditionally --
-    // zero elapsed time never satisfies "still within a positive window".)
-    if (state != AppLifecycleState.resumed || !_unlocked) return;
-    final lastLocalUnlock = _lastLocalUnlockAt;
-    if (lastLocalUnlock != null &&
-        DateTime.now().difference(lastLocalUnlock) < _resumeDebounce) {
+    if (state != AppLifecycleState.resumed) return;
+    final lastSuccess = _lastSuccessAt;
+    if (lastSuccess != null &&
+        DateTime.now().difference(lastSuccess) < _resumeDebounce) {
       return;
     }
-    final settings = ref.read(settingsRepositoryProvider);
-    if (!settings.biometricLockEnabled || _withinGracePeriod(settings)) return;
-    // Locks immediately, synchronously with the resume event -- not left
-    // for whenever _authenticate's own state update happens to land --
-    // so the opaque lock overlay is what's on screen the instant this
-    // frame renders, with no gap a stale unlocked frame could show through.
-    setState(() => _setUnlocked(false));
-    _scheduleAutoPrompt();
+    _evaluateLock();
   }
 
-  void _scheduleAutoPrompt() {
-    Future.delayed(_autoPromptDelay, () {
-      if (!mounted || _unlocked || quickAddScreenActive.value) return;
-      _authenticate();
-    });
+  /// Waits, event-driven rather than on a blind timer, for
+  /// [QuickActionExemption] to become active before firing the automatic
+  /// biometric prompt -- resolves the *instant* a claim lands (a
+  /// concurrently-arriving quick-add/SMS launch, see
+  /// app_lock_exemption.dart), rather than always waiting the same fixed
+  /// delay regardless of how quickly that claim actually shows up.
+  /// [_maxExemptionWait] only bounds the case nothing ever claims it.
+  Future<void> _waitForExemptionOrTimeout() async {
+    if (QuickActionExemption.isActive) return;
+    final completer = Completer<void>();
+    void onChanged() {
+      if (QuickActionExemption.isActive && !completer.isCompleted) {
+        completer.complete();
+      }
+    }
+
+    QuickActionExemption.listenable.addListener(onChanged);
+    try {
+      await completer.future.timeout(_maxExemptionWait, onTimeout: () {});
+    } finally {
+      QuickActionExemption.listenable.removeListener(onChanged);
+    }
+  }
+
+  Future<void> _promptWhenReady() async {
+    await _waitForExemptionOrTimeout();
+    if (!mounted || !_locked || QuickActionExemption.isActive) return;
+    _authenticate();
   }
 
   Future<void> _authenticate() async {
@@ -200,17 +192,17 @@ class _AppLockGateState extends ConsumerState<AppLockGate>
       if (!supported) {
         // No fingerprint/face/PIN lock available on this device at all --
         // don't trap the user behind a gate that could never open.
-        _lastLocalUnlockAt = DateTime.now();
+        _lastSuccessAt = DateTime.now();
         setState(() {
-          _setUnlocked(true);
+          _locked = false;
           _checking = false;
         });
         return;
       }
-      // Re-checked right before actually surfacing the OS prompt -- the
-      // scheduling delay in [_scheduleAutoPrompt] covers the common case,
-      // this covers the rest.
-      if (quickAddScreenActive.value) {
+      // Re-checked right before actually surfacing the OS prompt -- covers
+      // a claim that lands in the narrow window after
+      // [_waitForExemptionOrTimeout] already gave up.
+      if (QuickActionExemption.isActive) {
         setState(() => _checking = false);
         return;
       }
@@ -219,8 +211,8 @@ class _AppLockGateState extends ConsumerState<AppLockGate>
         persistAcrossBackgrounding: true,
       );
       if (ok) {
-        _lastLocalUnlockAt = DateTime.now();
-        // Persisted, not just kept in [_unlocked] -- see
+        _lastSuccessAt = DateTime.now();
+        // Persisted, not just kept in [_locked] -- see
         // [SettingsRepository.lastBiometricUnlockAt]'s own doc comment for
         // why a grace period needs this to survive a process death.
         await ref
@@ -229,7 +221,7 @@ class _AppLockGateState extends ConsumerState<AppLockGate>
       }
       if (!mounted) return;
       setState(() {
-        _setUnlocked(ok);
+        _locked = !ok;
         _checking = false;
       });
     } on PlatformException catch (e) {
@@ -243,7 +235,11 @@ class _AppLockGateState extends ConsumerState<AppLockGate>
   @override
   Widget build(BuildContext context) {
     final enabled = ref.watch(biometricLockEnabledProvider);
-    final locked = enabled && !_unlocked && !quickAddScreenActive.value;
+    final locked = enabled && _locked && !QuickActionExemption.isActive;
+    // Kept in lockstep with what's actually painted below, every build --
+    // see app_lock_exemption.dart's own doc comment for why screens need
+    // this distinct from [QuickActionExemption.isActive] itself.
+    appUnlocked.value = !locked;
 
     return Stack(
       children: [

@@ -78,7 +78,7 @@ class _RootShellState extends ConsumerState<_RootShell>
     // silently drop (this was the "sometimes it just opens the app"
     // report — a timing race, not a deterministic failure).
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      HomeWidget.initiallyLaunchedFromHomeWidget().then(
+      takeInitialWidgetLaunchUri().then(
         (uri) => handleQuickAddLaunch(uri, ref),
       );
     });
