@@ -47,6 +47,8 @@ void priceRefreshCallbackDispatcher() {
         await runSmsQuickAddTask(inputData ?? const {});
       } else if (task == smsAutoUpdateTaskName) {
         await runSmsAutoUpdateTask(inputData ?? const {});
+      } else if (task == smsBalanceUpdateTaskName) {
+        await runSmsBalanceUpdateTask(inputData ?? const {});
       }
       return true;
     } catch (_) {
@@ -73,7 +75,12 @@ Future<void> runSmsQuickAddTask(Map<String, dynamic> inputData) async {
   try {
     final prefs = await SharedPreferences.getInstance();
     final profileId = SettingsRepository(prefs).activeProfileId;
-    await commitSmsQuickAdd(db, body: body, timestampMillis: timestampMillis, profileId: profileId);
+    await commitSmsQuickAdd(
+      db,
+      body: body,
+      timestampMillis: timestampMillis,
+      profileId: profileId,
+    );
   } finally {
     await db.close();
   }
@@ -94,7 +101,38 @@ Future<void> runSmsAutoUpdateTask(Map<String, dynamic> inputData) async {
   try {
     final prefs = await SharedPreferences.getInstance();
     final profileId = SettingsRepository(prefs).activeProfileId;
-    await commitSmsAutoUpdate(db, body: body, timestampMillis: timestampMillis, profileId: profileId);
+    await commitSmsAutoUpdate(
+      db,
+      body: body,
+      timestampMillis: timestampMillis,
+      profileId: profileId,
+    );
+  } finally {
+    await db.close();
+  }
+}
+
+/// Reads the `body`/`timestampMillis` SmsReceiver.kt passed through
+/// WorkManager's input data alongside the notification it posts for an
+/// ordinary charge SMS (one that didn't match a known vendor rule or a
+/// payment/refund trigger phrase), and applies just the balance side of it
+/// via [commitSmsBalanceUpdate] -- no profile lookup needed, since a card
+/// balance isn't scoped to a profile the way a ledger entry is (see
+/// [updateCardBalanceFromSms]'s own doc comment). This is what keeps the
+/// tracked balance current the moment the SMS arrives even if the user
+/// dismisses the notification without ever tapping it.
+Future<void> runSmsBalanceUpdateTask(Map<String, dynamic> inputData) async {
+  final body = inputData['body'] as String?;
+  final timestampMillis = inputData['timestampMillis'] as int?;
+  if (body == null || timestampMillis == null) return;
+
+  final db = AppDatabase();
+  try {
+    await commitSmsBalanceUpdate(
+      db,
+      body: body,
+      timestampMillis: timestampMillis,
+    );
   } finally {
     await db.close();
   }
@@ -145,7 +183,9 @@ Future<void> runBackgroundPriceRefresh() async {
 /// execution model on Windows, and the widget this feeds doesn't exist
 /// there either) with whatever interval Settings has saved, and again
 /// whenever the user changes that interval from the Live Prices screen.
-Future<void> registerBackgroundPriceRefresh({required Duration frequency}) async {
+Future<void> registerBackgroundPriceRefresh({
+  required Duration frequency,
+}) async {
   await Workmanager().initialize(priceRefreshCallbackDispatcher);
   await Workmanager().registerPeriodicTask(
     backgroundPriceRefreshUniqueName,

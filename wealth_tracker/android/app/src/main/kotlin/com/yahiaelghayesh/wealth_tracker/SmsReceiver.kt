@@ -98,7 +98,16 @@ class SmsReceiver : BroadcastReceiver() {
             return
         }
 
+        // No vendor rule or payment/refund trigger matched -- this is an
+        // ordinary charge the user needs to decide about, so it still gets
+        // its usual notification. But the tracked card balance shouldn't
+        // have to wait on that notification ever being tapped (the user can
+        // dismiss it, or simply not get to it for a while), so a silent
+        // balance-only update is enqueued alongside it -- tapping the
+        // notification afterward still opens the review screen normally,
+        // this only keeps the balance current in the meantime.
         postNotification(context, body, timestampMillis)
+        enqueueBalanceUpdate(context, body, timestampMillis)
     }
 
     /**
@@ -137,6 +146,29 @@ class SmsReceiver : BroadcastReceiver() {
     private fun enqueueAutoUpdate(context: Context, body: String, timestampMillis: Long) {
         val inputData = buildTaskInputData(
             dartTask = SMS_AUTO_UPDATE_TASK_NAME,
+            payload = mapOf(
+                "body" to body,
+                "timestampMillis" to timestampMillis,
+            ),
+        )
+        val request = OneTimeWorkRequestBuilder<BackgroundWorker>()
+            .setInputData(inputData)
+            .build()
+        WorkManager.getInstance(context).enqueue(request)
+    }
+
+    /**
+     * Enqueues a headless WorkManager task that runs `commitSmsBalanceUpdate`
+     * (lib/data/sms/sms_ledger_processor.dart) -- applies just the tracked
+     * card balance effect of a charge SMS, with no notification and no
+     * ledger entry of its own, alongside the ordinary notification this
+     * receiver already posts for the same SMS in [onReceive]'s fallback
+     * branch. Keeps the balance current the instant the SMS arrives even if
+     * that notification is dismissed without ever being tapped.
+     */
+    private fun enqueueBalanceUpdate(context: Context, body: String, timestampMillis: Long) {
+        val inputData = buildTaskInputData(
+            dartTask = SMS_BALANCE_UPDATE_TASK_NAME,
             payload = mapOf(
                 "body" to body,
                 "timestampMillis" to timestampMillis,
@@ -213,6 +245,12 @@ class SmsReceiver : BroadcastReceiver() {
         // lib/data/sms/sms_ledger_processor.dart -- the same task name
         // SmsQuickAddActionReceiver's own button-triggered path uses.
         private const val SMS_QUICK_ADD_TASK_NAME = "smsQuickAdd"
+
+        // Must match smsBalanceUpdateTaskName in
+        // lib/data/sms/sms_ledger_processor.dart -- enqueued alongside (not
+        // instead of) the ordinary notification for a charge SMS that
+        // matched no vendor rule or payment/refund trigger phrase.
+        private const val SMS_BALANCE_UPDATE_TASK_NAME = "smsBalanceUpdate"
 
         /**
          * Strips invisible Unicode bidi/formatting characters banks commonly

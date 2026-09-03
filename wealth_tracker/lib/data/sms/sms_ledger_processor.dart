@@ -15,6 +15,17 @@ import 'card_balance_updater.dart';
 const _dedupeKey = 'sms_processed_ids';
 const _dedupeCap = 200;
 
+/// Separate from [_dedupeKey] on purpose -- that key means "this SMS's
+/// *ledger* outcome (a review-screen visit, a quick-add, or a confirmed
+/// no-op) is fully settled, never act on it again", which a charge SMS
+/// only reaches once its notification is actually tapped. The balance
+/// update needs to happen the moment the SMS arrives, whether or not that
+/// tap ever comes (see [commitSmsBalanceUpdate]) -- tracked here instead
+/// so it can run early without prematurely marking the SMS as "settled"
+/// and silently skipping the review screen later.
+const _balanceAppliedKey = 'sms_balance_applied_ids';
+const _balanceAppliedCap = 200;
+
 /// The WorkManager task name a bank-SMS notification's "Quick add" action
 /// enqueues (see SmsQuickAddActionReceiver.kt) -- must match the string
 /// switched on in `priceRefreshCallbackDispatcher`
@@ -26,6 +37,13 @@ const smsQuickAddTaskName = 'smsQuickAdd';
 /// payment/settlement or refund alert -- must match the string switched on
 /// in `priceRefreshCallbackDispatcher` (lib/data/pricing/background_refresh.dart).
 const smsAutoUpdateTaskName = 'smsAutoUpdate';
+
+/// The WorkManager task name SmsReceiver.kt enqueues automatically,
+/// *alongside* posting its usual notification, for a charge SMS -- must
+/// match the string switched on in `priceRefreshCallbackDispatcher`
+/// (lib/data/pricing/background_refresh.dart). See [commitSmsBalanceUpdate]
+/// for why this exists as a separate task from the notification tap.
+const smsBalanceUpdateTaskName = 'smsBalanceUpdate';
 
 /// One incoming SMS, already known to be from the app's own SMS-detected
 /// launch path (see `native_sms_channel.dart` / `app.dart`) — so the app is
@@ -84,7 +102,13 @@ Future<void> processIncomingSms(
     return;
   }
 
-  await updateCardBalanceFromSms(db, parsed);
+  // Idempotent against [commitSmsBalanceUpdate] having already applied
+  // this exact SMS's balance update the moment it arrived (the common
+  // case, since that always runs before this ever could) -- without this
+  // guard, a charge with no stated available-balance figure would get its
+  // amount subtracted a second time here, on top of the one that already
+  // ran, double-counting the same charge.
+  await _updateCardBalanceOnce(db, parsed, dedupeId);
   // A payment/settlement SMS (paying down the card, isCharge == false)
   // only ever updates that tracked balance -- it's not a purchase and
   // isn't a candidate for "who was this for", so it never opens the
@@ -163,7 +187,7 @@ Future<bool> commitSmsQuickAdd(
   final parsed = parseBankSms(body);
   if (parsed == null) return false;
 
-  await updateCardBalanceFromSms(db, parsed);
+  await _updateCardBalanceOnce(db, parsed, dedupeId);
   // See the matching comment in processIncomingSms -- a payment/settlement
   // SMS never becomes a ledger entry, so there's nothing further to commit.
   if (!parsed.isCharge) return false;
@@ -227,8 +251,68 @@ Future<void> commitSmsAutoUpdate(
   final parsed = parseBankSms(body);
   if (parsed == null) return;
 
-  await updateCardBalanceFromSms(db, parsed);
+  await _updateCardBalanceOnce(db, parsed, dedupeId);
   await _markProcessed(db, dedupeId);
+}
+
+/// Headless counterpart for a *charge* SMS SmsReceiver.kt has just posted
+/// its usual notification for -- runs alongside that notification, not
+/// instead of it, so the tracked card balance updates the moment the SMS
+/// arrives whether or not the user ever taps the notification. Previously
+/// a charge notification the user swiped away (or simply hadn't gotten to
+/// yet) left the balance stale indefinitely, since the only code that ever
+/// called [updateCardBalanceFromSms] for a charge ran from inside
+/// [processIncomingSms] -- reachable only by opening that notification.
+///
+/// Deliberately never touches [_dedupeKey] (the "fully settled" state
+/// [processIncomingSms]/[commitSmsQuickAdd] check) -- this only ever
+/// updates the balance, using its own separate [_balanceAppliedKey]
+/// dedupe so the same SMS's balance effect is never applied twice, while
+/// leaving the ledger-entry decision exactly as available as it was
+/// before: tapping the notification afterward still opens
+/// [SmsReviewScreen] normally.
+Future<void> commitSmsBalanceUpdate(
+  AppDatabase db, {
+  required String body,
+  required int timestampMillis,
+}) async {
+  if (body.trim().isEmpty) return;
+
+  final dedupeId = '$timestampMillis:${body.hashCode}';
+  final parsed = parseBankSms(body);
+  if (parsed == null) return;
+
+  await _updateCardBalanceOnce(db, parsed, dedupeId);
+}
+
+/// Applies [parsed] to its matching card's tracked balance at most once
+/// per [dedupeId] -- shared by every call site above so a charge SMS
+/// whose balance [commitSmsBalanceUpdate] already applied on arrival
+/// doesn't get it applied a second time once [processIncomingSms] or
+/// [commitSmsQuickAdd] later runs for the same SMS (which would silently
+/// double-subtract the charge whenever the SMS states no explicit
+/// available-balance figure for [updateCardBalanceFromSms] to just
+/// re-assert instead).
+Future<void> _updateCardBalanceOnce(
+  AppDatabase db,
+  ParsedBankSms parsed,
+  String dedupeId,
+) async {
+  final applied = await _loadIds(db, _balanceAppliedKey);
+  if (applied.contains(dedupeId)) return;
+  await updateCardBalanceFromSms(db, parsed);
+  applied.add(dedupeId);
+  while (applied.length > _balanceAppliedCap) {
+    applied.removeAt(0);
+  }
+  await db
+      .into(db.syncMeta)
+      .insertOnConflictUpdate(
+        SyncMetaCompanion.insert(
+          key: _balanceAppliedKey,
+          value: jsonEncode(applied),
+        ),
+      );
 }
 
 /// [navigatorKey]'s Navigator is usually already mounted by the time this
@@ -245,12 +329,12 @@ Future<NavigatorState?> _awaitNavigator() async {
 }
 
 Future<bool> _alreadyProcessed(AppDatabase db, String dedupeId) async {
-  final ids = await _loadProcessedIds(db);
+  final ids = await _loadIds(db, _dedupeKey);
   return ids.contains(dedupeId);
 }
 
 Future<void> _markProcessed(AppDatabase db, String dedupeId) async {
-  final ids = await _loadProcessedIds(db);
+  final ids = await _loadIds(db, _dedupeKey);
   ids.add(dedupeId);
   while (ids.length > _dedupeCap) {
     ids.removeAt(0);
@@ -262,10 +346,14 @@ Future<void> _markProcessed(AppDatabase db, String dedupeId) async {
       );
 }
 
-Future<List<String>> _loadProcessedIds(AppDatabase db) async {
+/// Shared by both dedupe key spaces in this file (see [_dedupeKey] and
+/// [_balanceAppliedKey]) -- same storage shape (a JSON array of dedupe-id
+/// strings under one [SyncMeta] row), just keyed differently depending on
+/// which "has this already happened" question is being asked.
+Future<List<String>> _loadIds(AppDatabase db, String key) async {
   final row = await (db.select(
     db.syncMeta,
-  )..where((m) => m.key.equals(_dedupeKey))).getSingleOrNull();
+  )..where((m) => m.key.equals(key))).getSingleOrNull();
   if (row == null) return [];
   final decoded = jsonDecode(row.value);
   return decoded is List ? decoded.cast<String>() : [];
