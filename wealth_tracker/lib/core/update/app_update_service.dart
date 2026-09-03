@@ -58,10 +58,28 @@ class AppUpdateService {
     try {
       final response = await _dio.get<Map<String, dynamic>>(
         'https://api.github.com/repos/$_owner/$_repo/releases/latest',
+        // A real, confirmed report: "Check again" kept reporting the app
+        // up to date against an *older* build, repeatably, well after a
+        // newer one was verified (via the CI logs that publish it) to
+        // already exist as this exact endpoint's marked "latest" release.
+        // The only way an actual 2xx response to this exact URL keeps
+        // disagreeing with the server's real state on every retry is a
+        // cache sitting somewhere between this request and GitHub --
+        // carrier/ISP transparent proxies caching a popular API host's GET
+        // responses being the most common culprit, but this guards against
+        // any such layer (an intermediate cache, or GitHub's own edge)
+        // rather than trying to identify exactly which one. The query
+        // param defeats a cache keyed purely on the URL; the headers ask
+        // any HTTP-aware cache in the path not to serve or store a copy at
+        // all -- belt and suspenders, since a misbehaving cache is
+        // precisely the kind of thing that might ignore one but not both.
+        queryParameters: {'_cacheBust': DateTime.now().millisecondsSinceEpoch},
         options: Options(
           headers: {
             'Accept': 'application/vnd.github+json',
             'X-GitHub-Api-Version': '2022-11-28',
+            'Cache-Control': 'no-cache, no-store',
+            'Pragma': 'no-cache',
           },
         ),
       );
