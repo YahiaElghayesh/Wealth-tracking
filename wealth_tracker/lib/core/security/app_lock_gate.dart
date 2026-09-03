@@ -20,6 +20,22 @@ import 'app_lock_exemption.dart';
 /// open stays on the "waiting" state before the prompt fires.
 const _maxExemptionWait = Duration(milliseconds: 900);
 
+/// Bounds [_AppLockGateState._authenticate]'s call into `local_auth` --
+/// some OEM biometric-prompt implementations drop the platform-channel
+/// callback entirely if the hosting Activity is paused or backgrounded
+/// while the system sheet is showing (a phone call arriving, the user
+/// switching apps, the screen timing out), leaving that call's Future
+/// unresolved forever. Every other path through `_authenticate` already
+/// resets `_checking` back to `false`; a Future that never completes at
+/// all is the one gap none of them can catch, and since the lock
+/// screen's "Try again" button is disabled exactly while `_checking` is
+/// true, that gap left the screen permanently stuck -- spinner running,
+/// no way back in short of force-killing the app (the reported "stuck
+/// loading, never leaves the state" bug). Generous on purpose: long
+/// enough that a real, slow fingerprint/Face ID retry inside the OS's own
+/// prompt is never mistaken for a hang.
+const _authenticateTimeout = Duration(seconds: 45);
+
 /// Wraps the app's current screen (via [MaterialApp.builder], so this sees
 /// *every* route, not just the first one) with a fingerprint/Face ID (or
 /// device PIN/pattern, local_auth's own fallback) lock whenever
@@ -254,10 +270,19 @@ class _AppLockGateState extends ConsumerState<AppLockGate>
         setState(() => _checking = false);
         return;
       }
-      final ok = await _localAuth.authenticate(
-        localizedReason: 'Unlock Money Hub',
-        persistAcrossBackgrounding: true,
-      );
+      var timedOut = false;
+      final ok = await _localAuth
+          .authenticate(
+            localizedReason: 'Unlock Money Hub',
+            persistAcrossBackgrounding: true,
+          )
+          .timeout(
+            _authenticateTimeout,
+            onTimeout: () {
+              timedOut = true;
+              return false;
+            },
+          );
       if (ok) {
         _lastSuccessAt = DateTime.now();
         // Persisted, not just kept in [_locked] -- see
@@ -271,6 +296,9 @@ class _AppLockGateState extends ConsumerState<AppLockGate>
       setState(() {
         _locked = !ok;
         _checking = false;
+        if (timedOut) {
+          _error = "Biometric check didn't respond. Tap to try again.";
+        }
       });
     } on PlatformException catch (e) {
       setState(() {
