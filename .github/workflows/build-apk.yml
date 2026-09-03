@@ -61,11 +61,20 @@ jobs:
           echo "--- apksigner verify (same check the OS installer relies on) ---"
           "$BUILD_TOOLS/apksigner" verify --print-certs -v "$APK"
 
+      # Non-blocking on purpose: this raw workflow artifact is now a
+      # convenience only, superseded by the public app-releases repo below
+      # (which is what the in-app updater and any manual download actually
+      # use). Its own storage quota is separate and small, so a run here
+      # failing on "storage quota has been hit" -- as this repo's backlog
+      # of old debug-APK artifacts eventually did, since nothing was ever
+      # deleting them -- must not take down the step that actually matters.
+      # A short retention keeps that backlog from building back up.
       - uses: actions/upload-artifact@v4
+        continue-on-error: true
         with:
           name: wealth-tracker-debug-apk
           path: wealth_tracker/build/app/outputs/flutter-apk/app-debug.apk
-          retention-days: 30
+          retention-days: 3
 
       # Gives the in-app updater a stable, permanent place to check/download
       # from -- unlike the artifact above (requires a GitHub login, expires
