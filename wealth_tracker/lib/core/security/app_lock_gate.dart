@@ -90,8 +90,11 @@ class _AppLockGateState extends ConsumerState<AppLockGate>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     QuickActionExemption.listenable.addListener(_onExemptionChanged);
-    // No wait needed here -- see _evaluateLock's `wait` parameter.
-    _evaluateLock(wait: false);
+    // Waits only when main() flagged a quick-add/SMS launch as pending --
+    // see coldStartLaunchPending's own doc comment and _evaluateLock's
+    // `wait` parameter for why an ordinary cold start (the common case)
+    // still skips the wait entirely.
+    _evaluateLock(wait: coldStartLaunchPending);
   }
 
   @override
@@ -107,8 +110,8 @@ class _AppLockGateState extends ConsumerState<AppLockGate>
   /// the moment a quick action takes over is immediate rather than waiting
   /// on some other rebuild.
   ///
-  /// Once the claim ends, a plain rebuild isn't enough: [_locked] may have
-  /// been set `true` by an [_evaluateLock] that ran *before* (or
+  /// Once the claim ends, a plain rebuild isn't always enough: [_locked]
+  /// may have been set `true` by an [_evaluateLock] that ran *before* (or
   /// concurrently with) this exemption existed -- a lifecycle resume
   /// racing a quick-add/SMS launch on cold start, most commonly -- and
   /// nothing since then has corrected it, even if the grace period would
@@ -118,10 +121,23 @@ class _AppLockGateState extends ConsumerState<AppLockGate>
   /// its fingerprint prompt) from appearing the instant someone backed out
   /// of or saved a quick-add screen, even within an otherwise-satisfied
   /// grace period.
+  ///
+  /// Only when [_locked] is actually `true`, though: a quick-add tap or an
+  /// SMS arriving while the app is genuinely already open and unlocked
+  /// (there was no resume, nothing raced) claims and releases this same
+  /// exemption too -- claiming unconditionally is what makes those two
+  /// call sites race-free in the first place, see
+  /// [QuickActionExemption]'s own doc comment -- and re-running
+  /// [_evaluateLock] on every one of *those* releases would re-derive
+  /// "should be locked" from scratch and could re-lock an app the user is
+  /// actively, unremarkably still using, just because an unrelated SMS
+  /// happened to arrive in the background. [_locked] being `true` here
+  /// means there's an actual stray lock to correct; `false` means there
+  /// never was one, so there's nothing to do.
   void _onExemptionChanged() {
     if (QuickActionExemption.isActive) {
       setState(() {});
-    } else {
+    } else if (_locked) {
       _evaluateLock();
     }
   }
@@ -136,20 +152,18 @@ class _AppLockGateState extends ConsumerState<AppLockGate>
   /// could -- and did -- drift out of sync with each other.
   ///
   /// [wait] controls whether [_promptWhenReady] waits out
-  /// [_waitForExemptionOrTimeout] before prompting -- true everywhere
-  /// except [initState]. That wait exists for exactly one race: a
-  /// resume's lifecycle callback firing *before* a concurrently-arriving
-  /// quick-add/SMS launch (delivered over its own, independent stream)
-  /// has claimed its exemption yet. On a cold start there's no such race
-  /// to wait out -- `main.dart` already resolved the same question
-  /// synchronously, claiming the exemption itself if warranted, before
-  /// `runApp` ever built this widget in the first place -- so by the time
-  /// this first evaluation runs, [QuickActionExemption.isActive] already
-  /// has its final answer. Waiting the full [_maxExemptionWait] anyway on
-  /// every ordinary cold start (the overwhelming majority of opens, which
-  /// never claim anything) added a flat, pointless delay before the
-  /// fingerprint prompt could even appear -- the reported "app takes
-  /// longer to open" regression.
+  /// [_waitForExemptionOrTimeout] before prompting. True everywhere except
+  /// an ordinary cold start's call from [initState] (see
+  /// [coldStartLaunchPending]). That wait exists for exactly one race: a
+  /// resume's lifecycle callback -- or, on cold start, this very first
+  /// evaluation -- firing *before* a concurrently-arriving quick-add/SMS
+  /// launch (delivered over its own, independent stream/channel) has
+  /// claimed its exemption yet. Skipping the wait on an ordinary cold
+  /// start (the overwhelming majority of opens, which never claim
+  /// anything) avoids a flat, pointless delay before the fingerprint
+  /// prompt could even appear -- the reported "app takes longer to open"
+  /// regression -- while still waiting whenever [coldStartLaunchPending]
+  /// says a real claim is actually on its way.
   void _evaluateLock({bool wait = true}) {
     final settings = ref.read(settingsRepositoryProvider);
     if (!settings.biometricLockEnabled || _withinGracePeriod(settings)) {

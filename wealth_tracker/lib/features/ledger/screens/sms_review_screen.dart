@@ -21,9 +21,22 @@ const _newRecurringSentinel = '__new_recurring__';
 /// suggested ledger/category before saving. Pre-filled from the parsed
 /// SMS, but everything stays editable.
 class SmsReviewScreen extends ConsumerStatefulWidget {
-  const SmsReviewScreen({super.key, required this.payload});
+  const SmsReviewScreen({
+    super.key,
+    required this.payload,
+    required this.wasLockedOnArrival,
+  });
 
   final BankChargePayload payload;
+
+  /// Whether the app was genuinely locked at the moment this charge's SMS
+  /// arrived -- computed once by `processIncomingSms`, *before* it claims
+  /// its own [QuickActionExemption], and passed straight through rather
+  /// than re-derived here from [appUnlocked] at mount time: by the time
+  /// this screen mounts, that claim (held continuously since the SMS
+  /// arrived) always makes [appUnlocked] read "unlocked", regardless of
+  /// what was actually true when the SMS came in.
+  final bool wasLockedOnArrival;
 
   @override
   ConsumerState<SmsReviewScreen> createState() => _SmsReviewScreenState();
@@ -50,19 +63,6 @@ class _SmsReviewScreenState extends ConsumerState<SmsReviewScreen> {
   // see [_save]).
   String? _recurringSelection;
 
-  /// Whether the app was actually locked at the moment this screen opened
-  /// -- decides whether leaving it needs the same exempt-and-force-close
-  /// treatment [AddTransactionScreen]'s quick-add instance uses. An SMS
-  /// notification can arrive (and be tapped) at any time, including while
-  /// the app is already open and unlocked for something else entirely; in
-  /// that case this screen is just an ordinary pushed route and a plain pop
-  /// back to whatever the user was doing is correct -- exempting the lock
-  /// or force-closing the app would be pointless in the first case and a
-  /// jarring surprise in the second. Read once at open, not re-evaluated
-  /// afterward: the whole point is what was true the moment this screen
-  /// took over, not whatever [appUnlocked] happens to say later.
-  late final bool _wasLockedOnOpen;
-
   @override
   void initState() {
     super.initState();
@@ -73,29 +73,34 @@ class _SmsReviewScreenState extends ConsumerState<SmsReviewScreen> {
     _date = widget.payload.occurredAt;
     _counterpartyId = widget.payload.counterpartyId;
     _category = widget.payload.category;
-    _wasLockedOnOpen = !appUnlocked.value;
-    if (_wasLockedOnOpen) {
-      QuickActionExemption.claim();
-    }
+    // Claimed unconditionally -- this screen is only ever reached via the
+    // SMS-detected path (see the class doc comment), so it's always the
+    // right thing to hold the lock exemption for as long as it's on
+    // screen, same as `processIncomingSms`'s own claim that's been active
+    // since the SMS arrived (this overlaps it rather than replacing it --
+    // see that function's own comment for why). Not conditioned on
+    // [widget.wasLockedOnArrival]: claiming while the app was genuinely
+    // already unlocked is harmless (see [QuickActionExemption]'s own doc
+    // comment), and gating it here would reintroduce the same
+    // stale-[appUnlocked] race that flag exists to avoid.
+    QuickActionExemption.claim();
   }
 
   @override
   void dispose() {
-    if (_wasLockedOnOpen) {
-      QuickActionExemption.release();
-    }
+    QuickActionExemption.release();
     _amountController.dispose();
     _customCategoryController.dispose();
     super.dispose();
   }
 
   /// Leaves this screen -- a plain pop when it was reached from an already
-  /// -unlocked app (see [_wasLockedOnOpen]), or the same close-the-app
-  /// sequence [AddTransactionScreen] uses when it wasn't: a plain pop in
-  /// that case would reveal the still-locked app underneath with no fresh
-  /// unlock check, the exact bug this mirrors the fix for.
+  /// -unlocked app (see [SmsReviewScreen.wasLockedOnArrival]), or the same
+  /// close-the-app sequence [AddTransactionScreen] uses when it wasn't: a
+  /// plain pop in that case would reveal the still-locked app underneath
+  /// with no fresh unlock check, the exact bug this mirrors the fix for.
   void _leave() {
-    if (_wasLockedOnOpen) {
+    if (widget.wasLockedOnArrival) {
       Navigator.of(context).popUntil((route) => route.isFirst);
       SystemNavigator.pop();
     } else {
@@ -201,7 +206,7 @@ class _SmsReviewScreenState extends ConsumerState<SmsReviewScreen> {
       // Only true when this screen was itself what earned the lock
       // exemption -- reached from an already-unlocked app, backing out is
       // an ordinary pop, same as always.
-      canPop: !_wasLockedOnOpen,
+      canPop: !widget.wasLockedOnArrival,
       onPopInvokedWithResult: (didPop, result) {
         if (didPop) return;
         _leave();

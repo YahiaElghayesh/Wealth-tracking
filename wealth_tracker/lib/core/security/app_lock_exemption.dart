@@ -3,12 +3,12 @@ import 'package:flutter/foundation.dart';
 /// How many independent things currently want the biometric lock
 /// (`AppLockGate`) suppressed -- a *count*, not a bare flag, specifically
 /// so two overlapping claims can never step on each other: the launch
-/// -time claim taken in `main()`/`app.dart` the instant a quick-add or
-/// SMS-triggered launch is detected, and the destination screen's own
-/// claim once it actually mounts, legitimately overlap for a moment during
-/// every such launch (see [QuickActionExemption]'s own doc comment) -- with
-/// a plain bool, whichever of the two released first would incorrectly
-/// clear the other's still-active claim.
+/// -time claim taken in `app.dart` the instant a quick-add or SMS
+/// -triggered launch is detected, and the destination screen's own claim
+/// once it actually mounts, legitimately overlap for a moment during every
+/// such launch (see [QuickActionExemption]'s own doc comment) -- with a
+/// plain bool, whichever of the two released first would incorrectly clear
+/// the other's still-active claim.
 ///
 /// [AppLockGate] treats the lock as suppressed exactly while this is above
 /// zero. Nothing outside this file should touch [_count] directly --
@@ -34,14 +34,36 @@ final _count = ValueNotifier<int>(0);
 /// Navigator, a database round-trip for the ledger/vendor-rule lookup, ...)
 /// can, on a slow or cold-starting device, take longer than
 /// [AppLockGate] would otherwise wait before firing the OS biometric
-/// prompt. Every launch path (`main.dart`'s upfront checks for a cold
-/// start, `handleQuickAddLaunch`/`processIncomingSms` for a warm one)
-/// closes that gap by claiming *immediately*, as the very first thing it
-/// does once it knows this launch is one of these two kinds -- before any
-/// of that slower work runs -- and releasing again once the destination
-/// screen has had a real chance to claim its own (see each call site's
-/// own comment for exactly when). The two claims overlapping for a moment
-/// is exactly what [_count] being a counter (not a bool) is for.
+/// prompt. `handleQuickAddLaunch`/`processIncomingSms` close that gap by
+/// claiming *unconditionally and immediately*, as the very first thing
+/// either does once it knows this launch is one of these two kinds --
+/// before any of that slower work runs, and regardless of whether the app
+/// even looks locked yet -- and releasing again once the destination
+/// screen has had a real chance to claim its own (see each call site's own
+/// comment for exactly when). Claiming unconditionally rather than only
+/// when [appUnlocked] currently reads "locked" matters: that value only
+/// updates on [AppLockGate]'s own next rebuild, so reading it at exactly
+/// the wrong moment -- a resume's relock evaluation racing this same
+/// launch, most commonly -- could see a stale "still unlocked" and skip
+/// the claim entirely, letting the OS biometric prompt fire unopposed
+/// (the reported "SMS notification/add-payment icon sometimes still asks
+/// for biometrics" bug). A claim made while the app is genuinely already
+/// unlocked is harmless -- see [AppLockGate]'s own `_onExemptionChanged`,
+/// which only re-evaluates the lock on release if there was actually
+/// something to correct. The two claims overlapping for a moment is
+/// exactly what [_count] being a counter (not a bool) is for.
+///
+/// A cold start needs one more thing this screen-lifetime claim can't
+/// give it by itself: [AppLockGate]'s very first evaluation, in its own
+/// `initState`, runs synchronously before the widget tree that would ever
+/// call `handleQuickAddLaunch`/`processIncomingSms` has even been built --
+/// there is no exemption to claim yet at that exact instant, launch or
+/// not. Rather than have `main()` pre-claim an exemption on their behalf
+/// (which nothing downstream would ever have a well-defined moment to
+/// release, and previously just leaked for the rest of the process --
+/// permanently disabling the lock after the first such cold start),
+/// [coldStartLaunchPending] tells that first evaluation to *wait* for the
+/// real claim about to arrive instead of assuming none is coming.
 class QuickActionExemption {
   QuickActionExemption._();
 
@@ -65,6 +87,18 @@ class QuickActionExemption {
     if (_count.value > 0) _count.value--;
   }
 }
+
+/// Set by `main()`, before `runApp`, the instant it sees a quick-add
+/// widget/shortcut tap or a bank-SMS notification tap is what launched this
+/// process (`takePendingSms`/`takeInitialWidgetLaunchUri` both resolved
+/// non-null) -- read exactly once, by [AppLockGate]'s very first lock
+/// evaluation, to tell it to wait for the real [QuickActionExemption] claim
+/// (about to arrive once `app.dart`'s own launch handling runs, a moment
+/// later) rather than assume none is coming. An ordinary cold start (the
+/// overwhelming majority of opens) leaves this `false`, so that first
+/// evaluation stays immediate -- see [AppLockGate]'s own `initState` for
+/// exactly how this feeds into its `wait` parameter.
+bool coldStartLaunchPending = false;
 
 /// Mirrors [AppLockGate]'s own "is the lock overlay currently showing"
 /// state -- written there, read by screens that need to tell a genuinely

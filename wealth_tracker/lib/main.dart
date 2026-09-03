@@ -26,27 +26,31 @@ void main() async {
       registerBackgroundPriceRefresh(frequency: Duration(hours: hours)),
     );
 
-    // Claims the biometric-lock exemption *before* AppLockGate (built as
-    // part of WealthTrackerApp below) even mounts, closing a race
-    // app.dart's own equivalent, later checks can't: AppLockGate only
-    // waits a bounded amount of time for a later check to claim the
-    // exemption, and on a loaded cold start these native round-trips --
-    // reading the Intent that launched the app, in case it's a "bank text
-    // detected" notification tap or a quick-add widget/shortcut tap -- can
-    // outlast that wait. Awaiting them here, before the first frame,
-    // removes the race instead of tuning a delay. Both checks are
-    // memoized (see native_sms_channel.dart and quick_add_launch.dart) so
-    // the real handling in app.dart, which still needs to run once the
-    // Navigator exists, sees the exact same result rather than the native
-    // side's already-cleared "nothing pending" on a second call. Run
-    // together rather than sequentially -- neither depends on the other,
-    // so both futures are started before either is awaited.
+    // Tells AppLockGate (built as part of WealthTrackerApp below), before
+    // it even mounts, that a real QuickActionExemption claim is on its way
+    // once app.dart's own launch handling runs -- closing a race app.dart's
+    // equivalent, later checks can't: AppLockGate's very first evaluation
+    // runs synchronously in its own initState, before the widget tree that
+    // would ever claim that exemption has even been built, so on a loaded
+    // cold start these native round-trips -- reading the Intent that
+    // launched the app, in case it's a "bank text detected" notification
+    // tap or a quick-add widget/shortcut tap -- need to be known about
+    // *before* that first evaluation runs, not just claimed by whoever gets
+    // there first (see coldStartLaunchPending's own doc comment for why
+    // this is a plain flag rather than a pre-claimed exemption). Both
+    // checks are memoized (see native_sms_channel.dart and
+    // quick_add_launch.dart) so the real handling in app.dart, which still
+    // needs to run once the Navigator exists, sees the exact same result
+    // rather than the native side's already-cleared "nothing pending" on a
+    // second call. Run together rather than sequentially -- neither
+    // depends on the other, so both futures are started before either is
+    // awaited.
     final pendingSmsFuture = takePendingSms();
     final widgetLaunchUriFuture = takeInitialWidgetLaunchUri();
     final pendingSms = await pendingSmsFuture;
     final widgetLaunchUri = await widgetLaunchUriFuture;
     if (pendingSms != null || widgetLaunchUri != null) {
-      QuickActionExemption.claim();
+      coldStartLaunchPending = true;
     }
   }
 
