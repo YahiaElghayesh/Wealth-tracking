@@ -92,6 +92,7 @@ void main() {
       expect(rows.single.category, 'Groceries');
       expect(rows.single.amount, 959.0);
       expect(rows.single.currency, 'EGP');
+      expect(rows.single.source, 'sms');
     });
 
     test('does nothing when no Vendor Rule matches the sender', () async {

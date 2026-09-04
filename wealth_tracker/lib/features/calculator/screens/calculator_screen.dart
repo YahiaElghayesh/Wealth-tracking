@@ -153,6 +153,7 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
           card.copyWith(
             currentAvailableBalance: Value(newBalance),
             balanceUpdatedAt: Value(now),
+            balanceUpdatedSource: const Value('manual'),
           ),
         );
     // Keeps this screen's own seed bookkeeping in sync with what it just
@@ -1180,11 +1181,16 @@ class _CardField extends ConsumerWidget {
           if (card.balanceUpdatedAt != null) ...[
             const SizedBox(height: 2),
             Text(
-              // Not "from SMS" specifically -- this now also covers a
-              // manual edit of the field above (see the debounced save-back
-              // in _scheduleCardBalanceSave), so it no longer always means
-              // an SMS set it.
-              'Updated ${_relativeTime(card.balanceUpdatedAt!)}',
+              // balanceUpdatedSource is null only for a card whose balance
+              // predates that column (updated before this distinction
+              // existed) -- "Updated" alone rather than a guessed source.
+              switch (card.balanceUpdatedSource) {
+                'sms' =>
+                  'Updated from SMS ${_relativeTime(card.balanceUpdatedAt!)}',
+                'manual' =>
+                  'Updated manually ${_relativeTime(card.balanceUpdatedAt!)}',
+                _ => 'Updated ${_relativeTime(card.balanceUpdatedAt!)}',
+              },
               style: theme.textTheme.labelSmall?.copyWith(
                 color: theme.colorScheme.primary,
               ),

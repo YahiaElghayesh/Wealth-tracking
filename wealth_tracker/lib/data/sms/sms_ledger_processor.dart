@@ -235,6 +235,7 @@ Future<bool> commitSmsQuickAdd(
           category: rule.category,
           createdAt: DateTime.now(),
           profileId: Value(profileId),
+          source: const Value('sms'),
         ),
       );
 

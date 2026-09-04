@@ -123,6 +123,16 @@ class LedgerTransactions extends Table {
   /// combined total) can filter to the active profile without a join.
   TextColumn get profileId => text().nullable().references(Profiles, #id)();
 
+  /// 'manual' (typed in on this screen) or 'sms' (a vendor-rule auto-match
+  /// via `commitSmsQuickAdd`, or a charge confirmed on `SmsReviewScreen`
+  /// after tapping its notification) -- shown on the ledger row so a
+  /// vendor-rule-matched entry doesn't look indistinguishable from one
+  /// typed in by hand. Defaults to 'manual' so every pre-existing row
+  /// (all of which really were typed in, since this column didn't exist
+  /// before) backfills correctly with no migration logic beyond the
+  /// column default.
+  TextColumn get source => text().withDefault(const Constant('manual'))();
+
   @override
   Set<Column> get primaryKey => {id};
 }
@@ -252,6 +262,13 @@ class CreditCards extends Table {
   /// CalculatorScreen's debounced save-back) -- whichever happened most
   /// recently. Null if it's never been touched by either.
   DateTimeColumn get balanceUpdatedAt => dateTime().nullable()();
+
+  /// 'sms' or 'manual', matching whichever of the two actually last set
+  /// [currentAvailableBalance]/[balanceUpdatedAt] -- shown alongside that
+  /// timestamp so "Updated 2h ago" doesn't leave the user guessing whether
+  /// that was a real bank alert or their own typed correction. Null exactly
+  /// when [balanceUpdatedAt] is (never touched by either yet).
+  TextColumn get balanceUpdatedSource => text().nullable()();
 
   TextColumn get profileId => text().nullable().references(Profiles, #id)();
 

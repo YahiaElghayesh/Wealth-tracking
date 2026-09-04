@@ -33,7 +33,10 @@ import 'bank_sms_parser.dart';
 /// every update for a card on any other profile: the native side let the
 /// SMS through (it doesn't check which profile is active), but this then
 /// found no matching card in that one profile and did nothing.
-Future<CreditCard?> updateCardBalanceFromSms(AppDatabase db, ParsedBankSms parsed) async {
+Future<CreditCard?> updateCardBalanceFromSms(
+  AppDatabase db,
+  ParsedBankSms parsed,
+) async {
   final lastFour = parsed.lastFourDigits;
   if (lastFour == null) return null;
 
@@ -53,7 +56,9 @@ Future<CreditCard?> updateCardBalanceFromSms(AppDatabase db, ParsedBankSms parse
     newBalance = parsed.availableBalanceAfter!;
   } else if (card.currency == parsed.currency) {
     final current = card.currentAvailableBalance ?? card.limitAmount;
-    newBalance = parsed.isCharge ? current - parsed.amount : current + parsed.amount;
+    newBalance = parsed.isCharge
+        ? current - parsed.amount
+        : current + parsed.amount;
   } else {
     return null;
   }
@@ -61,6 +66,7 @@ Future<CreditCard?> updateCardBalanceFromSms(AppDatabase db, ParsedBankSms parse
   final updated = card.copyWith(
     currentAvailableBalance: Value(newBalance),
     balanceUpdatedAt: Value(DateTime.now()),
+    balanceUpdatedSource: const Value('sms'),
   );
   await db.update(db.creditCards).replace(updated);
   return updated;

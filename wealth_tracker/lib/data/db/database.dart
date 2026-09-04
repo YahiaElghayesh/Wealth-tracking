@@ -38,7 +38,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 21;
+  int get schemaVersion => 22;
 
   /// Public so `ProfileRepository.addProfile` can give a newly created
   /// profile the same starter categories a fresh install gets -- otherwise
@@ -366,6 +366,15 @@ class AppDatabase extends _$AppDatabase {
           recurringPaymentHistory,
           recurringPaymentHistory.itemsJson,
         );
+      }
+      if (from < 22) {
+        // Both addColumn defaults/nulls correctly mark every pre-existing
+        // row as predating this feature: every ledger entry that already
+        // existed really was typed in by hand ('manual'), and a card whose
+        // balance was never touched by either path stays null, matching
+        // balanceUpdatedAt's own null in that same case.
+        await m.addColumn(ledgerTransactions, ledgerTransactions.source);
+        await m.addColumn(creditCards, creditCards.balanceUpdatedSource);
       }
     },
     // The "Breakfast" quick-pick category was a voice-transcription

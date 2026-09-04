@@ -1942,6 +1942,16 @@ class $LedgerTransactionsTable extends LedgerTransactions
       'REFERENCES profiles (id)',
     ),
   );
+  static const VerificationMeta _sourceMeta = const VerificationMeta('source');
+  @override
+  late final GeneratedColumn<String> source = GeneratedColumn<String>(
+    'source',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('manual'),
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -1953,6 +1963,7 @@ class $LedgerTransactionsTable extends LedgerTransactions
     description,
     createdAt,
     profileId,
+    source,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -2035,6 +2046,12 @@ class $LedgerTransactionsTable extends LedgerTransactions
         profileId.isAcceptableOrUnknown(data['profile_id']!, _profileIdMeta),
       );
     }
+    if (data.containsKey('source')) {
+      context.handle(
+        _sourceMeta,
+        source.isAcceptableOrUnknown(data['source']!, _sourceMeta),
+      );
+    }
     return context;
   }
 
@@ -2080,6 +2097,10 @@ class $LedgerTransactionsTable extends LedgerTransactions
         DriftSqlType.string,
         data['${effectivePrefix}profile_id'],
       ),
+      source: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}source'],
+      )!,
     );
   }
 
@@ -2108,6 +2129,16 @@ class LedgerTransaction extends DataClass
   /// transaction across every counterparty" queries (the calculator's
   /// combined total) can filter to the active profile without a join.
   final String? profileId;
+
+  /// 'manual' (typed in on this screen) or 'sms' (a vendor-rule auto-match
+  /// via `commitSmsQuickAdd`, or a charge confirmed on `SmsReviewScreen`
+  /// after tapping its notification) -- shown on the ledger row so a
+  /// vendor-rule-matched entry doesn't look indistinguishable from one
+  /// typed in by hand. Defaults to 'manual' so every pre-existing row
+  /// (all of which really were typed in, since this column didn't exist
+  /// before) backfills correctly with no migration logic beyond the
+  /// column default.
+  final String source;
   const LedgerTransaction({
     required this.id,
     required this.counterpartyId,
@@ -2118,6 +2149,7 @@ class LedgerTransaction extends DataClass
     this.description,
     required this.createdAt,
     this.profileId,
+    required this.source,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -2135,6 +2167,7 @@ class LedgerTransaction extends DataClass
     if (!nullToAbsent || profileId != null) {
       map['profile_id'] = Variable<String>(profileId);
     }
+    map['source'] = Variable<String>(source);
     return map;
   }
 
@@ -2153,6 +2186,7 @@ class LedgerTransaction extends DataClass
       profileId: profileId == null && nullToAbsent
           ? const Value.absent()
           : Value(profileId),
+      source: Value(source),
     );
   }
 
@@ -2171,6 +2205,7 @@ class LedgerTransaction extends DataClass
       description: serializer.fromJson<String?>(json['description']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
       profileId: serializer.fromJson<String?>(json['profileId']),
+      source: serializer.fromJson<String>(json['source']),
     );
   }
   @override
@@ -2186,6 +2221,7 @@ class LedgerTransaction extends DataClass
       'description': serializer.toJson<String?>(description),
       'createdAt': serializer.toJson<DateTime>(createdAt),
       'profileId': serializer.toJson<String?>(profileId),
+      'source': serializer.toJson<String>(source),
     };
   }
 
@@ -2199,6 +2235,7 @@ class LedgerTransaction extends DataClass
     Value<String?> description = const Value.absent(),
     DateTime? createdAt,
     Value<String?> profileId = const Value.absent(),
+    String? source,
   }) => LedgerTransaction(
     id: id ?? this.id,
     counterpartyId: counterpartyId ?? this.counterpartyId,
@@ -2209,6 +2246,7 @@ class LedgerTransaction extends DataClass
     description: description.present ? description.value : this.description,
     createdAt: createdAt ?? this.createdAt,
     profileId: profileId.present ? profileId.value : this.profileId,
+    source: source ?? this.source,
   );
   LedgerTransaction copyWithCompanion(LedgerTransactionsCompanion data) {
     return LedgerTransaction(
@@ -2225,6 +2263,7 @@ class LedgerTransaction extends DataClass
           : this.description,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
       profileId: data.profileId.present ? data.profileId.value : this.profileId,
+      source: data.source.present ? data.source.value : this.source,
     );
   }
 
@@ -2239,7 +2278,8 @@ class LedgerTransaction extends DataClass
           ..write('category: $category, ')
           ..write('description: $description, ')
           ..write('createdAt: $createdAt, ')
-          ..write('profileId: $profileId')
+          ..write('profileId: $profileId, ')
+          ..write('source: $source')
           ..write(')'))
         .toString();
   }
@@ -2255,6 +2295,7 @@ class LedgerTransaction extends DataClass
     description,
     createdAt,
     profileId,
+    source,
   );
   @override
   bool operator ==(Object other) =>
@@ -2268,7 +2309,8 @@ class LedgerTransaction extends DataClass
           other.category == this.category &&
           other.description == this.description &&
           other.createdAt == this.createdAt &&
-          other.profileId == this.profileId);
+          other.profileId == this.profileId &&
+          other.source == this.source);
 }
 
 class LedgerTransactionsCompanion extends UpdateCompanion<LedgerTransaction> {
@@ -2281,6 +2323,7 @@ class LedgerTransactionsCompanion extends UpdateCompanion<LedgerTransaction> {
   final Value<String?> description;
   final Value<DateTime> createdAt;
   final Value<String?> profileId;
+  final Value<String> source;
   final Value<int> rowid;
   const LedgerTransactionsCompanion({
     this.id = const Value.absent(),
@@ -2292,6 +2335,7 @@ class LedgerTransactionsCompanion extends UpdateCompanion<LedgerTransaction> {
     this.description = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.profileId = const Value.absent(),
+    this.source = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   LedgerTransactionsCompanion.insert({
@@ -2304,6 +2348,7 @@ class LedgerTransactionsCompanion extends UpdateCompanion<LedgerTransaction> {
     this.description = const Value.absent(),
     required DateTime createdAt,
     this.profileId = const Value.absent(),
+    this.source = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
        counterpartyId = Value(counterpartyId),
@@ -2321,6 +2366,7 @@ class LedgerTransactionsCompanion extends UpdateCompanion<LedgerTransaction> {
     Expression<String>? description,
     Expression<DateTime>? createdAt,
     Expression<String>? profileId,
+    Expression<String>? source,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -2333,6 +2379,7 @@ class LedgerTransactionsCompanion extends UpdateCompanion<LedgerTransaction> {
       if (description != null) 'description': description,
       if (createdAt != null) 'created_at': createdAt,
       if (profileId != null) 'profile_id': profileId,
+      if (source != null) 'source': source,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -2347,6 +2394,7 @@ class LedgerTransactionsCompanion extends UpdateCompanion<LedgerTransaction> {
     Value<String?>? description,
     Value<DateTime>? createdAt,
     Value<String?>? profileId,
+    Value<String>? source,
     Value<int>? rowid,
   }) {
     return LedgerTransactionsCompanion(
@@ -2359,6 +2407,7 @@ class LedgerTransactionsCompanion extends UpdateCompanion<LedgerTransaction> {
       description: description ?? this.description,
       createdAt: createdAt ?? this.createdAt,
       profileId: profileId ?? this.profileId,
+      source: source ?? this.source,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -2393,6 +2442,9 @@ class LedgerTransactionsCompanion extends UpdateCompanion<LedgerTransaction> {
     if (profileId.present) {
       map['profile_id'] = Variable<String>(profileId.value);
     }
+    if (source.present) {
+      map['source'] = Variable<String>(source.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -2411,6 +2463,7 @@ class LedgerTransactionsCompanion extends UpdateCompanion<LedgerTransaction> {
           ..write('description: $description, ')
           ..write('createdAt: $createdAt, ')
           ..write('profileId: $profileId, ')
+          ..write('source: $source, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -4487,6 +4540,17 @@ class $CreditCardsTable extends CreditCards
         type: DriftSqlType.dateTime,
         requiredDuringInsert: false,
       );
+  static const VerificationMeta _balanceUpdatedSourceMeta =
+      const VerificationMeta('balanceUpdatedSource');
+  @override
+  late final GeneratedColumn<String> balanceUpdatedSource =
+      GeneratedColumn<String>(
+        'balance_updated_source',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
   static const VerificationMeta _profileIdMeta = const VerificationMeta(
     'profileId',
   );
@@ -4512,6 +4576,7 @@ class $CreditCardsTable extends CreditCards
     lastFourDigits,
     currentAvailableBalance,
     balanceUpdatedAt,
+    balanceUpdatedSource,
     profileId,
   ];
   @override
@@ -4597,6 +4662,15 @@ class $CreditCardsTable extends CreditCards
         ),
       );
     }
+    if (data.containsKey('balance_updated_source')) {
+      context.handle(
+        _balanceUpdatedSourceMeta,
+        balanceUpdatedSource.isAcceptableOrUnknown(
+          data['balance_updated_source']!,
+          _balanceUpdatedSourceMeta,
+        ),
+      );
+    }
     if (data.containsKey('profile_id')) {
       context.handle(
         _profileIdMeta,
@@ -4648,6 +4722,10 @@ class $CreditCardsTable extends CreditCards
         DriftSqlType.dateTime,
         data['${effectivePrefix}balance_updated_at'],
       ),
+      balanceUpdatedSource: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}balance_updated_source'],
+      ),
       profileId: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}profile_id'],
@@ -4688,6 +4766,13 @@ class CreditCard extends DataClass implements Insertable<CreditCard> {
   /// CalculatorScreen's debounced save-back) -- whichever happened most
   /// recently. Null if it's never been touched by either.
   final DateTime? balanceUpdatedAt;
+
+  /// 'sms' or 'manual', matching whichever of the two actually last set
+  /// [currentAvailableBalance]/[balanceUpdatedAt] -- shown alongside that
+  /// timestamp so "Updated 2h ago" doesn't leave the user guessing whether
+  /// that was a real bank alert or their own typed correction. Null exactly
+  /// when [balanceUpdatedAt] is (never touched by either yet).
+  final String? balanceUpdatedSource;
   final String? profileId;
   const CreditCard({
     required this.id,
@@ -4699,6 +4784,7 @@ class CreditCard extends DataClass implements Insertable<CreditCard> {
     this.lastFourDigits,
     this.currentAvailableBalance,
     this.balanceUpdatedAt,
+    this.balanceUpdatedSource,
     this.profileId,
   });
   @override
@@ -4720,6 +4806,9 @@ class CreditCard extends DataClass implements Insertable<CreditCard> {
     }
     if (!nullToAbsent || balanceUpdatedAt != null) {
       map['balance_updated_at'] = Variable<DateTime>(balanceUpdatedAt);
+    }
+    if (!nullToAbsent || balanceUpdatedSource != null) {
+      map['balance_updated_source'] = Variable<String>(balanceUpdatedSource);
     }
     if (!nullToAbsent || profileId != null) {
       map['profile_id'] = Variable<String>(profileId);
@@ -4744,6 +4833,9 @@ class CreditCard extends DataClass implements Insertable<CreditCard> {
       balanceUpdatedAt: balanceUpdatedAt == null && nullToAbsent
           ? const Value.absent()
           : Value(balanceUpdatedAt),
+      balanceUpdatedSource: balanceUpdatedSource == null && nullToAbsent
+          ? const Value.absent()
+          : Value(balanceUpdatedSource),
       profileId: profileId == null && nullToAbsent
           ? const Value.absent()
           : Value(profileId),
@@ -4769,6 +4861,9 @@ class CreditCard extends DataClass implements Insertable<CreditCard> {
       balanceUpdatedAt: serializer.fromJson<DateTime?>(
         json['balanceUpdatedAt'],
       ),
+      balanceUpdatedSource: serializer.fromJson<String?>(
+        json['balanceUpdatedSource'],
+      ),
       profileId: serializer.fromJson<String?>(json['profileId']),
     );
   }
@@ -4787,6 +4882,7 @@ class CreditCard extends DataClass implements Insertable<CreditCard> {
         currentAvailableBalance,
       ),
       'balanceUpdatedAt': serializer.toJson<DateTime?>(balanceUpdatedAt),
+      'balanceUpdatedSource': serializer.toJson<String?>(balanceUpdatedSource),
       'profileId': serializer.toJson<String?>(profileId),
     };
   }
@@ -4801,6 +4897,7 @@ class CreditCard extends DataClass implements Insertable<CreditCard> {
     Value<String?> lastFourDigits = const Value.absent(),
     Value<double?> currentAvailableBalance = const Value.absent(),
     Value<DateTime?> balanceUpdatedAt = const Value.absent(),
+    Value<String?> balanceUpdatedSource = const Value.absent(),
     Value<String?> profileId = const Value.absent(),
   }) => CreditCard(
     id: id ?? this.id,
@@ -4818,6 +4915,9 @@ class CreditCard extends DataClass implements Insertable<CreditCard> {
     balanceUpdatedAt: balanceUpdatedAt.present
         ? balanceUpdatedAt.value
         : this.balanceUpdatedAt,
+    balanceUpdatedSource: balanceUpdatedSource.present
+        ? balanceUpdatedSource.value
+        : this.balanceUpdatedSource,
     profileId: profileId.present ? profileId.value : this.profileId,
   );
   CreditCard copyWithCompanion(CreditCardsCompanion data) {
@@ -4839,6 +4939,9 @@ class CreditCard extends DataClass implements Insertable<CreditCard> {
       balanceUpdatedAt: data.balanceUpdatedAt.present
           ? data.balanceUpdatedAt.value
           : this.balanceUpdatedAt,
+      balanceUpdatedSource: data.balanceUpdatedSource.present
+          ? data.balanceUpdatedSource.value
+          : this.balanceUpdatedSource,
       profileId: data.profileId.present ? data.profileId.value : this.profileId,
     );
   }
@@ -4855,6 +4958,7 @@ class CreditCard extends DataClass implements Insertable<CreditCard> {
           ..write('lastFourDigits: $lastFourDigits, ')
           ..write('currentAvailableBalance: $currentAvailableBalance, ')
           ..write('balanceUpdatedAt: $balanceUpdatedAt, ')
+          ..write('balanceUpdatedSource: $balanceUpdatedSource, ')
           ..write('profileId: $profileId')
           ..write(')'))
         .toString();
@@ -4871,6 +4975,7 @@ class CreditCard extends DataClass implements Insertable<CreditCard> {
     lastFourDigits,
     currentAvailableBalance,
     balanceUpdatedAt,
+    balanceUpdatedSource,
     profileId,
   );
   @override
@@ -4886,6 +4991,7 @@ class CreditCard extends DataClass implements Insertable<CreditCard> {
           other.lastFourDigits == this.lastFourDigits &&
           other.currentAvailableBalance == this.currentAvailableBalance &&
           other.balanceUpdatedAt == this.balanceUpdatedAt &&
+          other.balanceUpdatedSource == this.balanceUpdatedSource &&
           other.profileId == this.profileId);
 }
 
@@ -4899,6 +5005,7 @@ class CreditCardsCompanion extends UpdateCompanion<CreditCard> {
   final Value<String?> lastFourDigits;
   final Value<double?> currentAvailableBalance;
   final Value<DateTime?> balanceUpdatedAt;
+  final Value<String?> balanceUpdatedSource;
   final Value<String?> profileId;
   final Value<int> rowid;
   const CreditCardsCompanion({
@@ -4911,6 +5018,7 @@ class CreditCardsCompanion extends UpdateCompanion<CreditCard> {
     this.lastFourDigits = const Value.absent(),
     this.currentAvailableBalance = const Value.absent(),
     this.balanceUpdatedAt = const Value.absent(),
+    this.balanceUpdatedSource = const Value.absent(),
     this.profileId = const Value.absent(),
     this.rowid = const Value.absent(),
   });
@@ -4924,6 +5032,7 @@ class CreditCardsCompanion extends UpdateCompanion<CreditCard> {
     this.lastFourDigits = const Value.absent(),
     this.currentAvailableBalance = const Value.absent(),
     this.balanceUpdatedAt = const Value.absent(),
+    this.balanceUpdatedSource = const Value.absent(),
     this.profileId = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
@@ -4940,6 +5049,7 @@ class CreditCardsCompanion extends UpdateCompanion<CreditCard> {
     Expression<String>? lastFourDigits,
     Expression<double>? currentAvailableBalance,
     Expression<DateTime>? balanceUpdatedAt,
+    Expression<String>? balanceUpdatedSource,
     Expression<String>? profileId,
     Expression<int>? rowid,
   }) {
@@ -4954,6 +5064,8 @@ class CreditCardsCompanion extends UpdateCompanion<CreditCard> {
       if (currentAvailableBalance != null)
         'current_available_balance': currentAvailableBalance,
       if (balanceUpdatedAt != null) 'balance_updated_at': balanceUpdatedAt,
+      if (balanceUpdatedSource != null)
+        'balance_updated_source': balanceUpdatedSource,
       if (profileId != null) 'profile_id': profileId,
       if (rowid != null) 'rowid': rowid,
     });
@@ -4969,6 +5081,7 @@ class CreditCardsCompanion extends UpdateCompanion<CreditCard> {
     Value<String?>? lastFourDigits,
     Value<double?>? currentAvailableBalance,
     Value<DateTime?>? balanceUpdatedAt,
+    Value<String?>? balanceUpdatedSource,
     Value<String?>? profileId,
     Value<int>? rowid,
   }) {
@@ -4983,6 +5096,7 @@ class CreditCardsCompanion extends UpdateCompanion<CreditCard> {
       currentAvailableBalance:
           currentAvailableBalance ?? this.currentAvailableBalance,
       balanceUpdatedAt: balanceUpdatedAt ?? this.balanceUpdatedAt,
+      balanceUpdatedSource: balanceUpdatedSource ?? this.balanceUpdatedSource,
       profileId: profileId ?? this.profileId,
       rowid: rowid ?? this.rowid,
     );
@@ -5020,6 +5134,11 @@ class CreditCardsCompanion extends UpdateCompanion<CreditCard> {
     if (balanceUpdatedAt.present) {
       map['balance_updated_at'] = Variable<DateTime>(balanceUpdatedAt.value);
     }
+    if (balanceUpdatedSource.present) {
+      map['balance_updated_source'] = Variable<String>(
+        balanceUpdatedSource.value,
+      );
+    }
     if (profileId.present) {
       map['profile_id'] = Variable<String>(profileId.value);
     }
@@ -5041,6 +5160,7 @@ class CreditCardsCompanion extends UpdateCompanion<CreditCard> {
           ..write('lastFourDigits: $lastFourDigits, ')
           ..write('currentAvailableBalance: $currentAvailableBalance, ')
           ..write('balanceUpdatedAt: $balanceUpdatedAt, ')
+          ..write('balanceUpdatedSource: $balanceUpdatedSource, ')
           ..write('profileId: $profileId, ')
           ..write('rowid: $rowid')
           ..write(')'))
@@ -9698,6 +9818,7 @@ typedef $$LedgerTransactionsTableCreateCompanionBuilder =
       Value<String?> description,
       required DateTime createdAt,
       Value<String?> profileId,
+      Value<String> source,
       Value<int> rowid,
     });
 typedef $$LedgerTransactionsTableUpdateCompanionBuilder =
@@ -9711,6 +9832,7 @@ typedef $$LedgerTransactionsTableUpdateCompanionBuilder =
       Value<String?> description,
       Value<DateTime> createdAt,
       Value<String?> profileId,
+      Value<String> source,
       Value<int> rowid,
     });
 
@@ -9807,6 +9929,11 @@ class $$LedgerTransactionsTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
+  ColumnFilters<String> get source => $composableBuilder(
+    column: $table.source,
+    builder: (column) => ColumnFilters(column),
+  );
+
   $$CounterpartiesTableFilterComposer get counterpartyId {
     final $$CounterpartiesTableFilterComposer composer = $composerBuilder(
       composer: this,
@@ -9898,6 +10025,11 @@ class $$LedgerTransactionsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get source => $composableBuilder(
+    column: $table.source,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   $$CounterpartiesTableOrderingComposer get counterpartyId {
     final $$CounterpartiesTableOrderingComposer composer = $composerBuilder(
       composer: this,
@@ -9976,6 +10108,9 @@ class $$LedgerTransactionsTableAnnotationComposer
 
   GeneratedColumn<DateTime> get createdAt =>
       $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<String> get source =>
+      $composableBuilder(column: $table.source, builder: (column) => column);
 
   $$CounterpartiesTableAnnotationComposer get counterpartyId {
     final $$CounterpartiesTableAnnotationComposer composer = $composerBuilder(
@@ -10066,6 +10201,7 @@ class $$LedgerTransactionsTableTableManager
                 Value<String?> description = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<String?> profileId = const Value.absent(),
+                Value<String> source = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => LedgerTransactionsCompanion(
                 id: id,
@@ -10077,6 +10213,7 @@ class $$LedgerTransactionsTableTableManager
                 description: description,
                 createdAt: createdAt,
                 profileId: profileId,
+                source: source,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -10090,6 +10227,7 @@ class $$LedgerTransactionsTableTableManager
                 Value<String?> description = const Value.absent(),
                 required DateTime createdAt,
                 Value<String?> profileId = const Value.absent(),
+                Value<String> source = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => LedgerTransactionsCompanion.insert(
                 id: id,
@@ -10101,6 +10239,7 @@ class $$LedgerTransactionsTableTableManager
                 description: description,
                 createdAt: createdAt,
                 profileId: profileId,
+                source: source,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
@@ -11524,6 +11663,7 @@ typedef $$CreditCardsTableCreateCompanionBuilder =
       Value<String?> lastFourDigits,
       Value<double?> currentAvailableBalance,
       Value<DateTime?> balanceUpdatedAt,
+      Value<String?> balanceUpdatedSource,
       Value<String?> profileId,
       Value<int> rowid,
     });
@@ -11538,6 +11678,7 @@ typedef $$CreditCardsTableUpdateCompanionBuilder =
       Value<String?> lastFourDigits,
       Value<double?> currentAvailableBalance,
       Value<DateTime?> balanceUpdatedAt,
+      Value<String?> balanceUpdatedSource,
       Value<String?> profileId,
       Value<int> rowid,
     });
@@ -11615,6 +11756,11 @@ class $$CreditCardsTableFilterComposer
 
   ColumnFilters<DateTime> get balanceUpdatedAt => $composableBuilder(
     column: $table.balanceUpdatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get balanceUpdatedSource => $composableBuilder(
+    column: $table.balanceUpdatedSource,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -11696,6 +11842,11 @@ class $$CreditCardsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get balanceUpdatedSource => $composableBuilder(
+    column: $table.balanceUpdatedSource,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   $$ProfilesTableOrderingComposer get profileId {
     final $$ProfilesTableOrderingComposer composer = $composerBuilder(
       composer: this,
@@ -11764,6 +11915,11 @@ class $$CreditCardsTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<String> get balanceUpdatedSource => $composableBuilder(
+    column: $table.balanceUpdatedSource,
+    builder: (column) => column,
+  );
+
   $$ProfilesTableAnnotationComposer get profileId {
     final $$ProfilesTableAnnotationComposer composer = $composerBuilder(
       composer: this,
@@ -11825,6 +11981,7 @@ class $$CreditCardsTableTableManager
                 Value<String?> lastFourDigits = const Value.absent(),
                 Value<double?> currentAvailableBalance = const Value.absent(),
                 Value<DateTime?> balanceUpdatedAt = const Value.absent(),
+                Value<String?> balanceUpdatedSource = const Value.absent(),
                 Value<String?> profileId = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => CreditCardsCompanion(
@@ -11837,6 +11994,7 @@ class $$CreditCardsTableTableManager
                 lastFourDigits: lastFourDigits,
                 currentAvailableBalance: currentAvailableBalance,
                 balanceUpdatedAt: balanceUpdatedAt,
+                balanceUpdatedSource: balanceUpdatedSource,
                 profileId: profileId,
                 rowid: rowid,
               ),
@@ -11851,6 +12009,7 @@ class $$CreditCardsTableTableManager
                 Value<String?> lastFourDigits = const Value.absent(),
                 Value<double?> currentAvailableBalance = const Value.absent(),
                 Value<DateTime?> balanceUpdatedAt = const Value.absent(),
+                Value<String?> balanceUpdatedSource = const Value.absent(),
                 Value<String?> profileId = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => CreditCardsCompanion.insert(
@@ -11863,6 +12022,7 @@ class $$CreditCardsTableTableManager
                 lastFourDigits: lastFourDigits,
                 currentAvailableBalance: currentAvailableBalance,
                 balanceUpdatedAt: balanceUpdatedAt,
+                balanceUpdatedSource: balanceUpdatedSource,
                 profileId: profileId,
                 rowid: rowid,
               ),

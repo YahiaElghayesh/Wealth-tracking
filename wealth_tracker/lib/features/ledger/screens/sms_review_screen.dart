@@ -137,7 +137,7 @@ class _SmsReviewScreenState extends ConsumerState<SmsReviewScreen> {
           amount: amount,
           currency: _currency,
           category: category.isEmpty ? 'Other' : category,
-          description: 'Added from SMS',
+          source: 'sms',
         );
 
     if (!mounted) return;

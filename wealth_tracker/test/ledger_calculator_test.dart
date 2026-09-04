@@ -20,6 +20,7 @@ LedgerTransaction _txn({
     category: category,
     description: null,
     createdAt: date,
+    source: 'manual',
   );
 }
 
@@ -41,7 +42,12 @@ void main() {
     test('converts a USD entry into the EGP settlement total', () {
       final txns = [
         _txn(date: DateTime(2026, 1, 5), amount: 100, category: 'Groceries'),
-        _txn(date: DateTime(2026, 1, 6), amount: 20, category: 'Subscription', currency: 'USD'),
+        _txn(
+          date: DateTime(2026, 1, 6),
+          amount: 20,
+          category: 'Subscription',
+          currency: 'USD',
+        ),
       ];
 
       final result = runningBalance(txns, _prices);
@@ -49,16 +55,24 @@ void main() {
       expect(result.amount, closeTo(100 + 20 * 48.5, 0.001));
     });
 
-    test('excludes entries whose currency has no known rate, rather than mis-counting them', () {
-      final txns = [
-        _txn(date: DateTime(2026, 1, 5), amount: 100, category: 'Groceries', currency: 'TRY'),
-      ];
+    test(
+      'excludes entries whose currency has no known rate, rather than mis-counting them',
+      () {
+        final txns = [
+          _txn(
+            date: DateTime(2026, 1, 5),
+            amount: 100,
+            category: 'Groceries',
+            currency: 'TRY',
+          ),
+        ];
 
-      final result = runningBalance(txns, _prices);
+        final result = runningBalance(txns, _prices);
 
-      expect(result.amount, 0);
-      expect(result.unconvertedCount, 1);
-    });
+        expect(result.amount, 0);
+        expect(result.unconvertedCount, 1);
+      },
+    );
   });
 
   group('monthlyCategoryTotals', () {
@@ -75,8 +89,14 @@ void main() {
 
       expect(totals['Groceries'], closeTo(120, 0.001));
       expect(totals['Fuel'], closeTo(40, 0.001));
-      expect(monthlyExpenseTotal(txns, DateTime(2026, 1), _prices), closeTo(160, 0.001));
-      expect(monthlyRepaymentTotal(txns, DateTime(2026, 1), _prices), closeTo(50, 0.001));
+      expect(
+        monthlyExpenseTotal(txns, DateTime(2026, 1), _prices),
+        closeTo(160, 0.001),
+      );
+      expect(
+        monthlyRepaymentTotal(txns, DateTime(2026, 1), _prices),
+        closeTo(50, 0.001),
+      );
     });
   });
 
@@ -89,57 +109,82 @@ void main() {
         _txn(date: DateTime(2026, 1, 6), amount: 40, category: 'Fuel'),
       ];
 
-      final totals = categoryTotalsForMonths(
-        txns,
-        {DateTime(2026, 1), DateTime(2026, 3)},
-        _prices,
-      );
+      final totals = categoryTotalsForMonths(txns, {
+        DateTime(2026, 1),
+        DateTime(2026, 3),
+      }, _prices);
 
       expect(totals['Groceries'], closeTo(130, 0.001));
       expect(totals['Fuel'], closeTo(40, 0.001));
     });
 
     test('returns an empty map for an empty month selection', () {
-      final txns = [_txn(date: DateTime(2026, 1, 5), amount: 100, category: 'Groceries')];
+      final txns = [
+        _txn(date: DateTime(2026, 1, 5), amount: 100, category: 'Groceries'),
+      ];
       expect(categoryTotalsForMonths(txns, {}, _prices), isEmpty);
     });
   });
 
   group('monthlySpendTrend', () {
-    test('returns one entry per month, oldest first, zero-filling months with no entries', () {
-      final txns = [
-        _txn(date: DateTime(2026, 1, 5), amount: 100, category: 'Groceries'),
-        _txn(date: DateTime(2026, 3, 5), amount: 40, category: 'Fuel'),
-      ];
+    test(
+      'returns one entry per month, oldest first, zero-filling months with no entries',
+      () {
+        final txns = [
+          _txn(date: DateTime(2026, 1, 5), amount: 100, category: 'Groceries'),
+          _txn(date: DateTime(2026, 3, 5), amount: 40, category: 'Fuel'),
+        ];
 
-      final trend = monthlySpendTrend(txns, _prices, months: 3, asOf: DateTime(2026, 3, 15));
+        final trend = monthlySpendTrend(
+          txns,
+          _prices,
+          months: 3,
+          asOf: DateTime(2026, 3, 15),
+        );
 
-      expect(trend.map((m) => m.month), [DateTime(2026, 1), DateTime(2026, 2), DateTime(2026, 3)]);
-      expect(trend[0].amount, closeTo(100, 0.001));
-      expect(trend[1].amount, 0);
-      expect(trend[2].amount, closeTo(40, 0.001));
-    });
+        expect(trend.map((m) => m.month), [
+          DateTime(2026, 1),
+          DateTime(2026, 2),
+          DateTime(2026, 3),
+        ]);
+        expect(trend[0].amount, closeTo(100, 0.001));
+        expect(trend[1].amount, 0);
+        expect(trend[2].amount, closeTo(40, 0.001));
+      },
+    );
 
     test('rolls over the year boundary correctly', () {
-      final trend = monthlySpendTrend(const [], _prices, months: 3, asOf: DateTime(2026, 1, 15));
-      expect(trend.map((m) => m.month), [DateTime(2025, 11), DateTime(2025, 12), DateTime(2026, 1)]);
+      final trend = monthlySpendTrend(
+        const [],
+        _prices,
+        months: 3,
+        asOf: DateTime(2026, 1, 15),
+      );
+      expect(trend.map((m) => m.month), [
+        DateTime(2025, 11),
+        DateTime(2025, 12),
+        DateTime(2026, 1),
+      ]);
     });
   });
 
   group('categoryTotalsAllTime', () {
-    test('sums expenses by category across every month, excluding repayments', () {
-      final txns = [
-        _txn(date: DateTime(2026, 1, 5), amount: 100, category: 'Talabat'),
-        _txn(date: DateTime(2026, 2, 5), amount: 50, category: 'Talabat'),
-        _txn(date: DateTime(2026, 2, 6), amount: 30, category: 'Amazon'),
-        _txn(date: DateTime(2026, 3, 1), amount: -20, category: 'Repayment'),
-      ];
+    test(
+      'sums expenses by category across every month, excluding repayments',
+      () {
+        final txns = [
+          _txn(date: DateTime(2026, 1, 5), amount: 100, category: 'Talabat'),
+          _txn(date: DateTime(2026, 2, 5), amount: 50, category: 'Talabat'),
+          _txn(date: DateTime(2026, 2, 6), amount: 30, category: 'Amazon'),
+          _txn(date: DateTime(2026, 3, 1), amount: -20, category: 'Repayment'),
+        ];
 
-      final totals = categoryTotalsAllTime(txns, _prices);
+        final totals = categoryTotalsAllTime(txns, _prices);
 
-      expect(totals['Talabat'], closeTo(150, 0.001));
-      expect(totals['Amazon'], closeTo(30, 0.001));
-      expect(totals.containsKey('Repayment'), isFalse);
-    });
+        expect(totals['Talabat'], closeTo(150, 0.001));
+        expect(totals['Amazon'], closeTo(30, 0.001));
+        expect(totals.containsKey('Repayment'), isFalse);
+      },
+    );
   });
 }

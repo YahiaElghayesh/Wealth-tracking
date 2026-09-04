@@ -73,6 +73,13 @@ class LedgerRepository {
     )..where((t) => t.profileId.equals(profileId))).watch();
   }
 
+  /// [source] is 'manual' (the default -- typed in on `AddTransactionScreen`)
+  /// or 'sms' (`SmsReviewScreen`'s own call after a confirmed bank charge),
+  /// shown on the ledger row so an SMS-originated entry doesn't look
+  /// indistinguishable from one typed in by hand. `commitSmsQuickAdd`'s
+  /// fully-silent vendor-rule auto-add doesn't go through this method (a
+  /// background isolate, no repository instance to call) -- it stamps
+  /// 'sms' directly on its own raw insert instead.
   Future<void> addTransaction({
     required String counterpartyId,
     required DateTime date,
@@ -80,6 +87,7 @@ class LedgerRepository {
     required String currency,
     required String category,
     String? description,
+    String source = 'manual',
   }) {
     return _db
         .into(_db.ledgerTransactions)
@@ -94,6 +102,7 @@ class LedgerRepository {
             description: Value(description),
             createdAt: DateTime.now(),
             profileId: Value(profileId),
+            source: Value(source),
           ),
         );
   }

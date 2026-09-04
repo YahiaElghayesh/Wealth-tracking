@@ -249,7 +249,8 @@ class CounterpartyDetailScreen extends ConsumerWidget {
                                             hideValues
                                                 ? '••••••'
                                                 : '${t.date.year}-${t.date.month.toString().padLeft(2, '0')}-${t.date.day.toString().padLeft(2, '0')}'
-                                                      '${t.description == null ? '' : ' · ${t.description}'}',
+                                                      '${t.description == null ? '' : ' · ${t.description}'}'
+                                                      '${t.source == 'sms' ? ' · SMS' : ''}',
                                             style: theme.textTheme.labelSmall
                                                 ?.copyWith(
                                                   color: colors.textDim,
