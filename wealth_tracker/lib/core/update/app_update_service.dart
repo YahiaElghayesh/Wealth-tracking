@@ -1,3 +1,6 @@
+import 'dart:io';
+
+import 'package:crypto/crypto.dart';
 import 'package:dio/dio.dart';
 
 /// The GitHub repo this app's automated debug builds publish to -- see
@@ -19,6 +22,7 @@ class AvailableUpdate {
     required this.buildNumber,
     required this.assetDownloadUrl,
     required this.assetSizeBytes,
+    required this.expectedSha256,
   });
 
   /// Parsed from the release's `build-<N>` tag -- exactly the
@@ -32,6 +36,16 @@ class AvailableUpdate {
   final String assetDownloadUrl;
 
   final int assetSizeBytes;
+
+  /// The hex SHA-256 digest CI computed for the exact `.apk` it published
+  /// (see the workflow's own `.sha256` asset), or null for an older
+  /// release published before that asset existed. [AppUpdateService
+  /// .download] refuses to hand back a downloaded file that doesn't match
+  /// this -- HTTPS already rules out in-transit tampering, but verifying
+  /// the actual bytes against what CI itself built and hashed is a second,
+  /// independent check that doesn't have to trust the download transport
+  /// at all.
+  final String? expectedSha256;
 }
 
 /// Thrown for any failure reaching/parsing the Releases API or downloading
@@ -91,19 +105,27 @@ class AppUpdateService {
 
       final assets = response.data?['assets'] as List<dynamic>? ?? [];
       Map<String, dynamic>? apkAsset;
+      String? checksumUrl;
       for (final asset in assets) {
-        if (asset is Map<String, dynamic> &&
-            (asset['name'] as String? ?? '').endsWith('.apk')) {
+        if (asset is! Map<String, dynamic>) continue;
+        final name = asset['name'] as String? ?? '';
+        if (name.endsWith('.apk')) {
           apkAsset = asset;
-          break;
+        } else if (name.endsWith('.sha256')) {
+          checksumUrl = asset['browser_download_url'] as String?;
         }
       }
       if (apkAsset == null) return null;
+
+      final expectedSha256 = checksumUrl == null
+          ? null
+          : await _fetchChecksum(checksumUrl);
 
       return AvailableUpdate(
         buildNumber: buildNumber,
         assetDownloadUrl: apkAsset['browser_download_url'] as String,
         assetSizeBytes: apkAsset['size'] as int? ?? 0,
+        expectedSha256: expectedSha256,
       );
     } on DioException catch (e) {
       final status = e.response?.statusCode;
@@ -114,7 +136,34 @@ class AppUpdateService {
     }
   }
 
-  /// Downloads the APK to [savePath], reporting 0.0-1.0 progress.
+  /// Fetches the tiny plain-text `.sha256` asset and returns just the hex
+  /// digest, lowercased and trimmed. A failure here (network hiccup, a
+  /// release genuinely missing this asset despite listing it -- shouldn't
+  /// happen, but this is a checksum's own fetch, not the APK's) falls back
+  /// to null rather than blocking the update check entirely: the app
+  /// still shows the update as available, [download] just has nothing to
+  /// verify against for this one release.
+  Future<String?> _fetchChecksum(String url) async {
+    try {
+      final response = await _dio.get<String>(
+        url,
+        options: Options(responseType: ResponseType.plain),
+      );
+      final body = response.data?.trim().toLowerCase();
+      if (body == null || !RegExp(r'^[0-9a-f]{64}$').hasMatch(body)) {
+        return null;
+      }
+      return body;
+    } on DioException {
+      return null;
+    }
+  }
+
+  /// Downloads the APK to [savePath], reporting 0.0-1.0 progress, then
+  /// verifies it against [AvailableUpdate.expectedSha256] before returning
+  /// -- see that field's own doc comment for why. A mismatch deletes the
+  /// partial/tampered file and throws rather than leaving it in place for
+  /// [AppUpdateController] to hand to the installer.
   Future<void> download(
     AvailableUpdate update,
     String savePath, {
@@ -130,6 +179,19 @@ class AppUpdateService {
       );
     } on DioException catch (e) {
       throw AppUpdateException(e.message ?? 'download failed');
+    }
+
+    final expected = update.expectedSha256;
+    if (expected == null) return;
+
+    final file = File(savePath);
+    final digest = sha256.convert(await file.readAsBytes());
+    if (digest.toString() != expected) {
+      await file.delete();
+      throw AppUpdateException(
+        "Downloaded file didn't match the expected checksum -- discarded for safety. "
+        'Please try again.',
+      );
     }
   }
 }

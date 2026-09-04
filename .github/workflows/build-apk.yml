@@ -95,7 +95,14 @@ jobs:
           GH_TOKEN: ${{ secrets.RELEASES_REPO_TOKEN }}
         run: |
           cp build/app/outputs/flutter-apk/app-debug.apk wealth-tracker-debug.apk
-          gh release create "build-${{ github.run_number }}" wealth-tracker-debug.apk \
+          # A plain-text checksum asset alongside the APK -- lets the
+          # in-app updater verify what it downloaded actually matches what
+          # CI built and published, rather than trusting the download
+          # transport alone. `awk` strips the filename sha256sum prints
+          # after the hash, since the app only wants the hex digest itself.
+          sha256sum wealth-tracker-debug.apk | awk '{print $1}' > wealth-tracker-debug.apk.sha256
+          gh release create "build-${{ github.run_number }}" \
+            wealth-tracker-debug.apk wealth-tracker-debug.apk.sha256 \
             --repo "YahiaElghayesh/app-releases" \
             --title "Build ${{ github.run_number }}" \
             --notes "Automated debug build from commit ${{ github.sha }}." \

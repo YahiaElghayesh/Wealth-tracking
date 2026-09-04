@@ -114,6 +114,12 @@ every build to — a public release's assets are plain, unauthenticated HTTPS UR
 the installed app never needs to carry any GitHub credential of its own. There's
 nothing to set up on the app side.
 
+Every build also publishes a `.sha256` checksum file alongside the APK; the app
+verifies a downloaded update against it before offering to install, and discards
+the file on any mismatch. Independent of Android's own APK-signature check (which
+still applies at install time regardless), this is defense against a corrupted or
+tampered download rather than something you need to think about day to day.
+
 CI still needs a credential to *publish* into that other repo (a cross-repo write
 always needs one, no matter how it's done) — but that one lives only in CI, never
 baked into anything a user installs:

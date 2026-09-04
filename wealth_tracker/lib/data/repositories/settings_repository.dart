@@ -2,15 +2,24 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../core/models/asset_category.dart';
+import '../../core/security/secure_settings_store.dart';
 import '../db/database.dart' show defaultProfileId;
 
 /// Small key/value settings backed by [SharedPreferences]. Anything that
 /// belongs in the synced database (assets, ledger) lives in drift instead —
 /// this is strictly per-device app configuration (API keys, tokens).
+///
+/// A few of these values are genuine secrets -- the metals API key, the
+/// Drive desktop OAuth client secret, and persisted Drive OAuth
+/// credentials -- and live in [_secure] (real platform secure storage)
+/// instead of [_prefs] (a plain, unencrypted file), even though both are
+/// exposed through the same synchronous getters here; see
+/// [SecureSettingsStore]'s own doc comment for why.
 class SettingsRepository {
-  SettingsRepository(this._prefs);
+  SettingsRepository(this._prefs, this._secure);
 
   final SharedPreferences _prefs;
+  final SecureSettingsStore _secure;
 
   static const _metalsApiKeyKey = 'metals_api_key';
   static const _desktopClientIdKey = 'drive_desktop_client_id';
@@ -110,22 +119,22 @@ class SettingsRepository {
     return _prefs.setInt(_priceRefreshIntervalHoursKey, hours);
   }
 
-  String? get metalsApiKey => _prefs.getString(_metalsApiKeyKey);
+  String? get metalsApiKey => _secure.get(_metalsApiKeyKey);
 
-  Future<void> setMetalsApiKey(String? key) async {
-    if (key == null || key.isEmpty) {
-      await _prefs.remove(_metalsApiKeyKey);
-    } else {
-      await _prefs.setString(_metalsApiKeyKey, key);
-    }
+  Future<void> setMetalsApiKey(String? key) {
+    return _secure.set(_metalsApiKeyKey, key);
   }
 
   /// OAuth "Desktop app" client credentials, needed only on platforms
-  /// without a native Google Sign-In SDK (i.e. Windows). Google issues a
-  /// secret for this client type, but it's not treated as confidential for
-  /// installed apps — see the README for how to create one.
+  /// without a native Google Sign-In SDK (i.e. Windows). The client ID
+  /// isn't a secret (client IDs are meant to be public, and this one is
+  /// just app configuration) so it stays in [_prefs]; Google does issue a
+  /// secret for this client type though, and even though Google's own
+  /// guidance says it's not meaningfully confidential for installed apps,
+  /// it lives in [_secure] regardless -- see the README for how to create
+  /// one.
   String? get desktopClientId => _prefs.getString(_desktopClientIdKey);
-  String? get desktopClientSecret => _prefs.getString(_desktopClientSecretKey);
+  String? get desktopClientSecret => _secure.get(_desktopClientSecretKey);
 
   Future<void> setDesktopOAuthClient({
     required String? clientId,
@@ -136,24 +145,19 @@ class SettingsRepository {
     } else {
       await _prefs.setString(_desktopClientIdKey, clientId);
     }
-    if (clientSecret == null || clientSecret.isEmpty) {
-      await _prefs.remove(_desktopClientSecretKey);
-    } else {
-      await _prefs.setString(_desktopClientSecretKey, clientSecret);
-    }
+    await _secure.set(_desktopClientSecretKey, clientSecret);
   }
 
   /// Persisted `AccessCredentials.toJson()` so desktop sign-in can be
-  /// restored silently across app restarts without a browser round trip.
-  String? get desktopCredentialsJson =>
-      _prefs.getString(_desktopCredentialsKey);
+  /// restored silently across app restarts without a browser round trip --
+  /// this is a live OAuth access/refresh token pair, arguably the single
+  /// most sensitive value this repository holds (it grants ongoing access
+  /// to the user's actual Google Drive), hence [_secure] rather than
+  /// [_prefs].
+  String? get desktopCredentialsJson => _secure.get(_desktopCredentialsKey);
 
-  Future<void> setDesktopCredentialsJson(String? json) async {
-    if (json == null) {
-      await _prefs.remove(_desktopCredentialsKey);
-    } else {
-      await _prefs.setString(_desktopCredentialsKey, json);
-    }
+  Future<void> setDesktopCredentialsJson(String? json) {
+    return _secure.set(_desktopCredentialsKey, json);
   }
 
   DateTime? get lastSyncedAt {

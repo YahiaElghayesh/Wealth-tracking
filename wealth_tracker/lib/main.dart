@@ -8,6 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'app.dart';
 import 'core/providers/core_providers.dart';
 import 'core/security/app_lock_exemption.dart';
+import 'core/security/secure_settings_store.dart';
 import 'data/pricing/background_refresh.dart';
 import 'data/repositories/settings_repository.dart';
 import 'data/sms/native_sms_channel.dart';
@@ -16,12 +17,16 @@ import 'features/ledger/providers/quick_add_launch.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   final prefs = await SharedPreferences.getInstance();
+  final secureSettings = await SecureSettingsStore.load(prefs);
 
   if (Platform.isAndroid) {
     // Fire-and-forget: registration talks to the OS's job scheduler, no
     // need to hold up first frame for it, and a failure here shouldn't
     // block the app from starting.
-    final hours = SettingsRepository(prefs).priceRefreshIntervalHours;
+    final hours = SettingsRepository(
+      prefs,
+      secureSettings,
+    ).priceRefreshIntervalHours;
     unawaited(
       registerBackgroundPriceRefresh(frequency: Duration(hours: hours)),
     );
@@ -56,7 +61,10 @@ void main() async {
 
   runApp(
     ProviderScope(
-      overrides: [sharedPreferencesProvider.overrideWithValue(prefs)],
+      overrides: [
+        sharedPreferencesProvider.overrideWithValue(prefs),
+        secureSettingsStoreProvider.overrideWithValue(secureSettings),
+      ],
       child: const WealthTrackerApp(),
     ),
   );

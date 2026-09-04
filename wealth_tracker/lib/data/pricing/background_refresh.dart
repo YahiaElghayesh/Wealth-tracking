@@ -1,6 +1,7 @@
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:workmanager/workmanager.dart';
 
+import '../../core/security/secure_settings_store.dart';
 import '../db/database.dart';
 import '../net_worth/net_worth_calculator.dart';
 import '../repositories/price_cache_repository.dart';
@@ -74,7 +75,8 @@ Future<void> runSmsQuickAddTask(Map<String, dynamic> inputData) async {
   final db = AppDatabase();
   try {
     final prefs = await SharedPreferences.getInstance();
-    final profileId = SettingsRepository(prefs).activeProfileId;
+    final secureSettings = await SecureSettingsStore.load(prefs);
+    final profileId = SettingsRepository(prefs, secureSettings).activeProfileId;
     await commitSmsQuickAdd(
       db,
       body: body,
@@ -100,7 +102,8 @@ Future<void> runSmsAutoUpdateTask(Map<String, dynamic> inputData) async {
   final db = AppDatabase();
   try {
     final prefs = await SharedPreferences.getInstance();
-    final profileId = SettingsRepository(prefs).activeProfileId;
+    final secureSettings = await SecureSettingsStore.load(prefs);
+    final profileId = SettingsRepository(prefs, secureSettings).activeProfileId;
     await commitSmsAutoUpdate(
       db,
       body: body,
@@ -145,7 +148,8 @@ Future<void> runBackgroundPriceRefresh() async {
     if (assets.isEmpty) return;
 
     final prefs = await SharedPreferences.getInstance();
-    final settings = SettingsRepository(prefs);
+    final secureSettings = await SecureSettingsStore.load(prefs);
+    final settings = SettingsRepository(prefs, secureSettings);
     final service = PriceRefreshService(
       cryptoProvider: CoinGeckoPriceProvider(),
       fxProvider: FxPriceProvider(),
