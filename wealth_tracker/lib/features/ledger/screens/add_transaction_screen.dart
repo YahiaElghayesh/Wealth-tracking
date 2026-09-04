@@ -162,6 +162,89 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
     _setAmountText('');
   }
 
+  /// Flutter's own text-selection toolbar never offers "Paste" on a
+  /// `readOnly` field (see the amount `TextFormField` below) -- reasonable
+  /// for a field the OS keyboard truly can't type into, but this one
+  /// *does* accept programmatic edits (every keypad tap is exactly that),
+  /// so there was no real reason paste couldn't work too. [_buildAmountContextMenu]
+  /// adds a real "Paste" button back in; this is what it calls.
+  Future<void> _pasteAmount(EditableTextState editableTextState) async {
+    editableTextState.hideToolbar();
+    final data = await Clipboard.getData(Clipboard.kTextPlain);
+    final raw = data?.text;
+    if (raw == null || raw.isEmpty) return;
+
+    final text = _amountController.text;
+    final selection = _amountController.selection;
+    final start = selection.isValid ? selection.start : text.length;
+    final end = selection.isValid ? selection.end : text.length;
+    var before = text.substring(0, start);
+    final after = text.substring(end);
+
+    // Same one-decimal-point rule [_appendDigit] enforces one character at
+    // a time -- if the field already has a '.' outside the replaced range,
+    // a '.' pasted alongside it would otherwise produce something like
+    // "12.5.6", which double.tryParse can't read back.
+    final sanitized = _sanitizeAmountPaste(
+      raw,
+      allowDot: !before.contains('.') && !after.contains('.'),
+    );
+    if (sanitized.isEmpty) return;
+
+    if (before == '0' && after.isEmpty) before = '';
+    _setAmountText(
+      '$before$sanitized$after',
+      caretOffset: before.length + sanitized.length,
+    );
+  }
+
+  /// Keeps only digits and (at most) one '.' from a pasted string -- e.g.
+  /// copying "$1,234.56" from a bank statement pastes as "1234.56", same
+  /// shape [_appendDigit] already only ever lets through one character at
+  /// a time.
+  String _sanitizeAmountPaste(String input, {required bool allowDot}) {
+    final buffer = StringBuffer();
+    var usedDot = false;
+    for (final rune in input.runes) {
+      final char = String.fromCharCode(rune);
+      if (char == '.' && allowDot && !usedDot) {
+        buffer.write('.');
+        usedDot = true;
+      } else if (RegExp(r'^[0-9]$').hasMatch(char)) {
+        buffer.write(char);
+      }
+    }
+    return buffer.toString();
+  }
+
+  /// Starts from Flutter's own default menu (Copy/Select all -- everything
+  /// a readOnly field normally offers) and adds a working Paste button,
+  /// since this field is readOnly only to keep the OS keyboard from
+  /// popping up, not because it rejects edits -- see [_pasteAmount].
+  Widget _buildAmountContextMenu(
+    BuildContext context,
+    EditableTextState editableTextState,
+  ) {
+    final buttonItems = List<ContextMenuButtonItem>.of(
+      editableTextState.contextMenuButtonItems,
+    );
+    final hasPaste = buttonItems.any(
+      (item) => item.type == ContextMenuButtonType.paste,
+    );
+    if (!hasPaste) {
+      buttonItems.add(
+        ContextMenuButtonItem(
+          type: ContextMenuButtonType.paste,
+          onPressed: () => _pasteAmount(editableTextState),
+        ),
+      );
+    }
+    return AdaptiveTextSelectionToolbar.buttonItems(
+      anchors: editableTextState.contextMenuAnchors,
+      buttonItems: buttonItems,
+    );
+  }
+
   /// Setting [TextEditingController.text] on its own resets the cursor to
   /// the very start; [caretOffset] leaves it wherever the edit that just
   /// happened should logically put it (defaulting to the end, matching how
@@ -408,6 +491,7 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
                               controller: _amountController,
                               readOnly: true,
                               showCursor: true,
+                              contextMenuBuilder: _buildAmountContextMenu,
                               style: Theme.of(context).textTheme.headlineMedium,
                               decoration: const InputDecoration(
                                 hintText: '0.00',
