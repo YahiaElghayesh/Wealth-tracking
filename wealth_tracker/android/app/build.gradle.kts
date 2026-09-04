@@ -6,7 +6,13 @@ plugins {
 
 android {
     namespace = "com.yahiaelghayesh.wealth_tracker"
-    compileSdk = flutter.compileSdkVersion
+    // flutter.compileSdkVersion (36, this Flutter SDK's own default) is one
+    // version behind what flutter_secure_storage's Android plugin requires
+    // to compile against -- overridden explicitly rather than left at the
+    // Flutter tooling default. compileSdk only affects which API surface is
+    // compiled against (backward compatible); targetSdk below is untouched,
+    // so runtime behavior on installed devices doesn't change.
+    compileSdk = 37
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
