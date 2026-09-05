@@ -138,15 +138,31 @@ class _RecurringPaymentsScreenState
               monthly.add(payment);
             }
           }
-          int byOccurrence(RecurringPayment a, RecurringPayment b) {
-            return recurringPaymentOccurrenceDate(
+          // Sorts (and the tile badge below) both key off the *current
+          // cycle's* due date, not the next upcoming occurrence -- for an
+          // 'interval' payment those are two different dates (see
+          // recurring_payment_due.dart's own doc comments): the due date is
+          // when this cycle's charge actually happened (already in the
+          // past once a cycle has started), while the occurrence is the
+          // *next* charge, which can land next month. Sorting/badging by
+          // occurrence instead put an already-charged, already-paid
+          // "every 30 days" bill at the bottom of the list next to a
+          // future date, while still showing it as paid -- looking like
+          // a sort bug (a day-4 payment appearing after day-28 ones) and
+          // a logic bug (marked paid against a date that hasn't happened
+          // yet) at the same time. The due date is always <= today for an
+          // interval payment whose first cycle has started, and always
+          // this month for monthly/yearly, so this puts every payment
+          // where it actually belongs.
+          int byDueDate(RecurringPayment a, RecurringPayment b) {
+            return recurringPaymentDueDateForCurrentCycle(
               a,
               today,
-            ).compareTo(recurringPaymentOccurrenceDate(b, today));
+            ).compareTo(recurringPaymentDueDateForCurrentCycle(b, today));
           }
 
-          monthly.sort(byOccurrence);
-          yearly.sort(byOccurrence);
+          monthly.sort(byDueDate);
+          yearly.sort(byDueDate);
           return ListView(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 90),
             children: [
@@ -554,7 +570,6 @@ class _RecurringPaymentTile extends ConsumerWidget {
     final prices = ref.watch(pricesUsdPerUnitProvider);
     final today = DateTime.now();
     final paid = recurringPaymentIsPaidForCurrentCycle(payment, today);
-    final occurrence = recurringPaymentOccurrenceDate(payment, today);
     // Whether this cycle's actual due date is still ahead of today --
     // used only to give a tap on the not-yet-paid toggle honest feedback
     // (see below) instead of silently doing nothing, since
@@ -611,21 +626,21 @@ class _RecurringPaymentTile extends ConsumerWidget {
                   children: [
                     _PaidToggle(
                       paid: paid,
-                      dayLabel: '${occurrence.day}',
-                      // An 'interval' payment's next occurrence can land in
-                      // a later month than today (e.g. "every 30 days" due
-                      // Oct 4 while today is still September) -- shown
-                      // alongside true monthly payments in the same
-                      // section, whose occurrence is always *this* month by
-                      // construction. Without this, the bare day number
-                      // ("4") next to same-month days ("19", "26", "28")
-                      // looked like a sort bug -- it reads as "earliest in
-                      // the month" when it's actually the latest, next
-                      // month.
+                      // The current cycle's actual due date -- when this
+                      // cycle's charge happened (already in the past, for
+                      // an 'interval' payment whose cycle has started) or
+                      // is due (monthly/yearly) -- not the *next* upcoming
+                      // occurrence, which for an 'interval' payment can be
+                      // a different, later date shown separately in the
+                      // "next ..." caption below. Badging the *next*
+                      // occurrence here instead used to show a future date
+                      // marked "paid," which was actually the current
+                      // (already-charged) cycle wearing next cycle's date.
+                      dayLabel: '${dueDate.day}',
                       monthLabel:
-                          (occurrence.month != today.month ||
-                              occurrence.year != today.year)
-                          ? _monthNames[occurrence.month - 1].toUpperCase()
+                          (dueDate.month != today.month ||
+                              dueDate.year != today.year)
+                          ? _monthNames[dueDate.month - 1].toUpperCase()
                           : null,
                       onTap: () {
                         if (!paid && notYetDue) {
