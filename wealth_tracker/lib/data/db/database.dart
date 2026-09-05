@@ -38,7 +38,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 23;
+  int get schemaVersion => 24;
 
   /// Public so `ProfileRepository.addProfile` can give a newly created
   /// profile the same starter categories a fresh install gets -- otherwise
@@ -383,6 +383,14 @@ class AppDatabase extends _$AppDatabase {
         // already behaved before this column existed.
         await m.addColumn(recurringPayments, recurringPayments.notes);
         await m.addColumn(recurringPayments, recurringPayments.paymentMode);
+      }
+      if (from < 24) {
+        // Manual inputs gained a persisted `currentValue`, kept live by a
+        // debounced save-back the moment the user edits it -- see that
+        // column's own doc comment for the "reset itself" bug this fixes.
+        // Null (the default for every pre-existing row) correctly falls
+        // back to the existing last-saved-snapshot seeding logic.
+        await m.addColumn(manualInputs, manualInputs.currentValue);
       }
     },
     // The "Breakfast" quick-pick category was a voice-transcription

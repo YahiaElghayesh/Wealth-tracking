@@ -292,6 +292,23 @@ class ManualInputs extends Table {
 
   TextColumn get profileId => text().nullable().references(Profiles, #id)();
 
+  /// The last value actually typed into this input's Calculator field, in
+  /// [currency] -- kept current by a debounced save-back the moment the
+  /// user edits it (see CalculatorScreen's `_scheduleManualInputSave`,
+  /// mirroring `_scheduleCardBalanceSave`'s own doc comment for
+  /// [CreditCards.currentAvailableBalance]). Before this column existed, a
+  /// typed value only ever persisted at all once the user tapped the whole
+  /// Calculator screen's Save button (which bakes it into a
+  /// CalculatorSnapshot) -- any edit made after the last Save, or before
+  /// the very first one, lived only in this screen's in-memory
+  /// TextEditingController and vanished the moment the app process was
+  /// killed (an app update, or simply closing the app for a while), which
+  /// looked exactly like "my manual input got reset". Null means never
+  /// typed into on this device yet -- the seeding logic falls back to the
+  /// last saved snapshot's matching-by-name entry in that case, same as it
+  /// always has.
+  RealColumn get currentValue => real().nullable()();
+
   @override
   Set<Column> get primaryKey => {id};
 }

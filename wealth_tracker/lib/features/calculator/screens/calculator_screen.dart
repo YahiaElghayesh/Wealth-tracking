@@ -15,6 +15,7 @@ import '../../../core/widgets/hide_values_action.dart';
 import '../../../core/widgets/money_text.dart';
 import '../../../core/widgets/settings_action.dart';
 import '../../../data/calculator/current_money_calculator.dart';
+import '../../../data/calculator/manual_input_value_backup.dart';
 import '../../../data/db/database.dart';
 import '../../../data/ledger/ledger_calculator.dart';
 import '../../../data/repositories/calculator_repository.dart';
@@ -80,6 +81,23 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
   bool _isSeedingCard = false;
   final _cardBalanceSaveDebounce = <String, Timer>{};
 
+  // Same idea as _isSeedingCard/_cardBalanceSaveDebounce, for manual
+  // inputs -- see ManualInput.currentValue's own doc comment (in
+  // tables.dart) for the "reset itself" bug this fixes.
+  bool _isSeedingManualInput = false;
+  final _manualInputSaveDebounce = <String, Timer>{};
+
+  // A second, independent copy of every manual input's last-known value --
+  // see ManualInputValueBackup's own doc comment for why. Loaded once at
+  // startup; seeding waits for it (see `_manualInputBackupLoaded`'s use
+  // below) so a manual input is never seeded from a stale/blank value just
+  // because this hadn't finished loading yet, which -- since seeding only
+  // ever happens once per id -- would otherwise lock in the wrong number
+  // for the rest of the session.
+  Map<String, double> _manualInputBackup = {};
+  bool _manualInputBackupLoaded = false;
+  bool _prunedManualInputBackup = false;
+
   @override
   void initState() {
     super.initState();
@@ -87,6 +105,13 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
       final scrolled =
           _scrollController.hasClients && _scrollController.offset > 4;
       if (scrolled != _scrolled) setState(() => _scrolled = scrolled);
+    });
+    ManualInputValueBackup.readAll().then((backup) {
+      if (!mounted) return;
+      setState(() {
+        _manualInputBackup = backup;
+        _manualInputBackupLoaded = true;
+      });
     });
   }
 
@@ -103,8 +128,43 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
     for (final t in _cardBalanceSaveDebounce.values) {
       t.cancel();
     }
+    for (final t in _manualInputSaveDebounce.values) {
+      t.cancel();
+    }
     _scrollController.dispose();
     super.dispose();
+  }
+
+  /// Persists a manual edit of [inputId]'s value field back to the manual
+  /// input itself -- the same fix `_scheduleCardBalanceSave` already
+  /// applies to credit cards, applied here too. Debounced so every
+  /// keystroke doesn't hit the database, and skipped entirely while
+  /// [_isSeedingManualInput] is true so seeding a field doesn't turn
+  /// around and immediately "edit" it right back.
+  void _scheduleManualInputSave(String inputId) {
+    if (_isSeedingManualInput) return;
+    _manualInputSaveDebounce[inputId]?.cancel();
+    _manualInputSaveDebounce[inputId] = Timer(
+      const Duration(milliseconds: 600),
+      () => _saveManualInputValue(inputId),
+    );
+  }
+
+  Future<void> _saveManualInputValue(String inputId) async {
+    if (!mounted) return;
+    final controller = _manualInputControllers[inputId];
+    if (controller == null) return;
+    final newValue = double.tryParse(controller.text.trim());
+    // Leave whatever's already tracked alone rather than persisting
+    // unparseable input -- a momentarily-empty field mid-edit (backspacing
+    // to retype) must never wipe out a good previously-saved value.
+    if (newValue == null) return;
+
+    await ref
+        .read(calculatorRepositoryProvider)
+        .setManualInputCurrentValue(inputId, newValue);
+    await ManualInputValueBackup.record(inputId, newValue);
+    _manualInputBackup[inputId] = newValue;
   }
 
   /// Persists a manual edit of [cardId]'s balance field back to the card
@@ -186,6 +246,7 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
     return _manualInputControllers.putIfAbsent(input.id, () {
       final controller = TextEditingController();
       controller.addListener(_onFieldChanged);
+      controller.addListener(() => _scheduleManualInputSave(input.id));
       return controller;
     });
   }
@@ -410,9 +471,25 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
       if (c.balanceUpdatedAt == _cardSeedBalanceUpdatedAt[c.id]) return false;
       return _cardControllerFor(c).text == _cardSeedText[c.id];
     }).toList();
-    final unseededManualInputs = currentManualInputs
-        ?.where((m) => !_seededManualInputIds.contains(m.id))
-        .toList();
+    if (currentManualInputs != null &&
+        _manualInputBackupLoaded &&
+        !_prunedManualInputBackup) {
+      _prunedManualInputBackup = true;
+      unawaited(
+        ManualInputValueBackup.pruneToLiveIds(
+          currentManualInputs.map((m) => m.id).toSet(),
+        ),
+      );
+    }
+    // Waits for the backup to finish loading (see `_manualInputBackup`'s
+    // own doc comment) before seeding anything, since seeding only ever
+    // happens once per id.
+    final unseededManualInputs =
+        (currentManualInputs != null && _manualInputBackupLoaded)
+        ? currentManualInputs
+              .where((m) => !_seededManualInputIds.contains(m.id))
+              .toList()
+        : null;
     final needsSeeding =
         (cardsNeedingSeed != null && cardsNeedingSeed.isNotEmpty) ||
         (unseededManualInputs != null && unseededManualInputs.isNotEmpty);
@@ -437,6 +514,7 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
             _isSeedingCard = false;
           }
           if (unseededManualInputs != null) {
+            _isSeedingManualInput = true;
             final latest = latestHistory != null && latestHistory.isNotEmpty
                 ? latestHistory.first
                 : null;
@@ -448,14 +526,8 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
               // cibAccountBalance columns, by their known fixed names, when
               // the latest snapshot predates user-managed manual inputs
               // (manualInputEntries is always empty then -- see
-              // usesLegacyFixedManualInputs's own doc comment). Without
-              // this, anyone who saved a calculator snapshot before this
-              // feature existed and then updated the app saw both fields
-              // seed blank instead of their real last-saved figures (the
-              // reported "manual inputs cleared on their own after
-              // updating" bug) -- their real numbers were never lost, this
-              // screen just never looked at the column holding them.
-              final seedAmount =
+              // usesLegacyFixedManualInputs's own doc comment).
+              final snapshotFallback =
                   lastEntry?.amount ??
                   (latest != null && latest.usesLegacyFixedManualInputs
                       ? switch (input.name) {
@@ -464,13 +536,40 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
                           _ => null,
                         }
                       : null);
+              final backedUp = _manualInputBackup[input.id];
+              // input.currentValue -- the actually-persisted column, kept
+              // live by _saveManualInputValue -- comes first; the
+              // independent backup and the last-saved-snapshot fallback
+              // only matter for a row this device hasn't typed into
+              // directly yet (a fresh install/upgrade, or one restored
+              // from the backup after the column itself was lost -- see
+              // ManualInputValueBackup's own doc comment).
+              final seedAmount =
+                  input.currentValue ?? backedUp ?? snapshotFallback;
               if (seedAmount != null && seedAmount != 0) {
                 _manualInputControllerFor(input).text = _formatAmount(
                   seedAmount,
                 );
               }
+              // Self-heal: whenever the resolved value didn't already come
+              // from the persisted column itself, write it back there (and
+              // keep the backup in lockstep) so it isn't lost again next
+              // time -- exactly the gap that let this reset in the first
+              // place.
+              if (seedAmount != null && input.currentValue != seedAmount) {
+                unawaited(
+                  ref
+                      .read(calculatorRepositoryProvider)
+                      .setManualInputCurrentValue(input.id, seedAmount),
+                );
+              }
+              if (seedAmount != null && backedUp != seedAmount) {
+                _manualInputBackup[input.id] = seedAmount;
+                unawaited(ManualInputValueBackup.record(input.id, seedAmount));
+              }
               _seededManualInputIds.add(input.id);
             }
+            _isSeedingManualInput = false;
           }
         });
       });

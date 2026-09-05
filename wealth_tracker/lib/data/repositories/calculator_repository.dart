@@ -32,8 +32,12 @@ class CalculatorRepository {
     required String currency,
     String? lastFourDigits,
   }) async {
-    final count = await (_db.select(_db.creditCards)..where((t) => t.profileId.equals(profileId))).get();
-    await _db.into(_db.creditCards).insert(
+    final count = await (_db.select(
+      _db.creditCards,
+    )..where((t) => t.profileId.equals(profileId))).get();
+    await _db
+        .into(_db.creditCards)
+        .insert(
           CreditCardsCompanion.insert(
             id: _uuid.v4(),
             name: name,
@@ -67,8 +71,12 @@ class CalculatorRepository {
     required bool isAddition,
     required String currency,
   }) async {
-    final count = await (_db.select(_db.manualInputs)..where((t) => t.profileId.equals(profileId))).get();
-    await _db.into(_db.manualInputs).insert(
+    final count = await (_db.select(
+      _db.manualInputs,
+    )..where((t) => t.profileId.equals(profileId))).get();
+    await _db
+        .into(_db.manualInputs)
+        .insert(
           ManualInputsCompanion.insert(
             id: _uuid.v4(),
             name: name,
@@ -82,6 +90,19 @@ class CalculatorRepository {
 
   Future<void> updateManualInput(ManualInput input) {
     return _db.update(_db.manualInputs).replace(input);
+  }
+
+  /// Sets just [currentValue], as a single narrow-field write rather than a
+  /// full-row [updateManualInput]/`.replace()` -- used by
+  /// CalculatorScreen's debounced save-back (mirroring
+  /// `CalculatorRepository.updateCard`'s own doc comment for
+  /// [CreditCards.currentAvailableBalance]) so a rapid edit never risks
+  /// clobbering the input's name/sign/currency/sortOrder with a stale
+  /// snapshot of them.
+  Future<void> setManualInputCurrentValue(String id, double? currentValue) {
+    return (_db.update(_db.manualInputs)..where((t) => t.id.equals(id))).write(
+      ManualInputsCompanion(currentValue: Value(currentValue)),
+    );
   }
 
   Future<void> deleteManualInput(String id) {
@@ -102,7 +123,9 @@ class CalculatorRepository {
     required List<ManualInputSnapshotEntry> manualInputEntries,
     required List<CustomCalculatorItem> customItems,
   }) {
-    return _db.into(_db.calculatorSnapshots).insert(
+    return _db
+        .into(_db.calculatorSnapshots)
+        .insert(
           CalculatorSnapshotsCompanion.insert(
             id: _uuid.v4(),
             computedAt: DateTime.now(),
@@ -114,10 +137,15 @@ class CalculatorRepository {
             // in cardEntriesJson/manualInputEntriesJson instead.
             apartmentSavings: 0.0,
             cibAccountBalance: 0.0,
-            customItemsJson: Value(jsonEncode(customItems.map((c) => c.toJson()).toList())),
-            cardEntriesJson: Value(jsonEncode(cardEntries.map((c) => c.toJson()).toList())),
-            manualInputEntriesJson:
-                Value(jsonEncode(manualInputEntries.map((e) => e.toJson()).toList())),
+            customItemsJson: Value(
+              jsonEncode(customItems.map((c) => c.toJson()).toList()),
+            ),
+            cardEntriesJson: Value(
+              jsonEncode(cardEntries.map((c) => c.toJson()).toList()),
+            ),
+            manualInputEntriesJson: Value(
+              jsonEncode(manualInputEntries.map((e) => e.toJson()).toList()),
+            ),
             // Unconditionally true -- this snapshot's card/manual-input
             // lists are authoritative even when genuinely empty (e.g. a
             // profile with zero cards configured), unlike a pre-migration
@@ -130,7 +158,9 @@ class CalculatorRepository {
   }
 
   Future<void> deleteSnapshot(String id) {
-    return (_db.delete(_db.calculatorSnapshots)..where((s) => s.id.equals(id))).go();
+    return (_db.delete(
+      _db.calculatorSnapshots,
+    )..where((s) => s.id.equals(id))).go();
   }
 }
 
@@ -138,19 +168,28 @@ extension CalculatorSnapshotCustomItems on CalculatorSnapshot {
   List<CustomCalculatorItem> get customItems {
     final decoded = jsonDecode(customItemsJson);
     if (decoded is! List) return const [];
-    return decoded.cast<Map<String, dynamic>>().map(CustomCalculatorItem.fromJson).toList();
+    return decoded
+        .cast<Map<String, dynamic>>()
+        .map(CustomCalculatorItem.fromJson)
+        .toList();
   }
 
   List<CardSnapshotEntry> get cardEntries {
     final decoded = jsonDecode(cardEntriesJson);
     if (decoded is! List) return const [];
-    return decoded.cast<Map<String, dynamic>>().map(CardSnapshotEntry.fromJson).toList();
+    return decoded
+        .cast<Map<String, dynamic>>()
+        .map(CardSnapshotEntry.fromJson)
+        .toList();
   }
 
   List<ManualInputSnapshotEntry> get manualInputEntries {
     final decoded = jsonDecode(manualInputEntriesJson);
     if (decoded is! List) return const [];
-    return decoded.cast<Map<String, dynamic>>().map(ManualInputSnapshotEntry.fromJson).toList();
+    return decoded
+        .cast<Map<String, dynamic>>()
+        .map(ManualInputSnapshotEntry.fromJson)
+        .toList();
   }
 
   /// True for a snapshot saved before user-managed cards existed — its
@@ -174,9 +213,11 @@ extension CalculatorSnapshotCustomItems on CalculatorSnapshot {
   /// backfill couldn't tell apart from legacy data (see that column's doc
   /// comment in tables.dart). Real legacy history essentially never has
   /// all three at exactly 0.
-  bool get legacyCardsAreAllZero => nbeOwed == 0 && cibExplorerWalletOwed == 0 && cibPlatinumOwed == 0;
+  bool get legacyCardsAreAllZero =>
+      nbeOwed == 0 && cibExplorerWalletOwed == 0 && cibPlatinumOwed == 0;
 
   /// Same idea as [legacyCardsAreAllZero], for the two fixed legacy
   /// manual-input columns.
-  bool get legacyManualInputsAreAllZero => apartmentSavings == 0 && cibAccountBalance == 0;
+  bool get legacyManualInputsAreAllZero =>
+      apartmentSavings == 0 && cibAccountBalance == 0;
 }

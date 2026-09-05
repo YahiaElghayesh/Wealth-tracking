@@ -5601,6 +5601,17 @@ class $ManualInputsTable extends ManualInputs
       'REFERENCES profiles (id)',
     ),
   );
+  static const VerificationMeta _currentValueMeta = const VerificationMeta(
+    'currentValue',
+  );
+  @override
+  late final GeneratedColumn<double> currentValue = GeneratedColumn<double>(
+    'current_value',
+    aliasedName,
+    true,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -5609,6 +5620,7 @@ class $ManualInputsTable extends ManualInputs
     currency,
     sortOrder,
     profileId,
+    currentValue,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -5661,6 +5673,15 @@ class $ManualInputsTable extends ManualInputs
         profileId.isAcceptableOrUnknown(data['profile_id']!, _profileIdMeta),
       );
     }
+    if (data.containsKey('current_value')) {
+      context.handle(
+        _currentValueMeta,
+        currentValue.isAcceptableOrUnknown(
+          data['current_value']!,
+          _currentValueMeta,
+        ),
+      );
+    }
     return context;
   }
 
@@ -5694,6 +5715,10 @@ class $ManualInputsTable extends ManualInputs
         DriftSqlType.string,
         data['${effectivePrefix}profile_id'],
       ),
+      currentValue: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}current_value'],
+      ),
     );
   }
 
@@ -5713,6 +5738,23 @@ class ManualInput extends DataClass implements Insertable<ManualInput> {
   /// not tied to it, so a future "reorder" gesture has somewhere to write.
   final int sortOrder;
   final String? profileId;
+
+  /// The last value actually typed into this input's Calculator field, in
+  /// [currency] -- kept current by a debounced save-back the moment the
+  /// user edits it (see CalculatorScreen's `_scheduleManualInputSave`,
+  /// mirroring `_scheduleCardBalanceSave`'s own doc comment for
+  /// [CreditCards.currentAvailableBalance]). Before this column existed, a
+  /// typed value only ever persisted at all once the user tapped the whole
+  /// Calculator screen's Save button (which bakes it into a
+  /// CalculatorSnapshot) -- any edit made after the last Save, or before
+  /// the very first one, lived only in this screen's in-memory
+  /// TextEditingController and vanished the moment the app process was
+  /// killed (an app update, or simply closing the app for a while), which
+  /// looked exactly like "my manual input got reset". Null means never
+  /// typed into on this device yet -- the seeding logic falls back to the
+  /// last saved snapshot's matching-by-name entry in that case, same as it
+  /// always has.
+  final double? currentValue;
   const ManualInput({
     required this.id,
     required this.name,
@@ -5720,6 +5762,7 @@ class ManualInput extends DataClass implements Insertable<ManualInput> {
     required this.currency,
     required this.sortOrder,
     this.profileId,
+    this.currentValue,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -5731,6 +5774,9 @@ class ManualInput extends DataClass implements Insertable<ManualInput> {
     map['sort_order'] = Variable<int>(sortOrder);
     if (!nullToAbsent || profileId != null) {
       map['profile_id'] = Variable<String>(profileId);
+    }
+    if (!nullToAbsent || currentValue != null) {
+      map['current_value'] = Variable<double>(currentValue);
     }
     return map;
   }
@@ -5745,6 +5791,9 @@ class ManualInput extends DataClass implements Insertable<ManualInput> {
       profileId: profileId == null && nullToAbsent
           ? const Value.absent()
           : Value(profileId),
+      currentValue: currentValue == null && nullToAbsent
+          ? const Value.absent()
+          : Value(currentValue),
     );
   }
 
@@ -5760,6 +5809,7 @@ class ManualInput extends DataClass implements Insertable<ManualInput> {
       currency: serializer.fromJson<String>(json['currency']),
       sortOrder: serializer.fromJson<int>(json['sortOrder']),
       profileId: serializer.fromJson<String?>(json['profileId']),
+      currentValue: serializer.fromJson<double?>(json['currentValue']),
     );
   }
   @override
@@ -5772,6 +5822,7 @@ class ManualInput extends DataClass implements Insertable<ManualInput> {
       'currency': serializer.toJson<String>(currency),
       'sortOrder': serializer.toJson<int>(sortOrder),
       'profileId': serializer.toJson<String?>(profileId),
+      'currentValue': serializer.toJson<double?>(currentValue),
     };
   }
 
@@ -5782,6 +5833,7 @@ class ManualInput extends DataClass implements Insertable<ManualInput> {
     String? currency,
     int? sortOrder,
     Value<String?> profileId = const Value.absent(),
+    Value<double?> currentValue = const Value.absent(),
   }) => ManualInput(
     id: id ?? this.id,
     name: name ?? this.name,
@@ -5789,6 +5841,7 @@ class ManualInput extends DataClass implements Insertable<ManualInput> {
     currency: currency ?? this.currency,
     sortOrder: sortOrder ?? this.sortOrder,
     profileId: profileId.present ? profileId.value : this.profileId,
+    currentValue: currentValue.present ? currentValue.value : this.currentValue,
   );
   ManualInput copyWithCompanion(ManualInputsCompanion data) {
     return ManualInput(
@@ -5800,6 +5853,9 @@ class ManualInput extends DataClass implements Insertable<ManualInput> {
       currency: data.currency.present ? data.currency.value : this.currency,
       sortOrder: data.sortOrder.present ? data.sortOrder.value : this.sortOrder,
       profileId: data.profileId.present ? data.profileId.value : this.profileId,
+      currentValue: data.currentValue.present
+          ? data.currentValue.value
+          : this.currentValue,
     );
   }
 
@@ -5811,14 +5867,22 @@ class ManualInput extends DataClass implements Insertable<ManualInput> {
           ..write('isAddition: $isAddition, ')
           ..write('currency: $currency, ')
           ..write('sortOrder: $sortOrder, ')
-          ..write('profileId: $profileId')
+          ..write('profileId: $profileId, ')
+          ..write('currentValue: $currentValue')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode =>
-      Object.hash(id, name, isAddition, currency, sortOrder, profileId);
+  int get hashCode => Object.hash(
+    id,
+    name,
+    isAddition,
+    currency,
+    sortOrder,
+    profileId,
+    currentValue,
+  );
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -5828,7 +5892,8 @@ class ManualInput extends DataClass implements Insertable<ManualInput> {
           other.isAddition == this.isAddition &&
           other.currency == this.currency &&
           other.sortOrder == this.sortOrder &&
-          other.profileId == this.profileId);
+          other.profileId == this.profileId &&
+          other.currentValue == this.currentValue);
 }
 
 class ManualInputsCompanion extends UpdateCompanion<ManualInput> {
@@ -5838,6 +5903,7 @@ class ManualInputsCompanion extends UpdateCompanion<ManualInput> {
   final Value<String> currency;
   final Value<int> sortOrder;
   final Value<String?> profileId;
+  final Value<double?> currentValue;
   final Value<int> rowid;
   const ManualInputsCompanion({
     this.id = const Value.absent(),
@@ -5846,6 +5912,7 @@ class ManualInputsCompanion extends UpdateCompanion<ManualInput> {
     this.currency = const Value.absent(),
     this.sortOrder = const Value.absent(),
     this.profileId = const Value.absent(),
+    this.currentValue = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   ManualInputsCompanion.insert({
@@ -5855,6 +5922,7 @@ class ManualInputsCompanion extends UpdateCompanion<ManualInput> {
     this.currency = const Value.absent(),
     this.sortOrder = const Value.absent(),
     this.profileId = const Value.absent(),
+    this.currentValue = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
        name = Value(name),
@@ -5866,6 +5934,7 @@ class ManualInputsCompanion extends UpdateCompanion<ManualInput> {
     Expression<String>? currency,
     Expression<int>? sortOrder,
     Expression<String>? profileId,
+    Expression<double>? currentValue,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -5875,6 +5944,7 @@ class ManualInputsCompanion extends UpdateCompanion<ManualInput> {
       if (currency != null) 'currency': currency,
       if (sortOrder != null) 'sort_order': sortOrder,
       if (profileId != null) 'profile_id': profileId,
+      if (currentValue != null) 'current_value': currentValue,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -5886,6 +5956,7 @@ class ManualInputsCompanion extends UpdateCompanion<ManualInput> {
     Value<String>? currency,
     Value<int>? sortOrder,
     Value<String?>? profileId,
+    Value<double?>? currentValue,
     Value<int>? rowid,
   }) {
     return ManualInputsCompanion(
@@ -5895,6 +5966,7 @@ class ManualInputsCompanion extends UpdateCompanion<ManualInput> {
       currency: currency ?? this.currency,
       sortOrder: sortOrder ?? this.sortOrder,
       profileId: profileId ?? this.profileId,
+      currentValue: currentValue ?? this.currentValue,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -5920,6 +5992,9 @@ class ManualInputsCompanion extends UpdateCompanion<ManualInput> {
     if (profileId.present) {
       map['profile_id'] = Variable<String>(profileId.value);
     }
+    if (currentValue.present) {
+      map['current_value'] = Variable<double>(currentValue.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -5935,6 +6010,7 @@ class ManualInputsCompanion extends UpdateCompanion<ManualInput> {
           ..write('currency: $currency, ')
           ..write('sortOrder: $sortOrder, ')
           ..write('profileId: $profileId, ')
+          ..write('currentValue: $currentValue, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -12540,6 +12616,7 @@ typedef $$ManualInputsTableCreateCompanionBuilder =
       Value<String> currency,
       Value<int> sortOrder,
       Value<String?> profileId,
+      Value<double?> currentValue,
       Value<int> rowid,
     });
 typedef $$ManualInputsTableUpdateCompanionBuilder =
@@ -12550,6 +12627,7 @@ typedef $$ManualInputsTableUpdateCompanionBuilder =
       Value<String> currency,
       Value<int> sortOrder,
       Value<String?> profileId,
+      Value<double?> currentValue,
       Value<int> rowid,
     });
 
@@ -12606,6 +12684,11 @@ class $$ManualInputsTableFilterComposer
 
   ColumnFilters<int> get sortOrder => $composableBuilder(
     column: $table.sortOrder,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get currentValue => $composableBuilder(
+    column: $table.currentValue,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -12667,6 +12750,11 @@ class $$ManualInputsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<double> get currentValue => $composableBuilder(
+    column: $table.currentValue,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   $$ProfilesTableOrderingComposer get profileId {
     final $$ProfilesTableOrderingComposer composer = $composerBuilder(
       composer: this,
@@ -12716,6 +12804,11 @@ class $$ManualInputsTableAnnotationComposer
 
   GeneratedColumn<int> get sortOrder =>
       $composableBuilder(column: $table.sortOrder, builder: (column) => column);
+
+  GeneratedColumn<double> get currentValue => $composableBuilder(
+    column: $table.currentValue,
+    builder: (column) => column,
+  );
 
   $$ProfilesTableAnnotationComposer get profileId {
     final $$ProfilesTableAnnotationComposer composer = $composerBuilder(
@@ -12775,6 +12868,7 @@ class $$ManualInputsTableTableManager
                 Value<String> currency = const Value.absent(),
                 Value<int> sortOrder = const Value.absent(),
                 Value<String?> profileId = const Value.absent(),
+                Value<double?> currentValue = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => ManualInputsCompanion(
                 id: id,
@@ -12783,6 +12877,7 @@ class $$ManualInputsTableTableManager
                 currency: currency,
                 sortOrder: sortOrder,
                 profileId: profileId,
+                currentValue: currentValue,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -12793,6 +12888,7 @@ class $$ManualInputsTableTableManager
                 Value<String> currency = const Value.absent(),
                 Value<int> sortOrder = const Value.absent(),
                 Value<String?> profileId = const Value.absent(),
+                Value<double?> currentValue = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => ManualInputsCompanion.insert(
                 id: id,
@@ -12801,6 +12897,7 @@ class $$ManualInputsTableTableManager
                 currency: currency,
                 sortOrder: sortOrder,
                 profileId: profileId,
+                currentValue: currentValue,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
