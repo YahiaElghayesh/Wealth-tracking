@@ -10,6 +10,7 @@ RecurringPayment _payment({
   int? yearlyMonth,
   int? yearlyDay,
   DateTime? lastPaidAt,
+  String paymentMode = 'auto',
 }) {
   return RecurringPayment(
     id: 'p1',
@@ -25,6 +26,7 @@ RecurringPayment _payment({
     yearlyMonth: yearlyMonth,
     yearlyDay: yearlyDay,
     lastPaidAt: lastPaidAt,
+    paymentMode: paymentMode,
   );
 }
 
@@ -282,6 +284,36 @@ void main() {
       expect(
         recurringPaymentIsPaidForCurrentCycle(payment, DateTime(2026, 9, 2)),
         isFalse,
+      );
+    });
+
+    test(
+      "manual: never marked, and the due date already passed, stays pending -- "
+      'unlike auto, a manual payment never gets assumed paid on its own',
+      () {
+        final payment = _payment(
+          frequency: 'monthly',
+          dayOfMonth: 1,
+          paymentMode: 'manual',
+        );
+        expect(
+          recurringPaymentIsPaidForCurrentCycle(payment, DateTime(2026, 3, 2)),
+          isFalse,
+        );
+      },
+    );
+
+    test('manual: an explicit paid-mark on or after the due date still counts, '
+        'same as auto', () {
+      final payment = _payment(
+        frequency: 'monthly',
+        dayOfMonth: 1,
+        paymentMode: 'manual',
+        lastPaidAt: DateTime(2026, 3, 2),
+      );
+      expect(
+        recurringPaymentIsPaidForCurrentCycle(payment, DateTime(2026, 3, 5)),
+        isTrue,
       );
     });
   });

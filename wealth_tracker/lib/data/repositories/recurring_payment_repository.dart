@@ -32,6 +32,8 @@ class RecurringPaymentRepository {
     DateTime? intervalAnchorDate,
     int? yearlyMonth,
     int? yearlyDay,
+    String? notes,
+    String paymentMode = 'auto',
   }) async {
     final count = await (_db.select(
       _db.recurringPayments,
@@ -56,6 +58,8 @@ class RecurringPaymentRepository {
             intervalAnchorDate: Value(intervalAnchorDate),
             yearlyMonth: Value(yearlyMonth),
             yearlyDay: Value(yearlyDay),
+            notes: Value(notes),
+            paymentMode: Value(paymentMode),
           ),
         );
   }

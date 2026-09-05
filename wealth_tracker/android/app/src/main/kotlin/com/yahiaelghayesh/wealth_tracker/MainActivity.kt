@@ -16,6 +16,7 @@ class MainActivity : FlutterFragmentActivity() {
     private var shortcutsChannel: MethodChannel? = null
     private var updaterChannel: MethodChannel? = null
     private var securityChannel: MethodChannel? = null
+    private var recurringRemindersChannel: MethodChannel? = null
 
     // FLAG_SECURE blocks three things Android otherwise does with this
     // window's actual rendered pixels, none of which the Dart-level
@@ -145,6 +146,40 @@ class MainActivity : FlutterFragmentActivity() {
                     val allowed = call.argument<Boolean>("allowed") ?: false
                     applySecureFlag(!allowed)
                     result.success(null)
+                }
+                else -> result.notImplemented()
+            }
+        }
+
+        // Dart's counterpart lives in
+        // lib/data/recurring/recurring_payment_reminder_channel.dart -- see
+        // RecurringPaymentReminder.kt for the actual scheduling/notification
+        // logic, which lives entirely natively so a reminder keeps firing
+        // (and repeating every 4 hours) whether or not the app -- or even
+        // this Flutter engine -- is running.
+        recurringRemindersChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "money_hub/recurring_reminders")
+        recurringRemindersChannel?.setMethodCallHandler { call, result ->
+            when (call.method) {
+                "scheduleReminder" -> {
+                    val id = call.argument<String>("id")
+                    val name = call.argument<String>("name")
+                    val amount = call.argument<String>("amount") ?: ""
+                    val dueAtMillis = call.argument<Number>("dueAtMillis")?.toLong()
+                    if (id == null || name == null || dueAtMillis == null) {
+                        result.error("invalid_args", "id, name and dueAtMillis are required", null)
+                    } else {
+                        RecurringPaymentReminderScheduler.schedule(this, id, name, amount, dueAtMillis)
+                        result.success(null)
+                    }
+                }
+                "cancelReminder" -> {
+                    val id = call.argument<String>("id")
+                    if (id == null) {
+                        result.error("invalid_args", "id is required", null)
+                    } else {
+                        RecurringPaymentReminderScheduler.cancel(this, id)
+                        result.success(null)
+                    }
                 }
                 else -> result.notImplemented()
             }

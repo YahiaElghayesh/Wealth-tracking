@@ -6105,6 +6105,27 @@ class $RecurringPaymentsTable extends RecurringPayments
     type: DriftSqlType.dateTime,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _notesMeta = const VerificationMeta('notes');
+  @override
+  late final GeneratedColumn<String> notes = GeneratedColumn<String>(
+    'notes',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _paymentModeMeta = const VerificationMeta(
+    'paymentMode',
+  );
+  @override
+  late final GeneratedColumn<String> paymentMode = GeneratedColumn<String>(
+    'payment_mode',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('auto'),
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -6121,6 +6142,8 @@ class $RecurringPaymentsTable extends RecurringPayments
     yearlyMonth,
     yearlyDay,
     lastPaidAt,
+    notes,
+    paymentMode,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -6241,6 +6264,21 @@ class $RecurringPaymentsTable extends RecurringPayments
         ),
       );
     }
+    if (data.containsKey('notes')) {
+      context.handle(
+        _notesMeta,
+        notes.isAcceptableOrUnknown(data['notes']!, _notesMeta),
+      );
+    }
+    if (data.containsKey('payment_mode')) {
+      context.handle(
+        _paymentModeMeta,
+        paymentMode.isAcceptableOrUnknown(
+          data['payment_mode']!,
+          _paymentModeMeta,
+        ),
+      );
+    }
     return context;
   }
 
@@ -6306,6 +6344,14 @@ class $RecurringPaymentsTable extends RecurringPayments
         DriftSqlType.dateTime,
         data['${effectivePrefix}last_paid_at'],
       ),
+      notes: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}notes'],
+      ),
+      paymentMode: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}payment_mode'],
+      )!,
     );
   }
 
@@ -6377,6 +6423,23 @@ class RecurringPayment extends DataClass
   /// just "is this non-null", so a paid-mark from a previous cycle
   /// automatically reads as pending again once a new one comes due.
   final DateTime? lastPaidAt;
+
+  /// Free-text notes -- e.g. account numbers, a reason the amount varies,
+  /// anything the fixed fields above don't capture. Optional, shown under
+  /// the name wherever this payment displays.
+  final String? notes;
+
+  /// 'auto' (charged/paid automatically -- the original, only behavior
+  /// before this column existed, so it's the default every pre-existing
+  /// row backfills to) or 'manual' (the user has to actually pay this one
+  /// themselves). 'auto' keeps today's behavior: once the due date arrives
+  /// with no explicit "mark as paid" tap, it's simply assumed paid (see
+  /// recurringPaymentIsPaidForCurrentCycle). 'manual' turns that assumption
+  /// off and instead schedules a repeating reminder notification (see
+  /// RecurringPaymentReminderChannel) starting at midnight on the due date,
+  /// re-shown every 4 hours until the notification's own "Done" action (or
+  /// the in-app paid toggle) is actually pressed.
+  final String paymentMode;
   const RecurringPayment({
     required this.id,
     required this.name,
@@ -6392,6 +6455,8 @@ class RecurringPayment extends DataClass
     this.yearlyMonth,
     this.yearlyDay,
     this.lastPaidAt,
+    this.notes,
+    required this.paymentMode,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -6422,6 +6487,10 @@ class RecurringPayment extends DataClass
     if (!nullToAbsent || lastPaidAt != null) {
       map['last_paid_at'] = Variable<DateTime>(lastPaidAt);
     }
+    if (!nullToAbsent || notes != null) {
+      map['notes'] = Variable<String>(notes);
+    }
+    map['payment_mode'] = Variable<String>(paymentMode);
     return map;
   }
 
@@ -6453,6 +6522,10 @@ class RecurringPayment extends DataClass
       lastPaidAt: lastPaidAt == null && nullToAbsent
           ? const Value.absent()
           : Value(lastPaidAt),
+      notes: notes == null && nullToAbsent
+          ? const Value.absent()
+          : Value(notes),
+      paymentMode: Value(paymentMode),
     );
   }
 
@@ -6478,6 +6551,8 @@ class RecurringPayment extends DataClass
       yearlyMonth: serializer.fromJson<int?>(json['yearlyMonth']),
       yearlyDay: serializer.fromJson<int?>(json['yearlyDay']),
       lastPaidAt: serializer.fromJson<DateTime?>(json['lastPaidAt']),
+      notes: serializer.fromJson<String?>(json['notes']),
+      paymentMode: serializer.fromJson<String>(json['paymentMode']),
     );
   }
   @override
@@ -6498,6 +6573,8 @@ class RecurringPayment extends DataClass
       'yearlyMonth': serializer.toJson<int?>(yearlyMonth),
       'yearlyDay': serializer.toJson<int?>(yearlyDay),
       'lastPaidAt': serializer.toJson<DateTime?>(lastPaidAt),
+      'notes': serializer.toJson<String?>(notes),
+      'paymentMode': serializer.toJson<String>(paymentMode),
     };
   }
 
@@ -6516,6 +6593,8 @@ class RecurringPayment extends DataClass
     Value<int?> yearlyMonth = const Value.absent(),
     Value<int?> yearlyDay = const Value.absent(),
     Value<DateTime?> lastPaidAt = const Value.absent(),
+    Value<String?> notes = const Value.absent(),
+    String? paymentMode,
   }) => RecurringPayment(
     id: id ?? this.id,
     name: name ?? this.name,
@@ -6533,6 +6612,8 @@ class RecurringPayment extends DataClass
     yearlyMonth: yearlyMonth.present ? yearlyMonth.value : this.yearlyMonth,
     yearlyDay: yearlyDay.present ? yearlyDay.value : this.yearlyDay,
     lastPaidAt: lastPaidAt.present ? lastPaidAt.value : this.lastPaidAt,
+    notes: notes.present ? notes.value : this.notes,
+    paymentMode: paymentMode ?? this.paymentMode,
   );
   RecurringPayment copyWithCompanion(RecurringPaymentsCompanion data) {
     return RecurringPayment(
@@ -6562,6 +6643,10 @@ class RecurringPayment extends DataClass
       lastPaidAt: data.lastPaidAt.present
           ? data.lastPaidAt.value
           : this.lastPaidAt,
+      notes: data.notes.present ? data.notes.value : this.notes,
+      paymentMode: data.paymentMode.present
+          ? data.paymentMode.value
+          : this.paymentMode,
     );
   }
 
@@ -6581,7 +6666,9 @@ class RecurringPayment extends DataClass
           ..write('intervalAnchorDate: $intervalAnchorDate, ')
           ..write('yearlyMonth: $yearlyMonth, ')
           ..write('yearlyDay: $yearlyDay, ')
-          ..write('lastPaidAt: $lastPaidAt')
+          ..write('lastPaidAt: $lastPaidAt, ')
+          ..write('notes: $notes, ')
+          ..write('paymentMode: $paymentMode')
           ..write(')'))
         .toString();
   }
@@ -6602,6 +6689,8 @@ class RecurringPayment extends DataClass
     yearlyMonth,
     yearlyDay,
     lastPaidAt,
+    notes,
+    paymentMode,
   );
   @override
   bool operator ==(Object other) =>
@@ -6620,7 +6709,9 @@ class RecurringPayment extends DataClass
           other.intervalAnchorDate == this.intervalAnchorDate &&
           other.yearlyMonth == this.yearlyMonth &&
           other.yearlyDay == this.yearlyDay &&
-          other.lastPaidAt == this.lastPaidAt);
+          other.lastPaidAt == this.lastPaidAt &&
+          other.notes == this.notes &&
+          other.paymentMode == this.paymentMode);
 }
 
 class RecurringPaymentsCompanion extends UpdateCompanion<RecurringPayment> {
@@ -6638,6 +6729,8 @@ class RecurringPaymentsCompanion extends UpdateCompanion<RecurringPayment> {
   final Value<int?> yearlyMonth;
   final Value<int?> yearlyDay;
   final Value<DateTime?> lastPaidAt;
+  final Value<String?> notes;
+  final Value<String> paymentMode;
   final Value<int> rowid;
   const RecurringPaymentsCompanion({
     this.id = const Value.absent(),
@@ -6654,6 +6747,8 @@ class RecurringPaymentsCompanion extends UpdateCompanion<RecurringPayment> {
     this.yearlyMonth = const Value.absent(),
     this.yearlyDay = const Value.absent(),
     this.lastPaidAt = const Value.absent(),
+    this.notes = const Value.absent(),
+    this.paymentMode = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   RecurringPaymentsCompanion.insert({
@@ -6671,6 +6766,8 @@ class RecurringPaymentsCompanion extends UpdateCompanion<RecurringPayment> {
     this.yearlyMonth = const Value.absent(),
     this.yearlyDay = const Value.absent(),
     this.lastPaidAt = const Value.absent(),
+    this.notes = const Value.absent(),
+    this.paymentMode = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
        name = Value(name),
@@ -6691,6 +6788,8 @@ class RecurringPaymentsCompanion extends UpdateCompanion<RecurringPayment> {
     Expression<int>? yearlyMonth,
     Expression<int>? yearlyDay,
     Expression<DateTime>? lastPaidAt,
+    Expression<String>? notes,
+    Expression<String>? paymentMode,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -6709,6 +6808,8 @@ class RecurringPaymentsCompanion extends UpdateCompanion<RecurringPayment> {
       if (yearlyMonth != null) 'yearly_month': yearlyMonth,
       if (yearlyDay != null) 'yearly_day': yearlyDay,
       if (lastPaidAt != null) 'last_paid_at': lastPaidAt,
+      if (notes != null) 'notes': notes,
+      if (paymentMode != null) 'payment_mode': paymentMode,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -6728,6 +6829,8 @@ class RecurringPaymentsCompanion extends UpdateCompanion<RecurringPayment> {
     Value<int?>? yearlyMonth,
     Value<int?>? yearlyDay,
     Value<DateTime?>? lastPaidAt,
+    Value<String?>? notes,
+    Value<String>? paymentMode,
     Value<int>? rowid,
   }) {
     return RecurringPaymentsCompanion(
@@ -6745,6 +6848,8 @@ class RecurringPaymentsCompanion extends UpdateCompanion<RecurringPayment> {
       yearlyMonth: yearlyMonth ?? this.yearlyMonth,
       yearlyDay: yearlyDay ?? this.yearlyDay,
       lastPaidAt: lastPaidAt ?? this.lastPaidAt,
+      notes: notes ?? this.notes,
+      paymentMode: paymentMode ?? this.paymentMode,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -6796,6 +6901,12 @@ class RecurringPaymentsCompanion extends UpdateCompanion<RecurringPayment> {
     if (lastPaidAt.present) {
       map['last_paid_at'] = Variable<DateTime>(lastPaidAt.value);
     }
+    if (notes.present) {
+      map['notes'] = Variable<String>(notes.value);
+    }
+    if (paymentMode.present) {
+      map['payment_mode'] = Variable<String>(paymentMode.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -6819,6 +6930,8 @@ class RecurringPaymentsCompanion extends UpdateCompanion<RecurringPayment> {
           ..write('yearlyMonth: $yearlyMonth, ')
           ..write('yearlyDay: $yearlyDay, ')
           ..write('lastPaidAt: $lastPaidAt, ')
+          ..write('notes: $notes, ')
+          ..write('paymentMode: $paymentMode, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -12773,6 +12886,8 @@ typedef $$RecurringPaymentsTableCreateCompanionBuilder =
       Value<int?> yearlyMonth,
       Value<int?> yearlyDay,
       Value<DateTime?> lastPaidAt,
+      Value<String?> notes,
+      Value<String> paymentMode,
       Value<int> rowid,
     });
 typedef $$RecurringPaymentsTableUpdateCompanionBuilder =
@@ -12791,6 +12906,8 @@ typedef $$RecurringPaymentsTableUpdateCompanionBuilder =
       Value<int?> yearlyMonth,
       Value<int?> yearlyDay,
       Value<DateTime?> lastPaidAt,
+      Value<String?> notes,
+      Value<String> paymentMode,
       Value<int> rowid,
     });
 
@@ -12899,6 +13016,16 @@ class $$RecurringPaymentsTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
+  ColumnFilters<String> get notes => $composableBuilder(
+    column: $table.notes,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get paymentMode => $composableBuilder(
+    column: $table.paymentMode,
+    builder: (column) => ColumnFilters(column),
+  );
+
   $$ProfilesTableFilterComposer get profileId {
     final $$ProfilesTableFilterComposer composer = $composerBuilder(
       composer: this,
@@ -12997,6 +13124,16 @@ class $$RecurringPaymentsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get notes => $composableBuilder(
+    column: $table.notes,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get paymentMode => $composableBuilder(
+    column: $table.paymentMode,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   $$ProfilesTableOrderingComposer get profileId {
     final $$ProfilesTableOrderingComposer composer = $composerBuilder(
       composer: this,
@@ -13081,6 +13218,14 @@ class $$RecurringPaymentsTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<String> get notes =>
+      $composableBuilder(column: $table.notes, builder: (column) => column);
+
+  GeneratedColumn<String> get paymentMode => $composableBuilder(
+    column: $table.paymentMode,
+    builder: (column) => column,
+  );
+
   $$ProfilesTableAnnotationComposer get profileId {
     final $$ProfilesTableAnnotationComposer composer = $composerBuilder(
       composer: this,
@@ -13152,6 +13297,8 @@ class $$RecurringPaymentsTableTableManager
                 Value<int?> yearlyMonth = const Value.absent(),
                 Value<int?> yearlyDay = const Value.absent(),
                 Value<DateTime?> lastPaidAt = const Value.absent(),
+                Value<String?> notes = const Value.absent(),
+                Value<String> paymentMode = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => RecurringPaymentsCompanion(
                 id: id,
@@ -13168,6 +13315,8 @@ class $$RecurringPaymentsTableTableManager
                 yearlyMonth: yearlyMonth,
                 yearlyDay: yearlyDay,
                 lastPaidAt: lastPaidAt,
+                notes: notes,
+                paymentMode: paymentMode,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -13186,6 +13335,8 @@ class $$RecurringPaymentsTableTableManager
                 Value<int?> yearlyMonth = const Value.absent(),
                 Value<int?> yearlyDay = const Value.absent(),
                 Value<DateTime?> lastPaidAt = const Value.absent(),
+                Value<String?> notes = const Value.absent(),
+                Value<String> paymentMode = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => RecurringPaymentsCompanion.insert(
                 id: id,
@@ -13202,6 +13353,8 @@ class $$RecurringPaymentsTableTableManager
                 yearlyMonth: yearlyMonth,
                 yearlyDay: yearlyDay,
                 lastPaidAt: lastPaidAt,
+                notes: notes,
+                paymentMode: paymentMode,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0

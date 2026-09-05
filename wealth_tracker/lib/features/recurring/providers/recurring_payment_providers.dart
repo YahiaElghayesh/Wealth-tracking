@@ -4,7 +4,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/models/recurring_payment_history_item.dart';
 import '../../../data/db/database.dart';
+import '../../../data/recurring/recurring_payment_due.dart';
 import '../../../data/recurring/recurring_payment_month_breakdown.dart';
+import '../../../data/recurring/recurring_payment_reminder_channel.dart';
 import '../../../data/repositories/recurring_payment_history_repository.dart';
 import '../../../data/repositories/recurring_payment_repository.dart';
 import '../../networth/providers/asset_providers.dart'
@@ -105,3 +107,45 @@ final recurringPaymentHistoryAutoRecordProvider = Provider<void>((ref) {
   if (payments == null) return;
   unawaited(repository.ensureRecorded(payments, prices));
 });
+
+/// Fire-and-forget: keeps every 'manual' recurring payment's native
+/// reminder schedule (see RecurringPaymentReminderChannel) in sync with its
+/// current paid/pending state -- (re)schedules one for anything still
+/// pending this cycle (idempotent; a re-schedule just replaces whatever
+/// alarm was already set), and cancels it the moment it's no longer
+/// 'manual' or has just been paid, however that happened (the in-app
+/// toggle, or the reminder notification's own "Done" action). Watched from
+/// RecurringPaymentsScreen's build, same "provider as a side-effect
+/// trigger" pattern [recurringPaymentHistoryAutoRecordProvider] uses.
+final recurringPaymentReminderSyncProvider = Provider<void>((ref) {
+  final payments = ref.watch(recurringPaymentsStreamProvider).valueOrNull;
+  if (payments == null) return;
+  unawaited(_syncReminders(payments));
+});
+
+Future<void> _syncReminders(List<RecurringPayment> payments) async {
+  final today = DateTime.now();
+  for (final payment in payments) {
+    if (payment.paymentMode != 'manual' ||
+        recurringPaymentIsPaidForCurrentCycle(payment, today)) {
+      await RecurringPaymentReminderChannel.cancel(payment.id);
+      continue;
+    }
+    final dueDate = recurringPaymentDueDateForCurrentCycle(payment, today);
+    await RecurringPaymentReminderChannel.schedule(
+      paymentId: payment.id,
+      name: payment.name,
+      amountLabel:
+          '${_formatReminderAmount(payment.amount)} ${payment.currency}',
+      dueAt: DateTime(dueDate.year, dueDate.month, dueDate.day),
+    );
+  }
+}
+
+/// Whole numbers print without a trailing ".0" -- same convention
+/// AddRecurringPaymentScreen's own `_formatAmount` uses.
+String _formatReminderAmount(double value) {
+  return value == value.roundToDouble()
+      ? value.toInt().toString()
+      : value.toString();
+}

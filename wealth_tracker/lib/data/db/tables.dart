@@ -384,6 +384,23 @@ class RecurringPayments extends Table {
   /// automatically reads as pending again once a new one comes due.
   DateTimeColumn get lastPaidAt => dateTime().nullable()();
 
+  /// Free-text notes -- e.g. account numbers, a reason the amount varies,
+  /// anything the fixed fields above don't capture. Optional, shown under
+  /// the name wherever this payment displays.
+  TextColumn get notes => text().nullable()();
+
+  /// 'auto' (charged/paid automatically -- the original, only behavior
+  /// before this column existed, so it's the default every pre-existing
+  /// row backfills to) or 'manual' (the user has to actually pay this one
+  /// themselves). 'auto' keeps today's behavior: once the due date arrives
+  /// with no explicit "mark as paid" tap, it's simply assumed paid (see
+  /// recurringPaymentIsPaidForCurrentCycle). 'manual' turns that assumption
+  /// off and instead schedules a repeating reminder notification (see
+  /// RecurringPaymentReminderChannel) starting at midnight on the due date,
+  /// re-shown every 4 hours until the notification's own "Done" action (or
+  /// the in-app paid toggle) is actually pressed.
+  TextColumn get paymentMode => text().withDefault(const Constant('auto'))();
+
   @override
   Set<Column> get primaryKey => {id};
 }

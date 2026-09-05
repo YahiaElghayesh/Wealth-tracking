@@ -61,6 +61,7 @@ class _AddRecurringPaymentScreenState
   late final TextEditingController _nameController;
   late final TextEditingController _amountController;
   late final TextEditingController _intervalDaysController;
+  late final TextEditingController _notesController;
   late bool _isExactAmount;
   late String _currency;
   late RecurringPaymentFrequency _frequency;
@@ -68,6 +69,7 @@ class _AddRecurringPaymentScreenState
   late DateTime _intervalAnchorDate;
   late int _yearlyMonth;
   late int _yearlyDay;
+  late String _paymentMode;
 
   bool get _isEditing => widget.existing != null;
 
@@ -101,6 +103,8 @@ class _AddRecurringPaymentScreenState
     _intervalAnchorDate = existing?.intervalAnchorDate ?? now;
     _yearlyMonth = existing?.yearlyMonth ?? now.month;
     _yearlyDay = existing?.yearlyDay ?? now.day.clamp(1, 31);
+    _notesController = TextEditingController(text: existing?.notes ?? '');
+    _paymentMode = existing?.paymentMode ?? 'auto';
   }
 
   @override
@@ -108,6 +112,7 @@ class _AddRecurringPaymentScreenState
     _nameController.dispose();
     _amountController.dispose();
     _intervalDaysController.dispose();
+    _notesController.dispose();
     super.dispose();
   }
 
@@ -126,6 +131,7 @@ class _AddRecurringPaymentScreenState
     final name = _nameController.text.trim();
     final amount = double.parse(_amountController.text.trim());
     final intervalDays = int.tryParse(_intervalDaysController.text.trim());
+    final notes = _notesController.text.trim();
 
     final existing = widget.existing;
     if (existing != null) {
@@ -176,6 +182,8 @@ class _AddRecurringPaymentScreenState
               lastPaidAt: scheduleChanged
                   ? const Value(null)
                   : const Value.absent(),
+              notes: Value(notes.isEmpty ? null : notes),
+              paymentMode: _paymentMode,
             ),
           );
     } else {
@@ -202,6 +210,8 @@ class _AddRecurringPaymentScreenState
             yearlyDay: _frequency == RecurringPaymentFrequency.yearly
                 ? _yearlyDay
                 : null,
+            notes: notes.isEmpty ? null : notes,
+            paymentMode: _paymentMode,
           );
     }
 
@@ -432,6 +442,40 @@ class _AddRecurringPaymentScreenState
                 ],
               ),
             },
+            const SizedBox(height: 16),
+            Text(
+              'Does this get paid automatically, or do you have to pay it yourself?',
+              style: Theme.of(context).textTheme.labelSmall,
+            ),
+            const SizedBox(height: 8),
+            SegmentedButton<String>(
+              segments: const [
+                ButtonSegment(value: 'auto', label: Text('Auto')),
+                ButtonSegment(value: 'manual', label: Text('Manual')),
+              ],
+              selected: {_paymentMode},
+              onSelectionChanged: (s) => setState(() => _paymentMode = s.first),
+            ),
+            if (_paymentMode == 'manual') ...[
+              const SizedBox(height: 8),
+              Text(
+                "You'll get a reminder notification starting at midnight on "
+                "the due date, repeating every 4 hours until you mark it "
+                'paid or tap Done on the notification.',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ],
+            const SizedBox(height: 16),
+            TextFormField(
+              controller: _notesController,
+              minLines: 1,
+              maxLines: 3,
+              textCapitalization: TextCapitalization.sentences,
+              decoration: const InputDecoration(
+                labelText: 'Notes',
+                hintText: 'Optional',
+              ),
+            ),
             const SizedBox(height: 24),
             SizedBox(
               width: double.infinity,

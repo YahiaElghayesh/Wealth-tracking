@@ -96,6 +96,10 @@ class _RecurringPaymentsScreenState
     // moment the calendar has moved past it -- see that provider's own
     // doc comment.
     ref.watch(recurringPaymentHistoryAutoRecordProvider);
+    // Fire-and-forget: keeps every 'manual' payment's native reminder
+    // notification schedule in sync -- see that provider's own doc
+    // comment.
+    ref.watch(recurringPaymentReminderSyncProvider);
     final paymentsAsync = ref.watch(recurringPaymentsStreamProvider);
     final summary = ref.watch(recurringPaymentsMonthSummaryProvider);
     final usdToEgpRate = ref.watch(usdToEgpRateProvider);
@@ -663,6 +667,19 @@ class _RecurringPaymentTile extends ConsumerWidget {
                               ],
                             ],
                           ),
+                          if (payment.notes != null &&
+                              payment.notes!.isNotEmpty &&
+                              !hideValues) ...[
+                            const SizedBox(height: 4),
+                            Text(
+                              payment.notes!,
+                              style: theme.textTheme.labelSmall?.copyWith(
+                                color: colors.textDim,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
                         ],
                       ),
                     ),

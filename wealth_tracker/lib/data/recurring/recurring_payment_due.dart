@@ -112,10 +112,14 @@ DateTime recurringPaymentDueDateForCurrentCycle(
 /// [recurringPaymentDueDateForCurrentCycle], not merely
 /// [recurringPaymentCycleStart] -- a tap before the due date itself is
 /// recorded but doesn't count as paid yet, see [_PaidToggle]'s own
-/// handling of that case), or, automatically, because the cycle's due
-/// date has already arrived even without an explicit tap -- so a bill
-/// someone always pays on time (or that's charged automatically) reads as
-/// paid the moment its date comes due, not only once manually confirmed.
+/// handling of that case), or, for an 'auto' [RecurringPayment.paymentMode]
+/// only, automatically, because the cycle's due date has already arrived
+/// even without an explicit tap -- so a bill someone always pays on time
+/// (or that's charged automatically) reads as paid the moment its date
+/// comes due, not only once manually confirmed. A 'manual' payment skips
+/// that automatic assumption entirely -- it stays pending (and its
+/// reminder notification keeps firing, see RecurringPaymentReminderChannel)
+/// until the user actually confirms it, however late that ends up being.
 /// Either way this reverts to pending on its own once a new cycle starts,
 /// since both the manual mark and the automatic date check are
 /// re-evaluated fresh against whatever "today" and "the current cycle"
@@ -129,6 +133,7 @@ bool recurringPaymentIsPaidForCurrentCycle(
   if (lastPaidAt != null && !_dateOnly(lastPaidAt).isBefore(dueDate)) {
     return true;
   }
+  if (payment.paymentMode == 'manual') return false;
   return !dueDate.isAfter(_dateOnly(today));
 }
 

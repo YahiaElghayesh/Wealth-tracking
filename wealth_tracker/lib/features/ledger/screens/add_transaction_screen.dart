@@ -1,3 +1,4 @@
+import 'package:drift/drift.dart' show Value;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -48,6 +49,7 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
   // the first place.
   final _amountController = TextEditingController();
   final _customCategoryController = TextEditingController();
+  final _notesController = TextEditingController();
   bool _isPayment = true;
   // Null until the user actually taps a chip — defaults to whichever
   // category is first once the (async, user-managed) list loads, computed
@@ -79,6 +81,7 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
       if (_isPayment) {
         _category = existing.category;
       }
+      _notesController.text = existing.description ?? '';
     }
     // Only the quick-add-invoked instance of this screen exempts the
     // biometric lock (AppLockGate) -- reached from a ledger row's own "+"
@@ -96,6 +99,7 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
     }
     _amountController.dispose();
     _customCategoryController.dispose();
+    _notesController.dispose();
     super.dispose();
   }
 
@@ -345,6 +349,7 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
     final signedAmount = _isPayment ? amount : -amount;
     final resolvedCategory = category.isEmpty ? 'Other' : category;
 
+    final notes = _notesController.text.trim();
     final existing = widget.existing;
     if (existing != null) {
       await ref
@@ -356,6 +361,7 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
               amount: signedAmount,
               currency: _currency,
               category: resolvedCategory,
+              description: Value(notes.isEmpty ? null : notes),
             ),
           );
     } else {
@@ -367,7 +373,7 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
             amount: signedAmount,
             currency: _currency,
             category: resolvedCategory,
-            description: null,
+            description: notes.isEmpty ? null : notes,
           );
     }
 
@@ -582,6 +588,17 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
                           ),
                         ],
                       ],
+                      const SizedBox(height: 16),
+                      TextFormField(
+                        controller: _notesController,
+                        minLines: 1,
+                        maxLines: 3,
+                        textCapitalization: TextCapitalization.sentences,
+                        decoration: const InputDecoration(
+                          labelText: 'Notes',
+                          hintText: 'Optional',
+                        ),
+                      ),
                     ],
                   ),
                 ),

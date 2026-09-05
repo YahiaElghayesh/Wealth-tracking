@@ -1,3 +1,4 @@
+import 'package:drift/drift.dart' show Value;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:workmanager/workmanager.dart';
 
@@ -21,6 +22,11 @@ import 'yahoo_metals_price_provider.dart';
 
 const backgroundPriceRefreshUniqueName = 'wealth_tracker_price_refresh';
 const backgroundPriceRefreshTaskName = 'priceRefresh';
+
+/// The WorkManager task name RecurringPaymentReminderDoneActionReceiver.kt
+/// enqueues when the user taps "Done" on a manual recurring payment's
+/// reminder notification -- must match the string switched on below.
+const recurringPaymentMarkPaidTaskName = 'recurringPaymentMarkPaid';
 
 /// WorkManager's own documented floor for a periodic task -- registering
 /// anything shorter is silently clamped up to this by Android itself, so
@@ -50,6 +56,8 @@ void priceRefreshCallbackDispatcher() {
         await runSmsAutoUpdateTask(inputData ?? const {});
       } else if (task == smsBalanceUpdateTaskName) {
         await runSmsBalanceUpdateTask(inputData ?? const {});
+      } else if (task == recurringPaymentMarkPaidTaskName) {
+        await runRecurringPaymentMarkPaidTask(inputData ?? const {});
       }
       return true;
     } catch (_) {
@@ -136,6 +144,29 @@ Future<void> runSmsBalanceUpdateTask(Map<String, dynamic> inputData) async {
       body: body,
       timestampMillis: timestampMillis,
     );
+  } finally {
+    await db.close();
+  }
+}
+
+/// Reads the `paymentId` RecurringPaymentReminderDoneActionReceiver.kt
+/// passed through WorkManager's input data when the user tapped "Done" on
+/// a manual recurring payment's reminder notification, and marks that
+/// payment paid for its current cycle -- the same `lastPaidAt` write the
+/// in-app paid toggle makes (see RecurringPaymentRepository.setPaid), so
+/// both paths converge on one place. No profile lookup needed: a payment
+/// id is unique regardless of which profile it belongs to.
+Future<void> runRecurringPaymentMarkPaidTask(
+  Map<String, dynamic> inputData,
+) async {
+  final paymentId = inputData['paymentId'] as String?;
+  if (paymentId == null) return;
+
+  final db = AppDatabase();
+  try {
+    await (db.update(db.recurringPayments)
+          ..where((t) => t.id.equals(paymentId)))
+        .write(RecurringPaymentsCompanion(lastPaidAt: Value(DateTime.now())));
   } finally {
     await db.close();
   }

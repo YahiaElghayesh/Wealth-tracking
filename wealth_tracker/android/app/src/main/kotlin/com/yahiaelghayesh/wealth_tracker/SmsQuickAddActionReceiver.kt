@@ -4,6 +4,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.OutOfQuotaPolicy
 import androidx.work.WorkManager
 import dev.fluttercommunity.workmanager.BackgroundWorker
 import dev.fluttercommunity.workmanager.buildTaskInputData
@@ -43,8 +44,13 @@ class SmsQuickAddActionReceiver : BroadcastReceiver() {
                 "timestampMillis" to timestampMillis,
             ),
         )
+        // Expedited (see SmsReceiver.kt's own use of this for why) so a tap
+        // on this action right after the device has been idle a while
+        // still gets its ledger write applied promptly instead of
+        // potentially sitting Doze-deferred.
         val request = OneTimeWorkRequestBuilder<BackgroundWorker>()
             .setInputData(inputData)
+            .setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)
             .build()
         WorkManager.getInstance(context).enqueue(request)
     }

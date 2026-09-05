@@ -30,6 +30,11 @@
          prompt for this app specifically, instead of a generic battery
          settings page they'd have to navigate manually. -->
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS"/>
+    <!-- Recurring payments (Recurring payments tab): a 'manual' payment's
+         reminder is restored after a device restart -- AlarmManager forgets
+         every alarm it was holding across a reboot. See
+         RecurringPaymentReminderBootReceiver.kt. -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
     <application
         android:label="Money Hub"
         android:name="${applicationName}"
@@ -129,6 +134,32 @@
         <receiver
             android:name=".SmsQuickAddActionReceiver"
             android:exported="false" />
+
+        <!-- Recurring payments: fires a manual payment's reminder and
+             re-arms the next one 4 hours later -- see
+             RecurringPaymentReminder.kt. Only ever invoked via the
+             PendingIntent this app's own AlarmManager alarm carries. -->
+        <receiver
+            android:name=".RecurringPaymentReminderReceiver"
+            android:exported="false" />
+
+        <!-- Only ever invoked via the "Done" PendingIntent the reminder
+             notification above attaches to itself. -->
+        <receiver
+            android:name=".RecurringPaymentReminderDoneActionReceiver"
+            android:exported="false" />
+
+        <!-- Restores every still-pending manual-payment reminder after a
+             device restart -- BOOT_COMPLETED is a protected system
+             broadcast (only the platform itself can send it), so this stays
+             unexported. -->
+        <receiver
+            android:name=".RecurringPaymentReminderBootReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED"/>
+            </intent-filter>
+        </receiver>
 
         <!-- Hands the system package installer a content:// URI for the
              downloaded update APK (see AppUpdater.kt) without exposing this

@@ -10,6 +10,7 @@ import android.os.Build
 import android.provider.Telephony
 import androidx.core.app.NotificationCompat
 import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.OutOfQuotaPolicy
 import androidx.work.WorkManager
 import dev.fluttercommunity.workmanager.BackgroundWorker
 import dev.fluttercommunity.workmanager.buildTaskInputData
@@ -129,8 +130,19 @@ class SmsReceiver : BroadcastReceiver() {
                 "timestampMillis" to timestampMillis,
             ),
         )
+        // Expedited (with a graceful non-expedited fallback once the app's
+        // daily expedited-job quota is used up) rather than a plain one-off
+        // request -- Doze/App-Standby can otherwise defer an unconstrained
+        // WorkManager task substantially on a device that's been idle a
+        // while (the reported "SMS silently doesn't do anything if the app
+        // hasn't been opened in a long time" bug: the receiver ran and this
+        // was enqueued fine, but the actual balance/ledger write it carries
+        // could sit deferred for a long time before Android ever ran it).
+        // Expedited work gets a much stronger execution guarantee from the
+        // OS specifically to avoid that.
         val request = OneTimeWorkRequestBuilder<BackgroundWorker>()
             .setInputData(inputData)
+            .setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)
             .build()
         WorkManager.getInstance(context).enqueue(request)
     }
@@ -151,8 +163,19 @@ class SmsReceiver : BroadcastReceiver() {
                 "timestampMillis" to timestampMillis,
             ),
         )
+        // Expedited (with a graceful non-expedited fallback once the app's
+        // daily expedited-job quota is used up) rather than a plain one-off
+        // request -- Doze/App-Standby can otherwise defer an unconstrained
+        // WorkManager task substantially on a device that's been idle a
+        // while (the reported "SMS silently doesn't do anything if the app
+        // hasn't been opened in a long time" bug: the receiver ran and this
+        // was enqueued fine, but the actual balance/ledger write it carries
+        // could sit deferred for a long time before Android ever ran it).
+        // Expedited work gets a much stronger execution guarantee from the
+        // OS specifically to avoid that.
         val request = OneTimeWorkRequestBuilder<BackgroundWorker>()
             .setInputData(inputData)
+            .setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)
             .build()
         WorkManager.getInstance(context).enqueue(request)
     }
@@ -174,8 +197,19 @@ class SmsReceiver : BroadcastReceiver() {
                 "timestampMillis" to timestampMillis,
             ),
         )
+        // Expedited (with a graceful non-expedited fallback once the app's
+        // daily expedited-job quota is used up) rather than a plain one-off
+        // request -- Doze/App-Standby can otherwise defer an unconstrained
+        // WorkManager task substantially on a device that's been idle a
+        // while (the reported "SMS silently doesn't do anything if the app
+        // hasn't been opened in a long time" bug: the receiver ran and this
+        // was enqueued fine, but the actual balance/ledger write it carries
+        // could sit deferred for a long time before Android ever ran it).
+        // Expedited work gets a much stronger execution guarantee from the
+        // OS specifically to avoid that.
         val request = OneTimeWorkRequestBuilder<BackgroundWorker>()
             .setInputData(inputData)
+            .setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)
             .build()
         WorkManager.getInstance(context).enqueue(request)
     }

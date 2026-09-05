@@ -38,7 +38,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 22;
+  int get schemaVersion => 23;
 
   /// Public so `ProfileRepository.addProfile` can give a newly created
   /// profile the same starter categories a fresh install gets -- otherwise
@@ -375,6 +375,14 @@ class AppDatabase extends _$AppDatabase {
         // balanceUpdatedAt's own null in that same case.
         await m.addColumn(ledgerTransactions, ledgerTransactions.source);
         await m.addColumn(creditCards, creditCards.balanceUpdatedSource);
+      }
+      if (from < 23) {
+        // Recurring payments gained free-text notes and an auto/manual
+        // payment mode -- every pre-existing row has no notes (null) and
+        // defaults to 'auto', which is exactly how every one of them
+        // already behaved before this column existed.
+        await m.addColumn(recurringPayments, recurringPayments.notes);
+        await m.addColumn(recurringPayments, recurringPayments.paymentMode);
       }
     },
     // The "Breakfast" quick-pick category was a voice-transcription
