@@ -174,12 +174,14 @@ class _CardFormDialogState extends ConsumerState<_CardFormDialog> {
             children: [
               TextFormField(
                 controller: _nameController,
+                textCapitalization: TextCapitalization.sentences,
                 decoration: const InputDecoration(labelText: 'Name', hintText: 'e.g. Explore World'),
                 validator: (v) => (v == null || v.trim().isEmpty) ? 'Required' : null,
               ),
               const SizedBox(height: 12),
               TextFormField(
                 controller: _bankController,
+                textCapitalization: TextCapitalization.sentences,
                 decoration: const InputDecoration(labelText: 'Bank', hintText: 'e.g. CIB'),
                 validator: (v) => (v == null || v.trim().isEmpty) ? 'Required' : null,
               ),

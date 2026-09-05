@@ -36,6 +36,7 @@ class ProfilesSettingsScreen extends ConsumerWidget {
         content: TextField(
           controller: controller,
           autofocus: true,
+          textCapitalization: TextCapitalization.sentences,
           decoration: const InputDecoration(labelText: 'Name', hintText: 'e.g. Family, Business'),
         ),
         actions: [

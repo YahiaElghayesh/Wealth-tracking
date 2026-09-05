@@ -22,6 +22,7 @@ class LedgerCategoriesSettingsScreen extends ConsumerWidget {
         content: TextField(
           controller: controller,
           autofocus: true,
+          textCapitalization: TextCapitalization.sentences,
           decoration: const InputDecoration(labelText: 'Name', hintText: 'e.g. Subscriptions'),
         ),
         actions: [
@@ -44,7 +45,11 @@ class LedgerCategoriesSettingsScreen extends ConsumerWidget {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Rename category'),
-        content: TextField(controller: controller, autofocus: true),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          textCapitalization: TextCapitalization.sentences,
+        ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
           FilledButton(

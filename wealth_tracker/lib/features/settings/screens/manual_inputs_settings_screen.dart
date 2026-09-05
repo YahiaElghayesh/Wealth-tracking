@@ -165,6 +165,7 @@ class _ManualInputFormDialogState extends ConsumerState<_ManualInputFormDialog> 
             children: [
               TextFormField(
                 controller: _nameController,
+                textCapitalization: TextCapitalization.sentences,
                 decoration: const InputDecoration(labelText: 'Name', hintText: 'e.g. Emergency fund'),
                 validator: (v) => (v == null || v.trim().isEmpty) ? 'Required' : null,
               ),

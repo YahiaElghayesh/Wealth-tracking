@@ -497,6 +497,7 @@ class _VendorRuleFormDialogState extends ConsumerState<_VendorRuleFormDialog> {
             children: [
               TextFormField(
                 controller: _vendorController,
+                textCapitalization: TextCapitalization.sentences,
                 decoration: const InputDecoration(
                   labelText: 'Merchant contains',
                   hintText: 'e.g. Breadfast',

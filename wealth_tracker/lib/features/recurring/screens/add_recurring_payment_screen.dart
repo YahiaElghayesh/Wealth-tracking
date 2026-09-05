@@ -280,6 +280,7 @@ class _AddRecurringPaymentScreenState
             TextFormField(
               controller: _nameController,
               autofocus: !_isEditing,
+              textCapitalization: TextCapitalization.sentences,
               decoration: const InputDecoration(
                 labelText: 'Name',
                 hintText: 'e.g. Netflix',

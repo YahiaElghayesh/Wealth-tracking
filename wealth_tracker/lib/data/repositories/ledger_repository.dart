@@ -28,6 +28,7 @@ class LedgerRepository {
     String name, {
     bool includeInStatistics = true,
     bool includeInCalculator = true,
+    bool visible = true,
   }) async {
     final id = _uuid.v4();
     await _db
@@ -38,6 +39,7 @@ class LedgerRepository {
             name: name,
             includeInStatistics: Value(includeInStatistics),
             includeInCalculator: Value(includeInCalculator),
+            visible: Value(visible),
             profileId: Value(profileId),
           ),
         );

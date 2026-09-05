@@ -967,13 +967,20 @@ class _AmountTypeBadge extends StatelessWidget {
     final colors = context.appColors;
     final color = isExactAmount ? colors.good : colors.gold;
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.14),
         borderRadius: BorderRadius.circular(99),
       ),
       child: Text(
-        isExactAmount ? 'EXACT AMOUNT' : 'MINIMUM AMOUNT',
+        // Short forms -- see this tile's own Wrap comment for why: the
+        // full "EXACT AMOUNT"/"MINIMUM AMOUNT" wording (still used
+        // spelled out on the Add/Edit form itself, where there's room)
+        // was, together with the mode and paid badges, sometimes wider
+        // than a line and sometimes not, so some tiles wrapped their
+        // badges onto a second row and others didn't -- inconsistent from
+        // one payment to the next for no reason the user could see.
+        isExactAmount ? 'EXACT' : 'MIN.',
         style: theme.textTheme.labelSmall?.copyWith(
           color: color,
           fontWeight: FontWeight.w800,
@@ -1001,7 +1008,7 @@ class _PaymentModeBadge extends StatelessWidget {
     final isManual = paymentMode == 'manual';
     final color = isManual ? theme.colorScheme.primary : colors.textDim;
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.14),
         borderRadius: BorderRadius.circular(99),
@@ -1011,7 +1018,7 @@ class _PaymentModeBadge extends StatelessWidget {
         children: [
           Icon(
             isManual ? Icons.notifications_active : Icons.bolt,
-            size: 10,
+            size: 9,
             color: color,
           ),
           const SizedBox(width: 3),

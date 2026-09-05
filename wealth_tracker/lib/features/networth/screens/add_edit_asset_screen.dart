@@ -168,6 +168,7 @@ class _AddEditAssetScreenState extends ConsumerState<AddEditAssetScreen> {
             if (_valuationMode != ValuationMode.crypto) ...[
               TextFormField(
                 controller: _nameController,
+                textCapitalization: TextCapitalization.sentences,
                 decoration: InputDecoration(
                   labelText: 'Name',
                   helperText: _valuationMode == ValuationMode.stock
@@ -282,6 +283,7 @@ class _AddEditAssetScreenState extends ConsumerState<AddEditAssetScreen> {
               return TextFormField(
                 controller: controller,
                 focusNode: focusNode,
+                textCapitalization: TextCapitalization.sentences,
                 decoration: const InputDecoration(
                   labelText: 'Stock',
                   hintText: 'Start typing a name or ticker, e.g. Apple or COMI',
@@ -355,6 +357,7 @@ class _AddEditAssetScreenState extends ConsumerState<AddEditAssetScreen> {
               return TextFormField(
                 controller: controller,
                 focusNode: focusNode,
+                textCapitalization: TextCapitalization.sentences,
                 decoration: const InputDecoration(
                   labelText: 'Cryptocurrency',
                   hintText: 'Start typing a name, e.g. Bitcoin',

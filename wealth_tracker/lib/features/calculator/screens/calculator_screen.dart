@@ -294,6 +294,7 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
             children: [
               TextField(
                 controller: labelController,
+                textCapitalization: TextCapitalization.sentences,
                 decoration: const InputDecoration(labelText: 'What is it?'),
               ),
               const SizedBox(height: 12),

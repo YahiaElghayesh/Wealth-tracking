@@ -349,6 +349,22 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
     final signedAmount = _isPayment ? amount : -amount;
     final resolvedCategory = category.isEmpty ? 'Other' : category;
 
+    // A custom name typed after picking "Other" used to only ever live on
+    // this one transaction -- it never became a real category, so it
+    // didn't show up as a quick-pick chip next time, in Settings ->
+    // Categories & icons, or anywhere else categories are listed. Saving
+    // it as a real LedgerCategory the first time it's used (skipped if it
+    // already matches one, case-insensitively, so re-typing an existing
+    // name never creates a duplicate) makes it behave like any other
+    // category from here on.
+    if (_isPayment &&
+        selectedCategory == 'Other' &&
+        !_categoryNames.any(
+          (c) => c.toLowerCase() == resolvedCategory.toLowerCase(),
+        )) {
+      await ref.read(ledgerCategoryRepositoryProvider).add(resolvedCategory);
+    }
+
     final notes = _notesController.text.trim();
     final existing = widget.existing;
     if (existing != null) {
@@ -582,6 +598,7 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
                           const SizedBox(height: 12),
                           TextFormField(
                             controller: _customCategoryController,
+                            textCapitalization: TextCapitalization.sentences,
                             decoration: const InputDecoration(
                               hintText: 'Category',
                             ),

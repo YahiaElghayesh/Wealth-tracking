@@ -94,6 +94,15 @@ class Counterparties extends Table {
   BoolColumn get includeInCalculator =>
       boolean().withDefault(const Constant(true))();
 
+  /// Whether this ledger shows up in the main Ledger list at all. Defaults
+  /// to true so every existing ledger keeps showing exactly as before;
+  /// setting this to false doesn't archive or delete anything -- the
+  /// ledger, its transactions, and its Statistics/Calculator inclusion all
+  /// keep working exactly as they do today, it's purely hidden from the
+  /// main list until switched back (see the Ledger tab's own "Hidden
+  /// ledgers" section for how to find one again).
+  BoolColumn get visible => boolean().withDefault(const Constant(true))();
+
   TextColumn get profileId => text().nullable().references(Profiles, #id)();
 
   @override

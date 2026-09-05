@@ -128,6 +128,17 @@ class _SmsReviewScreenState extends ConsumerState<SmsReviewScreen> {
     final category = selectedCategory == 'Other'
         ? _customCategoryController.text.trim()
         : selectedCategory;
+    final resolvedCategory = category.isEmpty ? 'Other' : category;
+
+    // Same fix as AddTransactionScreen's own save -- a custom name typed
+    // after picking "Other" becomes a real, reusable LedgerCategory
+    // instead of only ever existing on this one transaction.
+    if (selectedCategory == 'Other' &&
+        !_categoryNames.any(
+          (c) => c.toLowerCase() == resolvedCategory.toLowerCase(),
+        )) {
+      await ref.read(ledgerCategoryRepositoryProvider).add(resolvedCategory);
+    }
 
     await ref
         .read(ledgerRepositoryProvider)
@@ -136,7 +147,7 @@ class _SmsReviewScreenState extends ConsumerState<SmsReviewScreen> {
           date: _date,
           amount: amount,
           currency: _currency,
-          category: category.isEmpty ? 'Other' : category,
+          category: resolvedCategory,
           source: 'sms',
         );
 
@@ -382,6 +393,7 @@ class _SmsReviewScreenState extends ConsumerState<SmsReviewScreen> {
                 const SizedBox(height: 12),
                 TextFormField(
                   controller: _customCategoryController,
+                  textCapitalization: TextCapitalization.sentences,
                   decoration: const InputDecoration(hintText: 'Category'),
                 ),
               ],
