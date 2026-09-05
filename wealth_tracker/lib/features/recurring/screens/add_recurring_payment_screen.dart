@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/models/currency.dart';
 import '../../../core/models/recurring_payment_frequency.dart';
 import '../../../data/db/database.dart';
+import '../../../data/recurring/recurring_payment_mode_backup.dart';
 import '../providers/recurring_payment_providers.dart';
 
 const _monthNames = [
@@ -186,8 +187,13 @@ class _AddRecurringPaymentScreenState
               paymentMode: _paymentMode,
             ),
           );
+      // Mirrors the just-saved mode into its independent backup store --
+      // see RecurringPaymentModeBackup's own doc comment for why this
+      // exists (defense against `paymentMode` reverting to 'auto' on its
+      // own, via a path this app's own code never found).
+      await RecurringPaymentModeBackup.record(existing.id, _paymentMode);
     } else {
-      await ref
+      final id = await ref
           .read(recurringPaymentRepositoryProvider)
           .add(
             name: name,
@@ -213,6 +219,7 @@ class _AddRecurringPaymentScreenState
             notes: notes.isEmpty ? null : notes,
             paymentMode: _paymentMode,
           );
+      await RecurringPaymentModeBackup.record(id, _paymentMode);
     }
 
     if (mounted) Navigator.of(context).pop();

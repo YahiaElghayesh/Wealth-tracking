@@ -90,7 +90,7 @@ void main() {
       expect(rows, hasLength(1));
       expect(rows.single.counterpartyId, counterpartyId);
       expect(rows.single.category, 'Groceries');
-      expect(rows.single.amount, 959.0);
+      expect(rows.single.amount, 958.54);
       expect(rows.single.currency, 'EGP');
       expect(rows.single.source, 'sms');
     });

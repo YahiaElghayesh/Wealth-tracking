@@ -100,6 +100,9 @@ class _RecurringPaymentsScreenState
     // notification schedule in sync -- see that provider's own doc
     // comment.
     ref.watch(recurringPaymentReminderSyncProvider);
+    // Fire-and-forget: repairs `paymentMode` from its independent backup
+    // if the two ever disagree -- see that provider's own doc comment.
+    ref.watch(recurringPaymentModeReconcileProvider);
     final paymentsAsync = ref.watch(recurringPaymentsStreamProvider);
     final summary = ref.watch(recurringPaymentsMonthSummaryProvider);
     final usdToEgpRate = ref.watch(usdToEgpRateProvider);

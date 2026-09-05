@@ -4,23 +4,26 @@ import 'package:wealth_tracker/data/sms/bank_sms_parser.dart';
 
 void main() {
   group('parseBankSms', () {
-    test('parses the real CIB charge-alert format, rounding the amount up', () {
-      const body =
-          'Your credit card ending with#4912 was charged for EGP 958.54 at Breadfast '
-          'on 27/08/26  at 13:30. Card available limit is EGP  85891.16. For more details, '
-          'please visit https://cib.eg/mb';
+    test(
+      'parses the real CIB charge-alert format, keeping the exact decimal amount',
+      () {
+        const body =
+            'Your credit card ending with#4912 was charged for EGP 958.54 at Breadfast '
+            'on 27/08/26  at 13:30. Card available limit is EGP  85891.16. For more details, '
+            'please visit https://cib.eg/mb';
 
-      final result = parseBankSms(body);
+        final result = parseBankSms(body);
 
-      expect(result, isNotNull);
-      expect(result!.vendor, 'Breadfast');
-      expect(result.currency, 'EGP');
-      expect(result.amount, 959.0);
-      expect(result.occurredAt, DateTime(2026, 8, 27, 13, 30));
-      expect(result.isCharge, isTrue);
-      expect(result.lastFourDigits, '4912');
-      expect(result.availableBalanceAfter, 85891.16);
-    });
+        expect(result, isNotNull);
+        expect(result!.vendor, 'Breadfast');
+        expect(result.currency, 'EGP');
+        expect(result.amount, 958.54);
+        expect(result.occurredAt, DateTime(2026, 8, 27, 13, 30));
+        expect(result.isCharge, isTrue);
+        expect(result.lastFourDigits, '4912');
+        expect(result.availableBalanceAfter, 85891.16);
+      },
+    );
 
     test(
       'a charge SMS missing the last-4-digits or available-limit portions still parses',
@@ -65,7 +68,7 @@ void main() {
       final result = parseBankSms(body);
 
       expect(result!.vendor, 'Food Store');
-      expect(result.amount, 51.0);
+      expect(result.amount, 50.10);
     });
 
     test('unrelated SMS text returns null', () {
@@ -86,7 +89,7 @@ void main() {
       expect(result, isNotNull);
       expect(result!.vendor, 'HODJAPASHA CULT');
       expect(result.currency, 'USD');
-      expect(result.amount, 85.0);
+      expect(result.amount, 84.44);
       expect(result.isCharge, isTrue);
       expect(result.lastFourDigits, '8455');
       // Stated in EGP even though the charge itself was in USD — the card
@@ -123,9 +126,6 @@ void main() {
 
         expect(result, isNotNull);
         expect(result!.currency, 'EGP');
-        // NOT rounded up, unlike a charge -- this never becomes a ledger
-        // entry, only feeds the card balance's add-the-amount math, where
-        // rounding up would overstate the real balance.
         expect(result.amount, 8860.36);
         expect(result.isCharge, isFalse);
         expect(result.lastFourDigits, '8455');

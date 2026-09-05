@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/models/recurring_payment_history_item.dart';
 import '../../../data/db/database.dart';
 import '../../../data/recurring/recurring_payment_due.dart';
+import '../../../data/recurring/recurring_payment_mode_backup.dart';
 import '../../../data/recurring/recurring_payment_month_breakdown.dart';
 import '../../../data/recurring/recurring_payment_reminder_channel.dart';
 import '../../../data/repositories/recurring_payment_history_repository.dart';
@@ -148,4 +149,48 @@ String _formatReminderAmount(double value) {
   return value == value.roundToDouble()
       ? value.toInt().toString()
       : value.toString();
+}
+
+/// Fire-and-forget: repairs `paymentMode` from
+/// [RecurringPaymentModeBackup]'s independent record whenever the two
+/// disagree -- see that class's own doc comment for why this exists (a
+/// 'manual' payment silently reverting to 'auto' on its own, with no
+/// reproducible cause found in any of this app's own write paths). Runs
+/// once per rebuild of whatever watches it (harmless to repeat -- it's a
+/// no-op once both stores already agree), watched from
+/// RecurringPaymentsScreen's build, same "provider as a side-effect
+/// trigger" pattern [recurringPaymentHistoryAutoRecordProvider] uses.
+final recurringPaymentModeReconcileProvider = Provider<void>((ref) {
+  final repository = ref.watch(recurringPaymentRepositoryProvider);
+  final payments = ref.watch(recurringPaymentsStreamProvider).valueOrNull;
+  if (payments == null) return;
+  unawaited(_reconcilePaymentModes(repository, payments));
+});
+
+Future<void> _reconcilePaymentModes(
+  RecurringPaymentRepository repository,
+  List<RecurringPayment> payments,
+) async {
+  await RecurringPaymentModeBackup.pruneToLiveIds(
+    payments.map((p) => p.id).toSet(),
+  );
+  final backup = await RecurringPaymentModeBackup.readAll();
+  for (final payment in payments) {
+    final backedUp = backup[payment.id];
+    // Bias toward 'manual' whenever the two disagree -- the reported
+    // failure is specifically "manual reverts to auto on its own," never
+    // the reverse, and staying in manual mode a little longer than
+    // necessary (one extra reminder, easily dismissed) is a far smaller
+    // cost than silently dropping back to 'auto' and missing a bill's
+    // reminder entirely.
+    final shouldBeManual =
+        payment.paymentMode == 'manual' || backedUp == 'manual';
+    final correctMode = shouldBeManual ? 'manual' : 'auto';
+    if (payment.paymentMode != correctMode) {
+      await repository.setPaymentMode(payment.id, correctMode);
+    }
+    if (backedUp != correctMode) {
+      await RecurringPaymentModeBackup.record(payment.id, correctMode);
+    }
+  }
 }

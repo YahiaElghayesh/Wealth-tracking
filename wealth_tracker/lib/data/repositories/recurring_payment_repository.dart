@@ -21,7 +21,7 @@ class RecurringPaymentRepository {
         .watch();
   }
 
-  Future<void> add({
+  Future<String> add({
     required String name,
     required double amount,
     required String currency,
@@ -38,11 +38,12 @@ class RecurringPaymentRepository {
     final count = await (_db.select(
       _db.recurringPayments,
     )..where((t) => t.profileId.equals(profileId))).get();
+    final id = _uuid.v4();
     await _db
         .into(_db.recurringPayments)
         .insert(
           RecurringPaymentsCompanion.insert(
-            id: _uuid.v4(),
+            id: id,
             name: name,
             amount: amount,
             currency: Value(currency),
@@ -62,10 +63,20 @@ class RecurringPaymentRepository {
             paymentMode: Value(paymentMode),
           ),
         );
+    return id;
   }
 
   Future<void> update(RecurringPayment payment) {
     return _db.update(_db.recurringPayments).replace(payment);
+  }
+
+  /// Sets just [paymentMode], as a single narrow-field write rather than a
+  /// full-row [update]/`.replace()` -- used by the reconciliation pass in
+  /// recurring_payment_providers.dart, which must never risk clobbering any
+  /// other column while repairing this one.
+  Future<void> setPaymentMode(String id, String paymentMode) {
+    return (_db.update(_db.recurringPayments)..where((t) => t.id.equals(id)))
+        .write(RecurringPaymentsCompanion(paymentMode: Value(paymentMode)));
   }
 
   /// Toggles the "mark as paid" state for the payment's current billing

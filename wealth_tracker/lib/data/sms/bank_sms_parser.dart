@@ -56,9 +56,15 @@ class ParsedBankSms {
 
   final String vendor;
 
-  /// Always a whole number — the user doesn't want fractional amounts from
-  /// auto-captured entries, so this is rounded up from whatever the SMS
-  /// actually said (e.g. 958.54 -> 959).
+  /// The exact figure the SMS stated, to the cent -- never rounded in
+  /// either direction. An earlier version of this rounded a charge's amount
+  /// up (e.g. 958.54 -> 959) so an auto-captured ledger entry wouldn't
+  /// carry a fraction, but that silently drifted the tracked card balance
+  /// away from the bank's real numbers over time (this same figure also
+  /// feeds `updateCardBalanceFromSms`'s fallback "subtract from last known
+  /// balance" math whenever the SMS doesn't state a resulting balance
+  /// outright) -- exactness matters more than a clean-looking ledger
+  /// number.
   final double amount;
 
   final String currency;
@@ -178,7 +184,7 @@ final _cibChargePattern = _BankSmsPattern(
 
     return ParsedBankSms(
       vendor: vendor,
-      amount: amount.ceilToDouble(),
+      amount: amount,
       currency: currency,
       occurredAt: DateTime(year, month, day, hour, minute),
       isCharge: true,
@@ -233,7 +239,7 @@ final _nbeChargePattern = _BankSmsPattern(
 
     return ParsedBankSms(
       vendor: vendor,
-      amount: amount.ceilToDouble(),
+      amount: amount,
       currency: currency,
       occurredAt: occurredAt,
       isCharge: true,
@@ -252,12 +258,8 @@ final _nbeChargePattern = _BankSmsPattern(
 /// Neither an available-balance figure nor a year is ever stated in this
 /// format, unlike the charge alert -- the year uses the same "assume
 /// current, roll back if that would be in the future" logic as
-/// [_nbeChargePattern]. [ParsedBankSms.amount] is deliberately NOT rounded
-/// up the way a charge's is: that rounding exists so an auto-captured
-/// *ledger entry* doesn't carry an ugly fraction, but a payment alert never
-/// becomes a ledger entry (see [parseBankSms] callers) -- it only ever
-/// feeds the card balance's fallback add-the-amount math, where rounding
-/// up would silently overstate the real balance.
+/// [_nbeChargePattern]. See [ParsedBankSms.amount]'s own doc comment for
+/// why this (like every pattern below) keeps the exact stated figure.
 final _cibPaymentPattern = _BankSmsPattern(
   RegExp(
     r'نشكركم\s*على\s*سداد\s*مبلغ\s*([\d,]+(?:\.\d+)?)\s*جم\s*لبطاقة\s*رقم\s*(\d{4})\s*يوم\s*(\d{1,2})/(\d{1,2})',
@@ -297,9 +299,8 @@ final _cibPaymentPattern = _BankSmsPattern(
 ///
 /// Unlike [_nbeChargePattern]'s two-segment month-day date, this states a
 /// full day-month-year date and no time -- occurredAt is set to midnight
-/// on that date. No available-balance figure is stated either, so (like
-/// [_cibPaymentPattern]) this only feeds the card balance's fallback
-/// add-the-amount math, hence the same un-rounded [amount].
+/// on that date. No available-balance figure is stated either, so this
+/// only feeds the card balance's fallback add-the-amount math.
 final _nbePaymentPattern = _BankSmsPattern(
   RegExp(
     r'تم\s*سداد\s*مبلغ\s*([\d,]+(?:\.\d+)?)\s*جم\s*فى\s*بطاقتكم\s*الائتمانية\s*المنتهية\s*بـ\s*(\d{4})\s*'
@@ -347,9 +348,7 @@ final _nbePaymentPattern = _BankSmsPattern(
 /// what it says, not by which bank is assumed to have sent it.
 ///
 /// No date is stated anywhere in this format, unlike every other pattern
-/// here -- occurredAt falls back to the moment this SMS is processed. Like
-/// a payment alert, the amount is NOT rounded up (never becomes a ledger
-/// entry, only feeds the card balance's fallback add-the-amount math).
+/// here -- occurredAt falls back to the moment this SMS is processed.
 final _arabicRefundPattern = _BankSmsPattern(
   RegExp(
     r'تم\s*رد\s*([A-Za-z]{3})\s*([\d,]+(?:\.\d+)?)\s*على\s*بطاقتكم\s*الائتمانية\s*المنتهية\s*بـ#?\s*(\d{4})',
@@ -383,10 +382,7 @@ final _arabicRefundPattern = _BankSmsPattern(
 /// event -- money returned to the card -- and, unlike that one, this
 /// English format states the vendor, currency, amount, date and time
 /// explicitly (the same information [_cibChargePattern]'s charge alert
-/// states), all captured here the same way. Like every other
-/// payment/refund alert, the amount is NOT rounded up (never becomes a
-/// ledger entry, only feeds the card balance's fallback add-the-amount
-/// math).
+/// states), all captured here the same way.
 final _cibEnglishRefundPattern = _BankSmsPattern(
   RegExp(
     r'transaction on your credit\s*card\s*#?\s*(\d{4})\s+from\s+(.+?)\s+with\s+'
