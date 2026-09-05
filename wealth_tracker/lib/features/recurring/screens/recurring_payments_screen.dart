@@ -612,6 +612,21 @@ class _RecurringPaymentTile extends ConsumerWidget {
                     _PaidToggle(
                       paid: paid,
                       dayLabel: '${occurrence.day}',
+                      // An 'interval' payment's next occurrence can land in
+                      // a later month than today (e.g. "every 30 days" due
+                      // Oct 4 while today is still September) -- shown
+                      // alongside true monthly payments in the same
+                      // section, whose occurrence is always *this* month by
+                      // construction. Without this, the bare day number
+                      // ("4") next to same-month days ("19", "26", "28")
+                      // looked like a sort bug -- it reads as "earliest in
+                      // the month" when it's actually the latest, next
+                      // month.
+                      monthLabel:
+                          (occurrence.month != today.month ||
+                              occurrence.year != today.year)
+                          ? _monthNames[occurrence.month - 1].toUpperCase()
+                          : null,
                       onTap: () {
                         if (!paid && notYetDue) {
                           // A tap here before the due date used to look
@@ -655,16 +670,23 @@ class _RecurringPaymentTile extends ConsumerWidget {
                             overflow: TextOverflow.ellipsis,
                           ),
                           const SizedBox(height: 4),
-                          Row(
-                            mainAxisSize: MainAxisSize.min,
+                          // Wrap, not Row -- three badges (amount type,
+                          // payment mode, and now paid) can exceed a
+                          // narrow tile's width on longer labels; Row would
+                          // silently overflow instead of just flowing the
+                          // extra badge onto a second line.
+                          Wrap(
+                            spacing: 6,
+                            runSpacing: 4,
+                            crossAxisAlignment: WrapCrossAlignment.center,
                             children: [
                               _AmountTypeBadge(
                                 isExactAmount: payment.isExactAmount,
                               ),
-                              if (paid) ...[
-                                const SizedBox(width: 6),
-                                _PaidBadge(color: colors.good),
-                              ],
+                              _PaymentModeBadge(
+                                paymentMode: payment.paymentMode,
+                              ),
+                              if (paid) _PaidBadge(color: colors.good),
                             ],
                           ),
                           if (payment.notes != null &&
@@ -762,11 +784,18 @@ class _PaidToggle extends StatelessWidget {
   const _PaidToggle({
     required this.paid,
     required this.dayLabel,
+    this.monthLabel,
     required this.onTap,
   });
 
   final bool paid;
   final String dayLabel;
+
+  /// Short month abbreviation (e.g. "OCT") shown as a small corner tag when
+  /// non-null -- only set for a payment whose next occurrence isn't in the
+  /// current calendar month, so the bare day number doesn't get misread as
+  /// "sooner than" a same-month day it's actually due after.
+  final String? monthLabel;
   final VoidCallback onTap;
 
   @override
@@ -845,6 +874,31 @@ class _PaidToggle extends StatelessWidget {
                     ),
                   ),
                 ),
+              if (monthLabel != null)
+                Positioned(
+                  top: -6,
+                  left: -6,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 4,
+                      vertical: 1,
+                    ),
+                    decoration: BoxDecoration(
+                      color: color,
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text(
+                      monthLabel!,
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        color: theme.colorScheme.surface,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 8,
+                        height: 1,
+                        letterSpacing: 0.2,
+                      ),
+                    ),
+                  ),
+                ),
             ],
           ),
         ),
@@ -908,6 +962,51 @@ class _AmountTypeBadge extends StatelessWidget {
           fontSize: 9,
           letterSpacing: 0.3,
         ),
+      ),
+    );
+  }
+}
+
+/// Read-only view of a payment's Auto/Manual mode, right on the list tile
+/// -- editing it stays exclusively in Add/Edit (this badge has no `onTap`
+/// on purpose), but seeing which mode a payment is in shouldn't require
+/// opening it first.
+class _PaymentModeBadge extends StatelessWidget {
+  const _PaymentModeBadge({required this.paymentMode});
+
+  final String paymentMode;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = context.appColors;
+    final isManual = paymentMode == 'manual';
+    final color = isManual ? theme.colorScheme.primary : colors.textDim;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.14),
+        borderRadius: BorderRadius.circular(99),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            isManual ? Icons.notifications_active : Icons.bolt,
+            size: 10,
+            color: color,
+          ),
+          const SizedBox(width: 3),
+          Text(
+            isManual ? 'MANUAL' : 'AUTO',
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: color,
+              fontWeight: FontWeight.w800,
+              fontSize: 9,
+              letterSpacing: 0.3,
+            ),
+          ),
+        ],
       ),
     );
   }
