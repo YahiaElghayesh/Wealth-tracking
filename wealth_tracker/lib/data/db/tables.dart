@@ -535,3 +535,63 @@ class VendorRules extends Table {
   @override
   Set<Column> get primaryKey => {id};
 }
+
+/// A user-managed bank name -- the single shared list Credit Cards, Bank
+/// Accounts, and SMS Rules all pick from, so a card/account and a rule can
+/// be reliably tied to the same bank instead of matching on free-typed
+/// text that could differ by a character.
+class Banks extends Table {
+  TextColumn get id => text()();
+  TextColumn get name => text()();
+  IntColumn get sortOrder => integer().withDefault(const Constant(0))();
+  TextColumn get profileId => text().nullable().references(Profiles, #id)();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
+/// A user-built SMS rule replacing the app's old hardwired per-bank
+/// parsing -- see `lib/data/sms/sms_rule_engine.dart` for how [segmentsJson]
+/// (a marked-up real sample SMS, split into fixed literal text and
+/// variable placeholders) becomes a matcher, and how a match is applied.
+class SmsRules extends Table {
+  TextColumn get id => text()();
+  TextColumn get bankId => text().references(Banks, #id)();
+
+  /// 'creditCardBalance' | 'bankAccountBalance' | 'ledgerPayment'.
+  TextColumn get operation => text()();
+
+  /// The real SMS this rule was built from -- concatenating every segment
+  /// in [segmentsJson] reconstructs this exactly, but this column is kept
+  /// too since it's what the edit screen actually displays and re-marks.
+  TextColumn get sampleText => text()();
+
+  /// JSON-encoded list of `{type, text, tag, role}` segments -- see
+  /// `SmsRuleSegment` -- in order, alternating literal text this rule
+  /// requires to appear with the variable portions (card/account number,
+  /// value, vendor, sender) it extracts.
+  TextColumn get segmentsJson => text()();
+
+  /// Only meaningful for a 'ledgerPayment' rule -- which ledger a match
+  /// adds its entry to. An SMS never names one of the user's own ledgers,
+  /// so this is picked once, at rule-creation time, the same way a Vendor
+  /// Rule already worked.
+  TextColumn get targetCounterpartyId =>
+      text().nullable().references(Counterparties, #id)();
+
+  /// Only meaningful for a 'ledgerPayment' rule -- the currency its ledger
+  /// entries are recorded in (a bank SMS's own currency wording isn't
+  /// marked as a portion, so this is fixed per rule instead).
+  TextColumn get currency => text().nullable()();
+
+  /// Whether a local notification is shown when this rule successfully
+  /// applies to a real incoming SMS.
+  BoolColumn get notifyOnMatch =>
+      boolean().withDefault(const Constant(false))();
+
+  DateTimeColumn get createdAt => dateTime()();
+  TextColumn get profileId => text().nullable().references(Profiles, #id)();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}

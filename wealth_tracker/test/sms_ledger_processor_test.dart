@@ -3,13 +3,22 @@ import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:uuid/uuid.dart';
 
+import 'package:wealth_tracker/core/models/sms_rule_segment.dart';
 import 'package:wealth_tracker/data/db/database.dart';
 import 'package:wealth_tracker/data/sms/sms_ledger_processor.dart';
+import 'package:wealth_tracker/data/sms/sms_rule_engine.dart';
 
-const _cibBreadfastSms =
-    'Your credit card ending with#4912 was charged for EGP 958.54 at Breadfast '
-    'on 27/08/26 at 13:30. Card available limit is EGP 85891.16. For more details, '
-    'please visit https://cib.eg/mb';
+/// A charge shaped like the app's old hardwired CIB pattern -- card number,
+/// value (stated post-charge available balance), vendor -- but matched
+/// here by a *rule* built from a marked-up sample, not hardwired code.
+const _chargeSms =
+    'Card #4912 charged EGP 958.54 at Breadfast. Available limit EGP 85891.16.';
+
+/// A card-payment (paying the card down, the opposite of a charge) shaped
+/// like the app's old hardwired CIB Arabic payment pattern -- no stated
+/// resulting balance, so the matching rule's role is "add" (net onto
+/// whatever's already tracked) rather than "set".
+const _paymentSms = 'Payment of EGP 8860.36 received on card #8455.';
 
 void main() {
   late AppDatabase db;
@@ -51,36 +60,94 @@ void main() {
         );
   }
 
-  Future<void> insertVendorRule({
-    required String vendorPattern,
-    required String counterpartyId,
-    required String category,
-  }) {
+  Future<String> insertBank() async {
+    final id = const Uuid().v4();
+    await db
+        .into(db.banks)
+        .insert(BanksCompanion.insert(id: id, name: 'Test bank'));
+    return id;
+  }
+
+  /// A rule matching [_chargeSms]: card number, a "set" value (the stated
+  /// post-charge available balance), and a vendor -- everything a real
+  /// 'creditCardBalance' or 'ledgerPayment' rule built from this same
+  /// sample would carry.
+  List<SmsRuleSegment> chargeSegments() => [
+    const SmsRuleSegment.literal('Card #'),
+    const SmsRuleSegment.placeholder(text: '4912', tag: 'cardNumber'),
+    const SmsRuleSegment.literal(' charged EGP 958.54 at '),
+    const SmsRuleSegment.placeholder(text: 'Breadfast', tag: 'vendor'),
+    const SmsRuleSegment.literal('. Available limit EGP '),
+    const SmsRuleSegment.placeholder(
+      text: '85891.16',
+      tag: 'value',
+      role: 'set',
+    ),
+    const SmsRuleSegment.literal('.'),
+  ];
+
+  /// A rule matching [_paymentSms]: an "add" value (nets onto whatever
+  /// balance is already tracked, since no resulting balance is stated) and
+  /// a card number.
+  List<SmsRuleSegment> paymentSegments() => [
+    const SmsRuleSegment.literal('Payment of EGP '),
+    const SmsRuleSegment.placeholder(
+      text: '8860.36',
+      tag: 'value',
+      role: 'add',
+    ),
+    const SmsRuleSegment.literal(' received on card #'),
+    const SmsRuleSegment.placeholder(text: '8455', tag: 'cardNumber'),
+    const SmsRuleSegment.literal('.'),
+  ];
+
+  Future<void> insertLedgerPaymentRule(String bankId, String counterpartyId) {
     return db
-        .into(db.vendorRules)
+        .into(db.smsRules)
         .insert(
-          VendorRulesCompanion.insert(
+          SmsRulesCompanion.insert(
             id: const Uuid().v4(),
-            vendorPattern: vendorPattern,
-            counterpartyId: counterpartyId,
-            category: category,
+            bankId: bankId,
+            operation: 'ledgerPayment',
+            sampleText: _chargeSms,
+            segmentsJson: encodeSmsRuleSegments(chargeSegments()),
+            targetCounterpartyId: Value(counterpartyId),
+            currency: const Value('EGP'),
+            createdAt: DateTime(2026),
+            profileId: const Value('test-profile'),
+          ),
+        );
+  }
+
+  Future<void> insertCreditCardBalanceRule(
+    String bankId,
+    List<SmsRuleSegment> segments,
+    String sampleText,
+  ) {
+    return db
+        .into(db.smsRules)
+        .insert(
+          SmsRulesCompanion.insert(
+            id: const Uuid().v4(),
+            bankId: bankId,
+            operation: 'creditCardBalance',
+            sampleText: sampleText,
+            segmentsJson: encodeSmsRuleSegments(segments),
+            createdAt: DateTime(2026),
             profileId: const Value('test-profile'),
           ),
         );
   }
 
   group('commitSmsQuickAdd', () {
-    test('adds a ledger entry when a Vendor Rule matches the sender', () async {
+    test('adds a ledger entry when a ledgerPayment rule matches', () async {
+      final bankId = await insertBank();
       final counterpartyId = await insertCounterparty('Dad');
-      await insertVendorRule(
-        vendorPattern: 'Breadfast',
-        counterpartyId: counterpartyId,
-        category: 'Groceries',
-      );
+      await insertLedgerPaymentRule(bankId, counterpartyId);
 
       final added = await commitSmsQuickAdd(
         db,
-        body: _cibBreadfastSms,
+        body: _chargeSms,
         timestampMillis: 1000,
         profileId: 'test-profile',
       );
@@ -89,16 +156,16 @@ void main() {
       final rows = await db.select(db.ledgerTransactions).get();
       expect(rows, hasLength(1));
       expect(rows.single.counterpartyId, counterpartyId);
-      expect(rows.single.category, 'Groceries');
-      expect(rows.single.amount, 958.54);
+      expect(rows.single.category, 'Breadfast');
+      expect(rows.single.amount, closeTo(85891.16, 0.001));
       expect(rows.single.currency, 'EGP');
       expect(rows.single.source, 'sms');
     });
 
-    test('does nothing when no Vendor Rule matches the sender', () async {
+    test('does nothing when no SMS Rule matches', () async {
       final added = await commitSmsQuickAdd(
         db,
-        body: _cibBreadfastSms,
+        body: _chargeSms,
         timestampMillis: 1000,
         profileId: 'test-profile',
       );
@@ -107,7 +174,11 @@ void main() {
       expect(await db.select(db.ledgerTransactions).get(), isEmpty);
     });
 
-    test('does nothing for text that does not parse as a bank SMS', () async {
+    test('does nothing for unrelated text', () async {
+      final bankId = await insertBank();
+      final counterpartyId = await insertCounterparty('Dad');
+      await insertLedgerPaymentRule(bankId, counterpartyId);
+
       final added = await commitSmsQuickAdd(
         db,
         body: 'Your OTP is 123456.',
@@ -122,22 +193,19 @@ void main() {
     test(
       'the same SMS is only ever committed once, even across repeated calls',
       () async {
+        final bankId = await insertBank();
         final counterpartyId = await insertCounterparty('Dad');
-        await insertVendorRule(
-          vendorPattern: 'Breadfast',
-          counterpartyId: counterpartyId,
-          category: 'Groceries',
-        );
+        await insertLedgerPaymentRule(bankId, counterpartyId);
 
         final first = await commitSmsQuickAdd(
           db,
-          body: _cibBreadfastSms,
+          body: _chargeSms,
           timestampMillis: 1000,
           profileId: 'test-profile',
         );
         final second = await commitSmsQuickAdd(
           db,
-          body: _cibBreadfastSms,
+          body: _chargeSms,
           timestampMillis: 1000,
           profileId: 'test-profile',
         );
@@ -151,16 +219,20 @@ void main() {
     test(
       'a card-payment SMS updates the balance but is never added as a ledger entry',
       () async {
+        final bankId = await insertBank();
+        await insertCreditCardBalanceRule(
+          bankId,
+          paymentSegments(),
+          _paymentSms,
+        );
         await insertCard(
           lastFourDigits: '8455',
           currentAvailableBalance: 50000,
         );
-        const cibPaymentSms =
-            'نشكركم على سداد مبلغ 8860.36 جم لبطاقة رقم 8455 يوم 28/08';
 
         final added = await commitSmsQuickAdd(
           db,
-          body: cibPaymentSms,
+          body: _paymentSms,
           timestampMillis: 1000,
           profileId: 'test-profile',
         );
@@ -168,30 +240,40 @@ void main() {
         expect(added, isFalse);
         expect(await db.select(db.ledgerTransactions).get(), isEmpty);
         final card = await db.select(db.creditCards).getSingle();
-        expect(card.currentAvailableBalance, 50000 + 8860.36);
+        expect(card.currentAvailableBalance, closeTo(50000 + 8860.36, 0.001));
       },
     );
   });
 
   group('commitSmsAutoUpdate', () {
-    test('a card-payment SMS updates the balance with no ledger entry', () async {
-      await insertCard(lastFourDigits: '4912', currentAvailableBalance: 50000);
-      const nbePaymentSms =
-          'تم سداد مبلغ 100000.00 جم فى بطاقتكم الائتمانية المنتهية بـ 4912 بتاريخ 21-08-26';
+    test(
+      'a card-payment SMS updates the balance with no ledger entry',
+      () async {
+        final bankId = await insertBank();
+        await insertCreditCardBalanceRule(
+          bankId,
+          paymentSegments(),
+          _paymentSms,
+        );
+        await insertCard(
+          lastFourDigits: '8455',
+          currentAvailableBalance: 50000,
+        );
 
-      await commitSmsAutoUpdate(
-        db,
-        body: nbePaymentSms,
-        timestampMillis: 1000,
-        profileId: 'test-profile',
-      );
+        await commitSmsAutoUpdate(
+          db,
+          body: _paymentSms,
+          timestampMillis: 1000,
+          profileId: 'test-profile',
+        );
 
-      expect(await db.select(db.ledgerTransactions).get(), isEmpty);
-      final card = await db.select(db.creditCards).getSingle();
-      expect(card.currentAvailableBalance, 50000 + 100000.00);
-    });
+        expect(await db.select(db.ledgerTransactions).get(), isEmpty);
+        final card = await db.select(db.creditCards).getSingle();
+        expect(card.currentAvailableBalance, closeTo(50000 + 8860.36, 0.001));
+      },
+    );
 
-    test('does nothing for text that does not parse as a bank SMS', () async {
+    test('does nothing for text that matches no rule', () async {
       await commitSmsAutoUpdate(
         db,
         body: 'Your OTP is 123456.',
@@ -205,34 +287,40 @@ void main() {
     test(
       'the same SMS is only ever applied once, even across repeated calls',
       () async {
+        final bankId = await insertBank();
+        await insertCreditCardBalanceRule(
+          bankId,
+          paymentSegments(),
+          _paymentSms,
+        );
         await insertCard(
           lastFourDigits: '8455',
           currentAvailableBalance: 50000,
         );
-        const cibPaymentSms =
-            'نشكركم على سداد مبلغ 8860.36 جم لبطاقة رقم 8455 يوم 28/08';
 
         await commitSmsAutoUpdate(
           db,
-          body: cibPaymentSms,
+          body: _paymentSms,
           timestampMillis: 1000,
           profileId: 'test-profile',
         );
         await commitSmsAutoUpdate(
           db,
-          body: cibPaymentSms,
+          body: _paymentSms,
           timestampMillis: 1000,
           profileId: 'test-profile',
         );
 
         final card = await db.select(db.creditCards).getSingle();
-        expect(card.currentAvailableBalance, 50000 + 8860.36);
+        expect(card.currentAvailableBalance, closeTo(50000 + 8860.36, 0.001));
       },
     );
 
     test(
       'a charge SMS still updates the balance even though it is not meant to reach this path',
       () async {
+        final bankId = await insertBank();
+        await insertCreditCardBalanceRule(bankId, chargeSegments(), _chargeSms);
         await insertCard(
           lastFourDigits: '4912',
           currentAvailableBalance: 50000,
@@ -240,14 +328,14 @@ void main() {
 
         await commitSmsAutoUpdate(
           db,
-          body: _cibBreadfastSms,
+          body: _chargeSms,
           timestampMillis: 1000,
           profileId: 'test-profile',
         );
 
         expect(await db.select(db.ledgerTransactions).get(), isEmpty);
         final card = await db.select(db.creditCards).getSingle();
-        expect(card.currentAvailableBalance, 85891.16);
+        expect(card.currentAvailableBalance, closeTo(85891.16, 0.001));
       },
     );
   });
@@ -256,6 +344,8 @@ void main() {
     test(
       'updates the matching card balance from a charge SMS, with no ledger entry',
       () async {
+        final bankId = await insertBank();
+        await insertCreditCardBalanceRule(bankId, chargeSegments(), _chargeSms);
         await insertCard(
           lastFourDigits: '4912',
           currentAvailableBalance: 50000,
@@ -263,17 +353,17 @@ void main() {
 
         await commitSmsBalanceUpdate(
           db,
-          body: _cibBreadfastSms,
+          body: _chargeSms,
           timestampMillis: 1000,
         );
 
         expect(await db.select(db.ledgerTransactions).get(), isEmpty);
         final card = await db.select(db.creditCards).getSingle();
-        expect(card.currentAvailableBalance, 85891.16);
+        expect(card.currentAvailableBalance, closeTo(85891.16, 0.001));
       },
     );
 
-    test('does nothing for text that does not parse as a bank SMS', () async {
+    test('does nothing for text that matches no rule', () async {
       await insertCard(lastFourDigits: '4912', currentAvailableBalance: 50000);
 
       await commitSmsBalanceUpdate(
@@ -289,26 +379,30 @@ void main() {
     test(
       'the same SMS only ever applies its balance effect once, even across repeated calls',
       () async {
+        final bankId = await insertBank();
+        await insertCreditCardBalanceRule(
+          bankId,
+          paymentSegments(),
+          _paymentSms,
+        );
         await insertCard(
           lastFourDigits: '8455',
           currentAvailableBalance: 50000,
         );
-        const cibPaymentSms =
-            'نشكركم على سداد مبلغ 8860.36 جم لبطاقة رقم 8455 يوم 28/08';
 
         await commitSmsBalanceUpdate(
           db,
-          body: cibPaymentSms,
+          body: _paymentSms,
           timestampMillis: 1000,
         );
         await commitSmsBalanceUpdate(
           db,
-          body: cibPaymentSms,
+          body: _paymentSms,
           timestampMillis: 1000,
         );
 
         final card = await db.select(db.creditCards).getSingle();
-        expect(card.currentAvailableBalance, 50000 + 8860.36);
+        expect(card.currentAvailableBalance, closeTo(50000 + 8860.36, 0.001));
       },
     );
 
@@ -316,17 +410,16 @@ void main() {
       'a balance already applied by commitSmsBalanceUpdate is not double-applied when '
       'commitSmsQuickAdd later runs for the same SMS',
       () async {
-        // _cibBreadfastSms states its own post-charge available balance
-        // (85891.16), so updateCardBalanceFromSms would just re-assert that
-        // same figure harmlessly either way -- this uses a payment SMS
-        // instead, whose fallback math (current + amount) is NOT idempotent,
-        // to actually prove the shared dedupe key is doing something.
+        final bankId = await insertBank();
+        await insertCreditCardBalanceRule(
+          bankId,
+          paymentSegments(),
+          _paymentSms,
+        );
         await insertCard(
           lastFourDigits: '8455',
           currentAvailableBalance: 50000,
         );
-        const cibPaymentSms =
-            'نشكركم على سداد مبلغ 8860.36 جم لبطاقة رقم 8455 يوم 28/08';
 
         // Simulates SmsReceiver.kt enqueuing the silent balance update
         // alongside a notification, followed by the user later tapping
@@ -335,18 +428,18 @@ void main() {
         // charge and never opens the review screen either way).
         await commitSmsBalanceUpdate(
           db,
-          body: cibPaymentSms,
+          body: _paymentSms,
           timestampMillis: 1000,
         );
         await commitSmsQuickAdd(
           db,
-          body: cibPaymentSms,
+          body: _paymentSms,
           timestampMillis: 1000,
           profileId: 'test-profile',
         );
 
         final card = await db.select(db.creditCards).getSingle();
-        expect(card.currentAvailableBalance, 50000 + 8860.36);
+        expect(card.currentAvailableBalance, closeTo(50000 + 8860.36, 0.001));
       },
     );
 
@@ -354,27 +447,31 @@ void main() {
       'a balance already applied by commitSmsBalanceUpdate is not double-applied when '
       'commitSmsAutoUpdate later runs for the same SMS',
       () async {
+        final bankId = await insertBank();
+        await insertCreditCardBalanceRule(
+          bankId,
+          paymentSegments(),
+          _paymentSms,
+        );
         await insertCard(
           lastFourDigits: '8455',
           currentAvailableBalance: 50000,
         );
-        const cibPaymentSms =
-            'نشكركم على سداد مبلغ 8860.36 جم لبطاقة رقم 8455 يوم 28/08';
 
         await commitSmsBalanceUpdate(
           db,
-          body: cibPaymentSms,
+          body: _paymentSms,
           timestampMillis: 1000,
         );
         await commitSmsAutoUpdate(
           db,
-          body: cibPaymentSms,
+          body: _paymentSms,
           timestampMillis: 1000,
           profileId: 'test-profile',
         );
 
         final card = await db.select(db.creditCards).getSingle();
-        expect(card.currentAvailableBalance, 50000 + 8860.36);
+        expect(card.currentAvailableBalance, closeTo(50000 + 8860.36, 0.001));
       },
     );
   });

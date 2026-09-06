@@ -1,0 +1,693 @@
+import 'package:drift/drift.dart' show Value;
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../../../core/models/currency.dart';
+import '../../../core/models/sms_rule_segment.dart';
+import '../../../core/theme/app_colors.dart';
+import '../../../data/db/database.dart';
+import '../../../data/sms/sms_rule_engine.dart';
+import '../../ledger/providers/ledger_providers.dart';
+import '../providers/sms_rule_providers.dart';
+import 'banks_settings_screen.dart';
+
+const _operations = [
+  ('creditCardBalance', 'Credit card balance'),
+  ('bankAccountBalance', 'Bank account balance'),
+  ('ledgerPayment', 'Ledger payment'),
+];
+
+String _operationLabel(String operation) => _operations
+    .firstWhere((o) => o.$1 == operation, orElse: () => (operation, operation))
+    .$2;
+
+const _tagColors = {
+  'cardNumber': Color(0x334C6EF5),
+  'value': Color(0x3312B886),
+  'vendor': Color(0x33F59F00),
+  'sender': Color(0x33AE3EC9),
+};
+
+const _tagLabels = {
+  'cardNumber': 'Card/account number',
+  'value': 'Value',
+  'vendor': 'Vendor name',
+  'sender': 'Sender name',
+};
+
+const _balanceRoles = [
+  ('set', 'Set to this'),
+  ('add', 'Add to current'),
+  ('subtract', 'Subtract from current'),
+];
+const _ledgerRoles = [
+  ('charge', 'Charge (they owe more)'),
+  ('repayment', 'Repayment (they owe less)'),
+];
+
+String _roleLabel(String operation, String? role) {
+  final options = operation == 'ledgerPayment' ? _ledgerRoles : _balanceRoles;
+  return options.firstWhere((o) => o.$1 == role, orElse: () => ('', '')).$2;
+}
+
+/// Replaces the app's old hardwired per-bank SMS parsing -- every rule here
+/// is built from a real sample SMS the user pastes and marks up themselves
+/// (see `sms_rule_engine.dart`), grouped by bank.
+class SmsRulesSettingsScreen extends ConsumerWidget {
+  const SmsRulesSettingsScreen({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final rulesAsync = ref.watch(smsRulesStreamProvider);
+    final banksAsync = ref.watch(banksStreamProvider);
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('SMS Rules'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.account_balance_outlined),
+            tooltip: 'Manage banks',
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const BanksSettingsScreen()),
+            ),
+          ),
+        ],
+      ),
+      body: rulesAsync.when(
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (e, st) => Center(child: Text('Error: $e')),
+        data: (rules) {
+          final banks = banksAsync.valueOrNull ?? const [];
+          if (banks.isEmpty) {
+            return Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text(
+                      'Add a bank first, in Settings -> Banks, before building a rule for it.',
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 12),
+                    FilledButton(
+                      onPressed: () => Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => const BanksSettingsScreen(),
+                        ),
+                      ),
+                      child: const Text('Add a bank'),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }
+          if (rules.isEmpty) {
+            return const Center(
+              child: Padding(
+                padding: EdgeInsets.all(24),
+                child: Text(
+                  'No rules yet. Tap + to build one from a real bank text.',
+                ),
+              ),
+            );
+          }
+          final byBank = <String, List<SmsRule>>{};
+          for (final rule in rules) {
+            byBank.putIfAbsent(rule.bankId, () => []).add(rule);
+          }
+          return ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              for (final bank in banks)
+                if (byBank[bank.id]?.isNotEmpty ?? false)
+                  _BankRulesSection(bank: bank, rules: byBank[bank.id]!),
+            ],
+          );
+        },
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () => Navigator.of(
+          context,
+        ).push(MaterialPageRoute(builder: (_) => const SmsRuleFormScreen())),
+        child: const Icon(Icons.add),
+      ),
+    );
+  }
+}
+
+class _BankRulesSection extends StatefulWidget {
+  const _BankRulesSection({required this.bank, required this.rules});
+
+  final Bank bank;
+  final List<SmsRule> rules;
+
+  @override
+  State<_BankRulesSection> createState() => _BankRulesSectionState();
+}
+
+class _BankRulesSectionState extends State<_BankRulesSection> {
+  bool _expanded = true;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        children: [
+          ListTile(
+            leading: const Icon(Icons.account_balance_outlined),
+            title: Text(widget.bank.name),
+            subtitle: Text(
+              '${widget.rules.length} rule${widget.rules.length == 1 ? '' : 's'}',
+            ),
+            trailing: Icon(_expanded ? Icons.expand_less : Icons.expand_more),
+            onTap: () => setState(() => _expanded = !_expanded),
+          ),
+          if (_expanded)
+            for (final rule in widget.rules)
+              Consumer(
+                builder: (context, ref, _) => Dismissible(
+                  key: ValueKey(rule.id),
+                  direction: DismissDirection.endToStart,
+                  background: Container(
+                    color: Theme.of(context).colorScheme.errorContainer,
+                    alignment: Alignment.centerRight,
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    child: const Icon(Icons.delete),
+                  ),
+                  onDismissed: (_) =>
+                      ref.read(smsRuleRepositoryProvider).delete(rule.id),
+                  child: ListTile(
+                    leading: const Icon(Icons.rule_outlined),
+                    title: Text(_operationLabel(rule.operation)),
+                    subtitle: Text(
+                      rule.notifyOnMatch ? 'Notifies on match' : 'Silent',
+                      style: TextStyle(color: context.appColors.textDim),
+                    ),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => SmsRuleFormScreen(existing: rule),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TaggedSpan {
+  _TaggedSpan({
+    required this.start,
+    required this.end,
+    required this.tag,
+    this.role,
+  });
+  int start;
+  int end;
+  String tag;
+  String? role;
+}
+
+/// Add or edit one SMS Rule -- pick a bank and an operation, paste a real
+/// sample SMS, then mark and tag the portions that vary from one real
+/// message to the next (a card/account number, a value, a vendor/sender
+/// name). Everything left unmarked becomes fixed text the rule requires a
+/// real SMS to contain.
+class SmsRuleFormScreen extends ConsumerStatefulWidget {
+  const SmsRuleFormScreen({super.key, this.existing});
+
+  final SmsRule? existing;
+
+  @override
+  ConsumerState<SmsRuleFormScreen> createState() => _SmsRuleFormScreenState();
+}
+
+class _SmsRuleFormScreenState extends ConsumerState<SmsRuleFormScreen> {
+  late final TextEditingController _sampleController;
+  String? _bankId;
+  String _operation = 'creditCardBalance';
+  String? _targetCounterpartyId;
+  String _currency = defaultCurrency;
+  bool _notifyOnMatch = false;
+  final List<_TaggedSpan> _tags = [];
+
+  bool get _isEditing => widget.existing != null;
+
+  @override
+  void initState() {
+    super.initState();
+    final existing = widget.existing;
+    _sampleController = TextEditingController(text: existing?.sampleText ?? '');
+    if (existing != null) {
+      _bankId = existing.bankId;
+      _operation = existing.operation;
+      _targetCounterpartyId = existing.targetCounterpartyId;
+      _currency = existing.currency ?? defaultCurrency;
+      _notifyOnMatch = existing.notifyOnMatch;
+      var cursor = 0;
+      for (final segment in decodeSmsRuleSegments(existing.segmentsJson)) {
+        final len = segment.text.length;
+        if (segment.isPlaceholder) {
+          _tags.add(
+            _TaggedSpan(
+              start: cursor,
+              end: cursor + len,
+              tag: segment.tag!,
+              role: segment.role,
+            ),
+          );
+        }
+        cursor += len;
+      }
+    }
+    _sampleController.addListener(() => setState(() {}));
+  }
+
+  @override
+  void dispose() {
+    _sampleController.dispose();
+    super.dispose();
+  }
+
+  List<String> get _availableTags => switch (_operation) {
+    'creditCardBalance' ||
+    'bankAccountBalance' => const ['cardNumber', 'value'],
+    _ => const ['value', 'vendor', 'sender'],
+  };
+
+  Future<void> _tagSelection() async {
+    final selection = _sampleController.selection;
+    if (selection.isCollapsed || selection.start < 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Select a portion of the text first')),
+      );
+      return;
+    }
+    final overlaps = _tags.any(
+      (t) => selection.start < t.end && t.start < selection.end,
+    );
+    if (overlaps) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('That overlaps a portion already tagged')),
+      );
+      return;
+    }
+
+    final result = await showDialog<(String, String?)>(
+      context: context,
+      builder: (context) => _TagPickerDialog(
+        selectedText: _sampleController.text.substring(
+          selection.start,
+          selection.end,
+        ),
+        availableTags: _availableTags,
+        operation: _operation,
+      ),
+    );
+    if (result == null) return;
+    setState(() {
+      _tags.add(
+        _TaggedSpan(
+          start: selection.start,
+          end: selection.end,
+          tag: result.$1,
+          role: result.$2,
+        ),
+      );
+      _tags.sort((a, b) => a.start.compareTo(b.start));
+      _sampleController.selection = const TextSelection.collapsed(offset: -1);
+    });
+  }
+
+  List<SmsRuleSegment> _buildSegments() {
+    final text = _sampleController.text;
+    final sorted = [..._tags]..sort((a, b) => a.start.compareTo(b.start));
+    final segments = <SmsRuleSegment>[];
+    var cursor = 0;
+    for (final tag in sorted) {
+      if (tag.start > cursor) {
+        segments.add(SmsRuleSegment.literal(text.substring(cursor, tag.start)));
+      }
+      segments.add(
+        SmsRuleSegment.placeholder(
+          text: text.substring(tag.start, tag.end),
+          tag: tag.tag,
+          role: tag.role,
+        ),
+      );
+      cursor = tag.end;
+    }
+    if (cursor < text.length) {
+      segments.add(SmsRuleSegment.literal(text.substring(cursor)));
+    }
+    return segments;
+  }
+
+  String? _validate() {
+    if (_bankId == null) return 'Pick a bank';
+    if (_sampleController.text.trim().isEmpty) return 'Paste a sample SMS';
+    if (_operation == 'ledgerPayment') {
+      if (_targetCounterpartyId == null) {
+        return 'Pick which ledger this adds to';
+      }
+      if (!_tags.any((t) => t.tag == 'value')) {
+        return 'Mark the payment amount as a Value';
+      }
+    } else {
+      if (!_tags.any((t) => t.tag == 'cardNumber')) {
+        return 'Mark the card/account number';
+      }
+      if (!_tags.any((t) => t.tag == 'value')) {
+        return 'Mark the balance amount as a Value';
+      }
+    }
+    return null;
+  }
+
+  Future<void> _save() async {
+    final error = _validate();
+    if (error != null) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error)));
+      return;
+    }
+    final segments = _buildSegments();
+    final repo = ref.read(smsRuleRepositoryProvider);
+    if (_isEditing) {
+      await repo.updateRule(
+        widget.existing!.copyWith(
+          bankId: _bankId!,
+          operation: _operation,
+          sampleText: _sampleController.text,
+          segmentsJson: encodeSmsRuleSegments(segments),
+          targetCounterpartyId: Value(
+            _operation == 'ledgerPayment' ? _targetCounterpartyId : null,
+          ),
+          currency: Value(_operation == 'ledgerPayment' ? _currency : null),
+          notifyOnMatch: _notifyOnMatch,
+        ),
+      );
+    } else {
+      await repo.add(
+        bankId: _bankId!,
+        operation: _operation,
+        sampleText: _sampleController.text,
+        segments: segments,
+        targetCounterpartyId: _operation == 'ledgerPayment'
+            ? _targetCounterpartyId
+            : null,
+        currency: _operation == 'ledgerPayment' ? _currency : null,
+        notifyOnMatch: _notifyOnMatch,
+      );
+    }
+    if (mounted) Navigator.of(context).pop();
+  }
+
+  Future<void> _delete() async {
+    await ref.read(smsRuleRepositoryProvider).delete(widget.existing!.id);
+    if (mounted) Navigator.of(context).pop();
+  }
+
+  List<InlineSpan> _previewSpans() {
+    final text = _sampleController.text;
+    if (text.isEmpty) return const [];
+    final sorted = [..._tags]..sort((a, b) => a.start.compareTo(b.start));
+    final spans = <InlineSpan>[];
+    var cursor = 0;
+    for (final tag in sorted) {
+      if (tag.start > cursor) {
+        spans.add(TextSpan(text: text.substring(cursor, tag.start)));
+      }
+      spans.add(
+        TextSpan(
+          text: text.substring(tag.start, tag.end),
+          style: TextStyle(
+            backgroundColor: _tagColors[tag.tag],
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      );
+      cursor = tag.end;
+    }
+    if (cursor < text.length) {
+      spans.add(TextSpan(text: text.substring(cursor)));
+    }
+    return spans;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final banks = ref.watch(banksStreamProvider).valueOrNull ?? const [];
+    final counterparties =
+        ref.watch(counterpartiesStreamProvider).valueOrNull ?? const [];
+    final colors = context.appColors;
+
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(_isEditing ? 'Edit SMS rule' : 'Add SMS rule'),
+        actions: [
+          if (_isEditing)
+            IconButton(
+              icon: const Icon(Icons.delete_outline),
+              onPressed: _delete,
+            ),
+        ],
+      ),
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          DropdownButtonFormField<String>(
+            isExpanded: true,
+            initialValue: banks.any((b) => b.id == _bankId) ? _bankId : null,
+            decoration: const InputDecoration(labelText: 'Bank'),
+            items: banks
+                .map((b) => DropdownMenuItem(value: b.id, child: Text(b.name)))
+                .toList(),
+            onChanged: (v) => setState(() => _bankId = v),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'What does this rule do?',
+            style: Theme.of(context).textTheme.labelLarge,
+          ),
+          const SizedBox(height: 8),
+          SegmentedButton<String>(
+            segments: _operations
+                .map(
+                  (o) => ButtonSegment(
+                    value: o.$1,
+                    label: Text(o.$2, textAlign: TextAlign.center),
+                  ),
+                )
+                .toList(),
+            selected: {_operation},
+            onSelectionChanged: (s) => setState(() {
+              _operation = s.first;
+              _tags.removeWhere((t) => !_availableTags.contains(t.tag));
+            }),
+          ),
+          if (_operation == 'ledgerPayment') ...[
+            const SizedBox(height: 16),
+            DropdownButtonFormField<String>(
+              isExpanded: true,
+              initialValue:
+                  counterparties.any((c) => c.id == _targetCounterpartyId)
+                  ? _targetCounterpartyId
+                  : null,
+              decoration: const InputDecoration(
+                labelText: 'Adds to which ledger',
+              ),
+              items: counterparties
+                  .map(
+                    (c) => DropdownMenuItem(value: c.id, child: Text(c.name)),
+                  )
+                  .toList(),
+              onChanged: (v) => setState(() => _targetCounterpartyId = v),
+            ),
+            const SizedBox(height: 12),
+            DropdownButtonFormField<String>(
+              isExpanded: true,
+              initialValue: _currency,
+              decoration: const InputDecoration(labelText: 'Currency'),
+              items: supportedCurrencies
+                  .map((c) => DropdownMenuItem(value: c, child: Text(c)))
+                  .toList(),
+              onChanged: (c) => setState(() => _currency = c!),
+            ),
+          ],
+          const SizedBox(height: 20),
+          Text(
+            'Paste a real sample SMS',
+            style: Theme.of(context).textTheme.labelLarge,
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Then select a portion of it below and tap "Tag selection" to mark what it is.',
+            style: Theme.of(
+              context,
+            ).textTheme.bodySmall?.copyWith(color: colors.textDim),
+          ),
+          const SizedBox(height: 8),
+          TextField(
+            controller: _sampleController,
+            maxLines: 6,
+            minLines: 3,
+            decoration: const InputDecoration(
+              hintText: 'Paste the SMS text here',
+              border: OutlineInputBorder(),
+            ),
+          ),
+          const SizedBox(height: 8),
+          OutlinedButton.icon(
+            icon: const Icon(Icons.label_outline),
+            label: const Text('Tag selection'),
+            onPressed: _sampleController.text.isEmpty ? null : _tagSelection,
+          ),
+          if (_sampleController.text.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: colors.surface2,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: colors.border),
+              ),
+              child: Text.rich(TextSpan(children: _previewSpans())),
+            ),
+          ],
+          if (_tags.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final tag in _tags)
+                  InputChip(
+                    label: Text(
+                      '${_tagLabels[tag.tag]}: "${_sampleController.text.substring(tag.start, tag.end)}"'
+                      '${tag.role == null ? '' : ' (${_roleLabel(_operation, tag.role)})'}',
+                    ),
+                    onDeleted: () => setState(() => _tags.remove(tag)),
+                  ),
+              ],
+            ),
+          ],
+          const SizedBox(height: 20),
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            title: const Text('Notify me when this rule activates'),
+            subtitle: const Text(
+              'Shows a notification from a recent matching SMS',
+            ),
+            value: _notifyOnMatch,
+            onChanged: (v) => setState(() => _notifyOnMatch = v),
+          ),
+          const SizedBox(height: 20),
+          FilledButton(onPressed: _save, child: const Text('Save')),
+        ],
+      ),
+    );
+  }
+}
+
+class _TagPickerDialog extends StatefulWidget {
+  const _TagPickerDialog({
+    required this.selectedText,
+    required this.availableTags,
+    required this.operation,
+  });
+
+  final String selectedText;
+  final List<String> availableTags;
+  final String operation;
+
+  @override
+  State<_TagPickerDialog> createState() => _TagPickerDialogState();
+}
+
+class _TagPickerDialogState extends State<_TagPickerDialog> {
+  late String _tag = widget.availableTags.first;
+  String? _role;
+
+  @override
+  void initState() {
+    super.initState();
+    if (_tag == 'value') {
+      _role = widget.operation == 'ledgerPayment' ? 'charge' : 'set';
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final roleOptions = widget.operation == 'ledgerPayment'
+        ? _ledgerRoles
+        : _balanceRoles;
+    return AlertDialog(
+      title: Text('Tag "${widget.selectedText}"'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('What is this?'),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final tag in widget.availableTags)
+                ChoiceChip(
+                  label: Text(_tagLabels[tag]!),
+                  selected: _tag == tag,
+                  onSelected: (_) => setState(() {
+                    _tag = tag;
+                    _role = _tag == 'value'
+                        ? (widget.operation == 'ledgerPayment'
+                              ? 'charge'
+                              : 'set')
+                        : null;
+                  }),
+                ),
+            ],
+          ),
+          if (_tag == 'value') ...[
+            const SizedBox(height: 16),
+            const Text('What should it do?'),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final option in roleOptions)
+                  ChoiceChip(
+                    label: Text(option.$2),
+                    selected: _role == option.$1,
+                    onSelected: (_) => setState(() => _role = option.$1),
+                  ),
+              ],
+            ),
+          ],
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.pop(context, (_tag, _role)),
+          child: const Text('Tag'),
+        ),
+      ],
+    );
+  }
+}

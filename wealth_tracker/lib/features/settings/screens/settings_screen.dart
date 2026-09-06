@@ -11,6 +11,7 @@ import '../providers/settings_providers.dart';
 import 'app_updates_settings_screen.dart';
 import 'asset_classification_settings_screen.dart';
 import 'bank_accounts_settings_screen.dart';
+import 'banks_settings_screen.dart';
 import 'bank_sms_settings_screen.dart';
 import 'credit_cards_settings_screen.dart';
 import 'drive_sync_settings_screen.dart';
@@ -200,9 +201,17 @@ class SettingsScreen extends ConsumerWidget {
             builder: (_) => const LedgerCategoriesSettingsScreen(),
           ),
           _SettingsTile(
+            icon: Icons.account_balance_outlined,
+            title: 'Banks',
+            subtitle:
+                'Shared list picked from by cards, accounts, and SMS Rules',
+            builder: (_) => const BanksSettingsScreen(),
+          ),
+          _SettingsTile(
             icon: Icons.account_balance,
             title: 'Bank accounts',
-            subtitle: 'Add, edit, or remove accounts used by the Calculator tab',
+            subtitle:
+                'Add, edit, or remove accounts used by the Calculator tab',
             builder: (_) => const BankAccountsSettingsScreen(),
           ),
           _SettingsTile(

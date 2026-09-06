@@ -4,10 +4,9 @@ import 'package:permission_handler/permission_handler.dart';
 
 import '../../../core/providers/core_providers.dart';
 import '../../../core/theme/app_colors.dart';
-import '../../../data/db/database.dart';
 import '../../ledger/providers/ledger_providers.dart';
 import '../providers/settings_providers.dart';
-import '../providers/vendor_rule_providers.dart';
+import 'sms_rules_settings_screen.dart';
 
 /// Enable/disable bank SMS detection and manage the vendor rules that
 /// auto-fill a detected charge's ledger and category. See SmsReceiver.kt
@@ -152,19 +151,10 @@ class _BankSmsSettingsScreenState extends ConsumerState<BankSmsSettingsScreen>
     }
   }
 
-  Future<void> _openRuleForm(BuildContext context, {VendorRule? existing}) {
-    return showDialog<void>(
-      context: context,
-      builder: (context) => _VendorRuleFormDialog(existing: existing),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
-    final rulesAsync = ref.watch(vendorRulesStreamProvider);
     final counterparties =
         ref.watch(counterpartiesStreamProvider).valueOrNull ?? const [];
-    final counterpartyNames = {for (final c in counterparties) c.id: c.name};
 
     final colors = context.appColors;
     final rowDecoration = BoxDecoration(
@@ -184,7 +174,7 @@ class _BankSmsSettingsScreenState extends ConsumerState<BankSmsSettingsScreen>
               secondary: _IconChip(Icons.sms_outlined),
               title: const Text('Read bank SMS'),
               subtitle: const Text(
-                'Auto-adds when a Vendor Rule matches; otherwise notifies you to confirm',
+                'Auto-adds when an SMS Rule matches; otherwise notifies you to confirm',
               ),
               value: _enabled,
               onChanged: _requesting ? null : _toggle,
@@ -262,12 +252,11 @@ class _BankSmsSettingsScreenState extends ConsumerState<BankSmsSettingsScreen>
           Padding(
             padding: const EdgeInsets.fromLTRB(4, 10, 4, 0),
             child: Text(
-              'When your bank texts you about a card charge, this checks it against your '
-              'Vendor rules below -- a match adds it straight to that ledger with nothing to '
-              'confirm; otherwise it opens a quick review screen so you can pick where it '
-              'goes. Also keeps a matching credit card\'s balance in Settings > Credit cards '
-              'up to date automatically either way. Needs the sensitive "read SMS" '
-              'permission to work.',
+              'When your bank texts you, this checks it against your SMS Rules -- a '
+              'ledger-payment rule adds it straight to that ledger with nothing to confirm '
+              'when it\'s a repayment, or opens a quick review screen to confirm a charge. '
+              'A credit-card/bank-account rule keeps that balance current automatically '
+              'either way. Needs the sensitive "read SMS" permission to work.',
               style: Theme.of(
                 context,
               ).textTheme.bodySmall?.copyWith(color: colors.textDim),
@@ -308,79 +297,22 @@ class _BankSmsSettingsScreenState extends ConsumerState<BankSmsSettingsScreen>
               ),
             ),
           ),
-          const SizedBox(height: 24),
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  'Vendor rules',
-                  style: Theme.of(context).textTheme.titleMedium,
+          const SizedBox(height: 16),
+          Container(
+            decoration: rowDecoration,
+            child: ListTile(
+              leading: _IconChip(Icons.rule_outlined),
+              title: const Text('SMS Rules'),
+              subtitle: const Text(
+                'Build a rule from a real bank text -- updates a card/account balance, or adds a ledger payment',
+              ),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => const SmsRulesSettingsScreen(),
                 ),
               ),
-              IconButton(
-                icon: const Icon(Icons.add),
-                tooltip: 'Add rule',
-                onPressed: () => _openRuleForm(context),
-              ),
-            ],
-          ),
-          Text(
-            'When a detected charge\'s merchant matches one of these, it\'s added straight to '
-            'that ledger and category -- no review screen, nothing to confirm.',
-            style: Theme.of(
-              context,
-            ).textTheme.bodySmall?.copyWith(color: colors.textDim),
-          ),
-          const SizedBox(height: 12),
-          rulesAsync.when(
-            loading: () => const Padding(
-              padding: EdgeInsets.all(16),
-              child: Center(child: CircularProgressIndicator()),
             ),
-            error: (e, st) => Text('Error: $e'),
-            data: (rules) {
-              if (rules.isEmpty) {
-                return const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 16),
-                  child: Text('No rules yet — tap + to add one.'),
-                );
-              }
-              return Column(
-                children: [
-                  for (final rule in rules)
-                    Dismissible(
-                      key: ValueKey(rule.id),
-                      direction: DismissDirection.endToStart,
-                      background: Container(
-                        margin: const EdgeInsets.only(bottom: 10),
-                        decoration: BoxDecoration(
-                          color: Theme.of(context).colorScheme.errorContainer,
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                        alignment: Alignment.centerRight,
-                        padding: const EdgeInsets.symmetric(horizontal: 20),
-                        child: const Icon(Icons.delete),
-                      ),
-                      onDismissed: (_) => ref
-                          .read(vendorRuleRepositoryProvider)
-                          .deleteRule(rule.id),
-                      child: Container(
-                        margin: const EdgeInsets.only(bottom: 10),
-                        decoration: rowDecoration,
-                        child: ListTile(
-                          leading: _IconChip(Icons.sms_outlined),
-                          title: Text(rule.vendorPattern),
-                          subtitle: Text(
-                            '→ ${counterpartyNames[rule.counterpartyId] ?? 'Unknown ledger'}  ·  ${rule.category}',
-                          ),
-                          trailing: const Icon(Icons.chevron_right),
-                          onTap: () => _openRuleForm(context, existing: rule),
-                        ),
-                      ),
-                    ),
-                ],
-              );
-            },
           ),
         ],
       ),
@@ -404,157 +336,6 @@ class _IconChip extends StatelessWidget {
       ),
       alignment: Alignment.center,
       child: Icon(icon, size: 17, color: Theme.of(context).colorScheme.primary),
-    );
-  }
-}
-
-class _VendorRuleFormDialog extends ConsumerStatefulWidget {
-  const _VendorRuleFormDialog({this.existing});
-
-  final VendorRule? existing;
-
-  @override
-  ConsumerState<_VendorRuleFormDialog> createState() =>
-      _VendorRuleFormDialogState();
-}
-
-class _VendorRuleFormDialogState extends ConsumerState<_VendorRuleFormDialog> {
-  final _formKey = GlobalKey<FormState>();
-  late final TextEditingController _vendorController;
-  String? _counterpartyId;
-  String? _category;
-
-  bool get _isEditing => widget.existing != null;
-
-  @override
-  void initState() {
-    super.initState();
-    final existing = widget.existing;
-    _vendorController = TextEditingController(
-      text: existing?.vendorPattern ?? '',
-    );
-    _counterpartyId = existing?.counterpartyId;
-    _category = existing?.category;
-  }
-
-  @override
-  void dispose() {
-    _vendorController.dispose();
-    super.dispose();
-  }
-
-  Future<void> _save() async {
-    if (!_formKey.currentState!.validate()) return;
-    final counterpartyId = _counterpartyId;
-    final category = _category;
-    if (counterpartyId == null || category == null) return;
-
-    final vendorPattern = _vendorController.text.trim();
-    if (_isEditing) {
-      await ref
-          .read(vendorRuleRepositoryProvider)
-          .updateRule(
-            widget.existing!.copyWith(
-              vendorPattern: vendorPattern,
-              counterpartyId: counterpartyId,
-              category: category,
-            ),
-          );
-    } else {
-      await ref
-          .read(vendorRuleRepositoryProvider)
-          .addRule(
-            vendorPattern: vendorPattern,
-            counterpartyId: counterpartyId,
-            category: category,
-          );
-    }
-
-    if (mounted) Navigator.of(context).pop();
-  }
-
-  Future<void> _delete() async {
-    await ref
-        .read(vendorRuleRepositoryProvider)
-        .deleteRule(widget.existing!.id);
-    if (mounted) Navigator.of(context).pop();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final counterparties =
-        ref.watch(counterpartiesStreamProvider).valueOrNull ?? const [];
-    final categories =
-        ref.watch(ledgerCategoriesStreamProvider).valueOrNull ?? const [];
-
-    return AlertDialog(
-      title: Text(_isEditing ? 'Edit vendor rule' : 'Add vendor rule'),
-      content: Form(
-        key: _formKey,
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextFormField(
-                controller: _vendorController,
-                textCapitalization: TextCapitalization.sentences,
-                decoration: const InputDecoration(
-                  labelText: 'Merchant contains',
-                  hintText: 'e.g. Breadfast',
-                ),
-                validator: (v) =>
-                    (v == null || v.trim().isEmpty) ? 'Required' : null,
-              ),
-              const SizedBox(height: 12),
-              DropdownButtonFormField<String>(
-                isExpanded: true,
-                initialValue: counterparties.any((c) => c.id == _counterpartyId)
-                    ? _counterpartyId
-                    : null,
-                decoration: const InputDecoration(labelText: 'Ledger'),
-                items: counterparties
-                    .map(
-                      (c) => DropdownMenuItem(value: c.id, child: Text(c.name)),
-                    )
-                    .toList(),
-                onChanged: (v) => setState(() => _counterpartyId = v),
-                validator: (v) => v == null ? 'Pick a ledger' : null,
-              ),
-              const SizedBox(height: 12),
-              DropdownButtonFormField<String>(
-                isExpanded: true,
-                initialValue: categories.any((c) => c.name == _category)
-                    ? _category
-                    : null,
-                decoration: const InputDecoration(labelText: 'Category'),
-                items: categories
-                    .map(
-                      (c) =>
-                          DropdownMenuItem(value: c.name, child: Text(c.name)),
-                    )
-                    .toList(),
-                onChanged: (v) => setState(() => _category = v),
-                validator: (v) => v == null ? 'Pick a category' : null,
-              ),
-            ],
-          ),
-        ),
-      ),
-      actions: [
-        if (_isEditing)
-          TextButton(
-            onPressed: _delete,
-            style: TextButton.styleFrom(
-              foregroundColor: Theme.of(context).colorScheme.error,
-            ),
-            child: const Text('Delete'),
-          ),
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('Cancel'),
-        ),
-        FilledButton(onPressed: _save, child: const Text('Save')),
-      ],
     );
   }
 }

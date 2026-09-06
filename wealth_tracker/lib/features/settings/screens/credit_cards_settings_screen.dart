@@ -6,6 +6,8 @@ import '../../../core/format/money_formatter.dart';
 import '../../../core/models/currency.dart';
 import '../../../data/db/database.dart';
 import '../../calculator/providers/calculator_providers.dart';
+import '../providers/sms_rule_providers.dart';
+import 'banks_settings_screen.dart';
 
 /// Fully user-managed credit cards for the Calculator tab — add, edit, or
 /// remove any number of cards, each with its own name, bank, limit, and
@@ -95,9 +97,9 @@ class _CardFormDialog extends ConsumerStatefulWidget {
 class _CardFormDialogState extends ConsumerState<_CardFormDialog> {
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _nameController;
-  late final TextEditingController _bankController;
   late final TextEditingController _limitController;
   late final TextEditingController _lastFourController;
+  String? _bank;
   late String _currency;
 
   bool get _isEditing => widget.existing != null;
@@ -107,7 +109,7 @@ class _CardFormDialogState extends ConsumerState<_CardFormDialog> {
     super.initState();
     final existing = widget.existing;
     _nameController = TextEditingController(text: existing?.name ?? '');
-    _bankController = TextEditingController(text: existing?.bank ?? '');
+    _bank = existing?.bank;
     _limitController = TextEditingController(text: existing == null ? '' : _formatValue(existing.limitAmount));
     _lastFourController = TextEditingController(text: existing?.lastFourDigits ?? '');
     _currency = existing?.currency ?? defaultCurrency;
@@ -120,7 +122,6 @@ class _CardFormDialogState extends ConsumerState<_CardFormDialog> {
   @override
   void dispose() {
     _nameController.dispose();
-    _bankController.dispose();
     _limitController.dispose();
     _lastFourController.dispose();
     super.dispose();
@@ -128,8 +129,12 @@ class _CardFormDialogState extends ConsumerState<_CardFormDialog> {
 
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
+    final bank = _bank;
+    if (bank == null) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Pick a bank first')));
+      return;
+    }
     final name = _nameController.text.trim();
-    final bank = _bankController.text.trim();
     final limit = double.parse(_limitController.text.trim());
     final lastFour = _lastFourController.text.trim();
 
@@ -164,6 +169,14 @@ class _CardFormDialogState extends ConsumerState<_CardFormDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final banks = ref.watch(banksStreamProvider).valueOrNull ?? const [];
+    final bankNames = {
+      for (final b in banks) b.name,
+      // A card's already-saved bank name always stays selectable, even if
+      // it's since been renamed/removed from the shared Banks list.
+      ?_bank,
+    }.toList();
+
     return AlertDialog(
       title: Text(_isEditing ? 'Edit card' : 'Add card'),
       content: Form(
@@ -179,12 +192,26 @@ class _CardFormDialogState extends ConsumerState<_CardFormDialog> {
                 validator: (v) => (v == null || v.trim().isEmpty) ? 'Required' : null,
               ),
               const SizedBox(height: 12),
-              TextFormField(
-                controller: _bankController,
-                textCapitalization: TextCapitalization.sentences,
-                decoration: const InputDecoration(labelText: 'Bank', hintText: 'e.g. CIB'),
-                validator: (v) => (v == null || v.trim().isEmpty) ? 'Required' : null,
-              ),
+              if (bankNames.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: OutlinedButton.icon(
+                    icon: const Icon(Icons.add),
+                    label: const Text('Add a bank first'),
+                    onPressed: () => Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => const BanksSettingsScreen()),
+                    ),
+                  ),
+                )
+              else
+                DropdownButtonFormField<String>(
+                  isExpanded: true,
+                  initialValue: bankNames.contains(_bank) ? _bank : null,
+                  decoration: const InputDecoration(labelText: 'Bank'),
+                  items: bankNames.map((b) => DropdownMenuItem(value: b, child: Text(b))).toList(),
+                  onChanged: (b) => setState(() => _bank = b),
+                  validator: (v) => v == null ? 'Pick a bank' : null,
+                ),
               const SizedBox(height: 12),
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,

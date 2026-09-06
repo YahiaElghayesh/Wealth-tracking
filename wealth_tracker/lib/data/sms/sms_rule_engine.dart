@@ -1,0 +1,359 @@
+import 'dart:convert';
+
+import 'package:drift/drift.dart';
+import 'package:uuid/uuid.dart';
+
+import '../../core/format/money_formatter.dart';
+import '../../core/models/currency.dart';
+import '../../core/models/sms_rule_segment.dart';
+import '../db/database.dart';
+
+/// Strips invisible Unicode bidi/formatting characters banks commonly
+/// embed in Arabic SMS text around numbers, and folds a non-breaking space
+/// to a plain one and Arabic-Indic digits (٠-٩) to Western ones -- the
+/// same normalization the app's old hardwired parser applied, since none
+/// of it is a per-bank format difference, just a locale-driven rendering
+/// choice that would otherwise silently break matching with no visible
+/// sign why (these characters render as nothing at all).
+///
+/// Applied uniformly to both a rule's own sample text (once, right after
+/// it's pasted, before any marking happens -- so marked offsets are never
+/// invalidated by characters this strips) and to every real incoming SMS
+/// before matching.
+String normalizeSmsBody(String body) {
+  final withoutBidiMarks = body.replaceAll(
+    RegExp('[\u200B-\u200F\u202A-\u202E\u2066-\u2069\u061C]'),
+    '',
+  );
+  final withNormalSpaces = withoutBidiMarks.replaceAll('\u00A0', ' ');
+  const arabicIndicDigits = '٠١٢٣٤٥٦٧٨٩';
+  const extendedArabicIndicDigits = '۰۱۲۳۴۵۶۷۸۹';
+  final buffer = StringBuffer();
+  for (final rune in withNormalSpaces.runes) {
+    final char = String.fromCharCode(rune);
+    final arabicIndex = arabicIndicDigits.indexOf(char);
+    final extendedIndex = extendedArabicIndicDigits.indexOf(char);
+    if (arabicIndex != -1) {
+      buffer.write(arabicIndex);
+    } else if (extendedIndex != -1) {
+      buffer.write(extendedIndex);
+    } else {
+      buffer.write(char);
+    }
+  }
+  return buffer.toString();
+}
+
+/// Escapes a literal segment's text for use inside the compiled pattern,
+/// while still tolerating variable amounts of whitespace the way the
+/// app's old hardwired patterns did -- a run of whitespace in the sample
+/// becomes `\s+` rather than a literal match on that exact run, since a
+/// real SMS can wrap or space itself slightly differently. Whitespace at
+/// the very start/end of the literal text is preserved as `\s+` too, not
+/// trimmed away -- trimming it would let a bare word like "at" match
+/// *inside* an adjacent vendor name that merely contains "at" as a
+/// substring, instead of requiring the standalone word the sample had.
+String _escapeLiteral(String text) {
+  if (text.isEmpty) return '';
+  return text.splitMapJoin(
+    RegExp(r'\s+'),
+    onMatch: (_) => r'\s+',
+    onNonMatch: (nonWs) => RegExp.escape(nonWs),
+  );
+}
+
+/// Builds one capture-group pattern for a placeholder segment. A
+/// card/account number is a plain digit run; a value tolerates thousands
+/// separators and a decimal point; a vendor/sender name is free text,
+/// captured non-greedily so it stops at the next literal segment rather
+/// than swallowing it (or greedily if this is the very last segment, with
+/// nothing after it to stop at).
+String _placeholderPattern(SmsRuleSegment segment, bool isLast) {
+  switch (segment.tag) {
+    case 'cardNumber':
+      return r'(\d+)';
+    case 'value':
+      return r'([\d,]+(?:\.\d+)?)';
+    default: // vendor, sender
+      return isLast ? r'(.+)' : r'(.+?)';
+  }
+}
+
+/// Compiles a rule's marked-up sample into a matcher -- alternating fixed
+/// literal text (escaped, whitespace-tolerant) and numbered capture groups
+/// for each placeholder, in the same order they appear in [segments].
+RegExp compileSmsRulePattern(List<SmsRuleSegment> segments) {
+  final buffer = StringBuffer();
+  for (var i = 0; i < segments.length; i++) {
+    final segment = segments[i];
+    if (segment.isLiteral) {
+      buffer.write(_escapeLiteral(segment.text));
+    } else {
+      buffer.write(_placeholderPattern(segment, i == segments.length - 1));
+    }
+  }
+  return RegExp(buffer.toString(), caseSensitive: false, dotAll: true);
+}
+
+List<SmsRuleSegment> decodeSmsRuleSegments(String segmentsJson) {
+  final decoded = jsonDecode(segmentsJson);
+  if (decoded is! List) return const [];
+  return decoded
+      .cast<Map<String, dynamic>>()
+      .map(SmsRuleSegment.fromJson)
+      .toList();
+}
+
+String encodeSmsRuleSegments(List<SmsRuleSegment> segments) {
+  return jsonEncode(segments.map((s) => s.toJson()).toList());
+}
+
+/// What a real SMS's matched, tagged portions actually said -- extracted
+/// by [matchSmsRule], consumed by [applySmsRule]. Any field a rule didn't
+/// mark a portion for is simply null; whether that's fine or fatal for a
+/// given [SmsRule.operation] is [applySmsRule]'s call, not this one's.
+class SmsRuleMatch {
+  const SmsRuleMatch({
+    this.cardNumber,
+    this.value,
+    this.valueRole,
+    this.vendor,
+    this.sender,
+  });
+
+  final String? cardNumber;
+  final double? value;
+
+  /// 'set' | 'add' | 'subtract' for a balance rule, 'charge' | 'repayment'
+  /// for a ledger-payment rule -- copied straight from whichever [value]
+  /// placeholder segment supplied [value].
+  final String? valueRole;
+  final String? vendor;
+  final String? sender;
+}
+
+/// Tries [rule]'s compiled pattern against [rawBody] (normalized first,
+/// same as the sample it was built from), returning the extracted,
+/// tagged portions on a match or `null` otherwise.
+SmsRuleMatch? matchSmsRule(SmsRule rule, String rawBody) {
+  final segments = decodeSmsRuleSegments(rule.segmentsJson);
+  if (segments.isEmpty) return null;
+  final pattern = compileSmsRulePattern(segments);
+  final body = normalizeSmsBody(rawBody);
+  final match = pattern.firstMatch(body);
+  if (match == null) return null;
+
+  String? cardNumber;
+  double? value;
+  String? valueRole;
+  String? vendor;
+  String? sender;
+  var groupIndex = 1;
+  for (final segment in segments) {
+    if (!segment.isPlaceholder) continue;
+    final captured = match.group(groupIndex);
+    groupIndex++;
+    if (captured == null) continue;
+    switch (segment.tag) {
+      case 'cardNumber':
+        cardNumber = captured.trim();
+      case 'value':
+        value = double.tryParse(captured.replaceAll(',', '').trim());
+        valueRole = segment.role;
+      case 'vendor':
+        vendor = captured.trim();
+      case 'sender':
+        sender = captured.trim();
+    }
+  }
+  return SmsRuleMatch(
+    cardNumber: cardNumber,
+    value: value,
+    valueRole: valueRole,
+    vendor: vendor,
+    sender: sender,
+  );
+}
+
+/// The result of [applySmsRule] -- [applied] tells the caller (and tests)
+/// whether anything actually happened; the two notification fields are
+/// only ever set alongside `applied: true`, and only when [SmsRule.
+/// notifyOnMatch] is on, for the caller to hand to a local notification.
+class SmsRuleApplyOutcome {
+  const SmsRuleApplyOutcome({
+    required this.applied,
+    this.notificationTitle,
+    this.notificationBody,
+  });
+
+  final bool applied;
+  final String? notificationTitle;
+  final String? notificationBody;
+}
+
+const _noop = SmsRuleApplyOutcome(applied: false);
+
+/// Applies one already-matched rule to the database -- updating a credit
+/// card's or bank account's tracked balance, or adding a ledger entry --
+/// per [rule.operation]. Every path below searches across *every*
+/// profile's cards/accounts, not just whichever is active, mirroring the
+/// app's old cross-profile SMS balance-update behavior: a card on a
+/// profile that isn't active right now should still get its SMS-driven
+/// updates.
+Future<SmsRuleApplyOutcome> applySmsRule(
+  AppDatabase db,
+  SmsRule rule,
+  SmsRuleMatch match,
+) {
+  switch (rule.operation) {
+    case 'creditCardBalance':
+      return _applyCreditCardBalance(db, rule, match);
+    case 'bankAccountBalance':
+      return _applyBankAccountBalance(db, rule, match);
+    case 'ledgerPayment':
+      return _applyLedgerPayment(db, rule, match);
+    default:
+      return Future.value(_noop);
+  }
+}
+
+Future<String?> _bankName(AppDatabase db, String bankId) async {
+  final bank = await (db.select(
+    db.banks,
+  )..where((b) => b.id.equals(bankId))).getSingleOrNull();
+  return bank?.name;
+}
+
+double _resolveNewValue(double current, double delta, String? role) {
+  return switch (role) {
+    'add' => current + delta,
+    'subtract' => current - delta,
+    _ => delta, // 'set', or a match with no explicit role
+  };
+}
+
+Future<SmsRuleApplyOutcome> _applyCreditCardBalance(
+  AppDatabase db,
+  SmsRule rule,
+  SmsRuleMatch match,
+) async {
+  final cardNumber = match.cardNumber;
+  final value = match.value;
+  if (cardNumber == null || value == null) return _noop;
+
+  final bankName = await _bankName(db, rule.bankId);
+  final cards = await db.select(db.creditCards).get();
+  CreditCard? card;
+  for (final c in cards) {
+    final last4 = c.lastFourDigits;
+    if (last4 == null || !cardNumber.endsWith(last4)) continue;
+    if (bankName != null && c.bank.toLowerCase() != bankName.toLowerCase()) {
+      continue;
+    }
+    card = c;
+    break;
+  }
+  if (card == null) return _noop;
+
+  final current = card.currentAvailableBalance ?? card.limitAmount;
+  final newBalance = _resolveNewValue(current, value, match.valueRole);
+
+  await db
+      .update(db.creditCards)
+      .replace(
+        card.copyWith(
+          currentAvailableBalance: Value(newBalance),
+          balanceUpdatedAt: Value(DateTime.now()),
+          balanceUpdatedSource: const Value('sms'),
+        ),
+      );
+
+  return SmsRuleApplyOutcome(
+    applied: true,
+    notificationTitle: '${card.name} balance updated',
+    notificationBody:
+        'Now ${formatMoney(newBalance, card.currency)} — from a recent SMS.',
+  );
+}
+
+Future<SmsRuleApplyOutcome> _applyBankAccountBalance(
+  AppDatabase db,
+  SmsRule rule,
+  SmsRuleMatch match,
+) async {
+  final accountNumber = match.cardNumber;
+  final value = match.value;
+  if (accountNumber == null || value == null) return _noop;
+
+  final bankName = await _bankName(db, rule.bankId);
+  final accounts = await db.select(db.bankAccounts).get();
+  BankAccount? account;
+  for (final a in accounts) {
+    final number = a.accountNumber;
+    if (number == null || !accountNumber.endsWith(number)) continue;
+    if (bankName != null && a.bank.toLowerCase() != bankName.toLowerCase()) {
+      continue;
+    }
+    account = a;
+    break;
+  }
+  if (account == null) return _noop;
+
+  final current = account.currentAvailableBalance ?? 0;
+  final newBalance = _resolveNewValue(current, value, match.valueRole);
+
+  await db
+      .update(db.bankAccounts)
+      .replace(account.copyWith(currentAvailableBalance: Value(newBalance)));
+
+  return SmsRuleApplyOutcome(
+    applied: true,
+    notificationTitle: '${account.name} balance updated',
+    notificationBody:
+        'Now ${formatMoney(newBalance, account.currency)} — from a recent SMS.',
+  );
+}
+
+Future<SmsRuleApplyOutcome> _applyLedgerPayment(
+  AppDatabase db,
+  SmsRule rule,
+  SmsRuleMatch match,
+) async {
+  final targetId = rule.targetCounterpartyId;
+  final value = match.value;
+  if (targetId == null || value == null) return _noop;
+
+  final counterparty = await (db.select(
+    db.counterparties,
+  )..where((c) => c.id.equals(targetId))).getSingleOrNull();
+  if (counterparty == null) return _noop;
+
+  final isRepayment = match.valueRole == 'repayment';
+  final signedAmount = isRepayment ? -value : value;
+  final vendor = match.vendor?.trim();
+  final category = (vendor != null && vendor.isNotEmpty) ? vendor : 'Other';
+  final currency = rule.currency ?? defaultCurrency;
+
+  await db
+      .into(db.ledgerTransactions)
+      .insert(
+        LedgerTransactionsCompanion.insert(
+          id: const Uuid().v4(),
+          counterpartyId: targetId,
+          date: DateTime.now(),
+          amount: signedAmount,
+          currency: Value(currency),
+          category: category,
+          createdAt: DateTime.now(),
+          profileId: Value(counterparty.profileId ?? defaultProfileId),
+          source: const Value('sms'),
+        ),
+      );
+
+  return SmsRuleApplyOutcome(
+    applied: true,
+    notificationTitle: 'Added to ${counterparty.name}',
+    notificationBody:
+        '${isRepayment ? '-' : '+'}${formatMoney(value, currency)} — from a recent SMS.',
+  );
+}

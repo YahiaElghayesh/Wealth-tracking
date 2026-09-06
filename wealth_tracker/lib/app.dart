@@ -24,7 +24,6 @@ import 'features/networth/providers/pricing_providers.dart';
 import 'features/networth/screens/dashboard_screen.dart';
 import 'features/recurring/screens/recurring_payments_screen.dart';
 import 'features/settings/providers/settings_providers.dart';
-import 'features/settings/providers/vendor_rule_providers.dart';
 
 class WealthTrackerApp extends ConsumerWidget {
   const WealthTrackerApp({super.key});
@@ -142,7 +141,6 @@ class _RootShellState extends ConsumerState<_RootShell>
     ref.watch(widgetCounterpartiesSyncProvider);
     ref.watch(knownCardsSyncProvider);
     ref.watch(knownVendorPatternsSyncProvider);
-    ref.watch(vendorRuleSeedProvider);
 
     return Scaffold(
       body: IndexedStack(

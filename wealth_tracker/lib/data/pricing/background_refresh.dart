@@ -125,13 +125,13 @@ Future<void> runSmsAutoUpdateTask(Map<String, dynamic> inputData) async {
 
 /// Reads the `body`/`timestampMillis` SmsReceiver.kt passed through
 /// WorkManager's input data alongside the notification it posts for an
-/// ordinary charge SMS (one that didn't match a known vendor rule or a
-/// payment/refund trigger phrase), and applies just the balance side of it
-/// via [commitSmsBalanceUpdate] -- no profile lookup needed, since a card
-/// balance isn't scoped to a profile the way a ledger entry is (see
-/// [updateCardBalanceFromSms]'s own doc comment). This is what keeps the
-/// tracked balance current the moment the SMS arrives even if the user
-/// dismisses the notification without ever tapping it.
+/// ordinary charge SMS (one its own narrow pre-filter didn't recognize as
+/// a payment/refund trigger phrase), and applies just the balance side of
+/// it via [commitSmsBalanceUpdate] -- no profile lookup needed, since a
+/// card/account balance isn't scoped to a profile the way a ledger entry
+/// is (SMS Rules search across every profile's cards/accounts). This is
+/// what keeps the tracked balance current the moment the SMS arrives even
+/// if the user dismisses the notification without ever tapping it.
 Future<void> runSmsBalanceUpdateTask(Map<String, dynamic> inputData) async {
   final body = inputData['body'] as String?;
   final timestampMillis = inputData['timestampMillis'] as int?;

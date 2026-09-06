@@ -8327,6 +8327,981 @@ class BankAccountsCompanion extends UpdateCompanion<BankAccount> {
   }
 }
 
+class $BanksTable extends Banks with TableInfo<$BanksTable, Bank> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $BanksTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _nameMeta = const VerificationMeta('name');
+  @override
+  late final GeneratedColumn<String> name = GeneratedColumn<String>(
+    'name',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _sortOrderMeta = const VerificationMeta(
+    'sortOrder',
+  );
+  @override
+  late final GeneratedColumn<int> sortOrder = GeneratedColumn<int>(
+    'sort_order',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _profileIdMeta = const VerificationMeta(
+    'profileId',
+  );
+  @override
+  late final GeneratedColumn<String> profileId = GeneratedColumn<String>(
+    'profile_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES profiles (id)',
+    ),
+  );
+  @override
+  List<GeneratedColumn> get $columns => [id, name, sortOrder, profileId];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'banks';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<Bank> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('name')) {
+      context.handle(
+        _nameMeta,
+        name.isAcceptableOrUnknown(data['name']!, _nameMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_nameMeta);
+    }
+    if (data.containsKey('sort_order')) {
+      context.handle(
+        _sortOrderMeta,
+        sortOrder.isAcceptableOrUnknown(data['sort_order']!, _sortOrderMeta),
+      );
+    }
+    if (data.containsKey('profile_id')) {
+      context.handle(
+        _profileIdMeta,
+        profileId.isAcceptableOrUnknown(data['profile_id']!, _profileIdMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  Bank map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return Bank(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      name: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}name'],
+      )!,
+      sortOrder: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}sort_order'],
+      )!,
+      profileId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}profile_id'],
+      ),
+    );
+  }
+
+  @override
+  $BanksTable createAlias(String alias) {
+    return $BanksTable(attachedDatabase, alias);
+  }
+}
+
+class Bank extends DataClass implements Insertable<Bank> {
+  final String id;
+  final String name;
+  final int sortOrder;
+  final String? profileId;
+  const Bank({
+    required this.id,
+    required this.name,
+    required this.sortOrder,
+    this.profileId,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['name'] = Variable<String>(name);
+    map['sort_order'] = Variable<int>(sortOrder);
+    if (!nullToAbsent || profileId != null) {
+      map['profile_id'] = Variable<String>(profileId);
+    }
+    return map;
+  }
+
+  BanksCompanion toCompanion(bool nullToAbsent) {
+    return BanksCompanion(
+      id: Value(id),
+      name: Value(name),
+      sortOrder: Value(sortOrder),
+      profileId: profileId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(profileId),
+    );
+  }
+
+  factory Bank.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return Bank(
+      id: serializer.fromJson<String>(json['id']),
+      name: serializer.fromJson<String>(json['name']),
+      sortOrder: serializer.fromJson<int>(json['sortOrder']),
+      profileId: serializer.fromJson<String?>(json['profileId']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'name': serializer.toJson<String>(name),
+      'sortOrder': serializer.toJson<int>(sortOrder),
+      'profileId': serializer.toJson<String?>(profileId),
+    };
+  }
+
+  Bank copyWith({
+    String? id,
+    String? name,
+    int? sortOrder,
+    Value<String?> profileId = const Value.absent(),
+  }) => Bank(
+    id: id ?? this.id,
+    name: name ?? this.name,
+    sortOrder: sortOrder ?? this.sortOrder,
+    profileId: profileId.present ? profileId.value : this.profileId,
+  );
+  Bank copyWithCompanion(BanksCompanion data) {
+    return Bank(
+      id: data.id.present ? data.id.value : this.id,
+      name: data.name.present ? data.name.value : this.name,
+      sortOrder: data.sortOrder.present ? data.sortOrder.value : this.sortOrder,
+      profileId: data.profileId.present ? data.profileId.value : this.profileId,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('Bank(')
+          ..write('id: $id, ')
+          ..write('name: $name, ')
+          ..write('sortOrder: $sortOrder, ')
+          ..write('profileId: $profileId')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(id, name, sortOrder, profileId);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is Bank &&
+          other.id == this.id &&
+          other.name == this.name &&
+          other.sortOrder == this.sortOrder &&
+          other.profileId == this.profileId);
+}
+
+class BanksCompanion extends UpdateCompanion<Bank> {
+  final Value<String> id;
+  final Value<String> name;
+  final Value<int> sortOrder;
+  final Value<String?> profileId;
+  final Value<int> rowid;
+  const BanksCompanion({
+    this.id = const Value.absent(),
+    this.name = const Value.absent(),
+    this.sortOrder = const Value.absent(),
+    this.profileId = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  BanksCompanion.insert({
+    required String id,
+    required String name,
+    this.sortOrder = const Value.absent(),
+    this.profileId = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       name = Value(name);
+  static Insertable<Bank> custom({
+    Expression<String>? id,
+    Expression<String>? name,
+    Expression<int>? sortOrder,
+    Expression<String>? profileId,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (name != null) 'name': name,
+      if (sortOrder != null) 'sort_order': sortOrder,
+      if (profileId != null) 'profile_id': profileId,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  BanksCompanion copyWith({
+    Value<String>? id,
+    Value<String>? name,
+    Value<int>? sortOrder,
+    Value<String?>? profileId,
+    Value<int>? rowid,
+  }) {
+    return BanksCompanion(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      sortOrder: sortOrder ?? this.sortOrder,
+      profileId: profileId ?? this.profileId,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (name.present) {
+      map['name'] = Variable<String>(name.value);
+    }
+    if (sortOrder.present) {
+      map['sort_order'] = Variable<int>(sortOrder.value);
+    }
+    if (profileId.present) {
+      map['profile_id'] = Variable<String>(profileId.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('BanksCompanion(')
+          ..write('id: $id, ')
+          ..write('name: $name, ')
+          ..write('sortOrder: $sortOrder, ')
+          ..write('profileId: $profileId, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $SmsRulesTable extends SmsRules with TableInfo<$SmsRulesTable, SmsRule> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $SmsRulesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _bankIdMeta = const VerificationMeta('bankId');
+  @override
+  late final GeneratedColumn<String> bankId = GeneratedColumn<String>(
+    'bank_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES banks (id)',
+    ),
+  );
+  static const VerificationMeta _operationMeta = const VerificationMeta(
+    'operation',
+  );
+  @override
+  late final GeneratedColumn<String> operation = GeneratedColumn<String>(
+    'operation',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _sampleTextMeta = const VerificationMeta(
+    'sampleText',
+  );
+  @override
+  late final GeneratedColumn<String> sampleText = GeneratedColumn<String>(
+    'sample_text',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _segmentsJsonMeta = const VerificationMeta(
+    'segmentsJson',
+  );
+  @override
+  late final GeneratedColumn<String> segmentsJson = GeneratedColumn<String>(
+    'segments_json',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _targetCounterpartyIdMeta =
+      const VerificationMeta('targetCounterpartyId');
+  @override
+  late final GeneratedColumn<String> targetCounterpartyId =
+      GeneratedColumn<String>(
+        'target_counterparty_id',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+        defaultConstraints: GeneratedColumn.constraintIsAlways(
+          'REFERENCES counterparties (id)',
+        ),
+      );
+  static const VerificationMeta _currencyMeta = const VerificationMeta(
+    'currency',
+  );
+  @override
+  late final GeneratedColumn<String> currency = GeneratedColumn<String>(
+    'currency',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _notifyOnMatchMeta = const VerificationMeta(
+    'notifyOnMatch',
+  );
+  @override
+  late final GeneratedColumn<bool> notifyOnMatch = GeneratedColumn<bool>(
+    'notify_on_match',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("notify_on_match" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _profileIdMeta = const VerificationMeta(
+    'profileId',
+  );
+  @override
+  late final GeneratedColumn<String> profileId = GeneratedColumn<String>(
+    'profile_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES profiles (id)',
+    ),
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    bankId,
+    operation,
+    sampleText,
+    segmentsJson,
+    targetCounterpartyId,
+    currency,
+    notifyOnMatch,
+    createdAt,
+    profileId,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'sms_rules';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<SmsRule> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('bank_id')) {
+      context.handle(
+        _bankIdMeta,
+        bankId.isAcceptableOrUnknown(data['bank_id']!, _bankIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_bankIdMeta);
+    }
+    if (data.containsKey('operation')) {
+      context.handle(
+        _operationMeta,
+        operation.isAcceptableOrUnknown(data['operation']!, _operationMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_operationMeta);
+    }
+    if (data.containsKey('sample_text')) {
+      context.handle(
+        _sampleTextMeta,
+        sampleText.isAcceptableOrUnknown(data['sample_text']!, _sampleTextMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_sampleTextMeta);
+    }
+    if (data.containsKey('segments_json')) {
+      context.handle(
+        _segmentsJsonMeta,
+        segmentsJson.isAcceptableOrUnknown(
+          data['segments_json']!,
+          _segmentsJsonMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_segmentsJsonMeta);
+    }
+    if (data.containsKey('target_counterparty_id')) {
+      context.handle(
+        _targetCounterpartyIdMeta,
+        targetCounterpartyId.isAcceptableOrUnknown(
+          data['target_counterparty_id']!,
+          _targetCounterpartyIdMeta,
+        ),
+      );
+    }
+    if (data.containsKey('currency')) {
+      context.handle(
+        _currencyMeta,
+        currency.isAcceptableOrUnknown(data['currency']!, _currencyMeta),
+      );
+    }
+    if (data.containsKey('notify_on_match')) {
+      context.handle(
+        _notifyOnMatchMeta,
+        notifyOnMatch.isAcceptableOrUnknown(
+          data['notify_on_match']!,
+          _notifyOnMatchMeta,
+        ),
+      );
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    if (data.containsKey('profile_id')) {
+      context.handle(
+        _profileIdMeta,
+        profileId.isAcceptableOrUnknown(data['profile_id']!, _profileIdMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  SmsRule map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return SmsRule(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      bankId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}bank_id'],
+      )!,
+      operation: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}operation'],
+      )!,
+      sampleText: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}sample_text'],
+      )!,
+      segmentsJson: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}segments_json'],
+      )!,
+      targetCounterpartyId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}target_counterparty_id'],
+      ),
+      currency: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}currency'],
+      ),
+      notifyOnMatch: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}notify_on_match'],
+      )!,
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_at'],
+      )!,
+      profileId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}profile_id'],
+      ),
+    );
+  }
+
+  @override
+  $SmsRulesTable createAlias(String alias) {
+    return $SmsRulesTable(attachedDatabase, alias);
+  }
+}
+
+class SmsRule extends DataClass implements Insertable<SmsRule> {
+  final String id;
+  final String bankId;
+
+  /// 'creditCardBalance' | 'bankAccountBalance' | 'ledgerPayment'.
+  final String operation;
+
+  /// The real SMS this rule was built from -- kept for display when editing
+  /// the rule, since [segmentsJson] alone (fixed text + placeholder tags,
+  /// no positions) isn't reconstructable back into the original marked-up
+  /// text on its own.
+  final String sampleText;
+
+  /// JSON-encoded list of `{type, text, tag, role}` segments -- see
+  /// `SmsRuleSegment` -- in order, alternating literal text this rule
+  /// requires to appear with the variable portions (card/account number,
+  /// value, vendor, sender) it extracts.
+  final String segmentsJson;
+
+  /// Only meaningful for a 'ledgerPayment' rule -- which ledger a match
+  /// adds its entry to. An SMS never names one of the user's own ledgers,
+  /// so this is picked once, at rule-creation time, the same way a Vendor
+  /// Rule already worked.
+  final String? targetCounterpartyId;
+
+  /// Only meaningful for a 'ledgerPayment' rule -- the currency its ledger
+  /// entries are recorded in (a bank SMS's own currency wording isn't
+  /// marked as a portion, so this is fixed per rule instead).
+  final String? currency;
+
+  /// Whether a local notification is shown when this rule successfully
+  /// applies to a real incoming SMS.
+  final bool notifyOnMatch;
+  final DateTime createdAt;
+  final String? profileId;
+  const SmsRule({
+    required this.id,
+    required this.bankId,
+    required this.operation,
+    required this.sampleText,
+    required this.segmentsJson,
+    this.targetCounterpartyId,
+    this.currency,
+    required this.notifyOnMatch,
+    required this.createdAt,
+    this.profileId,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['bank_id'] = Variable<String>(bankId);
+    map['operation'] = Variable<String>(operation);
+    map['sample_text'] = Variable<String>(sampleText);
+    map['segments_json'] = Variable<String>(segmentsJson);
+    if (!nullToAbsent || targetCounterpartyId != null) {
+      map['target_counterparty_id'] = Variable<String>(targetCounterpartyId);
+    }
+    if (!nullToAbsent || currency != null) {
+      map['currency'] = Variable<String>(currency);
+    }
+    map['notify_on_match'] = Variable<bool>(notifyOnMatch);
+    map['created_at'] = Variable<DateTime>(createdAt);
+    if (!nullToAbsent || profileId != null) {
+      map['profile_id'] = Variable<String>(profileId);
+    }
+    return map;
+  }
+
+  SmsRulesCompanion toCompanion(bool nullToAbsent) {
+    return SmsRulesCompanion(
+      id: Value(id),
+      bankId: Value(bankId),
+      operation: Value(operation),
+      sampleText: Value(sampleText),
+      segmentsJson: Value(segmentsJson),
+      targetCounterpartyId: targetCounterpartyId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(targetCounterpartyId),
+      currency: currency == null && nullToAbsent
+          ? const Value.absent()
+          : Value(currency),
+      notifyOnMatch: Value(notifyOnMatch),
+      createdAt: Value(createdAt),
+      profileId: profileId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(profileId),
+    );
+  }
+
+  factory SmsRule.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return SmsRule(
+      id: serializer.fromJson<String>(json['id']),
+      bankId: serializer.fromJson<String>(json['bankId']),
+      operation: serializer.fromJson<String>(json['operation']),
+      sampleText: serializer.fromJson<String>(json['sampleText']),
+      segmentsJson: serializer.fromJson<String>(json['segmentsJson']),
+      targetCounterpartyId: serializer.fromJson<String?>(
+        json['targetCounterpartyId'],
+      ),
+      currency: serializer.fromJson<String?>(json['currency']),
+      notifyOnMatch: serializer.fromJson<bool>(json['notifyOnMatch']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+      profileId: serializer.fromJson<String?>(json['profileId']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'bankId': serializer.toJson<String>(bankId),
+      'operation': serializer.toJson<String>(operation),
+      'sampleText': serializer.toJson<String>(sampleText),
+      'segmentsJson': serializer.toJson<String>(segmentsJson),
+      'targetCounterpartyId': serializer.toJson<String?>(targetCounterpartyId),
+      'currency': serializer.toJson<String?>(currency),
+      'notifyOnMatch': serializer.toJson<bool>(notifyOnMatch),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+      'profileId': serializer.toJson<String?>(profileId),
+    };
+  }
+
+  SmsRule copyWith({
+    String? id,
+    String? bankId,
+    String? operation,
+    String? sampleText,
+    String? segmentsJson,
+    Value<String?> targetCounterpartyId = const Value.absent(),
+    Value<String?> currency = const Value.absent(),
+    bool? notifyOnMatch,
+    DateTime? createdAt,
+    Value<String?> profileId = const Value.absent(),
+  }) => SmsRule(
+    id: id ?? this.id,
+    bankId: bankId ?? this.bankId,
+    operation: operation ?? this.operation,
+    sampleText: sampleText ?? this.sampleText,
+    segmentsJson: segmentsJson ?? this.segmentsJson,
+    targetCounterpartyId: targetCounterpartyId.present
+        ? targetCounterpartyId.value
+        : this.targetCounterpartyId,
+    currency: currency.present ? currency.value : this.currency,
+    notifyOnMatch: notifyOnMatch ?? this.notifyOnMatch,
+    createdAt: createdAt ?? this.createdAt,
+    profileId: profileId.present ? profileId.value : this.profileId,
+  );
+  SmsRule copyWithCompanion(SmsRulesCompanion data) {
+    return SmsRule(
+      id: data.id.present ? data.id.value : this.id,
+      bankId: data.bankId.present ? data.bankId.value : this.bankId,
+      operation: data.operation.present ? data.operation.value : this.operation,
+      sampleText: data.sampleText.present
+          ? data.sampleText.value
+          : this.sampleText,
+      segmentsJson: data.segmentsJson.present
+          ? data.segmentsJson.value
+          : this.segmentsJson,
+      targetCounterpartyId: data.targetCounterpartyId.present
+          ? data.targetCounterpartyId.value
+          : this.targetCounterpartyId,
+      currency: data.currency.present ? data.currency.value : this.currency,
+      notifyOnMatch: data.notifyOnMatch.present
+          ? data.notifyOnMatch.value
+          : this.notifyOnMatch,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      profileId: data.profileId.present ? data.profileId.value : this.profileId,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('SmsRule(')
+          ..write('id: $id, ')
+          ..write('bankId: $bankId, ')
+          ..write('operation: $operation, ')
+          ..write('sampleText: $sampleText, ')
+          ..write('segmentsJson: $segmentsJson, ')
+          ..write('targetCounterpartyId: $targetCounterpartyId, ')
+          ..write('currency: $currency, ')
+          ..write('notifyOnMatch: $notifyOnMatch, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('profileId: $profileId')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    bankId,
+    operation,
+    sampleText,
+    segmentsJson,
+    targetCounterpartyId,
+    currency,
+    notifyOnMatch,
+    createdAt,
+    profileId,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is SmsRule &&
+          other.id == this.id &&
+          other.bankId == this.bankId &&
+          other.operation == this.operation &&
+          other.sampleText == this.sampleText &&
+          other.segmentsJson == this.segmentsJson &&
+          other.targetCounterpartyId == this.targetCounterpartyId &&
+          other.currency == this.currency &&
+          other.notifyOnMatch == this.notifyOnMatch &&
+          other.createdAt == this.createdAt &&
+          other.profileId == this.profileId);
+}
+
+class SmsRulesCompanion extends UpdateCompanion<SmsRule> {
+  final Value<String> id;
+  final Value<String> bankId;
+  final Value<String> operation;
+  final Value<String> sampleText;
+  final Value<String> segmentsJson;
+  final Value<String?> targetCounterpartyId;
+  final Value<String?> currency;
+  final Value<bool> notifyOnMatch;
+  final Value<DateTime> createdAt;
+  final Value<String?> profileId;
+  final Value<int> rowid;
+  const SmsRulesCompanion({
+    this.id = const Value.absent(),
+    this.bankId = const Value.absent(),
+    this.operation = const Value.absent(),
+    this.sampleText = const Value.absent(),
+    this.segmentsJson = const Value.absent(),
+    this.targetCounterpartyId = const Value.absent(),
+    this.currency = const Value.absent(),
+    this.notifyOnMatch = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.profileId = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  SmsRulesCompanion.insert({
+    required String id,
+    required String bankId,
+    required String operation,
+    required String sampleText,
+    required String segmentsJson,
+    this.targetCounterpartyId = const Value.absent(),
+    this.currency = const Value.absent(),
+    this.notifyOnMatch = const Value.absent(),
+    required DateTime createdAt,
+    this.profileId = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       bankId = Value(bankId),
+       operation = Value(operation),
+       sampleText = Value(sampleText),
+       segmentsJson = Value(segmentsJson),
+       createdAt = Value(createdAt);
+  static Insertable<SmsRule> custom({
+    Expression<String>? id,
+    Expression<String>? bankId,
+    Expression<String>? operation,
+    Expression<String>? sampleText,
+    Expression<String>? segmentsJson,
+    Expression<String>? targetCounterpartyId,
+    Expression<String>? currency,
+    Expression<bool>? notifyOnMatch,
+    Expression<DateTime>? createdAt,
+    Expression<String>? profileId,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (bankId != null) 'bank_id': bankId,
+      if (operation != null) 'operation': operation,
+      if (sampleText != null) 'sample_text': sampleText,
+      if (segmentsJson != null) 'segments_json': segmentsJson,
+      if (targetCounterpartyId != null)
+        'target_counterparty_id': targetCounterpartyId,
+      if (currency != null) 'currency': currency,
+      if (notifyOnMatch != null) 'notify_on_match': notifyOnMatch,
+      if (createdAt != null) 'created_at': createdAt,
+      if (profileId != null) 'profile_id': profileId,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  SmsRulesCompanion copyWith({
+    Value<String>? id,
+    Value<String>? bankId,
+    Value<String>? operation,
+    Value<String>? sampleText,
+    Value<String>? segmentsJson,
+    Value<String?>? targetCounterpartyId,
+    Value<String?>? currency,
+    Value<bool>? notifyOnMatch,
+    Value<DateTime>? createdAt,
+    Value<String?>? profileId,
+    Value<int>? rowid,
+  }) {
+    return SmsRulesCompanion(
+      id: id ?? this.id,
+      bankId: bankId ?? this.bankId,
+      operation: operation ?? this.operation,
+      sampleText: sampleText ?? this.sampleText,
+      segmentsJson: segmentsJson ?? this.segmentsJson,
+      targetCounterpartyId: targetCounterpartyId ?? this.targetCounterpartyId,
+      currency: currency ?? this.currency,
+      notifyOnMatch: notifyOnMatch ?? this.notifyOnMatch,
+      createdAt: createdAt ?? this.createdAt,
+      profileId: profileId ?? this.profileId,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (bankId.present) {
+      map['bank_id'] = Variable<String>(bankId.value);
+    }
+    if (operation.present) {
+      map['operation'] = Variable<String>(operation.value);
+    }
+    if (sampleText.present) {
+      map['sample_text'] = Variable<String>(sampleText.value);
+    }
+    if (segmentsJson.present) {
+      map['segments_json'] = Variable<String>(segmentsJson.value);
+    }
+    if (targetCounterpartyId.present) {
+      map['target_counterparty_id'] = Variable<String>(
+        targetCounterpartyId.value,
+      );
+    }
+    if (currency.present) {
+      map['currency'] = Variable<String>(currency.value);
+    }
+    if (notifyOnMatch.present) {
+      map['notify_on_match'] = Variable<bool>(notifyOnMatch.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    if (profileId.present) {
+      map['profile_id'] = Variable<String>(profileId.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('SmsRulesCompanion(')
+          ..write('id: $id, ')
+          ..write('bankId: $bankId, ')
+          ..write('operation: $operation, ')
+          ..write('sampleText: $sampleText, ')
+          ..write('segmentsJson: $segmentsJson, ')
+          ..write('targetCounterpartyId: $targetCounterpartyId, ')
+          ..write('currency: $currency, ')
+          ..write('notifyOnMatch: $notifyOnMatch, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('profileId: $profileId, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -8353,6 +9328,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $RecurringPaymentHistoryTable recurringPaymentHistory =
       $RecurringPaymentHistoryTable(this);
   late final $BankAccountsTable bankAccounts = $BankAccountsTable(this);
+  late final $BanksTable banks = $BanksTable(this);
+  late final $SmsRulesTable smsRules = $SmsRulesTable(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -8373,6 +9350,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     recurringPayments,
     recurringPaymentHistory,
     bankAccounts,
+    banks,
+    smsRules,
   ];
 }
 
@@ -8612,6 +9591,44 @@ final class $$ProfilesTableReferences
     ).filter((f) => f.profileId.id.sqlEquals($_itemColumn<String>('id')!));
 
     final cache = $_typedResult.readTableOrNull(_bankAccountsRefsTable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<$BanksTable, List<Bank>> _banksRefsTable(
+    _$AppDatabase db,
+  ) => MultiTypedResultKey.fromTable(
+    db.banks,
+    aliasName: 'profiles__id__banks__profile_id',
+  );
+
+  $$BanksTableProcessedTableManager get banksRefs {
+    final manager = $$BanksTableTableManager(
+      $_db,
+      $_db.banks,
+    ).filter((f) => f.profileId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(_banksRefsTable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<$SmsRulesTable, List<SmsRule>> _smsRulesRefsTable(
+    _$AppDatabase db,
+  ) => MultiTypedResultKey.fromTable(
+    db.smsRules,
+    aliasName: 'profiles__id__sms_rules__profile_id',
+  );
+
+  $$SmsRulesTableProcessedTableManager get smsRulesRefs {
+    final manager = $$SmsRulesTableTableManager(
+      $_db,
+      $_db.smsRules,
+    ).filter((f) => f.profileId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(_smsRulesRefsTable($_db));
     return ProcessedTableManager(
       manager.$state.copyWith(prefetchedData: cache),
     );
@@ -8914,6 +9931,56 @@ class $$ProfilesTableFilterComposer
           }) => $$BankAccountsTableFilterComposer(
             $db: $db,
             $table: $db.bankAccounts,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> banksRefs(
+    Expression<bool> Function($$BanksTableFilterComposer f) f,
+  ) {
+    final $$BanksTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.banks,
+      getReferencedColumn: (t) => t.profileId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$BanksTableFilterComposer(
+            $db: $db,
+            $table: $db.banks,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> smsRulesRefs(
+    Expression<bool> Function($$SmsRulesTableFilterComposer f) f,
+  ) {
+    final $$SmsRulesTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.smsRules,
+      getReferencedColumn: (t) => t.profileId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$SmsRulesTableFilterComposer(
+            $db: $db,
+            $table: $db.smsRules,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -9254,6 +10321,56 @@ class $$ProfilesTableAnnotationComposer
     );
     return f(composer);
   }
+
+  Expression<T> banksRefs<T extends Object>(
+    Expression<T> Function($$BanksTableAnnotationComposer a) f,
+  ) {
+    final $$BanksTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.banks,
+      getReferencedColumn: (t) => t.profileId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$BanksTableAnnotationComposer(
+            $db: $db,
+            $table: $db.banks,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<T> smsRulesRefs<T extends Object>(
+    Expression<T> Function($$SmsRulesTableAnnotationComposer a) f,
+  ) {
+    final $$SmsRulesTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.smsRules,
+      getReferencedColumn: (t) => t.profileId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$SmsRulesTableAnnotationComposer(
+            $db: $db,
+            $table: $db.smsRules,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
 }
 
 class $$ProfilesTableTableManager
@@ -9281,6 +10398,8 @@ class $$ProfilesTableTableManager
             bool recurringPaymentsRefs,
             bool recurringPaymentHistoryRefs,
             bool bankAccountsRefs,
+            bool banksRefs,
+            bool smsRulesRefs,
           })
         > {
   $$ProfilesTableTableManager(_$AppDatabase db, $ProfilesTable table)
@@ -9343,6 +10462,8 @@ class $$ProfilesTableTableManager
                 recurringPaymentsRefs = false,
                 recurringPaymentHistoryRefs = false,
                 bankAccountsRefs = false,
+                banksRefs = false,
+                smsRulesRefs = false,
               }) {
                 return PrefetchHooks(
                   db: db,
@@ -9358,6 +10479,8 @@ class $$ProfilesTableTableManager
                     if (recurringPaymentsRefs) db.recurringPayments,
                     if (recurringPaymentHistoryRefs) db.recurringPaymentHistory,
                     if (bankAccountsRefs) db.bankAccounts,
+                    if (banksRefs) db.banks,
+                    if (smsRulesRefs) db.smsRules,
                   ],
                   addJoins: null,
                   getPrefetchedDataCallback: (items) async {
@@ -9593,6 +10716,48 @@ class $$ProfilesTableTableManager
                               ),
                           typedResults: items,
                         ),
+                      if (banksRefs)
+                        await $_getPrefetchedData<
+                          Profile,
+                          $ProfilesTable,
+                          Bank
+                        >(
+                          currentTable: table,
+                          referencedTable: $$ProfilesTableReferences
+                              ._banksRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$ProfilesTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).banksRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.profileId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                      if (smsRulesRefs)
+                        await $_getPrefetchedData<
+                          Profile,
+                          $ProfilesTable,
+                          SmsRule
+                        >(
+                          currentTable: table,
+                          referencedTable: $$ProfilesTableReferences
+                              ._smsRulesRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$ProfilesTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).smsRulesRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.profileId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
                     ];
                   },
                 );
@@ -9625,6 +10790,8 @@ typedef $$ProfilesTableProcessedTableManager =
         bool recurringPaymentsRefs,
         bool recurringPaymentHistoryRefs,
         bool bankAccountsRefs,
+        bool banksRefs,
+        bool smsRulesRefs,
       })
     >;
 typedef $$AssetsTableCreateCompanionBuilder =
@@ -10373,6 +11540,24 @@ final class $$CounterpartiesTableReferences
       manager.$state.copyWith(prefetchedData: cache),
     );
   }
+
+  static MultiTypedResultKey<$SmsRulesTable, List<SmsRule>> _smsRulesRefsTable(
+    _$AppDatabase db,
+  ) => MultiTypedResultKey.fromTable(
+    db.smsRules,
+    aliasName: 'counterparties__id__sms_rules__target_counterparty_id',
+  );
+
+  $$SmsRulesTableProcessedTableManager get smsRulesRefs {
+    final manager = $$SmsRulesTableTableManager($_db, $_db.smsRules).filter(
+      (f) => f.targetCounterpartyId.id.sqlEquals($_itemColumn<String>('id')!),
+    );
+
+    final cache = $_typedResult.readTableOrNull(_smsRulesRefsTable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
 }
 
 class $$CounterpartiesTableFilterComposer
@@ -10478,6 +11663,31 @@ class $$CounterpartiesTableFilterComposer
           }) => $$VendorRulesTableFilterComposer(
             $db: $db,
             $table: $db.vendorRules,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> smsRulesRefs(
+    Expression<bool> Function($$SmsRulesTableFilterComposer f) f,
+  ) {
+    final $$SmsRulesTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.smsRules,
+      getReferencedColumn: (t) => t.targetCounterpartyId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$SmsRulesTableFilterComposer(
+            $db: $db,
+            $table: $db.smsRules,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -10655,6 +11865,31 @@ class $$CounterpartiesTableAnnotationComposer
     );
     return f(composer);
   }
+
+  Expression<T> smsRulesRefs<T extends Object>(
+    Expression<T> Function($$SmsRulesTableAnnotationComposer a) f,
+  ) {
+    final $$SmsRulesTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.smsRules,
+      getReferencedColumn: (t) => t.targetCounterpartyId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$SmsRulesTableAnnotationComposer(
+            $db: $db,
+            $table: $db.smsRules,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
 }
 
 class $$CounterpartiesTableTableManager
@@ -10674,6 +11909,7 @@ class $$CounterpartiesTableTableManager
             bool profileId,
             bool ledgerTransactionsRefs,
             bool vendorRulesRefs,
+            bool smsRulesRefs,
           })
         > {
   $$CounterpartiesTableTableManager(
@@ -10742,12 +11978,14 @@ class $$CounterpartiesTableTableManager
                 profileId = false,
                 ledgerTransactionsRefs = false,
                 vendorRulesRefs = false,
+                smsRulesRefs = false,
               }) {
                 return PrefetchHooks(
                   db: db,
                   explicitlyWatchedTables: [
                     if (ledgerTransactionsRefs) db.ledgerTransactions,
                     if (vendorRulesRefs) db.vendorRules,
+                    if (smsRulesRefs) db.smsRules,
                   ],
                   addJoins:
                       <
@@ -10827,6 +12065,27 @@ class $$CounterpartiesTableTableManager
                               ),
                           typedResults: items,
                         ),
+                      if (smsRulesRefs)
+                        await $_getPrefetchedData<
+                          Counterparty,
+                          $CounterpartiesTable,
+                          SmsRule
+                        >(
+                          currentTable: table,
+                          referencedTable: $$CounterpartiesTableReferences
+                              ._smsRulesRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$CounterpartiesTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).smsRulesRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.targetCounterpartyId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
                     ];
                   },
                 );
@@ -10851,6 +12110,7 @@ typedef $$CounterpartiesTableProcessedTableManager =
         bool profileId,
         bool ledgerTransactionsRefs,
         bool vendorRulesRefs,
+        bool smsRulesRefs,
       })
     >;
 typedef $$LedgerTransactionsTableCreateCompanionBuilder =
@@ -15203,6 +16463,988 @@ typedef $$BankAccountsTableProcessedTableManager =
       BankAccount,
       PrefetchHooks Function({bool profileId})
     >;
+typedef $$BanksTableCreateCompanionBuilder =
+    BanksCompanion Function({
+      required String id,
+      required String name,
+      Value<int> sortOrder,
+      Value<String?> profileId,
+      Value<int> rowid,
+    });
+typedef $$BanksTableUpdateCompanionBuilder =
+    BanksCompanion Function({
+      Value<String> id,
+      Value<String> name,
+      Value<int> sortOrder,
+      Value<String?> profileId,
+      Value<int> rowid,
+    });
+
+final class $$BanksTableReferences
+    extends BaseReferences<_$AppDatabase, $BanksTable, Bank> {
+  $$BanksTableReferences(super.$_db, super.$_table, super.$_typedResult);
+
+  static $ProfilesTable _profileIdTable(_$AppDatabase db) =>
+      db.profiles.createAlias('banks__profile_id__profiles__id');
+
+  $$ProfilesTableProcessedTableManager? get profileId {
+    final $_column = $_itemColumn<String>('profile_id');
+    if ($_column == null) return null;
+    final manager = $$ProfilesTableTableManager(
+      $_db,
+      $_db.profiles,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_profileIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static MultiTypedResultKey<$SmsRulesTable, List<SmsRule>> _smsRulesRefsTable(
+    _$AppDatabase db,
+  ) => MultiTypedResultKey.fromTable(
+    db.smsRules,
+    aliasName: 'banks__id__sms_rules__bank_id',
+  );
+
+  $$SmsRulesTableProcessedTableManager get smsRulesRefs {
+    final manager = $$SmsRulesTableTableManager(
+      $_db,
+      $_db.smsRules,
+    ).filter((f) => f.bankId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(_smsRulesRefsTable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+}
+
+class $$BanksTableFilterComposer extends Composer<_$AppDatabase, $BanksTable> {
+  $$BanksTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get sortOrder => $composableBuilder(
+    column: $table.sortOrder,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$ProfilesTableFilterComposer get profileId {
+    final $$ProfilesTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.profileId,
+      referencedTable: $db.profiles,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ProfilesTableFilterComposer(
+            $db: $db,
+            $table: $db.profiles,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  Expression<bool> smsRulesRefs(
+    Expression<bool> Function($$SmsRulesTableFilterComposer f) f,
+  ) {
+    final $$SmsRulesTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.smsRules,
+      getReferencedColumn: (t) => t.bankId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$SmsRulesTableFilterComposer(
+            $db: $db,
+            $table: $db.smsRules,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+}
+
+class $$BanksTableOrderingComposer
+    extends Composer<_$AppDatabase, $BanksTable> {
+  $$BanksTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get sortOrder => $composableBuilder(
+    column: $table.sortOrder,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$ProfilesTableOrderingComposer get profileId {
+    final $$ProfilesTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.profileId,
+      referencedTable: $db.profiles,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ProfilesTableOrderingComposer(
+            $db: $db,
+            $table: $db.profiles,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$BanksTableAnnotationComposer
+    extends Composer<_$AppDatabase, $BanksTable> {
+  $$BanksTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get name =>
+      $composableBuilder(column: $table.name, builder: (column) => column);
+
+  GeneratedColumn<int> get sortOrder =>
+      $composableBuilder(column: $table.sortOrder, builder: (column) => column);
+
+  $$ProfilesTableAnnotationComposer get profileId {
+    final $$ProfilesTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.profileId,
+      referencedTable: $db.profiles,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ProfilesTableAnnotationComposer(
+            $db: $db,
+            $table: $db.profiles,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  Expression<T> smsRulesRefs<T extends Object>(
+    Expression<T> Function($$SmsRulesTableAnnotationComposer a) f,
+  ) {
+    final $$SmsRulesTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.smsRules,
+      getReferencedColumn: (t) => t.bankId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$SmsRulesTableAnnotationComposer(
+            $db: $db,
+            $table: $db.smsRules,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+}
+
+class $$BanksTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $BanksTable,
+          Bank,
+          $$BanksTableFilterComposer,
+          $$BanksTableOrderingComposer,
+          $$BanksTableAnnotationComposer,
+          $$BanksTableCreateCompanionBuilder,
+          $$BanksTableUpdateCompanionBuilder,
+          (Bank, $$BanksTableReferences),
+          Bank,
+          PrefetchHooks Function({bool profileId, bool smsRulesRefs})
+        > {
+  $$BanksTableTableManager(_$AppDatabase db, $BanksTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$BanksTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$BanksTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$BanksTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> name = const Value.absent(),
+                Value<int> sortOrder = const Value.absent(),
+                Value<String?> profileId = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => BanksCompanion(
+                id: id,
+                name: name,
+                sortOrder: sortOrder,
+                profileId: profileId,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String name,
+                Value<int> sortOrder = const Value.absent(),
+                Value<String?> profileId = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => BanksCompanion.insert(
+                id: id,
+                name: name,
+                sortOrder: sortOrder,
+                profileId: profileId,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) =>
+                    (e.readTable(table), $$BanksTableReferences(db, table, e)),
+              )
+              .toList(),
+          prefetchHooksCallback: ({profileId = false, smsRulesRefs = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [if (smsRulesRefs) db.smsRules],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (profileId) {
+                      state =
+                          state.withJoin(
+                                currentTable: table,
+                                currentColumn: table.profileId,
+                                referencedTable: $$BanksTableReferences
+                                    ._profileIdTable(db),
+                                referencedColumn: $$BanksTableReferences
+                                    ._profileIdTable(db)
+                                    .id,
+                              )
+                              as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [
+                  if (smsRulesRefs)
+                    await $_getPrefetchedData<Bank, $BanksTable, SmsRule>(
+                      currentTable: table,
+                      referencedTable: $$BanksTableReferences
+                          ._smsRulesRefsTable(db),
+                      managerFromTypedResult: (p0) =>
+                          $$BanksTableReferences(db, table, p0).smsRulesRefs,
+                      referencedItemsForCurrentItem: (item, referencedItems) =>
+                          referencedItems.where((e) => e.bankId == item.id),
+                      typedResults: items,
+                    ),
+                ];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$BanksTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $BanksTable,
+      Bank,
+      $$BanksTableFilterComposer,
+      $$BanksTableOrderingComposer,
+      $$BanksTableAnnotationComposer,
+      $$BanksTableCreateCompanionBuilder,
+      $$BanksTableUpdateCompanionBuilder,
+      (Bank, $$BanksTableReferences),
+      Bank,
+      PrefetchHooks Function({bool profileId, bool smsRulesRefs})
+    >;
+typedef $$SmsRulesTableCreateCompanionBuilder =
+    SmsRulesCompanion Function({
+      required String id,
+      required String bankId,
+      required String operation,
+      required String sampleText,
+      required String segmentsJson,
+      Value<String?> targetCounterpartyId,
+      Value<String?> currency,
+      Value<bool> notifyOnMatch,
+      required DateTime createdAt,
+      Value<String?> profileId,
+      Value<int> rowid,
+    });
+typedef $$SmsRulesTableUpdateCompanionBuilder =
+    SmsRulesCompanion Function({
+      Value<String> id,
+      Value<String> bankId,
+      Value<String> operation,
+      Value<String> sampleText,
+      Value<String> segmentsJson,
+      Value<String?> targetCounterpartyId,
+      Value<String?> currency,
+      Value<bool> notifyOnMatch,
+      Value<DateTime> createdAt,
+      Value<String?> profileId,
+      Value<int> rowid,
+    });
+
+final class $$SmsRulesTableReferences
+    extends BaseReferences<_$AppDatabase, $SmsRulesTable, SmsRule> {
+  $$SmsRulesTableReferences(super.$_db, super.$_table, super.$_typedResult);
+
+  static $BanksTable _bankIdTable(_$AppDatabase db) =>
+      db.banks.createAlias('sms_rules__bank_id__banks__id');
+
+  $$BanksTableProcessedTableManager get bankId {
+    final $_column = $_itemColumn<String>('bank_id')!;
+
+    final manager = $$BanksTableTableManager(
+      $_db,
+      $_db.banks,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_bankIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static $CounterpartiesTable _targetCounterpartyIdTable(_$AppDatabase db) => db
+      .counterparties
+      .createAlias('sms_rules__target_counterparty_id__counterparties__id');
+
+  $$CounterpartiesTableProcessedTableManager? get targetCounterpartyId {
+    final $_column = $_itemColumn<String>('target_counterparty_id');
+    if ($_column == null) return null;
+    final manager = $$CounterpartiesTableTableManager(
+      $_db,
+      $_db.counterparties,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(
+      _targetCounterpartyIdTable($_db),
+    );
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static $ProfilesTable _profileIdTable(_$AppDatabase db) =>
+      db.profiles.createAlias('sms_rules__profile_id__profiles__id');
+
+  $$ProfilesTableProcessedTableManager? get profileId {
+    final $_column = $_itemColumn<String>('profile_id');
+    if ($_column == null) return null;
+    final manager = $$ProfilesTableTableManager(
+      $_db,
+      $_db.profiles,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_profileIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$SmsRulesTableFilterComposer
+    extends Composer<_$AppDatabase, $SmsRulesTable> {
+  $$SmsRulesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get operation => $composableBuilder(
+    column: $table.operation,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get sampleText => $composableBuilder(
+    column: $table.sampleText,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get segmentsJson => $composableBuilder(
+    column: $table.segmentsJson,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get currency => $composableBuilder(
+    column: $table.currency,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get notifyOnMatch => $composableBuilder(
+    column: $table.notifyOnMatch,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$BanksTableFilterComposer get bankId {
+    final $$BanksTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.bankId,
+      referencedTable: $db.banks,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$BanksTableFilterComposer(
+            $db: $db,
+            $table: $db.banks,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$CounterpartiesTableFilterComposer get targetCounterpartyId {
+    final $$CounterpartiesTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.targetCounterpartyId,
+      referencedTable: $db.counterparties,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$CounterpartiesTableFilterComposer(
+            $db: $db,
+            $table: $db.counterparties,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$ProfilesTableFilterComposer get profileId {
+    final $$ProfilesTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.profileId,
+      referencedTable: $db.profiles,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ProfilesTableFilterComposer(
+            $db: $db,
+            $table: $db.profiles,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$SmsRulesTableOrderingComposer
+    extends Composer<_$AppDatabase, $SmsRulesTable> {
+  $$SmsRulesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get operation => $composableBuilder(
+    column: $table.operation,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get sampleText => $composableBuilder(
+    column: $table.sampleText,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get segmentsJson => $composableBuilder(
+    column: $table.segmentsJson,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get currency => $composableBuilder(
+    column: $table.currency,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get notifyOnMatch => $composableBuilder(
+    column: $table.notifyOnMatch,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$BanksTableOrderingComposer get bankId {
+    final $$BanksTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.bankId,
+      referencedTable: $db.banks,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$BanksTableOrderingComposer(
+            $db: $db,
+            $table: $db.banks,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$CounterpartiesTableOrderingComposer get targetCounterpartyId {
+    final $$CounterpartiesTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.targetCounterpartyId,
+      referencedTable: $db.counterparties,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$CounterpartiesTableOrderingComposer(
+            $db: $db,
+            $table: $db.counterparties,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$ProfilesTableOrderingComposer get profileId {
+    final $$ProfilesTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.profileId,
+      referencedTable: $db.profiles,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ProfilesTableOrderingComposer(
+            $db: $db,
+            $table: $db.profiles,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$SmsRulesTableAnnotationComposer
+    extends Composer<_$AppDatabase, $SmsRulesTable> {
+  $$SmsRulesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get operation =>
+      $composableBuilder(column: $table.operation, builder: (column) => column);
+
+  GeneratedColumn<String> get sampleText => $composableBuilder(
+    column: $table.sampleText,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get segmentsJson => $composableBuilder(
+    column: $table.segmentsJson,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get currency =>
+      $composableBuilder(column: $table.currency, builder: (column) => column);
+
+  GeneratedColumn<bool> get notifyOnMatch => $composableBuilder(
+    column: $table.notifyOnMatch,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  $$BanksTableAnnotationComposer get bankId {
+    final $$BanksTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.bankId,
+      referencedTable: $db.banks,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$BanksTableAnnotationComposer(
+            $db: $db,
+            $table: $db.banks,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$CounterpartiesTableAnnotationComposer get targetCounterpartyId {
+    final $$CounterpartiesTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.targetCounterpartyId,
+      referencedTable: $db.counterparties,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$CounterpartiesTableAnnotationComposer(
+            $db: $db,
+            $table: $db.counterparties,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$ProfilesTableAnnotationComposer get profileId {
+    final $$ProfilesTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.profileId,
+      referencedTable: $db.profiles,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ProfilesTableAnnotationComposer(
+            $db: $db,
+            $table: $db.profiles,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$SmsRulesTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $SmsRulesTable,
+          SmsRule,
+          $$SmsRulesTableFilterComposer,
+          $$SmsRulesTableOrderingComposer,
+          $$SmsRulesTableAnnotationComposer,
+          $$SmsRulesTableCreateCompanionBuilder,
+          $$SmsRulesTableUpdateCompanionBuilder,
+          (SmsRule, $$SmsRulesTableReferences),
+          SmsRule,
+          PrefetchHooks Function({
+            bool bankId,
+            bool targetCounterpartyId,
+            bool profileId,
+          })
+        > {
+  $$SmsRulesTableTableManager(_$AppDatabase db, $SmsRulesTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$SmsRulesTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$SmsRulesTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$SmsRulesTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> bankId = const Value.absent(),
+                Value<String> operation = const Value.absent(),
+                Value<String> sampleText = const Value.absent(),
+                Value<String> segmentsJson = const Value.absent(),
+                Value<String?> targetCounterpartyId = const Value.absent(),
+                Value<String?> currency = const Value.absent(),
+                Value<bool> notifyOnMatch = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<String?> profileId = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => SmsRulesCompanion(
+                id: id,
+                bankId: bankId,
+                operation: operation,
+                sampleText: sampleText,
+                segmentsJson: segmentsJson,
+                targetCounterpartyId: targetCounterpartyId,
+                currency: currency,
+                notifyOnMatch: notifyOnMatch,
+                createdAt: createdAt,
+                profileId: profileId,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String bankId,
+                required String operation,
+                required String sampleText,
+                required String segmentsJson,
+                Value<String?> targetCounterpartyId = const Value.absent(),
+                Value<String?> currency = const Value.absent(),
+                Value<bool> notifyOnMatch = const Value.absent(),
+                required DateTime createdAt,
+                Value<String?> profileId = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => SmsRulesCompanion.insert(
+                id: id,
+                bankId: bankId,
+                operation: operation,
+                sampleText: sampleText,
+                segmentsJson: segmentsJson,
+                targetCounterpartyId: targetCounterpartyId,
+                currency: currency,
+                notifyOnMatch: notifyOnMatch,
+                createdAt: createdAt,
+                profileId: profileId,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable(table),
+                  $$SmsRulesTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback:
+              ({
+                bankId = false,
+                targetCounterpartyId = false,
+                profileId = false,
+              }) {
+                return PrefetchHooks(
+                  db: db,
+                  explicitlyWatchedTables: [],
+                  addJoins:
+                      <
+                        T extends TableManagerState<
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic
+                        >
+                      >(state) {
+                        if (bankId) {
+                          state =
+                              state.withJoin(
+                                    currentTable: table,
+                                    currentColumn: table.bankId,
+                                    referencedTable: $$SmsRulesTableReferences
+                                        ._bankIdTable(db),
+                                    referencedColumn: $$SmsRulesTableReferences
+                                        ._bankIdTable(db)
+                                        .id,
+                                  )
+                                  as T;
+                        }
+                        if (targetCounterpartyId) {
+                          state =
+                              state.withJoin(
+                                    currentTable: table,
+                                    currentColumn: table.targetCounterpartyId,
+                                    referencedTable: $$SmsRulesTableReferences
+                                        ._targetCounterpartyIdTable(db),
+                                    referencedColumn: $$SmsRulesTableReferences
+                                        ._targetCounterpartyIdTable(db)
+                                        .id,
+                                  )
+                                  as T;
+                        }
+                        if (profileId) {
+                          state =
+                              state.withJoin(
+                                    currentTable: table,
+                                    currentColumn: table.profileId,
+                                    referencedTable: $$SmsRulesTableReferences
+                                        ._profileIdTable(db),
+                                    referencedColumn: $$SmsRulesTableReferences
+                                        ._profileIdTable(db)
+                                        .id,
+                                  )
+                                  as T;
+                        }
+
+                        return state;
+                      },
+                  getPrefetchedDataCallback: (items) async {
+                    return [];
+                  },
+                );
+              },
+        ),
+      );
+}
+
+typedef $$SmsRulesTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $SmsRulesTable,
+      SmsRule,
+      $$SmsRulesTableFilterComposer,
+      $$SmsRulesTableOrderingComposer,
+      $$SmsRulesTableAnnotationComposer,
+      $$SmsRulesTableCreateCompanionBuilder,
+      $$SmsRulesTableUpdateCompanionBuilder,
+      (SmsRule, $$SmsRulesTableReferences),
+      SmsRule,
+      PrefetchHooks Function({
+        bool bankId,
+        bool targetCounterpartyId,
+        bool profileId,
+      })
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -15240,4 +17482,8 @@ class $AppDatabaseManager {
       );
   $$BankAccountsTableTableManager get bankAccounts =>
       $$BankAccountsTableTableManager(_db, _db.bankAccounts);
+  $$BanksTableTableManager get banks =>
+      $$BanksTableTableManager(_db, _db.banks);
+  $$SmsRulesTableTableManager get smsRules =>
+      $$SmsRulesTableTableManager(_db, _db.smsRules);
 }

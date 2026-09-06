@@ -31,6 +31,8 @@ const defaultProfileId = 'default-profile';
     RecurringPayments,
     RecurringPaymentHistory,
     BankAccounts,
+    Banks,
+    SmsRules,
   ],
 )
 class AppDatabase extends _$AppDatabase {
@@ -39,7 +41,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 27;
+  int get schemaVersion => 28;
 
   /// Public so `ProfileRepository.addProfile` can give a newly created
   /// profile the same starter categories a fresh install gets -- otherwise
@@ -411,6 +413,16 @@ class AppDatabase extends _$AppDatabase {
           calculatorSnapshots,
           calculatorSnapshots.bankAccountEntriesJson,
         );
+      }
+      if (from < 28) {
+        // SMS Rules -- replaces the old hardwired per-bank SMS parsing
+        // with rules the user builds themselves from a real sample text.
+        // VendorRules is deliberately left in place (not dropped): its
+        // data is simply no longer read by the app going forward, the
+        // same "never drop, just stop writing the old format" convention
+        // used elsewhere in this file.
+        await m.createTable(banks);
+        await m.createTable(smsRules);
       }
     },
     // The "Breakfast" quick-pick category was a voice-transcription
