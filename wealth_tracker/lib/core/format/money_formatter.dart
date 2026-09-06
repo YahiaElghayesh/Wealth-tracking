@@ -5,23 +5,37 @@ final _egpFormat = NumberFormat.currency(symbol: 'EGP ', decimalDigits: 2);
 final _usdFormatWhole = NumberFormat.currency(symbol: r'$', decimalDigits: 0);
 final _egpFormatWhole = NumberFormat.currency(symbol: 'EGP ', decimalDigits: 0);
 final _plainNumber = NumberFormat('#,##0.00');
+final _plainNumberWhole = NumberFormat('#,##0');
 
-String formatUsd(double value) => _usdFormat.format(value);
+/// A whole number (e.g. 270.0) prints as "270", not "270.00" -- the ".00"
+/// added nothing but visual noise, and stood out oddly next to a genuinely
+/// fractional amount like "22.80" shown right above it. A value that
+/// actually has a fraction still prints it in full either way; this only
+/// ever suppresses an all-zero fractional part, never rounds one away.
+bool _isWhole(double value) => value == value.roundToDouble();
 
-String formatEgp(double value) => _egpFormat.format(value);
+String formatUsd(double value) =>
+    (_isWhole(value) ? _usdFormatWhole : _usdFormat).format(value);
 
-/// Whole-number forms (rounded, no cents) — used on the Net Worth page,
-/// where a precise fraction of a currency unit adds noise without adding
-/// information at the scale asset values are shown at.
+String formatEgp(double value) =>
+    (_isWhole(value) ? _egpFormatWhole : _egpFormat).format(value);
+
+/// Whole-number forms (always rounded, no cents even for a fractional
+/// value) — used on the Net Worth page, where a precise fraction of a
+/// currency unit adds noise without adding information at the scale asset
+/// values are shown at. Distinct from [formatUsd]/[formatEgp] simply not
+/// showing a fraction that isn't there -- these two always round.
 String formatUsdWhole(double value) => _usdFormatWhole.format(value);
 
 String formatEgpWhole(double value) => _egpFormatWhole.format(value);
 
 /// Formats [value] with its ISO currency code (e.g. "1,234.56 SAR") — used
 /// wherever the currency isn't fixed to USD/EGP, since intl's locale-based
-/// symbols for SAR/AED/TRY aren't reliably unambiguous.
+/// symbols for SAR/AED/TRY aren't reliably unambiguous. Same ".00"
+/// suppression as [formatUsd]/[formatEgp] for a value with no fraction.
 String formatMoney(double value, String currencyCode) {
-  return '${_plainNumber.format(value)} $currencyCode';
+  final formatter = _isWhole(value) ? _plainNumberWhole : _plainNumber;
+  return '${formatter.format(value)} $currencyCode';
 }
 
 /// Whole-number form for an arbitrary currency code -- [formatEgpWhole]/
