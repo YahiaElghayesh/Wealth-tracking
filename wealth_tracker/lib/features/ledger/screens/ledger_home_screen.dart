@@ -481,12 +481,21 @@ class _CounterpartyTile extends ConsumerWidget {
                           _editCounterparty(context, ref, counterparty),
                     ),
                     IconButton(
-                      icon: const Icon(Icons.visibility_off_outlined, size: 20),
-                      tooltip: 'Hide from list',
+                      icon: Icon(
+                        counterparty.visible
+                            ? Icons.visibility_off_outlined
+                            : Icons.visibility_outlined,
+                        size: 20,
+                      ),
+                      tooltip: counterparty.visible
+                          ? 'Hide from list'
+                          : 'Show in list',
                       onPressed: () => ref
                           .read(ledgerRepositoryProvider)
                           .updateCounterparty(
-                            counterparty.copyWith(visible: false),
+                            counterparty.copyWith(
+                              visible: !counterparty.visible,
+                            ),
                           ),
                     ),
                   ],
@@ -539,12 +548,13 @@ class _CounterpartyTile extends ConsumerWidget {
 }
 
 /// A collapsed-by-default "Hidden (N)" row at the end of the list -- the
-/// only way to find and re-show a ledger or tab whose "Show in list"
-/// switch (see `_editCounterparty`/`_addCounterparty`) is off, since a
-/// hidden one is otherwise nowhere in the main list at all. Tapping a
-/// hidden row here still opens the normal Edit dialog, so switching it
-/// back on is a single flip away, same as turning it off in the first
-/// place.
+/// only way to find a ledger or tab whose "Show in list" switch (see
+/// `_editCounterparty`/`_addCounterparty`) is off, since a hidden one is
+/// otherwise nowhere in the main list at all. Once expanded, each hidden
+/// counterparty renders as the exact same full `_CounterpartyTile` as the
+/// main list -- balance, tapping in to open it, Edit, all of it -- so
+/// "hidden" only ever means "not shown in the main list," never a
+/// degraded view of the ledger or tab itself.
 class _HiddenLedgersSection extends ConsumerStatefulWidget {
   const _HiddenLedgersSection({required this.counterparties});
 
@@ -572,25 +582,15 @@ class _HiddenLedgersSectionState extends ConsumerState<_HiddenLedgersSection> {
             onTap: () => setState(() => _expanded = !_expanded),
           ),
           if (_expanded)
-            for (final counterparty in widget.counterparties)
-              ListTile(
-                leading: CircleAvatar(
-                  child: Icon(
-                    counterparty.isTab
-                        ? Icons.swap_horiz
-                        : Icons.account_balance_wallet_outlined,
-                  ),
-                ),
-                title: Text(counterparty.name),
-                trailing: IconButton(
-                  icon: const Icon(Icons.visibility_outlined),
-                  tooltip: 'Show in list',
-                  onPressed: () => ref
-                      .read(ledgerRepositoryProvider)
-                      .updateCounterparty(counterparty.copyWith(visible: true)),
-                ),
-                onTap: () => _editCounterparty(context, ref, counterparty),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
+              child: Column(
+                children: [
+                  for (final counterparty in widget.counterparties)
+                    _CounterpartyTile(counterparty: counterparty),
+                ],
               ),
+            ),
         ],
       ),
     );
