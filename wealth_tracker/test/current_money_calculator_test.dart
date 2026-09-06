@@ -71,5 +71,27 @@ void main() {
       // -1000 + 500 - 250 + 4000
       expect(result, closeTo(3250, 0.001));
     });
+
+    test('bank account balances are always added, on top of everything else', () {
+      final result = calculateCurrentMoney(
+        ledgersTotal: 1000,
+        cardOwedAmounts: const [200],
+        manualInputAmounts: const [-100],
+        bankAccountAmounts: const [500, 250],
+      );
+
+      // 1000 - 200 - 100 + (500 + 250)
+      expect(result, closeTo(1450, 0.001));
+    });
+
+    test('no bank accounts defaults to zero rather than throwing', () {
+      final result = calculateCurrentMoney(
+        ledgersTotal: 1000,
+        cardOwedAmounts: const [],
+        manualInputAmounts: const [],
+      );
+
+      expect(result, closeTo(1000, 0.001));
+    });
   });
 }

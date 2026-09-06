@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:drift/drift.dart';
 import 'package:uuid/uuid.dart';
 
+import '../../core/models/bank_account_snapshot_entry.dart';
 import '../../core/models/calculator_custom_item.dart';
 import '../../core/models/card_snapshot_entry.dart';
 import '../../core/models/manual_input_snapshot_entry.dart';
@@ -109,6 +110,58 @@ class CalculatorRepository {
     return (_db.delete(_db.manualInputs)..where((t) => t.id.equals(id))).go();
   }
 
+  Stream<List<BankAccount>> watchBankAccounts() {
+    return (_db.select(_db.bankAccounts)
+          ..where((t) => t.profileId.equals(profileId))
+          ..orderBy([(t) => OrderingTerm.asc(t.sortOrder)]))
+        .watch();
+  }
+
+  Future<void> addBankAccount({
+    required String name,
+    required String bank,
+    required String currency,
+    String? accountNumber,
+  }) async {
+    final count = await (_db.select(
+      _db.bankAccounts,
+    )..where((t) => t.profileId.equals(profileId))).get();
+    await _db
+        .into(_db.bankAccounts)
+        .insert(
+          BankAccountsCompanion.insert(
+            id: _uuid.v4(),
+            name: name,
+            bank: bank,
+            currency: Value(currency),
+            sortOrder: Value(count.length),
+            accountNumber: Value(accountNumber),
+            profileId: Value(profileId),
+          ),
+        );
+  }
+
+  Future<void> updateBankAccount(BankAccount account) {
+    return _db.update(_db.bankAccounts).replace(account);
+  }
+
+  /// Sets just [currentAvailableBalance], as a single narrow-field write --
+  /// same reasoning as [setManualInputCurrentValue].
+  Future<void> setBankAccountCurrentBalance(
+    String id,
+    double? currentAvailableBalance,
+  ) {
+    return (_db.update(_db.bankAccounts)..where((t) => t.id.equals(id))).write(
+      BankAccountsCompanion(
+        currentAvailableBalance: Value(currentAvailableBalance),
+      ),
+    );
+  }
+
+  Future<void> deleteBankAccount(String id) {
+    return (_db.delete(_db.bankAccounts)..where((t) => t.id.equals(id))).go();
+  }
+
   Stream<List<CalculatorSnapshot>> watchSnapshots() {
     return (_db.select(_db.calculatorSnapshots)
           ..where((s) => s.profileId.equals(profileId))
@@ -121,6 +174,7 @@ class CalculatorRepository {
     required double ledgersTotal,
     required List<CardSnapshotEntry> cardEntries,
     required List<ManualInputSnapshotEntry> manualInputEntries,
+    required List<BankAccountSnapshotEntry> bankAccountEntries,
     required List<CustomCalculatorItem> customItems,
   }) {
     return _db
@@ -145,6 +199,9 @@ class CalculatorRepository {
             ),
             manualInputEntriesJson: Value(
               jsonEncode(manualInputEntries.map((e) => e.toJson()).toList()),
+            ),
+            bankAccountEntriesJson: Value(
+              jsonEncode(bankAccountEntries.map((e) => e.toJson()).toList()),
             ),
             // Unconditionally true -- this snapshot's card/manual-input
             // lists are authoritative even when genuinely empty (e.g. a
@@ -189,6 +246,15 @@ extension CalculatorSnapshotCustomItems on CalculatorSnapshot {
     return decoded
         .cast<Map<String, dynamic>>()
         .map(ManualInputSnapshotEntry.fromJson)
+        .toList();
+  }
+
+  List<BankAccountSnapshotEntry> get bankAccountEntries {
+    final decoded = jsonDecode(bankAccountEntriesJson);
+    if (decoded is! List) return const [];
+    return decoded
+        .cast<Map<String, dynamic>>()
+        .map(BankAccountSnapshotEntry.fromJson)
         .toList();
   }
 

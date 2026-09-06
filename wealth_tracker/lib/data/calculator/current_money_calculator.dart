@@ -21,15 +21,22 @@ double cardOwedAmount({required double limit, required double availableBalance})
 /// [manualInputAmounts] are each already signed and converted by the caller
 /// (same convention as [cardOwedAmounts]) -- e.g. apartment savings
 /// (subtracted) comes in negative, a balance to add comes in positive.
+///
+/// [bankAccountAmounts] are each already converted (same convention as
+/// [cardOwedAmounts]) and always added -- a bank account's available
+/// balance is straightforwardly liquid cash, unlike a card (which has to
+/// be turned into an owed figure via its limit first).
 double calculateCurrentMoney({
   required double ledgersTotal,
   required List<double> cardOwedAmounts,
   required List<double> manualInputAmounts,
+  List<double> bankAccountAmounts = const [],
   List<CustomCalculatorItem> customItems = const [],
 }) {
   final cardsOwedTotal = cardOwedAmounts.fold(0.0, (sum, owed) => sum + owed);
   final manualInputsTotal = manualInputAmounts.fold(0.0, (sum, amt) => sum + amt);
+  final bankAccountsTotal = bankAccountAmounts.fold(0.0, (sum, amt) => sum + amt);
   final customTotal = customItems.fold(0.0, (sum, item) => sum + item.signedAmount);
 
-  return ledgersTotal - cardsOwedTotal + manualInputsTotal + customTotal;
+  return ledgersTotal - cardsOwedTotal + manualInputsTotal + bankAccountsTotal + customTotal;
 }

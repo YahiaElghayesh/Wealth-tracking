@@ -30,6 +30,7 @@ const defaultProfileId = 'default-profile';
     Profiles,
     RecurringPayments,
     RecurringPaymentHistory,
+    BankAccounts,
   ],
 )
 class AppDatabase extends _$AppDatabase {
@@ -38,7 +39,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 26;
+  int get schemaVersion => 27;
 
   /// Public so `ProfileRepository.addProfile` can give a newly created
   /// profile the same starter categories a fresh install gets -- otherwise
@@ -401,6 +402,15 @@ class AppDatabase extends _$AppDatabase {
         // Ledgers and Tabs -- every existing counterparty defaults to
         // false (a normal Ledger), exactly how it already behaved.
         await m.addColumn(counterparties, counterparties.isTab);
+      }
+      if (from < 27) {
+        // New Calculator item type: bank accounts, alongside credit cards
+        // and manual inputs.
+        await m.createTable(bankAccounts);
+        await m.addColumn(
+          calculatorSnapshots,
+          calculatorSnapshots.bankAccountEntriesJson,
+        );
       }
     },
     // The "Breakfast" quick-pick category was a voice-transcription

@@ -10,6 +10,7 @@ import '../../../core/theme/app_colors.dart';
 import '../providers/settings_providers.dart';
 import 'app_updates_settings_screen.dart';
 import 'asset_classification_settings_screen.dart';
+import 'bank_accounts_settings_screen.dart';
 import 'bank_sms_settings_screen.dart';
 import 'credit_cards_settings_screen.dart';
 import 'drive_sync_settings_screen.dart';
@@ -197,6 +198,12 @@ class SettingsScreen extends ConsumerWidget {
             title: 'Categories & icons',
             subtitle: 'Manage the quick-pick categories for payments',
             builder: (_) => const LedgerCategoriesSettingsScreen(),
+          ),
+          _SettingsTile(
+            icon: Icons.account_balance,
+            title: 'Bank accounts',
+            subtitle: 'Add, edit, or remove accounts used by the Calculator tab',
+            builder: (_) => const BankAccountsSettingsScreen(),
           ),
           _SettingsTile(
             icon: Icons.credit_card,

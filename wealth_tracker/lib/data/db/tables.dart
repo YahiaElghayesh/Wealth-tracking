@@ -246,6 +246,16 @@ class CalculatorSnapshots extends Table {
   BoolColumn get manualInputsRecorded =>
       boolean().withDefault(const Constant(true))();
 
+  /// JSON-encoded list of per-bank-account entries (see
+  /// BankAccountSnapshotEntry) -- one per BankAccount row that existed at
+  /// save time. Unlike [cardEntriesJson]/[manualInputEntriesJson], bank
+  /// accounts have no fixed legacy predecessor to distinguish an empty
+  /// list from, so no matching "*Recorded" flag is needed: an empty list
+  /// unambiguously means "no bank accounts configured" on every snapshot,
+  /// old or new.
+  TextColumn get bankAccountEntriesJson =>
+      text().withDefault(const Constant('[]'))();
+
   TextColumn get profileId => text().nullable().references(Profiles, #id)();
 
   @override
@@ -288,6 +298,35 @@ class CreditCards extends Table {
   /// that was a real bank alert or their own typed correction. Null exactly
   /// when [balanceUpdatedAt] is (never touched by either yet).
   TextColumn get balanceUpdatedSource => text().nullable()();
+
+  TextColumn get profileId => text().nullable().references(Profiles, #id)();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
+/// A bank account the user tracks in the Calculator tab -- unlike
+/// [CreditCards], there's no limit/owed math: the account's available
+/// balance is simply added straight into the Calculator's total, the same
+/// way a [ManualInputs] addition is.
+class BankAccounts extends Table {
+  TextColumn get id => text()();
+  TextColumn get name => text()();
+  TextColumn get bank => text()();
+  TextColumn get currency => text().withDefault(const Constant('EGP'))();
+
+  /// Manual ordering for display — set to insertion order by default, but
+  /// not tied to it, so a future "reorder" gesture has somewhere to write.
+  IntColumn get sortOrder => integer().withDefault(const Constant(0))();
+
+  TextColumn get accountNumber => text().nullable()();
+
+  /// Available balance, kept current by a debounced save-back the moment
+  /// the user edits it in the Calculator tab -- mirroring
+  /// [CreditCards.currentAvailableBalance]'s own doc comment (and the
+  /// "reset itself" bug it fixes) exactly, since this is the same kind of
+  /// field. Null until the user first types a value in.
+  RealColumn get currentAvailableBalance => real().nullable()();
 
   TextColumn get profileId => text().nullable().references(Profiles, #id)();
 

@@ -19,6 +19,10 @@ final manualInputsStreamProvider = StreamProvider<List<ManualInput>>((ref) {
   return ref.watch(calculatorRepositoryProvider).watchManualInputs();
 });
 
+final bankAccountsStreamProvider = StreamProvider<List<BankAccount>>((ref) {
+  return ref.watch(calculatorRepositoryProvider).watchBankAccounts();
+});
+
 final calculatorHistoryStreamProvider = StreamProvider<List<CalculatorSnapshot>>((ref) {
   return ref.watch(calculatorRepositoryProvider).watchSnapshots();
 });

@@ -112,6 +112,13 @@ class _SnapshotCard extends ConsumerWidget {
                   amount: entry.owed,
                   currency: entry.currency,
                 ),
+            for (final entry in snapshot.bankAccountEntries)
+              _BreakdownRow(
+                isAddition: true,
+                label: entry.name,
+                amount: entry.availableBalance,
+                currency: entry.currency,
+              ),
             for (final item in customItems)
               _BreakdownRow(isAddition: item.isAddition, label: item.label, amount: item.amount),
           ],

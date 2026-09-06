@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/format/money_formatter.dart';
+import '../../../core/models/bank_account_snapshot_entry.dart';
 import '../../../core/models/calculator_custom_item.dart';
 import '../../../core/models/card_snapshot_entry.dart';
 import '../../../core/models/currency.dart';
@@ -21,6 +22,7 @@ import '../../../data/ledger/ledger_calculator.dart';
 import '../../../data/repositories/calculator_repository.dart';
 import '../../networth/providers/asset_providers.dart'
     show pricesUsdPerUnitProvider;
+import '../../settings/screens/bank_accounts_settings_screen.dart';
 import '../../settings/screens/credit_cards_settings_screen.dart';
 import '../../settings/screens/manual_inputs_settings_screen.dart';
 import '../providers/calculator_providers.dart';
@@ -45,6 +47,7 @@ class CalculatorScreen extends ConsumerStatefulWidget {
 class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
   final _cardControllers = <String, TextEditingController>{};
   final _manualInputControllers = <String, TextEditingController>{};
+  final _bankAccountControllers = <String, TextEditingController>{};
   final _customItems = <CustomCalculatorItem>[];
   final _scrollController = ScrollController();
 
@@ -71,6 +74,7 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
   final _cardSeedBalanceUpdatedAt = <String, DateTime?>{};
   final _cardSeedText = <String, String>{};
   final _seededManualInputIds = <String>{};
+  final _seededBankAccountIds = <String>{};
   bool _saving = false;
   bool _scrolled = false;
 
@@ -86,6 +90,13 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
   // tables.dart) for the "reset itself" bug this fixes.
   bool _isSeedingManualInput = false;
   final _manualInputSaveDebounce = <String, Timer>{};
+
+  // Same idea again, for bank accounts -- a bank account has no SMS source
+  // to race against (unlike credit cards), so its seeding is a one-shot
+  // "seed once from currentAvailableBalance" like manual inputs, not the
+  // freshness-tracked re-seed cards need.
+  bool _isSeedingBankAccount = false;
+  final _bankAccountSaveDebounce = <String, Timer>{};
 
   // A second, independent copy of every manual input's last-known value --
   // see ManualInputValueBackup's own doc comment for why. Loaded once at
@@ -125,10 +136,16 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
     for (final c in _manualInputControllers.values) {
       c.dispose();
     }
+    for (final c in _bankAccountControllers.values) {
+      c.dispose();
+    }
     for (final t in _cardBalanceSaveDebounce.values) {
       t.cancel();
     }
     for (final t in _manualInputSaveDebounce.values) {
+      t.cancel();
+    }
+    for (final t in _bankAccountSaveDebounce.values) {
       t.cancel();
     }
     _scrollController.dispose();
@@ -165,6 +182,31 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
         .setManualInputCurrentValue(inputId, newValue);
     await ManualInputValueBackup.record(inputId, newValue);
     _manualInputBackup[inputId] = newValue;
+  }
+
+  /// Same fix as [_scheduleManualInputSave], for a bank account's balance
+  /// field.
+  void _scheduleBankAccountSave(String accountId) {
+    if (_isSeedingBankAccount) return;
+    _bankAccountSaveDebounce[accountId]?.cancel();
+    _bankAccountSaveDebounce[accountId] = Timer(
+      const Duration(milliseconds: 600),
+      () => _saveBankAccountBalance(accountId),
+    );
+  }
+
+  Future<void> _saveBankAccountBalance(String accountId) async {
+    if (!mounted) return;
+    final controller = _bankAccountControllers[accountId];
+    if (controller == null) return;
+    final newValue = double.tryParse(controller.text.trim());
+    // Same reasoning as _saveManualInputValue -- never persist an
+    // unparseable/momentarily-empty field over a good saved value.
+    if (newValue == null) return;
+
+    await ref
+        .read(calculatorRepositoryProvider)
+        .setBankAccountCurrentBalance(accountId, newValue);
   }
 
   /// Persists a manual edit of [cardId]'s balance field back to the card
@@ -249,6 +291,24 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
       controller.addListener(() => _scheduleManualInputSave(input.id));
       return controller;
     });
+  }
+
+  TextEditingController _bankAccountControllerFor(BankAccount account) {
+    return _bankAccountControllers.putIfAbsent(account.id, () {
+      final controller = TextEditingController();
+      controller.addListener(_onFieldChanged);
+      controller.addListener(() => _scheduleBankAccountSave(account.id));
+      return controller;
+    });
+  }
+
+  /// A bank account's balance, converted to the app's settlement currency
+  /// -- always added, unlike a manual input (which can be either sign).
+  double _bankAccountAmount(BankAccount account, Map<String, double> prices) {
+    final raw = _parse(_bankAccountControllerFor(account));
+    return account.currency == defaultCurrency
+        ? raw
+        : (convertToSettlement(raw, account.currency, prices) ?? raw);
   }
 
   /// Owed amount per card, in the card's own currency (not yet converted).
@@ -353,6 +413,7 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
     double ledgersTotal,
     List<CreditCard> cards,
     List<ManualInput> manualInputs,
+    List<BankAccount> bankAccounts,
     Map<String, double> prices,
   ) async {
     if (_saving) return;
@@ -366,10 +427,14 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
         for (final input in manualInputs)
           _manualInputSignedAmount(input, prices),
       ];
+      final bankAccountAmounts = [
+        for (final account in bankAccounts) _bankAccountAmount(account, prices),
+      ];
       final result = calculateCurrentMoney(
         ledgersTotal: ledgersTotal,
         cardOwedAmounts: cardOwedAmounts,
         manualInputAmounts: manualInputAmounts,
+        bankAccountAmounts: bankAccountAmounts,
         customItems: _customItems,
       );
 
@@ -393,6 +458,15 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
             currency: input.currency,
           ),
       ];
+      final bankAccountEntries = [
+        for (final account in bankAccounts)
+          BankAccountSnapshotEntry(
+            name: account.name,
+            bank: account.bank,
+            currency: account.currency,
+            availableBalance: _parse(_bankAccountControllerFor(account)),
+          ),
+      ];
 
       await ref
           .read(calculatorRepositoryProvider)
@@ -401,6 +475,7 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
             ledgersTotal: ledgersTotal,
             cardEntries: cardEntries,
             manualInputEntries: manualInputEntries,
+            bankAccountEntries: bankAccountEntries,
             customItems: _customItems,
           );
 
@@ -460,6 +535,7 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
   Widget build(BuildContext context) {
     final cardsAsync = ref.watch(creditCardsStreamProvider);
     final manualInputsAsync = ref.watch(manualInputsStreamProvider);
+    final bankAccountsAsync = ref.watch(bankAccountsStreamProvider);
     final ledgersTotal = ref.watch(ledgersTotalProvider);
     final historyAsync = ref.watch(calculatorHistoryStreamProvider);
     final prices = ref.watch(pricesUsdPerUnitProvider);
@@ -467,6 +543,7 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
     final latestHistory = historyAsync.valueOrNull;
     final currentCards = cardsAsync.valueOrNull;
     final currentManualInputs = manualInputsAsync.valueOrNull;
+    final currentBankAccounts = bankAccountsAsync.valueOrNull;
     final cardsNeedingSeed = currentCards?.where((c) {
       if (!_seededCardIds.contains(c.id)) return true;
       if (c.balanceUpdatedAt == _cardSeedBalanceUpdatedAt[c.id]) return false;
@@ -491,9 +568,13 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
               .where((m) => !_seededManualInputIds.contains(m.id))
               .toList()
         : null;
+    final unseededBankAccounts = currentBankAccounts
+        ?.where((a) => !_seededBankAccountIds.contains(a.id))
+        .toList();
     final needsSeeding =
         (cardsNeedingSeed != null && cardsNeedingSeed.isNotEmpty) ||
-        (unseededManualInputs != null && unseededManualInputs.isNotEmpty);
+        (unseededManualInputs != null && unseededManualInputs.isNotEmpty) ||
+        (unseededBankAccounts != null && unseededBankAccounts.isNotEmpty);
     if (needsSeeding) {
       // Setting controller.text synchronously here would fire the field
       // listener (which calls setState) mid-build, which Flutter forbids —
@@ -572,6 +653,19 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
             }
             _isSeedingManualInput = false;
           }
+          if (unseededBankAccounts != null) {
+            _isSeedingBankAccount = true;
+            for (final account in unseededBankAccounts) {
+              final seedAmount = account.currentAvailableBalance;
+              if (seedAmount != null && seedAmount != 0) {
+                _bankAccountControllerFor(account).text = _formatAmount(
+                  seedAmount,
+                );
+              }
+              _seededBankAccountIds.add(account.id);
+            }
+            _isSeedingBankAccount = false;
+          }
         });
       });
     }
@@ -598,6 +692,7 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
         error: (e, st) => Center(child: Text('Error: $e')),
         data: (cards) {
           final manualInputs = currentManualInputs ?? const <ManualInput>[];
+          final bankAccounts = currentBankAccounts ?? const <BankAccount>[];
           final cardOwedAmounts = [
             for (final card in cards) _owedInDefaultCurrency(card, prices),
           ];
@@ -605,10 +700,15 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
             for (final input in manualInputs)
               _manualInputSignedAmount(input, prices),
           ];
+          final bankAccountAmounts = [
+            for (final account in bankAccounts)
+              _bankAccountAmount(account, prices),
+          ];
           final result = calculateCurrentMoney(
             ledgersTotal: ledgersTotal,
             cardOwedAmounts: cardOwedAmounts,
             manualInputAmounts: manualInputAmounts,
+            bankAccountAmounts: bankAccountAmounts,
             customItems: _customItems,
           );
 
@@ -675,6 +775,35 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
                             currency: input.currency,
                           ),
                           if (input != manualInputs.last)
+                            const SizedBox(height: 14),
+                        ],
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    _Section(
+                      title: 'Bank accounts',
+                      subtitle: bankAccounts.isEmpty
+                          ? 'No bank accounts yet — add one in Settings.'
+                          : null,
+                      trailing: IconButton(
+                        icon: const Icon(Icons.settings),
+                        tooltip: 'Manage bank accounts',
+                        onPressed: () => Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => const BankAccountsSettingsScreen(),
+                          ),
+                        ),
+                      ),
+                      children: [
+                        for (final account in bankAccounts) ...[
+                          _SignedAmountField(
+                            key: ValueKey('bank-${account.id}'),
+                            isAddition: true,
+                            label: '${account.name} · ${account.bank}',
+                            controller: _bankAccountControllerFor(account),
+                            currency: account.currency,
+                          ),
+                          if (account != bankAccounts.last)
                             const SizedBox(height: 14),
                         ],
                       ],
@@ -765,6 +894,7 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
                 ledgersTotal,
                 cardsAsync.value!,
                 currentManualInputs ?? const [],
+                currentBankAccounts ?? const [],
                 prices,
               ),
             )
