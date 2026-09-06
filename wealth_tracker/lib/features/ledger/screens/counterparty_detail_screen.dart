@@ -113,6 +113,10 @@ class CounterpartyDetailScreen extends ConsumerWidget {
                       Text(
                         hideValues
                             ? '••••••'
+                            : counterparty.isTab
+                            ? (balance >= 0
+                                  ? "You've paid more"
+                                  : '${counterparty.name} has paid more')
                             : (balance >= 0
                                   ? '${counterparty.name} owes you'
                                   : 'You owe ${counterparty.name}'),
@@ -131,7 +135,9 @@ class CounterpartyDetailScreen extends ConsumerWidget {
                               formatMoney(balance.abs(), defaultCurrency),
                               style: theme.textTheme.headlineSmall?.copyWith(
                                 fontWeight: FontWeight.w700,
-                                color: balance > 0 ? colors.bad : colors.good,
+                                color: counterparty.isTab
+                                    ? colors.textBody
+                                    : (balance > 0 ? colors.bad : colors.good),
                               ),
                               maskLength: 7,
                             ),

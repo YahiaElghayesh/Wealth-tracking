@@ -281,35 +281,53 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
     final controller = TextEditingController();
     var includeInStatistics = true;
     var includeInCalculator = true;
+    var isTab = false;
     final name = await showDialog<String>(
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
-          title: const Text('Add ledger'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: controller,
-                autofocus: true,
-                decoration: const InputDecoration(
-                  labelText: 'Name',
-                  hintText: 'e.g. Dad',
+          title: Text(isTab ? 'Add tab' : 'Add ledger'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                SegmentedButton<bool>(
+                  segments: const [
+                    ButtonSegment(value: false, label: Text('Ledger')),
+                    ButtonSegment(value: true, label: Text('Tab')),
+                  ],
+                  selected: {isTab},
+                  onSelectionChanged: (s) =>
+                      setDialogState(() => isTab = s.first),
                 ),
-              ),
-              SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                title: const Text('Include in Statistics'),
-                value: includeInStatistics,
-                onChanged: (v) => setDialogState(() => includeInStatistics = v),
-              ),
-              SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                title: const Text('Include in Calculator'),
-                value: includeInCalculator,
-                onChanged: (v) => setDialogState(() => includeInCalculator = v),
-              ),
-            ],
+                const SizedBox(height: 12),
+                TextField(
+                  controller: controller,
+                  autofocus: true,
+                  textCapitalization: TextCapitalization.sentences,
+                  decoration: const InputDecoration(
+                    labelText: 'Name',
+                    hintText: 'e.g. Dad',
+                  ),
+                ),
+                if (!isTab) ...[
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('Include in Statistics'),
+                    value: includeInStatistics,
+                    onChanged: (v) =>
+                        setDialogState(() => includeInStatistics = v),
+                  ),
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('Include in Calculator'),
+                    value: includeInCalculator,
+                    onChanged: (v) =>
+                        setDialogState(() => includeInCalculator = v),
+                  ),
+                ],
+              ],
+            ),
           ),
           actions: [
             TextButton(
@@ -332,6 +350,7 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
           name,
           includeInStatistics: includeInStatistics,
           includeInCalculator: includeInCalculator,
+          isTab: isTab,
         );
     if (mounted) setState(() => _counterpartyId = newId);
   }

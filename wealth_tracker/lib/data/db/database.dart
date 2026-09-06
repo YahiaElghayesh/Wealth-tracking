@@ -38,7 +38,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 25;
+  int get schemaVersion => 26;
 
   /// Public so `ProfileRepository.addProfile` can give a newly created
   /// profile the same starter categories a fresh install gets -- otherwise
@@ -396,6 +396,11 @@ class AppDatabase extends _$AppDatabase {
         // Ledgers gained a "show in Ledger list" toggle -- every existing
         // ledger defaults to visible, exactly how it already behaved.
         await m.addColumn(counterparties, counterparties.visible);
+      }
+      if (from < 26) {
+        // Ledgers and Tabs -- every existing counterparty defaults to
+        // false (a normal Ledger), exactly how it already behaved.
+        await m.addColumn(counterparties, counterparties.isTab);
       }
     },
     // The "Breakfast" quick-pick category was a voice-transcription

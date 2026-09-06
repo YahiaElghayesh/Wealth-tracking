@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/format/money_formatter.dart';
 import '../../../core/models/currency.dart';
 import '../../../core/providers/privacy_providers.dart';
+import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/hide_values_action.dart';
 import '../../../core/widgets/money_text.dart';
 import '../../../core/widgets/settings_action.dart';
@@ -23,45 +24,72 @@ class LedgerHomeScreen extends ConsumerWidget {
     var includeInStatistics = true;
     var includeInCalculator = true;
     var visible = true;
+    var isTab = false;
     final name = await showDialog<String>(
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
-          title: const Text('Add ledger'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: controller,
-                autofocus: true,
-                textCapitalization: TextCapitalization.sentences,
-                decoration: const InputDecoration(
-                  labelText: 'Name',
-                  hintText: 'e.g. Dad',
+          title: Text(isTab ? 'Add tab' : 'Add ledger'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                SegmentedButton<bool>(
+                  segments: const [
+                    ButtonSegment(value: false, label: Text('Ledger')),
+                    ButtonSegment(value: true, label: Text('Tab')),
+                  ],
+                  selected: {isTab},
+                  onSelectionChanged: (s) =>
+                      setDialogState(() => isTab = s.first),
                 ),
-              ),
-              SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                title: const Text('Include in Statistics'),
-                value: includeInStatistics,
-                onChanged: (v) => setDialogState(() => includeInStatistics = v),
-              ),
-              SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                title: const Text('Include in Calculator'),
-                value: includeInCalculator,
-                onChanged: (v) => setDialogState(() => includeInCalculator = v),
-              ),
-              SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                title: const Text('Show in ledger list'),
-                subtitle: const Text(
-                  'Turn off to hide it without deleting anything',
+                const SizedBox(height: 12),
+                TextField(
+                  controller: controller,
+                  autofocus: true,
+                  textCapitalization: TextCapitalization.sentences,
+                  decoration: const InputDecoration(
+                    labelText: 'Name',
+                    hintText: 'e.g. Dad',
+                  ),
                 ),
-                value: visible,
-                onChanged: (v) => setDialogState(() => visible = v),
-              ),
-            ],
+                if (!isTab) ...[
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('Include in Statistics'),
+                    value: includeInStatistics,
+                    onChanged: (v) =>
+                        setDialogState(() => includeInStatistics = v),
+                  ),
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('Include in Calculator'),
+                    value: includeInCalculator,
+                    onChanged: (v) =>
+                        setDialogState(() => includeInCalculator = v),
+                  ),
+                ] else
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    child: Text(
+                      "A tab is just a running record of payments back and "
+                      "forth -- it never counts toward Statistics or the "
+                      "Calculator, since it doesn't mean anyone owes anyone "
+                      "anything.",
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Show in list'),
+                  subtitle: const Text(
+                    'Turn off to hide it without deleting anything',
+                  ),
+                  value: visible,
+                  onChanged: (v) => setDialogState(() => visible = v),
+                ),
+              ],
+            ),
           ),
           actions: [
             TextButton(
@@ -84,6 +112,7 @@ class LedgerHomeScreen extends ConsumerWidget {
             includeInStatistics: includeInStatistics,
             includeInCalculator: includeInCalculator,
             visible: visible,
+            isTab: isTab,
           );
     }
   }
@@ -94,7 +123,7 @@ class LedgerHomeScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Debt Ledger'),
+        title: const Text('Ledgers and Tabs'),
         actions: [
           IconButton(
             icon: const Icon(Icons.add_to_home_screen_outlined),
@@ -114,7 +143,7 @@ class LedgerHomeScreen extends ConsumerWidget {
         data: (counterparties) {
           if (counterparties.isEmpty) {
             return const Center(
-              child: Text('Add a ledger to start tracking payments.'),
+              child: Text('Add a ledger or tab to start tracking payments.'),
             );
           }
           final visibleCounterparties = counterparties
@@ -124,7 +153,10 @@ class LedgerHomeScreen extends ConsumerWidget {
               .where((c) => !c.visible)
               .toList();
           return ListView(
-            padding: const EdgeInsets.all(16),
+            // Extra bottom clearance so the last row -- including the
+            // "Hidden ledgers" section once expanded -- never ends up
+            // sitting under the add FAB.
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 88),
             children: [
               ...visibleCounterparties.map(
                 (c) => _CounterpartyTile(counterparty: c),
@@ -143,11 +175,8 @@ class LedgerHomeScreen extends ConsumerWidget {
   }
 }
 
-/// The explicit "which ledger is this icon for?" prompt -- a per-row pin
-/// button (see `_CounterpartyTile`) already implies its own ledger by
-/// which row it's on, but this is the dedicated flow for someone who just
-/// wants to build up several pinned icons in one sitting without hunting
-/// through the list row by row. Stays open after each pin (showing a brief
+/// The explicit "which ledger is this icon for?" prompt, opened from this
+/// screen's own AppBar action. Stays open after each pin (showing a brief
 /// "pinned" state on that row) so tapping several ledgers in a row creates
 /// several icons without reopening the dialog each time.
 class _LedgerShortcutPickerDialog extends ConsumerStatefulWidget {
@@ -245,7 +274,7 @@ class _LedgerShortcutPickerDialogState
 
 /// Shared by [_CounterpartyTile] and [_HiddenLedgersSection] -- a hidden
 /// ledger's row reopens this exact dialog rather than a separate one, so
-/// switching "Show in ledger list" back on is the same flow either way.
+/// switching "Show in list" back on is the same flow either way.
 Future<void> _editCounterparty(
   BuildContext context,
   WidgetRef ref,
@@ -255,42 +284,69 @@ Future<void> _editCounterparty(
   var includeInStatistics = counterparty.includeInStatistics;
   var includeInCalculator = counterparty.includeInCalculator;
   var visible = counterparty.visible;
+  var isTab = counterparty.isTab;
   final save = await showDialog<bool>(
     context: context,
     builder: (context) => StatefulBuilder(
       builder: (context, setDialogState) => AlertDialog(
-        title: const Text('Edit ledger'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: controller,
-              autofocus: true,
-              textCapitalization: TextCapitalization.sentences,
-              decoration: const InputDecoration(labelText: 'Name'),
-            ),
-            SwitchListTile(
-              contentPadding: EdgeInsets.zero,
-              title: const Text('Include in Statistics'),
-              value: includeInStatistics,
-              onChanged: (v) => setDialogState(() => includeInStatistics = v),
-            ),
-            SwitchListTile(
-              contentPadding: EdgeInsets.zero,
-              title: const Text('Include in Calculator'),
-              value: includeInCalculator,
-              onChanged: (v) => setDialogState(() => includeInCalculator = v),
-            ),
-            SwitchListTile(
-              contentPadding: EdgeInsets.zero,
-              title: const Text('Show in ledger list'),
-              subtitle: const Text(
-                'Turn off to hide it without deleting anything',
+        title: Text(isTab ? 'Edit tab' : 'Edit ledger'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SegmentedButton<bool>(
+                segments: const [
+                  ButtonSegment(value: false, label: Text('Ledger')),
+                  ButtonSegment(value: true, label: Text('Tab')),
+                ],
+                selected: {isTab},
+                onSelectionChanged: (s) =>
+                    setDialogState(() => isTab = s.first),
               ),
-              value: visible,
-              onChanged: (v) => setDialogState(() => visible = v),
-            ),
-          ],
+              const SizedBox(height: 12),
+              TextField(
+                controller: controller,
+                autofocus: true,
+                textCapitalization: TextCapitalization.sentences,
+                decoration: const InputDecoration(labelText: 'Name'),
+              ),
+              if (!isTab) ...[
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Include in Statistics'),
+                  value: includeInStatistics,
+                  onChanged: (v) =>
+                      setDialogState(() => includeInStatistics = v),
+                ),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Include in Calculator'),
+                  value: includeInCalculator,
+                  onChanged: (v) =>
+                      setDialogState(() => includeInCalculator = v),
+                ),
+              ] else
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  child: Text(
+                    "A tab is just a running record of payments back and "
+                    "forth -- it never counts toward Statistics or the "
+                    "Calculator, since it doesn't mean anyone owes anyone "
+                    "anything.",
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                ),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Show in list'),
+                subtitle: const Text(
+                  'Turn off to hide it without deleting anything',
+                ),
+                value: visible,
+                onChanged: (v) => setDialogState(() => visible = v),
+              ),
+            ],
+          ),
         ),
         actions: [
           TextButton(
@@ -315,6 +371,7 @@ Future<void> _editCounterparty(
             includeInStatistics: includeInStatistics,
             includeInCalculator: includeInCalculator,
             visible: visible,
+            isTab: isTab,
           ),
         );
   }
@@ -325,35 +382,12 @@ class _CounterpartyTile extends ConsumerWidget {
 
   final Counterparty counterparty;
 
-  /// Requests a pinned home-screen shortcut for this specific ledger --
-  /// see ledger_shortcut_channel.dart / LedgerShortcuts.kt. A user can tap
-  /// this on as many ledger rows as they want, building up one icon per
-  /// ledger, each opening straight to that ledger's add-payment form
-  /// instead of the "which ledger?" picker a single generic shortcut can't
-  /// avoid.
-  Future<void> _pinShortcut(BuildContext context) async {
-    final messenger = ScaffoldMessenger.of(context);
-    final requested = await pinLedgerShortcut(
-      counterpartyId: counterparty.id,
-      name: counterparty.name,
-    );
-    messenger.showSnackBar(
-      SnackBar(
-        content: Text(
-          requested
-              ? 'Check your home screen to confirm adding "${counterparty.name}".'
-              : "Couldn't request a home-screen icon on this device.",
-        ),
-      ),
-    );
-  }
-
   Future<bool> _confirmDelete(BuildContext context, WidgetRef ref) async {
     final confirmed =
         await showDialog<bool>(
           context: context,
           builder: (context) => AlertDialog(
-            title: const Text('Delete ledger?'),
+            title: Text(counterparty.isTab ? 'Delete tab?' : 'Delete ledger?'),
             content: Text(
               'This removes "${counterparty.name}" and every payment recorded against it. This can\'t be undone.',
             ),
@@ -424,8 +458,12 @@ class _CounterpartyTile extends ConsumerWidget {
               children: [
                 Row(
                   children: [
-                    const CircleAvatar(
-                      child: Icon(Icons.account_balance_wallet_outlined),
+                    CircleAvatar(
+                      child: Icon(
+                        counterparty.isTab
+                            ? Icons.swap_horiz
+                            : Icons.account_balance_wallet_outlined,
+                      ),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
@@ -437,26 +475,26 @@ class _CounterpartyTile extends ConsumerWidget {
                       ),
                     ),
                     IconButton(
-                      icon: const Icon(
-                        Icons.add_to_home_screen_outlined,
-                        size: 20,
-                      ),
-                      tooltip: 'Pin to home screen',
-                      onPressed: () => _pinShortcut(context),
-                    ),
-                    IconButton(
                       icon: const Icon(Icons.edit_outlined, size: 20),
                       tooltip: 'Edit',
                       onPressed: () =>
                           _editCounterparty(context, ref, counterparty),
                     ),
-                    const Icon(Icons.chevron_right),
+                    IconButton(
+                      icon: const Icon(Icons.visibility_off_outlined, size: 20),
+                      tooltip: 'Hide from list',
+                      onPressed: () => ref
+                          .read(ledgerRepositoryProvider)
+                          .updateCounterparty(
+                            counterparty.copyWith(visible: false),
+                          ),
+                    ),
                   ],
                 ),
                 // The balance gets its own full-width row below the name
                 // instead of squeezing into a ListTile subtitle next to
-                // three trailing icons -- that left barely any room for
-                // the amount, ellipsis-truncating a real balance like
+                // trailing icons -- that left barely any room for the
+                // amount, ellipsis-truncating a real balance like
                 // "13,976.00" down to "13,9…" and making it unreadable.
                 if (!hideValues) ...[
                   const SizedBox(height: 4),
@@ -468,12 +506,23 @@ class _CounterpartyTile extends ConsumerWidget {
                         ? const Text('Settled up')
                         : Row(
                             children: [
-                              Text(balance > 0 ? 'Owes you ' : 'You owe '),
+                              Text(
+                                counterparty.isTab
+                                    ? (balance > 0
+                                          ? "You've paid more, by "
+                                          : "They've paid more, by ")
+                                    : (balance > 0 ? 'Owes you ' : 'You owe '),
+                              ),
                               Flexible(
                                 child: MoneyText(
                                   formatMoney(balance.abs(), defaultCurrency),
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
+                                  style: counterparty.isTab
+                                      ? TextStyle(
+                                          color: context.appColors.textBody,
+                                        )
+                                      : null,
                                 ),
                               ),
                             ],
@@ -489,12 +538,13 @@ class _CounterpartyTile extends ConsumerWidget {
   }
 }
 
-/// A collapsed-by-default "Hidden ledgers (N)" row at the end of the list --
-/// the only way to find and re-show a ledger whose "Show in ledger list"
-/// switch (see `_edit`/`_addCounterparty`) is off, since a hidden ledger is
-/// otherwise nowhere in the main list at all. Tapping a hidden ledger here
-/// still opens the normal Edit dialog, so switching it back on is a single
-/// flip away, same as turning it off in the first place.
+/// A collapsed-by-default "Hidden (N)" row at the end of the list -- the
+/// only way to find and re-show a ledger or tab whose "Show in list"
+/// switch (see `_editCounterparty`/`_addCounterparty`) is off, since a
+/// hidden one is otherwise nowhere in the main list at all. Tapping a
+/// hidden row here still opens the normal Edit dialog, so switching it
+/// back on is a single flip away, same as turning it off in the first
+/// place.
 class _HiddenLedgersSection extends ConsumerStatefulWidget {
   const _HiddenLedgersSection({required this.counterparties});
 
@@ -517,20 +567,24 @@ class _HiddenLedgersSectionState extends ConsumerState<_HiddenLedgersSection> {
         children: [
           ListTile(
             leading: const Icon(Icons.visibility_off_outlined),
-            title: Text('Hidden ledgers (${widget.counterparties.length})'),
+            title: Text('Hidden (${widget.counterparties.length})'),
             trailing: Icon(_expanded ? Icons.expand_less : Icons.expand_more),
             onTap: () => setState(() => _expanded = !_expanded),
           ),
           if (_expanded)
             for (final counterparty in widget.counterparties)
               ListTile(
-                leading: const CircleAvatar(
-                  child: Icon(Icons.account_balance_wallet_outlined),
+                leading: CircleAvatar(
+                  child: Icon(
+                    counterparty.isTab
+                        ? Icons.swap_horiz
+                        : Icons.account_balance_wallet_outlined,
+                  ),
                 ),
                 title: Text(counterparty.name),
                 trailing: IconButton(
                   icon: const Icon(Icons.visibility_outlined),
-                  tooltip: 'Show in ledger list',
+                  tooltip: 'Show in list',
                   onPressed: () => ref
                       .read(ledgerRepositoryProvider)
                       .updateCounterparty(counterparty.copyWith(visible: true)),

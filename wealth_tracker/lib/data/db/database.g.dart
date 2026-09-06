@@ -1510,6 +1510,19 @@ class $CounterpartiesTable extends Counterparties
     ),
     defaultValue: const Constant(true),
   );
+  static const VerificationMeta _isTabMeta = const VerificationMeta('isTab');
+  @override
+  late final GeneratedColumn<bool> isTab = GeneratedColumn<bool>(
+    'is_tab',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("is_tab" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
   static const VerificationMeta _profileIdMeta = const VerificationMeta(
     'profileId',
   );
@@ -1531,6 +1544,7 @@ class $CounterpartiesTable extends Counterparties
     includeInStatistics,
     includeInCalculator,
     visible,
+    isTab,
     profileId,
   ];
   @override
@@ -1582,6 +1596,12 @@ class $CounterpartiesTable extends Counterparties
         visible.isAcceptableOrUnknown(data['visible']!, _visibleMeta),
       );
     }
+    if (data.containsKey('is_tab')) {
+      context.handle(
+        _isTabMeta,
+        isTab.isAcceptableOrUnknown(data['is_tab']!, _isTabMeta),
+      );
+    }
     if (data.containsKey('profile_id')) {
       context.handle(
         _profileIdMeta,
@@ -1617,6 +1637,10 @@ class $CounterpartiesTable extends Counterparties
         DriftSqlType.bool,
         data['${effectivePrefix}visible'],
       )!,
+      isTab: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}is_tab'],
+      )!,
       profileId: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}profile_id'],
@@ -1651,6 +1675,16 @@ class Counterparty extends DataClass implements Insertable<Counterparty> {
   /// main list until switched back (see the Ledger tab's own "Hidden
   /// ledgers" section for how to find one again).
   final bool visible;
+
+  /// A Tab is the same row-per-payment recording as a Ledger, but never
+  /// represents anyone owing anyone anything -- it's just a running log of
+  /// money going back and forth (e.g. a shared trip or a running tab with
+  /// a friend). Defaults to false so every existing counterparty stays a
+  /// normal Ledger. A Tab is always kept out of Statistics and the
+  /// Calculator's liquid-cash total regardless of the two flags above --
+  /// see `LedgerRepository.addCounterparty`/`updateCounterparty`, which
+  /// enforce that even if a caller tries to pass true for either.
+  final bool isTab;
   final String? profileId;
   const Counterparty({
     required this.id,
@@ -1658,6 +1692,7 @@ class Counterparty extends DataClass implements Insertable<Counterparty> {
     required this.includeInStatistics,
     required this.includeInCalculator,
     required this.visible,
+    required this.isTab,
     this.profileId,
   });
   @override
@@ -1668,6 +1703,7 @@ class Counterparty extends DataClass implements Insertable<Counterparty> {
     map['include_in_statistics'] = Variable<bool>(includeInStatistics);
     map['include_in_calculator'] = Variable<bool>(includeInCalculator);
     map['visible'] = Variable<bool>(visible);
+    map['is_tab'] = Variable<bool>(isTab);
     if (!nullToAbsent || profileId != null) {
       map['profile_id'] = Variable<String>(profileId);
     }
@@ -1681,6 +1717,7 @@ class Counterparty extends DataClass implements Insertable<Counterparty> {
       includeInStatistics: Value(includeInStatistics),
       includeInCalculator: Value(includeInCalculator),
       visible: Value(visible),
+      isTab: Value(isTab),
       profileId: profileId == null && nullToAbsent
           ? const Value.absent()
           : Value(profileId),
@@ -1702,6 +1739,7 @@ class Counterparty extends DataClass implements Insertable<Counterparty> {
         json['includeInCalculator'],
       ),
       visible: serializer.fromJson<bool>(json['visible']),
+      isTab: serializer.fromJson<bool>(json['isTab']),
       profileId: serializer.fromJson<String?>(json['profileId']),
     );
   }
@@ -1714,6 +1752,7 @@ class Counterparty extends DataClass implements Insertable<Counterparty> {
       'includeInStatistics': serializer.toJson<bool>(includeInStatistics),
       'includeInCalculator': serializer.toJson<bool>(includeInCalculator),
       'visible': serializer.toJson<bool>(visible),
+      'isTab': serializer.toJson<bool>(isTab),
       'profileId': serializer.toJson<String?>(profileId),
     };
   }
@@ -1724,6 +1763,7 @@ class Counterparty extends DataClass implements Insertable<Counterparty> {
     bool? includeInStatistics,
     bool? includeInCalculator,
     bool? visible,
+    bool? isTab,
     Value<String?> profileId = const Value.absent(),
   }) => Counterparty(
     id: id ?? this.id,
@@ -1731,6 +1771,7 @@ class Counterparty extends DataClass implements Insertable<Counterparty> {
     includeInStatistics: includeInStatistics ?? this.includeInStatistics,
     includeInCalculator: includeInCalculator ?? this.includeInCalculator,
     visible: visible ?? this.visible,
+    isTab: isTab ?? this.isTab,
     profileId: profileId.present ? profileId.value : this.profileId,
   );
   Counterparty copyWithCompanion(CounterpartiesCompanion data) {
@@ -1744,6 +1785,7 @@ class Counterparty extends DataClass implements Insertable<Counterparty> {
           ? data.includeInCalculator.value
           : this.includeInCalculator,
       visible: data.visible.present ? data.visible.value : this.visible,
+      isTab: data.isTab.present ? data.isTab.value : this.isTab,
       profileId: data.profileId.present ? data.profileId.value : this.profileId,
     );
   }
@@ -1756,6 +1798,7 @@ class Counterparty extends DataClass implements Insertable<Counterparty> {
           ..write('includeInStatistics: $includeInStatistics, ')
           ..write('includeInCalculator: $includeInCalculator, ')
           ..write('visible: $visible, ')
+          ..write('isTab: $isTab, ')
           ..write('profileId: $profileId')
           ..write(')'))
         .toString();
@@ -1768,6 +1811,7 @@ class Counterparty extends DataClass implements Insertable<Counterparty> {
     includeInStatistics,
     includeInCalculator,
     visible,
+    isTab,
     profileId,
   );
   @override
@@ -1779,6 +1823,7 @@ class Counterparty extends DataClass implements Insertable<Counterparty> {
           other.includeInStatistics == this.includeInStatistics &&
           other.includeInCalculator == this.includeInCalculator &&
           other.visible == this.visible &&
+          other.isTab == this.isTab &&
           other.profileId == this.profileId);
 }
 
@@ -1788,6 +1833,7 @@ class CounterpartiesCompanion extends UpdateCompanion<Counterparty> {
   final Value<bool> includeInStatistics;
   final Value<bool> includeInCalculator;
   final Value<bool> visible;
+  final Value<bool> isTab;
   final Value<String?> profileId;
   final Value<int> rowid;
   const CounterpartiesCompanion({
@@ -1796,6 +1842,7 @@ class CounterpartiesCompanion extends UpdateCompanion<Counterparty> {
     this.includeInStatistics = const Value.absent(),
     this.includeInCalculator = const Value.absent(),
     this.visible = const Value.absent(),
+    this.isTab = const Value.absent(),
     this.profileId = const Value.absent(),
     this.rowid = const Value.absent(),
   });
@@ -1805,6 +1852,7 @@ class CounterpartiesCompanion extends UpdateCompanion<Counterparty> {
     this.includeInStatistics = const Value.absent(),
     this.includeInCalculator = const Value.absent(),
     this.visible = const Value.absent(),
+    this.isTab = const Value.absent(),
     this.profileId = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
@@ -1815,6 +1863,7 @@ class CounterpartiesCompanion extends UpdateCompanion<Counterparty> {
     Expression<bool>? includeInStatistics,
     Expression<bool>? includeInCalculator,
     Expression<bool>? visible,
+    Expression<bool>? isTab,
     Expression<String>? profileId,
     Expression<int>? rowid,
   }) {
@@ -1826,6 +1875,7 @@ class CounterpartiesCompanion extends UpdateCompanion<Counterparty> {
       if (includeInCalculator != null)
         'include_in_calculator': includeInCalculator,
       if (visible != null) 'visible': visible,
+      if (isTab != null) 'is_tab': isTab,
       if (profileId != null) 'profile_id': profileId,
       if (rowid != null) 'rowid': rowid,
     });
@@ -1837,6 +1887,7 @@ class CounterpartiesCompanion extends UpdateCompanion<Counterparty> {
     Value<bool>? includeInStatistics,
     Value<bool>? includeInCalculator,
     Value<bool>? visible,
+    Value<bool>? isTab,
     Value<String?>? profileId,
     Value<int>? rowid,
   }) {
@@ -1846,6 +1897,7 @@ class CounterpartiesCompanion extends UpdateCompanion<Counterparty> {
       includeInStatistics: includeInStatistics ?? this.includeInStatistics,
       includeInCalculator: includeInCalculator ?? this.includeInCalculator,
       visible: visible ?? this.visible,
+      isTab: isTab ?? this.isTab,
       profileId: profileId ?? this.profileId,
       rowid: rowid ?? this.rowid,
     );
@@ -1869,6 +1921,9 @@ class CounterpartiesCompanion extends UpdateCompanion<Counterparty> {
     if (visible.present) {
       map['visible'] = Variable<bool>(visible.value);
     }
+    if (isTab.present) {
+      map['is_tab'] = Variable<bool>(isTab.value);
+    }
     if (profileId.present) {
       map['profile_id'] = Variable<String>(profileId.value);
     }
@@ -1886,6 +1941,7 @@ class CounterpartiesCompanion extends UpdateCompanion<Counterparty> {
           ..write('includeInStatistics: $includeInStatistics, ')
           ..write('includeInCalculator: $includeInCalculator, ')
           ..write('visible: $visible, ')
+          ..write('isTab: $isTab, ')
           ..write('profileId: $profileId, ')
           ..write('rowid: $rowid')
           ..write(')'))
@@ -9532,6 +9588,7 @@ typedef $$CounterpartiesTableCreateCompanionBuilder =
       Value<bool> includeInStatistics,
       Value<bool> includeInCalculator,
       Value<bool> visible,
+      Value<bool> isTab,
       Value<String?> profileId,
       Value<int> rowid,
     });
@@ -9542,6 +9599,7 @@ typedef $$CounterpartiesTableUpdateCompanionBuilder =
       Value<bool> includeInStatistics,
       Value<bool> includeInCalculator,
       Value<bool> visible,
+      Value<bool> isTab,
       Value<String?> profileId,
       Value<int> rowid,
     });
@@ -9642,6 +9700,11 @@ class $$CounterpartiesTableFilterComposer
 
   ColumnFilters<bool> get visible => $composableBuilder(
     column: $table.visible,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get isTab => $composableBuilder(
+    column: $table.isTab,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -9753,6 +9816,11 @@ class $$CounterpartiesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<bool> get isTab => $composableBuilder(
+    column: $table.isTab,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   $$ProfilesTableOrderingComposer get profileId {
     final $$ProfilesTableOrderingComposer composer = $composerBuilder(
       composer: this,
@@ -9804,6 +9872,9 @@ class $$CounterpartiesTableAnnotationComposer
 
   GeneratedColumn<bool> get visible =>
       $composableBuilder(column: $table.visible, builder: (column) => column);
+
+  GeneratedColumn<bool> get isTab =>
+      $composableBuilder(column: $table.isTab, builder: (column) => column);
 
   $$ProfilesTableAnnotationComposer get profileId {
     final $$ProfilesTableAnnotationComposer composer = $composerBuilder(
@@ -9919,6 +9990,7 @@ class $$CounterpartiesTableTableManager
                 Value<bool> includeInStatistics = const Value.absent(),
                 Value<bool> includeInCalculator = const Value.absent(),
                 Value<bool> visible = const Value.absent(),
+                Value<bool> isTab = const Value.absent(),
                 Value<String?> profileId = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => CounterpartiesCompanion(
@@ -9927,6 +9999,7 @@ class $$CounterpartiesTableTableManager
                 includeInStatistics: includeInStatistics,
                 includeInCalculator: includeInCalculator,
                 visible: visible,
+                isTab: isTab,
                 profileId: profileId,
                 rowid: rowid,
               ),
@@ -9937,6 +10010,7 @@ class $$CounterpartiesTableTableManager
                 Value<bool> includeInStatistics = const Value.absent(),
                 Value<bool> includeInCalculator = const Value.absent(),
                 Value<bool> visible = const Value.absent(),
+                Value<bool> isTab = const Value.absent(),
                 Value<String?> profileId = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => CounterpartiesCompanion.insert(
@@ -9945,6 +10019,7 @@ class $$CounterpartiesTableTableManager
                 includeInStatistics: includeInStatistics,
                 includeInCalculator: includeInCalculator,
                 visible: visible,
+                isTab: isTab,
                 profileId: profileId,
                 rowid: rowid,
               ),

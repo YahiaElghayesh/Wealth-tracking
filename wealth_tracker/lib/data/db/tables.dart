@@ -103,6 +103,16 @@ class Counterparties extends Table {
   /// ledgers" section for how to find one again).
   BoolColumn get visible => boolean().withDefault(const Constant(true))();
 
+  /// A Tab is the same row-per-payment recording as a Ledger, but never
+  /// represents anyone owing anyone anything -- it's just a running log of
+  /// money going back and forth (e.g. a shared trip or a running tab with
+  /// a friend). Defaults to false so every existing counterparty stays a
+  /// normal Ledger. A Tab is always kept out of Statistics and the
+  /// Calculator's liquid-cash total regardless of the two flags above --
+  /// see `LedgerRepository.addCounterparty`/`updateCounterparty`, which
+  /// enforce that even if a caller tries to pass true for either.
+  BoolColumn get isTab => boolean().withDefault(const Constant(false))();
+
   TextColumn get profileId => text().nullable().references(Profiles, #id)();
 
   @override

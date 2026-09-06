@@ -29,17 +29,23 @@ class LedgerRepository {
     bool includeInStatistics = true,
     bool includeInCalculator = true,
     bool visible = true,
+    bool isTab = false,
   }) async {
     final id = _uuid.v4();
+    // A Tab never represents anyone owing anyone anything, so it can never
+    // be included in Statistics or the Calculator's liquid-cash total --
+    // enforced here rather than trusted to whatever the caller passed, so
+    // this can't drift out of sync with a UI toggle down the line.
     await _db
         .into(_db.counterparties)
         .insert(
           CounterpartiesCompanion.insert(
             id: id,
             name: name,
-            includeInStatistics: Value(includeInStatistics),
-            includeInCalculator: Value(includeInCalculator),
+            includeInStatistics: Value(!isTab && includeInStatistics),
+            includeInCalculator: Value(!isTab && includeInCalculator),
             visible: Value(visible),
+            isTab: Value(isTab),
             profileId: Value(profileId),
           ),
         );
@@ -54,7 +60,13 @@ class LedgerRepository {
   }
 
   Future<void> updateCounterparty(Counterparty counterparty) {
-    return _db.update(_db.counterparties).replace(counterparty);
+    final normalized = counterparty.isTab
+        ? counterparty.copyWith(
+            includeInStatistics: false,
+            includeInCalculator: false,
+          )
+        : counterparty;
+    return _db.update(_db.counterparties).replace(normalized);
   }
 
   Stream<List<LedgerTransaction>> watchTransactions(String counterpartyId) {
