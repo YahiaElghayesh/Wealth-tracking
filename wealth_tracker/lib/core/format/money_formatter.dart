@@ -41,6 +41,22 @@ String formatCurrencyWhole(double value, String currencyCode) {
   }
 }
 
+/// Exact, unrounded counterpart to [formatCurrencyWhole] -- [formatEgp]/
+/// [formatUsd]'s own symbol-based formatting for EGP/USD, [formatMoney]
+/// for anything else. Recurring payments are entered to the cent (e.g.
+/// "22.80"), so rounding that display down to "23" showed a different
+/// number than what was actually typed in and saved.
+String formatCurrencyExact(double value, String currencyCode) {
+  switch (currencyCode) {
+    case 'EGP':
+      return formatEgp(value);
+    case 'USD':
+      return formatUsd(value);
+    default:
+      return formatMoney(value, currencyCode);
+  }
+}
+
 /// K/M-abbreviated form for space-constrained spots (the home-screen
 /// widget's liquid/non-liquid rows) — "E£1.25M" / "$103.4K" instead of the
 /// full "EGP 1,250,000.00" / "$103,400.00", matching the mockup's `.wv`

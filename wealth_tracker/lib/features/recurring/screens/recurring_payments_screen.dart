@@ -729,7 +729,7 @@ class _RecurringPaymentTile extends ConsumerWidget {
                       crossAxisAlignment: CrossAxisAlignment.end,
                       children: [
                         MoneyText(
-                          formatCurrencyWhole(
+                          formatCurrencyExact(
                             dualAmount.nativeAmount,
                             dualAmount.nativeCurrency,
                           ),
@@ -741,7 +741,7 @@ class _RecurringPaymentTile extends ConsumerWidget {
                         MoneyText(
                           dualAmount.convertedAmount == null
                               ? '—'
-                              : '≈ ${formatCurrencyWhole(dualAmount.convertedAmount!, dualAmount.convertedCurrency)}',
+                              : '≈ ${formatCurrencyExact(dualAmount.convertedAmount!, dualAmount.convertedCurrency)}',
                           style: theme.textTheme.labelSmall?.copyWith(
                             color: colors.textDim,
                           ),
