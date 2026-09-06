@@ -583,7 +583,11 @@ class _HiddenLedgersSectionState extends ConsumerState<_HiddenLedgersSection> {
           ),
           if (_expanded)
             Padding(
-              padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
+              // No horizontal inset -- the ListView this section itself
+              // sits in already provides that, and adding more here just
+              // narrows these tiles below their normal width, truncating
+              // a currency code that fits everywhere else.
+              padding: const EdgeInsets.only(bottom: 4),
               child: Column(
                 children: [
                   for (final counterparty in widget.counterparties)
