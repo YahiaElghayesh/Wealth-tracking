@@ -1004,42 +1004,46 @@ class _ProfileSwitcherAction extends ConsumerWidget {
     await showModalBottomSheet<void>(
       context: context,
       builder: (sheetContext) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Padding(
-              padding: EdgeInsets.fromLTRB(16, 16, 16, 4),
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: Text('Switch profile'),
-              ),
-            ),
-            for (final profile in profiles)
-              ListTile(
-                leading: CircleAvatar(
-                  child: Text(
-                    profile.name.isEmpty ? '?' : profile.name[0].toUpperCase(),
-                  ),
+        // Scrollable so a longer profile list degrades to scrolling
+        // instead of overflowing off the bottom of a short screen.
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Padding(
+                padding: EdgeInsets.fromLTRB(16, 16, 16, 4),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text('Switch profile'),
                 ),
-                title: Text(profile.name),
-                trailing: profile.id == activeId
-                    ? const Icon(Icons.check)
-                    : null,
-                onTap: () => _switchTo(sheetContext, ref, profile.id),
               ),
-            ListTile(
-              leading: const Icon(Icons.settings_outlined),
-              title: const Text('Manage profiles'),
-              onTap: () {
-                Navigator.pop(sheetContext);
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => const ProfilesSettingsScreen(),
+              for (final profile in profiles)
+                ListTile(
+                  leading: CircleAvatar(
+                    child: Text(
+                      profile.name.isEmpty ? '?' : profile.name[0].toUpperCase(),
+                    ),
                   ),
-                );
-              },
-            ),
-          ],
+                  title: Text(profile.name),
+                  trailing: profile.id == activeId
+                      ? const Icon(Icons.check)
+                      : null,
+                  onTap: () => _switchTo(sheetContext, ref, profile.id),
+                ),
+              ListTile(
+                leading: const Icon(Icons.settings_outlined),
+                title: const Text('Manage profiles'),
+                onTap: () {
+                  Navigator.pop(sheetContext);
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => const ProfilesSettingsScreen(),
+                    ),
+                  );
+                },
+              ),
+            ],
+          ),
         ),
       ),
     );

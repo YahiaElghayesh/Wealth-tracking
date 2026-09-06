@@ -223,43 +223,47 @@ class _LedgerShortcutPickerDialogState
         width: double.maxFinite,
         child: counterparties.isEmpty
             ? const Text('Add a ledger first.')
-            : Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Padding(
-                    padding: EdgeInsets.only(bottom: 8),
-                    child: Align(
-                      alignment: Alignment.centerLeft,
-                      child: Text(
-                        'Which ledger should this icon open straight to?',
-                      ),
-                    ),
-                  ),
-                  for (final counterparty in counterparties)
-                    ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      leading: CircleAvatar(
+            : SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Padding(
+                      padding: EdgeInsets.only(bottom: 8),
+                      child: Align(
+                        alignment: Alignment.centerLeft,
                         child: Text(
-                          counterparty.name.isEmpty
-                              ? '?'
-                              : counterparty.name[0].toUpperCase(),
+                          'Which ledger should this icon open straight to?',
                         ),
                       ),
-                      title: Text(counterparty.name),
-                      trailing: _pinning.contains(counterparty.id)
-                          ? const SizedBox(
-                              width: 20,
-                              height: 20,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : _pinned.contains(counterparty.id)
-                          ? const Icon(Icons.check_circle)
-                          : const Icon(Icons.add_to_home_screen_outlined),
-                      onTap: _pinning.contains(counterparty.id)
-                          ? null
-                          : () => _pin(counterparty),
                     ),
-                ],
+                    for (final counterparty in counterparties)
+                      ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        leading: CircleAvatar(
+                          child: Text(
+                            counterparty.name.isEmpty
+                                ? '?'
+                                : counterparty.name[0].toUpperCase(),
+                          ),
+                        ),
+                        title: Text(counterparty.name),
+                        trailing: _pinning.contains(counterparty.id)
+                            ? const SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : _pinned.contains(counterparty.id)
+                            ? const Icon(Icons.check_circle)
+                            : const Icon(Icons.add_to_home_screen_outlined),
+                        onTap: _pinning.contains(counterparty.id)
+                            ? null
+                            : () => _pin(counterparty),
+                      ),
+                  ],
+                ),
               ),
       ),
       actions: [

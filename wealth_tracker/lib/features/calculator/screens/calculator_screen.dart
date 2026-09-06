@@ -349,36 +349,38 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
       builder: (context) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
           title: const Text('Add item'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: labelController,
-                textCapitalization: TextCapitalization.sentences,
-                decoration: const InputDecoration(labelText: 'What is it?'),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: amountController,
-                decoration: const InputDecoration(
-                  labelText: 'Amount',
-                  hintText: '0.00',
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: labelController,
+                  textCapitalization: TextCapitalization.sentences,
+                  decoration: const InputDecoration(labelText: 'What is it?'),
                 ),
-                keyboardType: const TextInputType.numberWithOptions(
-                  decimal: true,
+                const SizedBox(height: 12),
+                TextField(
+                  controller: amountController,
+                  decoration: const InputDecoration(
+                    labelText: 'Amount',
+                    hintText: '0.00',
+                  ),
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 12),
-              SegmentedButton<bool>(
-                segments: const [
-                  ButtonSegment(value: true, label: Text('Add (+)')),
-                  ButtonSegment(value: false, label: Text('Subtract (−)')),
-                ],
-                selected: {isAddition},
-                onSelectionChanged: (s) =>
-                    setDialogState(() => isAddition = s.first),
-              ),
-            ],
+                const SizedBox(height: 12),
+                SegmentedButton<bool>(
+                  segments: const [
+                    ButtonSegment(value: true, label: Text('Add (+)')),
+                    ButtonSegment(value: false, label: Text('Subtract (−)')),
+                  ],
+                  selected: {isAddition},
+                  onSelectionChanged: (s) =>
+                      setDialogState(() => isAddition = s.first),
+                ),
+              ],
+            ),
           ),
           actions: [
             TextButton(
@@ -1219,32 +1221,34 @@ Future<double?> _showAdjustDialog(BuildContext context, String currency) {
     builder: (context) => StatefulBuilder(
       builder: (context, setDialogState) => AlertDialog(
         title: const Text('Add or subtract'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: amountController,
-              autofocus: true,
-              decoration: InputDecoration(
-                labelText: 'Amount',
-                hintText: '0.00',
-                suffixText: currency,
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: amountController,
+                autofocus: true,
+                decoration: InputDecoration(
+                  labelText: 'Amount',
+                  hintText: '0.00',
+                  suffixText: currency,
+                ),
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
               ),
-              keyboardType: const TextInputType.numberWithOptions(
-                decimal: true,
+              const SizedBox(height: 12),
+              SegmentedButton<bool>(
+                segments: const [
+                  ButtonSegment(value: true, label: Text('Add (+)')),
+                  ButtonSegment(value: false, label: Text('Subtract (−)')),
+                ],
+                selected: {isAddition},
+                onSelectionChanged: (s) =>
+                    setDialogState(() => isAddition = s.first),
               ),
-            ),
-            const SizedBox(height: 12),
-            SegmentedButton<bool>(
-              segments: const [
-                ButtonSegment(value: true, label: Text('Add (+)')),
-                ButtonSegment(value: false, label: Text('Subtract (−)')),
-              ],
-              selected: {isAddition},
-              onSelectionChanged: (s) =>
-                  setDialogState(() => isAddition = s.first),
-            ),
-          ],
+            ],
+          ),
         ),
         actions: [
           TextButton(

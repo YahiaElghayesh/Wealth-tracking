@@ -71,36 +71,43 @@ class LedgerCategoriesSettingsScreen extends ConsumerWidget {
       builder: (context) => SafeArea(
         child: Padding(
           padding: const EdgeInsets.fromLTRB(16, 10, 16, 20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Center(
-                child: Container(
-                  width: 36,
-                  height: 4,
-                  margin: const EdgeInsets.only(bottom: 14),
-                  decoration: BoxDecoration(color: colors.border, borderRadius: BorderRadius.circular(99)),
+          // Scrollable so a short screen (or a future longer icon list)
+          // degrades to scrolling instead of overflowing -- the grid on
+          // its own has no bounded height and mainAxisSize.min just sizes
+          // this column to its content regardless of what actually fits.
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 36,
+                    height: 4,
+                    margin: const EdgeInsets.only(bottom: 14),
+                    decoration: BoxDecoration(color: colors.border, borderRadius: BorderRadius.circular(99)),
+                  ),
                 ),
-              ),
-              Text('Choose an icon', style: Theme.of(context).textTheme.titleMedium),
-              Text(category.name, style: Theme.of(context).textTheme.bodySmall?.copyWith(color: colors.textDim)),
-              const SizedBox(height: 14),
-              GridView.count(
-                shrinkWrap: true,
-                crossAxisCount: 6,
-                mainAxisSpacing: 8,
-                crossAxisSpacing: 8,
-                children: [
-                  for (final option in categoryIconOptions)
-                    _IconOption(
-                      emoji: option,
-                      selected: option == category.icon,
-                      onTap: () => Navigator.pop(context, option),
-                    ),
-                ],
-              ),
-            ],
+                Text('Choose an icon', style: Theme.of(context).textTheme.titleMedium),
+                Text(category.name, style: Theme.of(context).textTheme.bodySmall?.copyWith(color: colors.textDim)),
+                const SizedBox(height: 14),
+                GridView.count(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  crossAxisCount: 6,
+                  mainAxisSpacing: 8,
+                  crossAxisSpacing: 8,
+                  children: [
+                    for (final option in categoryIconOptions)
+                      _IconOption(
+                        emoji: option,
+                        selected: option == category.icon,
+                        onTap: () => Navigator.pop(context, option),
+                      ),
+                  ],
+                ),
+              ],
+            ),
           ),
         ),
       ),
