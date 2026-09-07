@@ -8662,6 +8662,15 @@ class $SmsRulesTable extends SmsRules with TableInfo<$SmsRulesTable, SmsRule> {
       'REFERENCES banks (id)',
     ),
   );
+  static const VerificationMeta _nameMeta = const VerificationMeta('name');
+  @override
+  late final GeneratedColumn<String> name = GeneratedColumn<String>(
+    'name',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _operationMeta = const VerificationMeta(
     'operation',
   );
@@ -8776,6 +8785,7 @@ class $SmsRulesTable extends SmsRules with TableInfo<$SmsRulesTable, SmsRule> {
   List<GeneratedColumn> get $columns => [
     id,
     bankId,
+    name,
     operation,
     sampleText,
     segmentsJson,
@@ -8810,6 +8820,12 @@ class $SmsRulesTable extends SmsRules with TableInfo<$SmsRulesTable, SmsRule> {
       );
     } else if (isInserting) {
       context.missing(_bankIdMeta);
+    }
+    if (data.containsKey('name')) {
+      context.handle(
+        _nameMeta,
+        name.isAcceptableOrUnknown(data['name']!, _nameMeta),
+      );
     }
     if (data.containsKey('operation')) {
       context.handle(
@@ -8899,6 +8915,10 @@ class $SmsRulesTable extends SmsRules with TableInfo<$SmsRulesTable, SmsRule> {
         DriftSqlType.string,
         data['${effectivePrefix}bank_id'],
       )!,
+      name: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}name'],
+      ),
       operation: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}operation'],
@@ -8948,6 +8968,12 @@ class SmsRule extends DataClass implements Insertable<SmsRule> {
   final String id;
   final String bankId;
 
+  /// User-given label (e.g. "Amazon refund") shown instead of the generic
+  /// operation name in the rules list -- optional, since [operation] alone
+  /// is still a perfectly fine label for a rule with only one obvious
+  /// purpose.
+  final String? name;
+
   /// 'creditCardBalance' | 'bankAccountBalance' | 'ledgerPayment'.
   final String operation;
 
@@ -8991,6 +9017,7 @@ class SmsRule extends DataClass implements Insertable<SmsRule> {
   const SmsRule({
     required this.id,
     required this.bankId,
+    this.name,
     required this.operation,
     required this.sampleText,
     required this.segmentsJson,
@@ -9006,6 +9033,9 @@ class SmsRule extends DataClass implements Insertable<SmsRule> {
     final map = <String, Expression>{};
     map['id'] = Variable<String>(id);
     map['bank_id'] = Variable<String>(bankId);
+    if (!nullToAbsent || name != null) {
+      map['name'] = Variable<String>(name);
+    }
     map['operation'] = Variable<String>(operation);
     map['sample_text'] = Variable<String>(sampleText);
     map['segments_json'] = Variable<String>(segmentsJson);
@@ -9028,6 +9058,7 @@ class SmsRule extends DataClass implements Insertable<SmsRule> {
     return SmsRulesCompanion(
       id: Value(id),
       bankId: Value(bankId),
+      name: name == null && nullToAbsent ? const Value.absent() : Value(name),
       operation: Value(operation),
       sampleText: Value(sampleText),
       segmentsJson: Value(segmentsJson),
@@ -9054,6 +9085,7 @@ class SmsRule extends DataClass implements Insertable<SmsRule> {
     return SmsRule(
       id: serializer.fromJson<String>(json['id']),
       bankId: serializer.fromJson<String>(json['bankId']),
+      name: serializer.fromJson<String?>(json['name']),
       operation: serializer.fromJson<String>(json['operation']),
       sampleText: serializer.fromJson<String>(json['sampleText']),
       segmentsJson: serializer.fromJson<String>(json['segmentsJson']),
@@ -9073,6 +9105,7 @@ class SmsRule extends DataClass implements Insertable<SmsRule> {
     return <String, dynamic>{
       'id': serializer.toJson<String>(id),
       'bankId': serializer.toJson<String>(bankId),
+      'name': serializer.toJson<String?>(name),
       'operation': serializer.toJson<String>(operation),
       'sampleText': serializer.toJson<String>(sampleText),
       'segmentsJson': serializer.toJson<String>(segmentsJson),
@@ -9088,6 +9121,7 @@ class SmsRule extends DataClass implements Insertable<SmsRule> {
   SmsRule copyWith({
     String? id,
     String? bankId,
+    Value<String?> name = const Value.absent(),
     String? operation,
     String? sampleText,
     String? segmentsJson,
@@ -9100,6 +9134,7 @@ class SmsRule extends DataClass implements Insertable<SmsRule> {
   }) => SmsRule(
     id: id ?? this.id,
     bankId: bankId ?? this.bankId,
+    name: name.present ? name.value : this.name,
     operation: operation ?? this.operation,
     sampleText: sampleText ?? this.sampleText,
     segmentsJson: segmentsJson ?? this.segmentsJson,
@@ -9116,6 +9151,7 @@ class SmsRule extends DataClass implements Insertable<SmsRule> {
     return SmsRule(
       id: data.id.present ? data.id.value : this.id,
       bankId: data.bankId.present ? data.bankId.value : this.bankId,
+      name: data.name.present ? data.name.value : this.name,
       operation: data.operation.present ? data.operation.value : this.operation,
       sampleText: data.sampleText.present
           ? data.sampleText.value
@@ -9141,6 +9177,7 @@ class SmsRule extends DataClass implements Insertable<SmsRule> {
     return (StringBuffer('SmsRule(')
           ..write('id: $id, ')
           ..write('bankId: $bankId, ')
+          ..write('name: $name, ')
           ..write('operation: $operation, ')
           ..write('sampleText: $sampleText, ')
           ..write('segmentsJson: $segmentsJson, ')
@@ -9158,6 +9195,7 @@ class SmsRule extends DataClass implements Insertable<SmsRule> {
   int get hashCode => Object.hash(
     id,
     bankId,
+    name,
     operation,
     sampleText,
     segmentsJson,
@@ -9174,6 +9212,7 @@ class SmsRule extends DataClass implements Insertable<SmsRule> {
       (other is SmsRule &&
           other.id == this.id &&
           other.bankId == this.bankId &&
+          other.name == this.name &&
           other.operation == this.operation &&
           other.sampleText == this.sampleText &&
           other.segmentsJson == this.segmentsJson &&
@@ -9188,6 +9227,7 @@ class SmsRule extends DataClass implements Insertable<SmsRule> {
 class SmsRulesCompanion extends UpdateCompanion<SmsRule> {
   final Value<String> id;
   final Value<String> bankId;
+  final Value<String?> name;
   final Value<String> operation;
   final Value<String> sampleText;
   final Value<String> segmentsJson;
@@ -9201,6 +9241,7 @@ class SmsRulesCompanion extends UpdateCompanion<SmsRule> {
   const SmsRulesCompanion({
     this.id = const Value.absent(),
     this.bankId = const Value.absent(),
+    this.name = const Value.absent(),
     this.operation = const Value.absent(),
     this.sampleText = const Value.absent(),
     this.segmentsJson = const Value.absent(),
@@ -9215,6 +9256,7 @@ class SmsRulesCompanion extends UpdateCompanion<SmsRule> {
   SmsRulesCompanion.insert({
     required String id,
     required String bankId,
+    this.name = const Value.absent(),
     required String operation,
     required String sampleText,
     required String segmentsJson,
@@ -9234,6 +9276,7 @@ class SmsRulesCompanion extends UpdateCompanion<SmsRule> {
   static Insertable<SmsRule> custom({
     Expression<String>? id,
     Expression<String>? bankId,
+    Expression<String>? name,
     Expression<String>? operation,
     Expression<String>? sampleText,
     Expression<String>? segmentsJson,
@@ -9248,6 +9291,7 @@ class SmsRulesCompanion extends UpdateCompanion<SmsRule> {
     return RawValuesInsertable({
       if (id != null) 'id': id,
       if (bankId != null) 'bank_id': bankId,
+      if (name != null) 'name': name,
       if (operation != null) 'operation': operation,
       if (sampleText != null) 'sample_text': sampleText,
       if (segmentsJson != null) 'segments_json': segmentsJson,
@@ -9265,6 +9309,7 @@ class SmsRulesCompanion extends UpdateCompanion<SmsRule> {
   SmsRulesCompanion copyWith({
     Value<String>? id,
     Value<String>? bankId,
+    Value<String?>? name,
     Value<String>? operation,
     Value<String>? sampleText,
     Value<String>? segmentsJson,
@@ -9279,6 +9324,7 @@ class SmsRulesCompanion extends UpdateCompanion<SmsRule> {
     return SmsRulesCompanion(
       id: id ?? this.id,
       bankId: bankId ?? this.bankId,
+      name: name ?? this.name,
       operation: operation ?? this.operation,
       sampleText: sampleText ?? this.sampleText,
       segmentsJson: segmentsJson ?? this.segmentsJson,
@@ -9300,6 +9346,9 @@ class SmsRulesCompanion extends UpdateCompanion<SmsRule> {
     }
     if (bankId.present) {
       map['bank_id'] = Variable<String>(bankId.value);
+    }
+    if (name.present) {
+      map['name'] = Variable<String>(name.value);
     }
     if (operation.present) {
       map['operation'] = Variable<String>(operation.value);
@@ -9341,6 +9390,7 @@ class SmsRulesCompanion extends UpdateCompanion<SmsRule> {
     return (StringBuffer('SmsRulesCompanion(')
           ..write('id: $id, ')
           ..write('bankId: $bankId, ')
+          ..write('name: $name, ')
           ..write('operation: $operation, ')
           ..write('sampleText: $sampleText, ')
           ..write('segmentsJson: $segmentsJson, ')
@@ -16897,6 +16947,7 @@ typedef $$SmsRulesTableCreateCompanionBuilder =
     SmsRulesCompanion Function({
       required String id,
       required String bankId,
+      Value<String?> name,
       required String operation,
       required String sampleText,
       required String segmentsJson,
@@ -16912,6 +16963,7 @@ typedef $$SmsRulesTableUpdateCompanionBuilder =
     SmsRulesCompanion Function({
       Value<String> id,
       Value<String> bankId,
+      Value<String?> name,
       Value<String> operation,
       Value<String> sampleText,
       Value<String> segmentsJson,
@@ -16994,6 +17046,11 @@ class $$SmsRulesTableFilterComposer
   });
   ColumnFilters<String> get id => $composableBuilder(
     column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get name => $composableBuilder(
+    column: $table.name,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -17116,6 +17173,11 @@ class $$SmsRulesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get operation => $composableBuilder(
     column: $table.operation,
     builder: (column) => ColumnOrderings(column),
@@ -17232,6 +17294,9 @@ class $$SmsRulesTableAnnotationComposer
   });
   GeneratedColumn<String> get id =>
       $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get name =>
+      $composableBuilder(column: $table.name, builder: (column) => column);
 
   GeneratedColumn<String> get operation =>
       $composableBuilder(column: $table.operation, builder: (column) => column);
@@ -17364,6 +17429,7 @@ class $$SmsRulesTableTableManager
               ({
                 Value<String> id = const Value.absent(),
                 Value<String> bankId = const Value.absent(),
+                Value<String?> name = const Value.absent(),
                 Value<String> operation = const Value.absent(),
                 Value<String> sampleText = const Value.absent(),
                 Value<String> segmentsJson = const Value.absent(),
@@ -17377,6 +17443,7 @@ class $$SmsRulesTableTableManager
               }) => SmsRulesCompanion(
                 id: id,
                 bankId: bankId,
+                name: name,
                 operation: operation,
                 sampleText: sampleText,
                 segmentsJson: segmentsJson,
@@ -17392,6 +17459,7 @@ class $$SmsRulesTableTableManager
               ({
                 required String id,
                 required String bankId,
+                Value<String?> name = const Value.absent(),
                 required String operation,
                 required String sampleText,
                 required String segmentsJson,
@@ -17405,6 +17473,7 @@ class $$SmsRulesTableTableManager
               }) => SmsRulesCompanion.insert(
                 id: id,
                 bankId: bankId,
+                name: name,
                 operation: operation,
                 sampleText: sampleText,
                 segmentsJson: segmentsJson,

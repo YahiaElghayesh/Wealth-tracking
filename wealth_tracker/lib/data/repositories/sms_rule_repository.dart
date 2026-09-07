@@ -34,6 +34,7 @@ class SmsRuleRepository {
     String? currency,
     required bool notifyOnMatch,
     String matchMode = 'strict',
+    String? name,
   }) {
     return _db
         .into(_db.smsRules)
@@ -41,6 +42,7 @@ class SmsRuleRepository {
           SmsRulesCompanion.insert(
             id: _uuid.v4(),
             bankId: bankId,
+            name: Value(name),
             operation: operation,
             sampleText: sampleText,
             segmentsJson: encodeSmsRuleSegments(segments),

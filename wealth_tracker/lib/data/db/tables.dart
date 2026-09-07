@@ -558,6 +558,12 @@ class SmsRules extends Table {
   TextColumn get id => text()();
   TextColumn get bankId => text().references(Banks, #id)();
 
+  /// User-given label (e.g. "Amazon refund") shown instead of the generic
+  /// operation name in the rules list -- optional, since [operation] alone
+  /// is still a perfectly fine label for a rule with only one obvious
+  /// purpose.
+  TextColumn get name => text().nullable()();
+
   /// 'creditCardBalance' | 'bankAccountBalance' | 'ledgerPayment'.
   TextColumn get operation => text()();
 

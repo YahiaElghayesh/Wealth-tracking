@@ -11,6 +11,36 @@ import '../../ledger/providers/ledger_providers.dart';
 import '../providers/sms_rule_providers.dart';
 import 'banks_settings_screen.dart';
 
+/// The Unicode "first strong character" rule -- the same one browsers and
+/// the phone's own SMS app use to pick a paragraph's base direction when
+/// none is set explicitly. Needed because this screen's ambient
+/// `Directionality` is LTR (an English-language settings screen), which
+/// would otherwise misalign and visually reorder an Arabic-dominant real
+/// bank SMS compared to how it renders in the SMS app itself -- making it
+/// hard to tell what a drag-select is actually about to capture, especially
+/// for a Latin/English substring (a vendor name, an amount) sitting inside
+/// the Arabic. Scans for the first character that is strongly one
+/// direction or the other; a message with no such character (pure digits/
+/// punctuation) falls back to LTR.
+TextDirection _detectSampleDirection(String text) {
+  for (final rune in text.runes) {
+    final isRtl =
+        (rune >= 0x0590 && rune <= 0x05FF) || // Hebrew
+        (rune >= 0x0600 && rune <= 0x06FF) || // Arabic
+        (rune >= 0x0750 && rune <= 0x077F) || // Arabic Supplement
+        (rune >= 0x08A0 && rune <= 0x08FF) || // Arabic Extended-A
+        (rune >= 0xFB50 && rune <= 0xFDFF) || // Arabic Presentation Forms-A
+        (rune >= 0xFE70 && rune <= 0xFEFF); // Arabic Presentation Forms-B
+    if (isRtl) return TextDirection.rtl;
+    final isLtrLetter =
+        (rune >= 0x0041 && rune <= 0x005A) || // A-Z
+        (rune >= 0x0061 && rune <= 0x007A) || // a-z
+        (rune >= 0x00C0 && rune <= 0x02AF); // Latin-1 Supplement / Extended
+    if (isLtrLetter) return TextDirection.ltr;
+  }
+  return TextDirection.ltr;
+}
+
 const _operations = [
   ('creditCardBalance', 'Credit card balance'),
   ('bankAccountBalance', 'Bank account balance'),
@@ -185,8 +215,13 @@ class _BankRulesSectionState extends State<_BankRulesSection> {
                       ref.read(smsRuleRepositoryProvider).delete(rule.id),
                   child: ListTile(
                     leading: const Icon(Icons.rule_outlined),
-                    title: Text(_operationLabel(rule.operation)),
+                    title: Text(
+                      (rule.name?.trim().isNotEmpty ?? false)
+                          ? rule.name!
+                          : _operationLabel(rule.operation),
+                    ),
                     subtitle: Text(
+                      '${(rule.name?.trim().isNotEmpty ?? false) ? '${_operationLabel(rule.operation)} · ' : ''}'
                       '${rule.notifyOnMatch ? 'Notifies on match' : 'Silent'}'
                       ' · ${rule.matchMode == 'flexible' ? 'Flexible' : 'Strict'}',
                       style: TextStyle(color: context.appColors.textDim),
@@ -241,6 +276,7 @@ class SmsRuleFormScreen extends ConsumerStatefulWidget {
 
 class _SmsRuleFormScreenState extends ConsumerState<SmsRuleFormScreen> {
   late final TextEditingController _sampleController;
+  late final TextEditingController _nameController;
   String? _bankId;
   String _operation = 'creditCardBalance';
   String? _targetCounterpartyId;
@@ -256,6 +292,7 @@ class _SmsRuleFormScreenState extends ConsumerState<SmsRuleFormScreen> {
     super.initState();
     final existing = widget.existing;
     _sampleController = TextEditingController(text: existing?.sampleText ?? '');
+    _nameController = TextEditingController(text: existing?.name ?? '');
     if (existing != null) {
       _bankId = existing.bankId;
       _operation = existing.operation;
@@ -285,6 +322,7 @@ class _SmsRuleFormScreenState extends ConsumerState<SmsRuleFormScreen> {
   @override
   void dispose() {
     _sampleController.dispose();
+    _nameController.dispose();
     super.dispose();
   }
 
@@ -402,10 +440,12 @@ class _SmsRuleFormScreenState extends ConsumerState<SmsRuleFormScreen> {
       return;
     }
     final segments = _buildSegments();
+    final name = _nameController.text.trim();
     final repo = ref.read(smsRuleRepositoryProvider);
     if (_isEditing) {
       await repo.updateRule(
         widget.existing!.copyWith(
+          name: Value(name.isEmpty ? null : name),
           bankId: _bankId!,
           operation: _operation,
           sampleText: _sampleController.text,
@@ -420,6 +460,7 @@ class _SmsRuleFormScreenState extends ConsumerState<SmsRuleFormScreen> {
       );
     } else {
       await repo.add(
+        name: name.isEmpty ? null : name,
         bankId: _bankId!,
         operation: _operation,
         sampleText: _sampleController.text,
@@ -473,6 +514,7 @@ class _SmsRuleFormScreenState extends ConsumerState<SmsRuleFormScreen> {
     final counterparties =
         ref.watch(counterpartiesStreamProvider).valueOrNull ?? const [];
     final colors = context.appColors;
+    final sampleDirection = _detectSampleDirection(_sampleController.text);
 
     return Scaffold(
       appBar: AppBar(
@@ -488,6 +530,15 @@ class _SmsRuleFormScreenState extends ConsumerState<SmsRuleFormScreen> {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
+          TextField(
+            controller: _nameController,
+            textCapitalization: TextCapitalization.sentences,
+            decoration: const InputDecoration(
+              labelText: 'Rule name (optional)',
+              hintText: 'e.g. Amazon refund',
+            ),
+          ),
+          const SizedBox(height: 16),
           DropdownButtonFormField<String>(
             isExpanded: true,
             initialValue: banks.any((b) => b.id == _bankId) ? _bankId : null,
@@ -568,6 +619,7 @@ class _SmsRuleFormScreenState extends ConsumerState<SmsRuleFormScreen> {
             controller: _sampleController,
             maxLines: 6,
             minLines: 3,
+            textDirection: sampleDirection,
             decoration: const InputDecoration(
               hintText: 'Paste the SMS text here',
               border: OutlineInputBorder(),
@@ -589,7 +641,10 @@ class _SmsRuleFormScreenState extends ConsumerState<SmsRuleFormScreen> {
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(color: colors.border),
               ),
-              child: Text.rich(TextSpan(children: _previewSpans())),
+              child: Text.rich(
+                TextSpan(children: _previewSpans()),
+                textDirection: sampleDirection,
+              ),
             ),
           ],
           if (_tags.isNotEmpty) ...[
