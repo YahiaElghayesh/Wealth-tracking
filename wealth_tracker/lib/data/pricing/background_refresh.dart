@@ -38,12 +38,11 @@ const minPriceRefreshInterval = Duration(minutes: 15);
 /// directly rather than read from Riverpod. Handles every background task
 /// this app enqueues through WorkManager, not just the periodic price
 /// refresh it was originally written for -- also the one-off task a bank-
-/// SMS notification's "Quick add" action enqueues natively from
-/// SmsQuickAddActionReceiver.kt (see [smsQuickAddTaskName]), and the
-/// one-off task SmsReceiver.kt enqueues automatically (no notification
-/// involved at all) for a recognized card payment/refund alert (see
-/// [smsAutoUpdateTaskName]) -- all the same headless-isolate mechanism,
-/// just triggered on demand instead of on a timer.
+/// SMS charge-review notification's "Quick add" action enqueues (see
+/// [smsQuickAddTaskName]), and the one-off task SmsReceiver.kt enqueues
+/// unconditionally for every incoming SMS (see [smsAutoDetectTaskName]) --
+/// all the same headless-isolate mechanism, just triggered on demand
+/// instead of on a timer.
 @pragma('vm:entry-point')
 void priceRefreshCallbackDispatcher() {
   Workmanager().executeTask((task, inputData) async {
@@ -52,10 +51,8 @@ void priceRefreshCallbackDispatcher() {
         await runBackgroundPriceRefresh();
       } else if (task == smsQuickAddTaskName) {
         await runSmsQuickAddTask(inputData ?? const {});
-      } else if (task == smsAutoUpdateTaskName) {
-        await runSmsAutoUpdateTask(inputData ?? const {});
-      } else if (task == smsBalanceUpdateTaskName) {
-        await runSmsBalanceUpdateTask(inputData ?? const {});
+      } else if (task == smsAutoDetectTaskName) {
+        await runSmsAutoDetectTask(inputData ?? const {});
       } else if (task == recurringPaymentMarkPaidTaskName) {
         await runRecurringPaymentMarkPaidTask(inputData ?? const {});
       }
@@ -97,53 +94,19 @@ Future<void> runSmsQuickAddTask(Map<String, dynamic> inputData) async {
 }
 
 /// Reads the `body`/`timestampMillis` SmsReceiver.kt passed through
-/// WorkManager's input data when it recognized an incoming SMS as a card
-/// payment/settlement or refund alert, and applies it via
-/// [commitSmsAutoUpdate] -- no notification, no ledger entry, scoped to
-/// whichever profile is currently active on this device, same as
-/// [runSmsQuickAddTask].
-Future<void> runSmsAutoUpdateTask(Map<String, dynamic> inputData) async {
+/// WorkManager's input data for *every* incoming SMS, unconditionally, and
+/// runs the real SMS Rule matching via [commitSmsAutoDetect] -- no profile
+/// lookup needed, since a balance rule searches across every profile's
+/// cards/accounts and a ledger-payment rule resolves its own target
+/// counterparty's profile itself.
+Future<void> runSmsAutoDetectTask(Map<String, dynamic> inputData) async {
   final body = inputData['body'] as String?;
   final timestampMillis = inputData['timestampMillis'] as int?;
   if (body == null || timestampMillis == null) return;
 
   final db = AppDatabase();
   try {
-    final prefs = await SharedPreferences.getInstance();
-    final secureSettings = await SecureSettingsStore.load(prefs);
-    final profileId = SettingsRepository(prefs, secureSettings).activeProfileId;
-    await commitSmsAutoUpdate(
-      db,
-      body: body,
-      timestampMillis: timestampMillis,
-      profileId: profileId,
-    );
-  } finally {
-    await db.close();
-  }
-}
-
-/// Reads the `body`/`timestampMillis` SmsReceiver.kt passed through
-/// WorkManager's input data alongside the notification it posts for an
-/// ordinary charge SMS (one its own narrow pre-filter didn't recognize as
-/// a payment/refund trigger phrase), and applies just the balance side of
-/// it via [commitSmsBalanceUpdate] -- no profile lookup needed, since a
-/// card/account balance isn't scoped to a profile the way a ledger entry
-/// is (SMS Rules search across every profile's cards/accounts). This is
-/// what keeps the tracked balance current the moment the SMS arrives even
-/// if the user dismisses the notification without ever tapping it.
-Future<void> runSmsBalanceUpdateTask(Map<String, dynamic> inputData) async {
-  final body = inputData['body'] as String?;
-  final timestampMillis = inputData['timestampMillis'] as int?;
-  if (body == null || timestampMillis == null) return;
-
-  final db = AppDatabase();
-  try {
-    await commitSmsBalanceUpdate(
-      db,
-      body: body,
-      timestampMillis: timestampMillis,
-    );
+    await commitSmsAutoDetect(db, body: body, timestampMillis: timestampMillis);
   } finally {
     await db.close();
   }

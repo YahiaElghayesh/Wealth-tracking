@@ -89,15 +89,19 @@ class QuickActionExemption {
 }
 
 /// Set by `main()`, before `runApp`, the instant it sees a quick-add
-/// widget/shortcut tap or a bank-SMS notification tap is what launched this
-/// process (`takePendingSms`/`takeInitialWidgetLaunchUri` both resolved
-/// non-null) -- read exactly once, by [AppLockGate]'s very first lock
-/// evaluation, to tell it to wait for the real [QuickActionExemption] claim
-/// (about to arrive once `app.dart`'s own launch handling runs, a moment
-/// later) rather than assume none is coming. An ordinary cold start (the
-/// overwhelming majority of opens) leaves this `false`, so that first
-/// evaluation stays immediate -- see [AppLockGate]'s own `initState` for
-/// exactly how this feeds into its `wait` parameter.
+/// widget/shortcut tap or a tap on a bank-SMS charge-review notification
+/// (`showSmsChargeReviewNotification`) is what launched this process
+/// (`takeInitialWidgetLaunchUri` or flutter_local_notifications' own
+/// `getNotificationAppLaunchDetails` resolved non-null; `takePendingSms`
+/// is a third, now-legacy check that always resolves null -- see
+/// `native_sms_channel.dart`'s own doc comment) -- read exactly once, by
+/// [AppLockGate]'s very first lock evaluation, to tell it to wait for the
+/// real [QuickActionExemption] claim (about to arrive once `app.dart`'s
+/// own launch handling runs, a moment later) rather than assume none is
+/// coming. An ordinary cold start (the overwhelming majority of opens)
+/// leaves this `false`, so that first evaluation stays immediate -- see
+/// [AppLockGate]'s own `initState` for exactly how this feeds into its
+/// `wait` parameter.
 bool coldStartLaunchPending = false;
 
 /// Mirrors [AppLockGate]'s own "is the lock overlay currently showing"

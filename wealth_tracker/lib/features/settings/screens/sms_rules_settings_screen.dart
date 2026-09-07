@@ -223,11 +223,22 @@ class _BankRulesSectionState extends State<_BankRulesSection> {
                     ),
                     subtitle: Text(
                       '${(rule.name?.trim().isNotEmpty ?? false) ? '${_operationLabel(rule.operation)} · ' : ''}'
-                      '${rule.notifyOnMatch ? 'Notifies on match' : 'Silent'}'
+                      '${rule.enabled ? (rule.notifyOnMatch ? 'Notifies on match' : 'Silent') : 'Disabled'}'
                       ' · ${rule.matchMode == 'flexible' ? 'Flexible' : 'Strict'}',
                       style: TextStyle(color: context.appColors.textDim),
                     ),
-                    trailing: const Icon(Icons.chevron_right),
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Switch(
+                          value: rule.enabled,
+                          onChanged: (v) => ref
+                              .read(smsRuleRepositoryProvider)
+                              .updateRule(rule.copyWith(enabled: v)),
+                        ),
+                        const Icon(Icons.chevron_right),
+                      ],
+                    ),
                     onTap: () => Navigator.of(context).push(
                       MaterialPageRoute(
                         builder: (_) => SmsRuleFormScreen(existing: rule),
@@ -528,171 +539,175 @@ class _SmsRuleFormScreenState extends ConsumerState<SmsRuleFormScreen> {
             ),
         ],
       ),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          TextField(
-            controller: _nameController,
-            textCapitalization: TextCapitalization.sentences,
-            decoration: const InputDecoration(
-              labelText: 'Rule name (optional)',
-              hintText: 'e.g. Amazon refund',
+      body: SafeArea(
+        child: ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            TextField(
+              controller: _nameController,
+              textCapitalization: TextCapitalization.sentences,
+              decoration: const InputDecoration(
+                labelText: 'Rule name (optional)',
+                hintText: 'e.g. Amazon refund',
+              ),
             ),
-          ),
-          const SizedBox(height: 16),
-          DropdownButtonFormField<String>(
-            isExpanded: true,
-            initialValue: banks.any((b) => b.id == _bankId) ? _bankId : null,
-            decoration: const InputDecoration(labelText: 'Bank'),
-            items: banks
-                .map((b) => DropdownMenuItem(value: b.id, child: Text(b.name)))
-                .toList(),
-            onChanged: (v) => setState(() => _bankId = v),
-          ),
-          const SizedBox(height: 16),
-          Text(
-            'What does this rule do?',
-            style: Theme.of(context).textTheme.labelLarge,
-          ),
-          const SizedBox(height: 8),
-          SegmentedButton<String>(
-            segments: _operations
-                .map(
-                  (o) => ButtonSegment(
-                    value: o.$1,
-                    label: Text(o.$2, textAlign: TextAlign.center),
-                  ),
-                )
-                .toList(),
-            selected: {_operation},
-            onSelectionChanged: (s) => setState(() {
-              _operation = s.first;
-              _tags.removeWhere((t) => !_availableTags.contains(t.tag));
-            }),
-          ),
-          if (_operation == 'ledgerPayment') ...[
             const SizedBox(height: 16),
             DropdownButtonFormField<String>(
               isExpanded: true,
-              initialValue:
-                  counterparties.any((c) => c.id == _targetCounterpartyId)
-                  ? _targetCounterpartyId
-                  : null,
-              decoration: const InputDecoration(
-                labelText: 'Adds to which ledger',
-              ),
-              items: counterparties
+              initialValue: banks.any((b) => b.id == _bankId) ? _bankId : null,
+              decoration: const InputDecoration(labelText: 'Bank'),
+              items: banks
                   .map(
-                    (c) => DropdownMenuItem(value: c.id, child: Text(c.name)),
+                    (b) => DropdownMenuItem(value: b.id, child: Text(b.name)),
                   )
                   .toList(),
-              onChanged: (v) => setState(() => _targetCounterpartyId = v),
+              onChanged: (v) => setState(() => _bankId = v),
             ),
-            const SizedBox(height: 12),
-            CurrencyPickerField(
-              value: _currency,
-              labelText: 'Default currency',
-              helperText:
-                  'Used unless a Currency tag is marked and recognized in the message itself.',
-              onChanged: (c) => setState(() => _currency = c),
+            const SizedBox(height: 16),
+            Text(
+              'What does this rule do?',
+              style: Theme.of(context).textTheme.labelLarge,
             ),
-          ],
-          const SizedBox(height: 20),
-          Text(
-            'Paste a real sample SMS',
-            style: Theme.of(context).textTheme.labelLarge,
-          ),
-          const SizedBox(height: 4),
-          Text(
-            'Then select a portion of it below and tap "Tag selection" to mark what it is.',
-            style: Theme.of(
-              context,
-            ).textTheme.bodySmall?.copyWith(color: colors.textDim),
-          ),
-          const SizedBox(height: 8),
-          TextField(
-            controller: _sampleController,
-            maxLines: 6,
-            minLines: 3,
-            textDirection: sampleDirection,
-            decoration: const InputDecoration(
-              hintText: 'Paste the SMS text here',
-              border: OutlineInputBorder(),
-            ),
-          ),
-          const SizedBox(height: 8),
-          OutlinedButton.icon(
-            icon: const Icon(Icons.label_outline),
-            label: const Text('Tag selection'),
-            onPressed: _sampleController.text.isEmpty ? null : _tagSelection,
-          ),
-          if (_sampleController.text.isNotEmpty) ...[
-            const SizedBox(height: 12),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: colors.surface2,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: colors.border),
-              ),
-              child: Text.rich(
-                TextSpan(children: _previewSpans()),
-                textDirection: sampleDirection,
-              ),
-            ),
-          ],
-          if (_tags.isNotEmpty) ...[
-            const SizedBox(height: 12),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                for (final tag in _tags)
-                  InputChip(
-                    label: Text(
-                      '${_tagLabels[tag.tag]}: "${_sampleController.text.substring(tag.start, tag.end)}"'
-                      '${tag.role == null ? '' : ' (${_roleLabel(_operation, tag.role)})'}',
+            const SizedBox(height: 8),
+            SegmentedButton<String>(
+              segments: _operations
+                  .map(
+                    (o) => ButtonSegment(
+                      value: o.$1,
+                      label: Text(o.$2, textAlign: TextAlign.center),
                     ),
-                    onDeleted: () => setState(() => _tags.remove(tag)),
-                  ),
-              ],
+                  )
+                  .toList(),
+              selected: {_operation},
+              onSelectionChanged: (s) => setState(() {
+                _operation = s.first;
+                _tags.removeWhere((t) => !_availableTags.contains(t.tag));
+              }),
             ),
-          ],
-          const SizedBox(height: 20),
-          SwitchListTile(
-            contentPadding: EdgeInsets.zero,
-            title: const Text('Notify me when this rule activates'),
-            subtitle: const Text(
-              'Shows a notification from a recent matching SMS',
-            ),
-            value: _notifyOnMatch,
-            onChanged: (v) => setState(() => _notifyOnMatch = v),
-          ),
-          const SizedBox(height: 20),
-          Text('Matching', style: Theme.of(context).textTheme.labelLarge),
-          const SizedBox(height: 4),
-          Text(
-            _matchMode == 'flexible'
-                ? 'Only a couple of words next to each tag are required -- '
-                      'everything else can vary, at the cost of a small '
-                      'chance of matching an unrelated message.'
-                : 'The untagged parts of your sample must appear in the '
-                      'real SMS almost exactly.',
-            style: Theme.of(context).textTheme.bodySmall,
-          ),
-          const SizedBox(height: 8),
-          SegmentedButton<String>(
-            segments: const [
-              ButtonSegment(value: 'strict', label: Text('Strict')),
-              ButtonSegment(value: 'flexible', label: Text('Flexible')),
+            if (_operation == 'ledgerPayment') ...[
+              const SizedBox(height: 16),
+              DropdownButtonFormField<String>(
+                isExpanded: true,
+                initialValue:
+                    counterparties.any((c) => c.id == _targetCounterpartyId)
+                    ? _targetCounterpartyId
+                    : null,
+                decoration: const InputDecoration(
+                  labelText: 'Adds to which ledger',
+                ),
+                items: counterparties
+                    .map(
+                      (c) => DropdownMenuItem(value: c.id, child: Text(c.name)),
+                    )
+                    .toList(),
+                onChanged: (v) => setState(() => _targetCounterpartyId = v),
+              ),
+              const SizedBox(height: 12),
+              CurrencyPickerField(
+                value: _currency,
+                labelText: 'Default currency',
+                helperText:
+                    'Used unless a Currency tag is marked and recognized in the message itself.',
+                onChanged: (c) => setState(() => _currency = c),
+              ),
             ],
-            selected: {_matchMode},
-            onSelectionChanged: (s) => setState(() => _matchMode = s.first),
-          ),
-          const SizedBox(height: 20),
-          FilledButton(onPressed: _save, child: const Text('Save')),
-        ],
+            const SizedBox(height: 20),
+            Text(
+              'Paste a real sample SMS',
+              style: Theme.of(context).textTheme.labelLarge,
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Then select a portion of it below and tap "Tag selection" to mark what it is.',
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(color: colors.textDim),
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: _sampleController,
+              maxLines: 6,
+              minLines: 3,
+              textDirection: sampleDirection,
+              decoration: const InputDecoration(
+                hintText: 'Paste the SMS text here',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 8),
+            OutlinedButton.icon(
+              icon: const Icon(Icons.label_outline),
+              label: const Text('Tag selection'),
+              onPressed: _sampleController.text.isEmpty ? null : _tagSelection,
+            ),
+            if (_sampleController.text.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: colors.surface2,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: colors.border),
+                ),
+                child: Text.rich(
+                  TextSpan(children: _previewSpans()),
+                  textDirection: sampleDirection,
+                ),
+              ),
+            ],
+            if (_tags.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  for (final tag in _tags)
+                    InputChip(
+                      label: Text(
+                        '${_tagLabels[tag.tag]}: "${_sampleController.text.substring(tag.start, tag.end)}"'
+                        '${tag.role == null ? '' : ' (${_roleLabel(_operation, tag.role)})'}',
+                      ),
+                      onDeleted: () => setState(() => _tags.remove(tag)),
+                    ),
+                ],
+              ),
+            ],
+            const SizedBox(height: 20),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Notify me when this rule activates'),
+              subtitle: const Text(
+                'Shows a notification from a recent matching SMS',
+              ),
+              value: _notifyOnMatch,
+              onChanged: (v) => setState(() => _notifyOnMatch = v),
+            ),
+            const SizedBox(height: 20),
+            Text('Matching', style: Theme.of(context).textTheme.labelLarge),
+            const SizedBox(height: 4),
+            Text(
+              _matchMode == 'flexible'
+                  ? 'Only a couple of words next to each tag are required -- '
+                        'everything else can vary, at the cost of a small '
+                        'chance of matching an unrelated message.'
+                  : 'The untagged parts of your sample must appear in the '
+                        'real SMS almost exactly.',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+            const SizedBox(height: 8),
+            SegmentedButton<String>(
+              segments: const [
+                ButtonSegment(value: 'strict', label: Text('Strict')),
+                ButtonSegment(value: 'flexible', label: Text('Flexible')),
+              ],
+              selected: {_matchMode},
+              onSelectionChanged: (s) => setState(() => _matchMode = s.first),
+            ),
+            const SizedBox(height: 20),
+            FilledButton(onPressed: _save, child: const Text('Save')),
+          ],
+        ),
       ),
     );
   }

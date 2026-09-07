@@ -70,8 +70,8 @@ dependencies {
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
     // WorkManager's own API isn't exposed to this module by the workmanager
     // plugin (it depends on work-runtime as `implementation`, not `api`),
-    // but SmsQuickAddActionReceiver needs to enqueue a WorkManager task of
-    // its own -- same version the plugin itself pins, for compatibility.
+    // but SmsReceiver needs to enqueue a WorkManager task of its own --
+    // same version the plugin itself pins, for compatibility.
     implementation("androidx.work:work-runtime-ktx:2.11.2")
 }
 

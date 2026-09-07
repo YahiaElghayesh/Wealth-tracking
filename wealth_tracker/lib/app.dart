@@ -1,18 +1,23 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:home_widget/home_widget.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'core/navigation/app_navigator.dart';
 import 'core/security/app_lock_gate.dart';
+import 'core/security/secure_settings_store.dart';
 import 'core/theme/app_theme.dart';
 import 'core/widgets/app_bottom_nav.dart';
+import 'data/db/database.dart';
+import 'data/notifications/sms_rule_notifications.dart';
+import 'data/repositories/settings_repository.dart';
 import 'data/sms/native_sms_channel.dart';
 import 'data/sms/sms_ledger_processor.dart';
-import 'features/calculator/providers/known_cards_sync.dart';
-import 'features/calculator/providers/known_vendor_patterns_sync.dart';
 import 'features/calculator/screens/calculator_screen.dart';
 import 'features/ledger/providers/quick_add_launch.dart';
 import 'features/ledger/providers/widget_counterparties_sync.dart';
@@ -24,6 +29,52 @@ import 'features/networth/providers/pricing_providers.dart';
 import 'features/networth/screens/dashboard_screen.dart';
 import 'features/recurring/screens/recurring_payments_screen.dart';
 import 'features/settings/providers/settings_providers.dart';
+
+/// Top-level (per flutter_local_notifications' own requirement) handler
+/// for a notification action tapped while this app's Dart VM isn't
+/// running at all -- the only action any notification in this app
+/// attaches is [showSmsChargeReviewNotification]'s "Quick add"
+/// (`showsUserInterface: false`, so tapping it never launches the UI, and
+/// always arrives here rather than [_RootShellState]'s own foreground
+/// handler). Builds its own [AppDatabase] and profile lookup exactly like
+/// `runSmsQuickAddTask` (background_refresh.dart) does for the same
+/// action fired from a live isolate -- there is no ProviderScope here.
+@pragma('vm:entry-point')
+void notificationTapBackground(NotificationResponse response) {
+  if (response.actionId != smsChargeReviewQuickAddActionId) return;
+  unawaited(_commitQuickAddFromBackground(response));
+}
+
+Future<void> _commitQuickAddFromBackground(
+  NotificationResponse response,
+) async {
+  final payload = response.payload;
+  if (payload == null) return;
+  Map<String, dynamic> decoded;
+  try {
+    decoded = jsonDecode(payload) as Map<String, dynamic>;
+  } catch (_) {
+    return;
+  }
+  final body = decoded['body'] as String?;
+  final timestampMillis = decoded['timestampMillis'] as int?;
+  if (body == null || timestampMillis == null) return;
+
+  final db = AppDatabase();
+  try {
+    final prefs = await SharedPreferences.getInstance();
+    final secureSettings = await SecureSettingsStore.load(prefs);
+    final profileId = SettingsRepository(prefs, secureSettings).activeProfileId;
+    await commitSmsQuickAdd(
+      db,
+      body: body,
+      timestampMillis: timestampMillis,
+      profileId: profileId,
+    );
+  } finally {
+    await db.close();
+  }
+}
 
 class WealthTrackerApp extends ConsumerWidget {
   const WealthTrackerApp({super.key});
@@ -92,18 +143,96 @@ class _RootShellState extends ConsumerState<_RootShell>
         (uri) => handleQuickAddLaunch(uri, ref),
       );
     });
-    if (Platform.isAndroid) _initSmsCapture();
+    if (Platform.isAndroid) {
+      _initSmsCapture();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _initSmsRuleNotificationHandling();
+      });
+    }
   }
 
-  /// Bank SMS detection never uses a background Dart isolate or a
-  /// third-party SMS-reading plugin (a previous attempt at this broke the
-  /// Android build outright — see native_sms_channel.dart) — a plain,
-  /// manifest-registered Kotlin BroadcastReceiver posts a system
-  /// notification on its own, and this only ever runs once the user has
-  /// tapped that notification and the app is in the foreground. Covers
-  /// both a cold start (`takePendingSms`, checked once after the first
-  /// frame like the widget-tap launch above) and an already-running app
-  /// brought forward by the tap (`listenForNewSms`).
+  /// Registers this (now-live) isolate's handlers for
+  /// [showSmsChargeReviewNotification]'s tap/action, then checks whether
+  /// *this* cold start was itself caused by tapping one -- re-initializing
+  /// the plugin here (on top of `main()`'s own earlier call, which only
+  /// needed a bare answer to "was there one" for [coldStartLaunchPending])
+  /// is what actually wires up [_onNotificationResponse] for this launch,
+  /// and for any later tap while the app stays running.
+  Future<void> _initSmsRuleNotificationHandling() async {
+    final plugin = FlutterLocalNotificationsPlugin();
+    const androidSettings = AndroidInitializationSettings(
+      '@mipmap/ic_launcher',
+    );
+    await plugin.initialize(
+      settings: const InitializationSettings(android: androidSettings),
+      onDidReceiveNotificationResponse: _onNotificationResponse,
+      onDidReceiveBackgroundNotificationResponse: notificationTapBackground,
+    );
+    final launchDetails = await plugin.getNotificationAppLaunchDetails();
+    final response = launchDetails?.notificationResponse;
+    if ((launchDetails?.didNotificationLaunchApp ?? false) &&
+        response != null) {
+      _onNotificationResponse(response);
+    }
+  }
+
+  /// Handles a tap on [showSmsChargeReviewNotification] while this isolate
+  /// is alive -- either the app was already open, or it just cold-started
+  /// from that very tap (see [_initSmsRuleNotificationHandling]). The
+  /// "Quick add" action ([smsChargeReviewQuickAddActionId]) commits
+  /// headlessly via [commitSmsQuickAdd]; tapping the notification body
+  /// itself re-runs [processIncomingSms], which re-matches the same SMS
+  /// and pushes [SmsReviewScreen] for real -- both re-derive everything
+  /// from the raw body/timestamp in the payload rather than trusting
+  /// anything precomputed, the same "re-run the tested logic, don't thread
+  /// a result through" choice [commitSmsAutoDetect] itself makes.
+  void _onNotificationResponse(NotificationResponse response) {
+    final payload = response.payload;
+    if (payload == null) return;
+    Map<String, dynamic> decoded;
+    try {
+      decoded = jsonDecode(payload) as Map<String, dynamic>;
+    } catch (_) {
+      return;
+    }
+    final body = decoded['body'] as String?;
+    final timestampMillis = decoded['timestampMillis'] as int?;
+    if (body == null || timestampMillis == null) return;
+
+    if (response.actionId == smsChargeReviewQuickAddActionId) {
+      unawaited(
+        commitSmsQuickAdd(
+          ref.read(databaseProvider),
+          body: body,
+          timestampMillis: timestampMillis,
+          profileId: ref.read(activeProfileIdProvider),
+        ),
+      );
+      return;
+    }
+
+    unawaited(
+      processIncomingSms(
+        ref.read(databaseProvider),
+        body: body,
+        timestampMillis: timestampMillis,
+        profileId: ref.read(activeProfileIdProvider),
+      ),
+    );
+  }
+
+  /// Legacy: `listenForNewSms`/`takePendingSms` (native_sms_channel.dart)
+  /// only ever fired for a *native* notification's launch-Intent extras --
+  /// both a cold start from tapping it and an already-running app brought
+  /// forward by it worked this same way, since that notification's own
+  /// PendingIntent was always what triggered either path, never a truly
+  /// direct "SMS arrived while foregrounded" callback. Nothing sets those
+  /// extras anymore now that SmsReceiver.kt never posts a notification
+  /// itself (see its own doc comment) -- kept in place as a harmless no-op
+  /// rather than pulled out along with everything else this change
+  /// touched. See [_initSmsRuleNotificationHandling] for the real
+  /// notification this app shows now ([showSmsChargeReviewNotification])
+  /// and how its tap is actually handled.
   void _initSmsCapture() {
     listenForNewSms((sms) {
       processIncomingSms(
@@ -163,8 +292,6 @@ class _RootShellState extends ConsumerState<_RootShell>
   Widget build(BuildContext context) {
     ref.watch(homeWidgetSyncProvider);
     ref.watch(widgetCounterpartiesSyncProvider);
-    ref.watch(knownCardsSyncProvider);
-    ref.watch(knownVendorPatternsSyncProvider);
 
     return Scaffold(
       body: IndexedStack(

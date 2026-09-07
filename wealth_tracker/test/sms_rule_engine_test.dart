@@ -68,6 +68,7 @@ void main() {
         currency: null,
         notifyOnMatch: false,
         matchMode: 'strict',
+        enabled: true,
         createdAt: DateTime(2026),
         profileId: null,
       );
@@ -92,6 +93,7 @@ void main() {
         currency: null,
         notifyOnMatch: false,
         matchMode: 'strict',
+        enabled: true,
         createdAt: DateTime(2026),
         profileId: null,
       );
@@ -118,6 +120,7 @@ void main() {
         currency: null,
         notifyOnMatch: false,
         matchMode: 'strict',
+        enabled: true,
         createdAt: DateTime(2026),
         profileId: null,
       );
@@ -137,6 +140,7 @@ void main() {
         currency: null,
         notifyOnMatch: false,
         matchMode: 'strict',
+        enabled: true,
         createdAt: DateTime(2026),
         profileId: null,
       );
@@ -164,6 +168,7 @@ void main() {
         currency: null,
         notifyOnMatch: false,
         matchMode: 'strict',
+        enabled: true,
         createdAt: DateTime(2026),
         profileId: null,
       );
@@ -192,6 +197,7 @@ void main() {
         currency: 'EGP',
         notifyOnMatch: false,
         matchMode: 'strict',
+        enabled: true,
         createdAt: DateTime(2026),
         profileId: null,
       );
@@ -216,6 +222,7 @@ void main() {
         currency: 'EGP',
         notifyOnMatch: false,
         matchMode: 'strict',
+        enabled: true,
         createdAt: DateTime(2026),
         profileId: null,
       );
@@ -245,6 +252,7 @@ void main() {
           currency: 'EGP',
           notifyOnMatch: false,
           matchMode: 'strict',
+          enabled: true,
           createdAt: DateTime(2026),
           profileId: null,
         );
@@ -275,6 +283,7 @@ void main() {
           currency: null,
           notifyOnMatch: false,
           matchMode: 'strict',
+          enabled: true,
           createdAt: DateTime(2026),
           profileId: null,
         );
@@ -300,6 +309,7 @@ void main() {
           currency: null,
           notifyOnMatch: false,
           matchMode: 'flexible',
+          enabled: true,
           createdAt: DateTime(2026),
           profileId: null,
         );
@@ -327,6 +337,7 @@ void main() {
         currency: null,
         notifyOnMatch: false,
         matchMode: 'flexible',
+        enabled: true,
         createdAt: DateTime(2026),
         profileId: null,
       );
@@ -437,6 +448,7 @@ void main() {
           currency: null,
           notifyOnMatch: true,
           matchMode: 'strict',
+          enabled: true,
           createdAt: DateTime(2026),
           profileId: null,
         );
@@ -474,6 +486,7 @@ void main() {
         currency: null,
         notifyOnMatch: false,
         matchMode: 'strict',
+        enabled: true,
         createdAt: DateTime(2026),
         profileId: null,
       );
@@ -506,6 +519,7 @@ void main() {
           currency: null,
           notifyOnMatch: false,
           matchMode: 'strict',
+          enabled: true,
           createdAt: DateTime(2026),
           profileId: null,
         );
@@ -539,6 +553,7 @@ void main() {
         currency: null,
         notifyOnMatch: false,
         matchMode: 'strict',
+        enabled: true,
         createdAt: DateTime(2026),
         profileId: null,
       );
@@ -568,6 +583,7 @@ void main() {
         currency: 'EGP',
         notifyOnMatch: true,
         matchMode: 'strict',
+        enabled: true,
         createdAt: DateTime(2026),
         profileId: null,
       );
@@ -603,6 +619,7 @@ void main() {
           currency: null,
           notifyOnMatch: false,
           matchMode: 'strict',
+          enabled: true,
           createdAt: DateTime(2026),
           profileId: null,
         );
@@ -632,6 +649,7 @@ void main() {
           currency: 'EGP',
           notifyOnMatch: false,
           matchMode: 'strict',
+          enabled: true,
           createdAt: DateTime(2026),
           profileId: null,
         );
@@ -665,6 +683,7 @@ void main() {
           currency: 'EGP',
           notifyOnMatch: false,
           matchMode: 'strict',
+          enabled: true,
           createdAt: DateTime(2026),
           profileId: null,
         );
@@ -694,6 +713,7 @@ void main() {
         currency: null,
         notifyOnMatch: false,
         matchMode: 'strict',
+        enabled: true,
         createdAt: DateTime(2026),
         profileId: null,
       );
@@ -731,6 +751,7 @@ void main() {
           currency: null,
           notifyOnMatch: false,
           matchMode: 'strict',
+          enabled: true,
           createdAt: DateTime(2026),
           profileId: null,
         );
@@ -770,6 +791,7 @@ void main() {
           currency: null,
           notifyOnMatch: false,
           matchMode: 'strict',
+          enabled: true,
           createdAt: DateTime(2026),
           profileId: null,
         );
@@ -808,6 +830,7 @@ void main() {
           currency: null,
           notifyOnMatch: false,
           matchMode: 'strict',
+          enabled: true,
           createdAt: DateTime(2026),
           profileId: null,
         );

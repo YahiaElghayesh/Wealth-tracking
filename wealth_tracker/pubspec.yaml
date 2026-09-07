@@ -77,6 +77,12 @@ dev_dependencies:
   flutter_lints: ^6.0.0
   drift_dev: ^2.34.5
   build_runner: ^2.15.1
+  # Test-only: sms_ledger_processor_test.dart registers a fake
+  # FlutterLocalNotificationsPlatform so a reviewable-charge test doesn't
+  # crash reading an unregistered platform instance (nothing in a plain
+  # `flutter test` run ever performs flutter_local_notifications' own
+  # real plugin registration).
+  flutter_local_notifications_platform_interface: ^12.2.0
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec

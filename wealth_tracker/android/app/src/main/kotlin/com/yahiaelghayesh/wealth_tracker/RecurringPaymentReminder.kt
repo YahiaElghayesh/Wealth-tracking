@@ -221,11 +221,13 @@ class RecurringPaymentReminderReceiver : BroadcastReceiver() {
  * Fired by the reminder notification's "Done" action -- stops the repeating
  * chain immediately (cancels the pending alarm and dismisses the
  * notification) and enqueues a headless WorkManager task that marks the
- * payment paid in the real database, mirroring exactly how
- * SmsQuickAddActionReceiver hands its own button tap off to Dart rather
- * than duplicating database logic natively. The notification is stopped
- * eagerly here rather than waiting on that background task to report
- * success, since there's no cheap way to get a result back from a headless
+ * payment paid in the real database, the same "hand the button tap off to
+ * Dart rather than duplicating database logic natively" shape the SMS
+ * charge review notification's own "Quick add" action uses (see
+ * showSmsChargeReviewNotification, sms_rule_notifications.dart). The
+ * notification is stopped eagerly here rather than waiting on that
+ * background task to report success, since there's no cheap way to get a
+ * result back from a headless
  * isolate to this receiver -- if the task somehow fails, the payment simply
  * stays pending and the very next sync from the app (or the next due cycle)
  * will schedule a fresh reminder for it, same as any other missed write.

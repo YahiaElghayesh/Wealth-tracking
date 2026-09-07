@@ -97,11 +97,13 @@ String _escapeLiteralFlexible(String text) {
 
 /// Builds one capture-group pattern for a placeholder segment. A
 /// card/account number is a plain digit run; a value tolerates thousands
-/// separators and a decimal point; a currency is a short run of letters or
-/// a common symbol (an ISO code like "EGP" or a symbol like "$"); a
-/// vendor/sender name is free text, captured non-greedily so it stops at
-/// the next literal segment rather than swallowing it (or greedily if this
-/// is the very last segment, with nothing after it to stop at).
+/// separators and a decimal point; a currency is a short run of Latin or
+/// Arabic letters or a common symbol (an ISO code like "EGP", an Arabic
+/// word like "جنيه", or a symbol like "$") -- see [_resolveCurrencyToken]
+/// for how each of those is actually recognized; a vendor/sender name is
+/// free text, captured non-greedily so it stops at the next literal
+/// segment rather than swallowing it (or greedily if this is the very last
+/// segment, with nothing after it to stop at).
 String _placeholderPattern(SmsRuleSegment segment, bool isLast) {
   switch (segment.tag) {
     case 'cardNumber':
@@ -109,31 +111,43 @@ String _placeholderPattern(SmsRuleSegment segment, bool isLast) {
     case 'value':
       return r'([\d,]+(?:\.\d+)?)';
     case 'currency':
-      return r'([A-Za-z$€₺]{1,8})';
+      return '([A-Za-z\u0600-\u06FF\$€₺]{1,12})';
     default: // vendor, sender
       return isLast ? r'(.+)' : r'(.+?)';
   }
 }
 
-/// Common symbols banks use in place of an ISO code, mapped to whichever
-/// [supportedCurrencies] entry they mean -- an ISO code captured directly
-/// (e.g. "EGP", "USD") already matches one of those verbatim and needs no
-/// lookup here.
-const _currencySymbolAliases = {
+/// Common symbols or Arabic words banks use in place of an ISO code,
+/// mapped to whichever [supportedCurrencies] entry they mean -- an ISO
+/// code captured directly (e.g. "EGP", "USD") already matches one of
+/// those verbatim (case-insensitively) and needs no lookup here. Lookup
+/// keys are matched case-insensitively for the Latin symbol/word case too
+/// (see _resolveCurrencyToken), but Arabic script has no case to fold.
+const _currencyAliases = {
   r'$': 'USD',
   '€': 'EUR', // €
   '₺': 'TRY', // ₺
+  'جنيه': 'EGP', // جنيه (junayh, Egyptian pound)
+  'جم': 'EGP', // جم (the abbreviation CIB/NBE alerts use)
+  'دولار': 'USD', // دولار (dollar)
+  'يورو': 'EUR', // يورو (euro)
+  'ريال': 'SAR', // ريال (riyal)
+  'درهم': 'AED', // درهم (dirham)
+  'ليرة': 'TRY', // ليرة (lira)
 };
 
-/// Resolves whatever a `currency` placeholder actually captured to one of
-/// [supportedCurrencies], or null if it's not recognized -- the caller
-/// (`_applyLedgerPayment`) then falls back to the rule's own default
-/// currency, the same as when no `currency` tag was marked at all.
+/// Resolves whatever a `currency` placeholder actually captured -- an ISO
+/// code in English, an Arabic currency word, or a symbol -- to one of
+/// [supportedCurrencies], or null if it's not recognized. The caller then
+/// falls back to the rule's own default currency (for a ledger-payment
+/// rule) or leaves the value unconverted (for a balance rule, when it
+/// already matches the card's/account's own currency) -- same as when no
+/// `currency` tag was marked at all.
 String? _resolveCurrencyToken(String raw) {
   final token = raw.trim();
   final upper = token.toUpperCase();
   if (supportedCurrencies.contains(upper)) return upper;
-  return _currencySymbolAliases[token];
+  return _currencyAliases[token];
 }
 
 /// Compiles a rule's marked-up sample into a matcher -- alternating fixed

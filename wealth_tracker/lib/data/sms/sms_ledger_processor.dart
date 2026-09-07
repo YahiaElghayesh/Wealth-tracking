@@ -25,25 +25,19 @@ const _dedupeCap = 200;
 const _balanceAppliedKey = 'sms_balance_applied_ids';
 const _balanceAppliedCap = 200;
 
-/// The WorkManager task name a bank-SMS notification's "Quick add" action
-/// enqueues (see SmsQuickAddActionReceiver.kt) -- must match the string
-/// switched on in `priceRefreshCallbackDispatcher`
+/// The WorkManager task name a bank-SMS charge-review notification's
+/// "Quick add" action enqueues (see `notificationTapBackground` in
+/// app.dart, registered with flutter_local_notifications) -- must match
+/// the string switched on in `priceRefreshCallbackDispatcher`
 /// (lib/data/pricing/background_refresh.dart).
 const smsQuickAddTaskName = 'smsQuickAdd';
 
-/// The WorkManager task name SmsReceiver.kt enqueues automatically, with no
-/// notification ever posted, when its own narrow keyword pre-filter
-/// recognizes an incoming SMS as a card payment/settlement or refund alert
-/// -- must match the string switched on in `priceRefreshCallbackDispatcher`
-/// (lib/data/pricing/background_refresh.dart).
-const smsAutoUpdateTaskName = 'smsAutoUpdate';
-
-/// The WorkManager task name SmsReceiver.kt enqueues automatically,
-/// *alongside* posting its usual notification, for anything else -- must
+/// The WorkManager task name SmsReceiver.kt enqueues unconditionally for
+/// *every* incoming SMS -- there is no native pre-filter of any kind
+/// anymore (see [commitSmsAutoDetect]'s own doc comment for why); must
 /// match the string switched on in `priceRefreshCallbackDispatcher`
-/// (lib/data/pricing/background_refresh.dart). See [commitSmsBalanceUpdate]
-/// for why this exists as a separate task from the notification tap.
-const smsBalanceUpdateTaskName = 'smsBalanceUpdate';
+/// (lib/data/pricing/background_refresh.dart).
+const smsAutoDetectTaskName = 'smsAutoDetect';
 
 class _RuleMatch {
   const _RuleMatch(this.rule, this.match);
@@ -51,15 +45,18 @@ class _RuleMatch {
   final SmsRuleMatch match;
 }
 
-/// Tries every saved [SmsRule] (across every profile -- an SMS Rule isn't
-/// scoped the way a ledger is; only a 'ledgerPayment' rule's *target*
-/// counterparty carries a real profile, resolved separately by
+/// Tries every saved, *enabled* [SmsRule] (across every profile -- an SMS
+/// Rule isn't scoped the way a ledger is; only a 'ledgerPayment' rule's
+/// *target* counterparty carries a real profile, resolved separately by
 /// `applySmsRule` itself) against [body], returning every one that
 /// matched -- deliberately not just the first, since a single real SMS
 /// can legitimately match more than one rule (e.g. a card-balance rule and
 /// a ledger-payment rule both built from the same bank's charge wording).
+/// A disabled rule is skipped entirely, the same as if it didn't exist.
 Future<List<_RuleMatch>> _matchAllRules(AppDatabase db, String body) async {
-  final rules = await db.select(db.smsRules).get();
+  final rules = await (db.select(
+    db.smsRules,
+  )..where((r) => r.enabled.equals(true))).get();
   final matches = <_RuleMatch>[];
   for (final rule in rules) {
     final match = matchSmsRule(rule, body);
@@ -97,9 +94,9 @@ Future<bool> _applyBalanceMatches(
 
 /// [_applyBalanceMatches], applied at most once per [dedupeId] -- shared by
 /// every call site below so a charge SMS whose balance
-/// [commitSmsBalanceUpdate] already applied on arrival doesn't get it
-/// applied a second time once [processIncomingSms] or [commitSmsQuickAdd]
-/// later runs for the same SMS, which would silently double-count an
+/// [commitSmsAutoDetect] already applied on arrival doesn't get it applied
+/// a second time once [processIncomingSms] or [commitSmsQuickAdd] later
+/// runs for the same SMS, which would silently double-count an
 /// "add"/"subtract" role rule's effect.
 Future<void> _applyBalanceMatchesOnce(
   AppDatabase db,
@@ -123,12 +120,15 @@ Future<void> _applyBalanceMatchesOnce(
       );
 }
 
-/// One incoming SMS, already known to be from the app's own SMS-detected
-/// launch path (see `native_sms_channel.dart` / `app.dart`) — so the app is
-/// guaranteed to be in the foreground by the time this runs, which is why
-/// this can push straight to the review screen instead of going through a
-/// system notification and a background isolate the way the very first
-/// version of this feature did.
+/// One incoming SMS, run once the app is actually in the foreground --
+/// either a live SMS arriving while it's already open (`native_sms_channel
+/// .dart`), a cold/warm launch from tapping [showSmsChargeReviewNotification]
+/// (see app.dart's notification-response handling), or a widget/shortcut
+/// launch carrying pending SMS extras. Guaranteed to have a mounted
+/// Navigator by the time this runs, which is why this can push straight to
+/// the review screen instead of going through a background isolate the
+/// way [commitSmsAutoDetect] (this same SMS's *first* pass, the instant it
+/// arrived) has to.
 ///
 /// Applies every matched credit-card/bank-account balance rule silently
 /// (nothing to confirm, it's just a number), and separately opens
@@ -283,18 +283,32 @@ Future<bool> commitSmsQuickAdd(
   return ledgerApplied;
 }
 
-/// Headless counterpart for SMS the *native* receiver already identified as
-/// a card payment/settlement or refund alert (see SmsReceiver.kt's
-/// `isCardPaymentOrRefundAlert`) -- runs with no notification and no
-/// ledger entry at all, per the user's explicit ask to only be interrupted
-/// for purchases, not for paying a card down or a refund landing on it.
-/// Shares the same dedupe key space as [processIncomingSms]/
-/// [commitSmsQuickAdd].
-Future<void> commitSmsAutoUpdate(
+/// Headless entry point SmsReceiver.kt enqueues for *every* incoming SMS,
+/// unconditionally -- there is no native keyword pre-filter deciding
+/// what "looks like" a bank text anymore (the old `looksLikeBankCardSms`/
+/// `isOtpMessage`/`isCardPaymentOrRefundAlert`/vendor-pattern checks are
+/// gone entirely); whether anything happens at all now rests solely on
+/// whether a saved [SmsRule] actually matches. If nothing matches, this
+/// does nothing -- no notification, no fallback prompt.
+///
+/// Applies every matched balance rule immediately (as [processIncomingSms]
+/// does), and a matched 'ledgerPayment' rule tagged 'repayment' directly
+/// too, both notifying only when that rule's own [SmsRule.notifyOnMatch]
+/// is on. A match tagged 'charge' needs the user's review before it
+/// becomes a ledger entry -- there's no Navigator in this headless
+/// isolate to push [SmsReviewScreen] onto, so it posts a notification
+/// instead (always, regardless of [SmsRule.notifyOnMatch], since a charge
+/// match is inherently something to act on, not just an FYI). Tapping
+/// that notification re-runs [processIncomingSms] with the same body/
+/// timestamp once the app is open (see app.dart's notification-response
+/// handling), which re-matches and pushes the review screen for real;
+/// its "Quick add" action commits headlessly via [commitSmsQuickAdd]
+/// instead. Deliberately does *not* mark [_dedupeKey] in that case, so
+/// either of those later paths still finds `_alreadyProcessed` false.
+Future<void> commitSmsAutoDetect(
   AppDatabase db, {
   required String body,
   required int timestampMillis,
-  required String profileId,
 }) async {
   if (body.trim().isEmpty) return;
 
@@ -302,30 +316,43 @@ Future<void> commitSmsAutoUpdate(
   if (await _alreadyProcessed(db, dedupeId)) return;
 
   final matches = await _matchAllRules(db, body);
-  await _applyBalanceMatchesOnce(db, matches, dedupeId);
-  await _markProcessed(db, dedupeId);
-}
+  if (matches.isEmpty) return;
 
-/// Headless counterpart for a *charge* SMS SmsReceiver.kt has just posted
-/// its usual notification for -- runs alongside that notification, not
-/// instead of it, so any matched balance rule's tracked number updates the
-/// moment the SMS arrives whether or not the user ever taps the
-/// notification. Deliberately never touches [_dedupeKey] (the "fully
-/// settled" state [processIncomingSms]/[commitSmsQuickAdd] check) -- this
-/// only ever updates a balance, using [_balanceAppliedKey] so the same
-/// SMS's balance effect is never applied twice, while leaving the ledger-
-/// entry decision exactly as available as it was before: tapping the
-/// notification afterward still opens [SmsReviewScreen] normally.
-Future<void> commitSmsBalanceUpdate(
-  AppDatabase db, {
-  required String body,
-  required int timestampMillis,
-}) async {
-  if (body.trim().isEmpty) return;
-
-  final dedupeId = '$timestampMillis:${body.hashCode}';
-  final matches = await _matchAllRules(db, body);
   await _applyBalanceMatchesOnce(db, matches, dedupeId);
+
+  _RuleMatch? reviewable;
+  for (final m in matches) {
+    if (m.rule.operation != 'ledgerPayment') continue;
+    if (m.match.valueRole == 'repayment') {
+      final outcome = await applySmsRule(db, m.rule, m.match);
+      if (outcome.applied &&
+          m.rule.notifyOnMatch &&
+          outcome.notificationTitle != null) {
+        await showSmsRuleNotification(
+          title: outcome.notificationTitle!,
+          body: outcome.notificationBody ?? '',
+        );
+      }
+      continue;
+    }
+    reviewable ??= m;
+  }
+
+  if (reviewable == null) {
+    // Fully settled already (balance-only and/or repayment matches, or no
+    // ledgerPayment match at all) -- nothing left for a later tap to do.
+    await _markProcessed(db, dedupeId);
+    return;
+  }
+
+  final vendor = (reviewable.match.vendor?.trim().isNotEmpty ?? false)
+      ? reviewable.match.vendor!
+      : (reviewable.match.sender ?? 'a bank text');
+  await showSmsChargeReviewNotification(
+    body: body,
+    timestampMillis: timestampMillis,
+    vendor: vendor,
+  );
 }
 
 /// [navigatorKey]'s Navigator is usually already mounted by the time this

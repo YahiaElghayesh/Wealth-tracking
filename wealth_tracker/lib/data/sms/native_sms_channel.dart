@@ -18,13 +18,23 @@ const _channel = MethodChannel('money_hub/sms');
 /// call and would silently return null to whichever caller runs second.
 Future<PendingSms?>? _pendingSmsFuture;
 
+/// Legacy: covered a cold start from tapping the *native* "bank text
+/// detected" notification MainActivity.kt used to build, which stashed the
+/// raw SMS as launch-Intent extras. SmsReceiver.kt no longer posts any
+/// notification itself (see its own doc comment -- the whole native
+/// keyword pre-filter that decided whether to is gone, replaced by
+/// `commitSmsAutoDetect` actually running the user's SMS Rules in a
+/// background isolate); the one notification this app now shows for a
+/// charge that needs review (`showSmsChargeReviewNotification`) is posted
+/// from Dart via flutter_local_notifications, and its tap is handled
+/// through that plugin's own payload/response mechanism (see app.dart's
+/// `_onNotificationResponse`/`notificationTapBackground`), not this
+/// channel. Left in place, rather than removed, since nothing calling
+/// this now-always-null path causes any harm -- `main()` still calls it
+/// as part of [coldStartLaunchPending]'s computation, for one.
+///
 /// Reads (and clears) the SMS carried by the Intent that launched or last
-/// re-launched this Activity, if any — covers a cold start from tapping the
-/// native "bank text detected" notification. See MainActivity.kt: the
-/// notification's PendingIntent stashes the raw SMS as launch-Intent
-/// extras rather than going through a Flutter plugin, since a previous SMS
-/// plugin's own Android build config broke `flutter build apk` outright;
-/// nothing SMS-related in this app depends on a third-party plugin anymore.
+/// re-launched this Activity, if any.
 ///
 /// Safe to call more than once -- every call after the first returns the
 /// same already-resolved result instead of re-invoking the native side

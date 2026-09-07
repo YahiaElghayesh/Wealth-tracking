@@ -605,6 +605,12 @@ class SmsRules extends Table {
   /// single sample can't predict. See `compileSmsRulePattern`.
   TextColumn get matchMode => text().withDefault(const Constant('strict'))();
 
+  /// Whether this rule is actually applied to incoming SMS -- a disabled
+  /// rule is skipped by matching entirely (see `_matchAllRules`), without
+  /// deleting it, so a rule that's temporarily wrong or noisy can be
+  /// switched off and back on instead of being rebuilt from scratch.
+  BoolColumn get enabled => boolean().withDefault(const Constant(true))();
+
   DateTimeColumn get createdAt => dateTime()();
   TextColumn get profileId => text().nullable().references(Profiles, #id)();
 

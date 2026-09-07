@@ -1,5 +1,6 @@
 import 'package:drift/drift.dart' hide isNull, isNotNull;
 import 'package:drift/native.dart';
+import 'package:flutter_local_notifications_platform_interface/flutter_local_notifications_platform_interface.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:uuid/uuid.dart';
 
@@ -7,6 +8,20 @@ import 'package:wealth_tracker/core/models/sms_rule_segment.dart';
 import 'package:wealth_tracker/data/db/database.dart';
 import 'package:wealth_tracker/data/sms/sms_ledger_processor.dart';
 import 'package:wealth_tracker/data/sms/sms_rule_engine.dart';
+
+/// A real platform implementation only ever exists on-device (registered by
+/// flutter_local_notifications' own plugin registration, which never runs
+/// in a plain `flutter test`) -- without something registered here,
+/// [commitSmsAutoDetect]'s unconditional `showSmsChargeReviewNotification`
+/// call for a reviewable charge would throw `LateInitializationError`
+/// reading `FlutterLocalNotificationsPlatform.instance` before ever
+/// reaching a real platform channel. Registering any concrete subclass is
+/// enough to fix that: `resolvePlatformSpecificImplementation` type-checks
+/// the registered instance against the platform-specific type it wants
+/// (e.g. `AndroidFlutterLocalNotificationsPlugin`), finds this fake isn't
+/// one, and returns null -- so `initialize`/`show` become harmless no-ops
+/// without this class needing to override anything itself.
+class _NoopNotificationsPlatform extends FlutterLocalNotificationsPlatform {}
 
 /// A charge shaped like the app's old hardwired CIB pattern -- card number,
 /// value (stated post-charge available balance), vendor -- but matched
@@ -20,7 +35,15 @@ const _chargeSms =
 /// whatever's already tracked) rather than "set".
 const _paymentSms = 'Payment of EGP 8860.36 received on card #8455.';
 
+/// A ledger repayment -- someone paying back what they owed, netting off
+/// the tracked balance directly with no review needed (unlike a charge).
+const _repaymentSms = 'We received your payment of EGP 250.00. Thank you.';
+
 void main() {
+  setUpAll(() {
+    FlutterLocalNotificationsPlatform.instance = _NoopNotificationsPlatform();
+  });
+
   late AppDatabase db;
 
   setUp(() => db = AppDatabase.forTesting(NativeDatabase.memory()));
@@ -101,7 +124,25 @@ void main() {
     const SmsRuleSegment.literal('.'),
   ];
 
-  Future<void> insertLedgerPaymentRule(String bankId, String counterpartyId) {
+  /// A rule matching [_repaymentSms]: a "repayment" value with nothing
+  /// else tagged -- nets directly onto the tracked ledger balance, no
+  /// vendor/category needed.
+  List<SmsRuleSegment> repaymentSegments() => [
+    const SmsRuleSegment.literal('We received your payment of EGP '),
+    const SmsRuleSegment.placeholder(
+      text: '250.00',
+      tag: 'value',
+      role: 'repayment',
+    ),
+    const SmsRuleSegment.literal('. Thank you.'),
+  ];
+
+  Future<void> insertLedgerPaymentRule(
+    String bankId,
+    String counterpartyId, {
+    List<SmsRuleSegment>? segments,
+    String? sampleText,
+  }) {
     return db
         .into(db.smsRules)
         .insert(
@@ -109,8 +150,8 @@ void main() {
             id: const Uuid().v4(),
             bankId: bankId,
             operation: 'ledgerPayment',
-            sampleText: _chargeSms,
-            segmentsJson: encodeSmsRuleSegments(chargeSegments()),
+            sampleText: sampleText ?? _chargeSms,
+            segmentsJson: encodeSmsRuleSegments(segments ?? chargeSegments()),
             targetCounterpartyId: Value(counterpartyId),
             currency: const Value('EGP'),
             createdAt: DateTime(2026),
@@ -245,7 +286,7 @@ void main() {
     );
   });
 
-  group('commitSmsAutoUpdate', () {
+  group('commitSmsAutoDetect', () {
     test(
       'a card-payment SMS updates the balance with no ledger entry',
       () async {
@@ -260,12 +301,7 @@ void main() {
           currentAvailableBalance: 50000,
         );
 
-        await commitSmsAutoUpdate(
-          db,
-          body: _paymentSms,
-          timestampMillis: 1000,
-          profileId: 'test-profile',
-        );
+        await commitSmsAutoDetect(db, body: _paymentSms, timestampMillis: 1000);
 
         expect(await db.select(db.ledgerTransactions).get(), isEmpty);
         final card = await db.select(db.creditCards).getSingle();
@@ -274,14 +310,14 @@ void main() {
     );
 
     test('does nothing for text that matches no rule', () async {
-      await commitSmsAutoUpdate(
+      await commitSmsAutoDetect(
         db,
         body: 'Your OTP is 123456.',
         timestampMillis: 1000,
-        profileId: 'test-profile',
       );
 
       expect(await db.select(db.creditCards).get(), isEmpty);
+      expect(await db.select(db.ledgerTransactions).get(), isEmpty);
     });
 
     test(
@@ -298,18 +334,8 @@ void main() {
           currentAvailableBalance: 50000,
         );
 
-        await commitSmsAutoUpdate(
-          db,
-          body: _paymentSms,
-          timestampMillis: 1000,
-          profileId: 'test-profile',
-        );
-        await commitSmsAutoUpdate(
-          db,
-          body: _paymentSms,
-          timestampMillis: 1000,
-          profileId: 'test-profile',
-        );
+        await commitSmsAutoDetect(db, body: _paymentSms, timestampMillis: 1000);
+        await commitSmsAutoDetect(db, body: _paymentSms, timestampMillis: 1000);
 
         final card = await db.select(db.creditCards).getSingle();
         expect(card.currentAvailableBalance, closeTo(50000 + 8860.36, 0.001));
@@ -317,7 +343,7 @@ void main() {
     );
 
     test(
-      'a charge SMS still updates the balance even though it is not meant to reach this path',
+      'a charge-shaped balance rule updates the balance directly, same as any other balance match',
       () async {
         final bankId = await insertBank();
         await insertCreditCardBalanceRule(bankId, chargeSegments(), _chargeSms);
@@ -326,88 +352,79 @@ void main() {
           currentAvailableBalance: 50000,
         );
 
-        await commitSmsAutoUpdate(
+        await commitSmsAutoDetect(db, body: _chargeSms, timestampMillis: 1000);
+
+        expect(await db.select(db.ledgerTransactions).get(), isEmpty);
+        final card = await db.select(db.creditCards).getSingle();
+        expect(card.currentAvailableBalance, closeTo(85891.16, 0.001));
+      },
+    );
+
+    test(
+      'a matched ledgerPayment charge is left pending for review, not added directly',
+      () async {
+        final bankId = await insertBank();
+        final counterpartyId = await insertCounterparty('Dad');
+        await insertLedgerPaymentRule(bankId, counterpartyId);
+
+        await commitSmsAutoDetect(db, body: _chargeSms, timestampMillis: 1000);
+
+        expect(await db.select(db.ledgerTransactions).get(), isEmpty);
+      },
+    );
+
+    test(
+      'a charge left pending by commitSmsAutoDetect can still be committed afterward via commitSmsQuickAdd',
+      () async {
+        final bankId = await insertBank();
+        final counterpartyId = await insertCounterparty('Dad');
+        await insertLedgerPaymentRule(bankId, counterpartyId);
+
+        await commitSmsAutoDetect(db, body: _chargeSms, timestampMillis: 1000);
+        final added = await commitSmsQuickAdd(
           db,
           body: _chargeSms,
           timestampMillis: 1000,
           profileId: 'test-profile',
         );
 
-        expect(await db.select(db.ledgerTransactions).get(), isEmpty);
-        final card = await db.select(db.creditCards).getSingle();
-        expect(card.currentAvailableBalance, closeTo(85891.16, 0.001));
-      },
-    );
-  });
-
-  group('commitSmsBalanceUpdate', () {
-    test(
-      'updates the matching card balance from a charge SMS, with no ledger entry',
-      () async {
-        final bankId = await insertBank();
-        await insertCreditCardBalanceRule(bankId, chargeSegments(), _chargeSms);
-        await insertCard(
-          lastFourDigits: '4912',
-          currentAvailableBalance: 50000,
-        );
-
-        await commitSmsBalanceUpdate(
-          db,
-          body: _chargeSms,
-          timestampMillis: 1000,
-        );
-
-        expect(await db.select(db.ledgerTransactions).get(), isEmpty);
-        final card = await db.select(db.creditCards).getSingle();
-        expect(card.currentAvailableBalance, closeTo(85891.16, 0.001));
+        expect(added, isTrue);
+        expect(await db.select(db.ledgerTransactions).get(), hasLength(1));
       },
     );
 
-    test('does nothing for text that matches no rule', () async {
-      await insertCard(lastFourDigits: '4912', currentAvailableBalance: 50000);
-
-      await commitSmsBalanceUpdate(
-        db,
-        body: 'Your OTP is 123456.',
-        timestampMillis: 1000,
+    test('a repayment match applies directly, with no review needed', () async {
+      final bankId = await insertBank();
+      final counterpartyId = await insertCounterparty('Dad');
+      await insertLedgerPaymentRule(
+        bankId,
+        counterpartyId,
+        segments: repaymentSegments(),
+        sampleText: _repaymentSms,
       );
+
+      await commitSmsAutoDetect(db, body: _repaymentSms, timestampMillis: 1000);
+
+      final rows = await db.select(db.ledgerTransactions).get();
+      expect(rows, hasLength(1));
+      expect(rows.single.amount, closeTo(-250.00, 0.001));
+    });
+
+    test('a disabled rule is skipped entirely', () async {
+      final bankId = await insertBank();
+      await insertCreditCardBalanceRule(bankId, paymentSegments(), _paymentSms);
+      final rule = await db.select(db.smsRules).getSingle();
+      await db.update(db.smsRules).replace(rule.copyWith(enabled: false));
+      await insertCard(lastFourDigits: '8455', currentAvailableBalance: 50000);
+
+      await commitSmsAutoDetect(db, body: _paymentSms, timestampMillis: 1000);
 
       final card = await db.select(db.creditCards).getSingle();
       expect(card.currentAvailableBalance, 50000);
     });
 
     test(
-      'the same SMS only ever applies its balance effect once, even across repeated calls',
-      () async {
-        final bankId = await insertBank();
-        await insertCreditCardBalanceRule(
-          bankId,
-          paymentSegments(),
-          _paymentSms,
-        );
-        await insertCard(
-          lastFourDigits: '8455',
-          currentAvailableBalance: 50000,
-        );
-
-        await commitSmsBalanceUpdate(
-          db,
-          body: _paymentSms,
-          timestampMillis: 1000,
-        );
-        await commitSmsBalanceUpdate(
-          db,
-          body: _paymentSms,
-          timestampMillis: 1000,
-        );
-
-        final card = await db.select(db.creditCards).getSingle();
-        expect(card.currentAvailableBalance, closeTo(50000 + 8860.36, 0.001));
-      },
-    );
-
-    test(
-      'a balance already applied by commitSmsBalanceUpdate is not double-applied when '
+      'a balance already applied by commitSmsAutoDetect is not double-applied when '
       'commitSmsQuickAdd later runs for the same SMS',
       () async {
         final bankId = await insertBank();
@@ -421,49 +438,8 @@ void main() {
           currentAvailableBalance: 50000,
         );
 
-        // Simulates SmsReceiver.kt enqueuing the silent balance update
-        // alongside a notification, followed by the user later tapping
-        // that notification (processIncomingSms's headless-equivalent for
-        // this scenario is commitSmsQuickAdd, since a payment SMS is not a
-        // charge and never opens the review screen either way).
-        await commitSmsBalanceUpdate(
-          db,
-          body: _paymentSms,
-          timestampMillis: 1000,
-        );
+        await commitSmsAutoDetect(db, body: _paymentSms, timestampMillis: 1000);
         await commitSmsQuickAdd(
-          db,
-          body: _paymentSms,
-          timestampMillis: 1000,
-          profileId: 'test-profile',
-        );
-
-        final card = await db.select(db.creditCards).getSingle();
-        expect(card.currentAvailableBalance, closeTo(50000 + 8860.36, 0.001));
-      },
-    );
-
-    test(
-      'a balance already applied by commitSmsBalanceUpdate is not double-applied when '
-      'commitSmsAutoUpdate later runs for the same SMS',
-      () async {
-        final bankId = await insertBank();
-        await insertCreditCardBalanceRule(
-          bankId,
-          paymentSegments(),
-          _paymentSms,
-        );
-        await insertCard(
-          lastFourDigits: '8455',
-          currentAvailableBalance: 50000,
-        );
-
-        await commitSmsBalanceUpdate(
-          db,
-          body: _paymentSms,
-          timestampMillis: 1000,
-        );
-        await commitSmsAutoUpdate(
           db,
           body: _paymentSms,
           timestampMillis: 1000,

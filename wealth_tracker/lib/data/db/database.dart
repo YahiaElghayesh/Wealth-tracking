@@ -41,7 +41,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 30;
+  int get schemaVersion => 31;
 
   /// Public so `ProfileRepository.addProfile` can give a newly created
   /// profile the same starter categories a fresh install gets -- otherwise
@@ -433,6 +433,11 @@ class AppDatabase extends _$AppDatabase {
         // Optional user-given rule name -- every existing rule keeps
         // showing its operation name until renamed.
         await m.addColumn(smsRules, smsRules.name);
+      }
+      if (from < 31) {
+        // Activate/deactivate toggle -- every existing rule defaults to
+        // enabled, exactly how it already behaved.
+        await m.addColumn(smsRules, smsRules.enabled);
       }
     },
     // The "Breakfast" quick-pick category was a voice-transcription

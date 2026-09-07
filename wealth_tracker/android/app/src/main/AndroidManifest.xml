@@ -127,14 +127,6 @@
             </intent-filter>
         </receiver>
 
-        <!-- Only ever invoked via the "Quick add" PendingIntent SmsReceiver
-             attaches to its own notification — not exported, no
-             intent-filter, since nothing outside this app should be able to
-             trigger a ledger write. -->
-        <receiver
-            android:name=".SmsQuickAddActionReceiver"
-            android:exported="false" />
-
         <!-- Recurring payments: fires a manual payment's reminder and
              re-arms the next one 4 hours later — see
              RecurringPaymentReminder.kt. Only ever invoked via the

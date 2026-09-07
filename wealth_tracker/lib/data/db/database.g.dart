@@ -8756,6 +8756,21 @@ class $SmsRulesTable extends SmsRules with TableInfo<$SmsRulesTable, SmsRule> {
     requiredDuringInsert: false,
     defaultValue: const Constant('strict'),
   );
+  static const VerificationMeta _enabledMeta = const VerificationMeta(
+    'enabled',
+  );
+  @override
+  late final GeneratedColumn<bool> enabled = GeneratedColumn<bool>(
+    'enabled',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("enabled" IN (0, 1))',
+    ),
+    defaultValue: const Constant(true),
+  );
   static const VerificationMeta _createdAtMeta = const VerificationMeta(
     'createdAt',
   );
@@ -8793,6 +8808,7 @@ class $SmsRulesTable extends SmsRules with TableInfo<$SmsRulesTable, SmsRule> {
     currency,
     notifyOnMatch,
     matchMode,
+    enabled,
     createdAt,
     profileId,
   ];
@@ -8884,6 +8900,12 @@ class $SmsRulesTable extends SmsRules with TableInfo<$SmsRulesTable, SmsRule> {
         matchMode.isAcceptableOrUnknown(data['match_mode']!, _matchModeMeta),
       );
     }
+    if (data.containsKey('enabled')) {
+      context.handle(
+        _enabledMeta,
+        enabled.isAcceptableOrUnknown(data['enabled']!, _enabledMeta),
+      );
+    }
     if (data.containsKey('created_at')) {
       context.handle(
         _createdAtMeta,
@@ -8946,6 +8968,10 @@ class $SmsRulesTable extends SmsRules with TableInfo<$SmsRulesTable, SmsRule> {
       matchMode: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}match_mode'],
+      )!,
+      enabled: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}enabled'],
       )!,
       createdAt: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
@@ -9012,6 +9038,12 @@ class SmsRule extends DataClass implements Insertable<SmsRule> {
   /// here", tolerating a date, an extra sentence, or other wording a
   /// single sample can't predict. See `compileSmsRulePattern`.
   final String matchMode;
+
+  /// Whether this rule is actually applied to incoming SMS -- a disabled
+  /// rule is skipped by matching entirely (see `_matchAllRules`), without
+  /// deleting it, so a rule that's temporarily wrong or noisy can be
+  /// switched off and back on instead of being rebuilt from scratch.
+  final bool enabled;
   final DateTime createdAt;
   final String? profileId;
   const SmsRule({
@@ -9025,6 +9057,7 @@ class SmsRule extends DataClass implements Insertable<SmsRule> {
     this.currency,
     required this.notifyOnMatch,
     required this.matchMode,
+    required this.enabled,
     required this.createdAt,
     this.profileId,
   });
@@ -9047,6 +9080,7 @@ class SmsRule extends DataClass implements Insertable<SmsRule> {
     }
     map['notify_on_match'] = Variable<bool>(notifyOnMatch);
     map['match_mode'] = Variable<String>(matchMode);
+    map['enabled'] = Variable<bool>(enabled);
     map['created_at'] = Variable<DateTime>(createdAt);
     if (!nullToAbsent || profileId != null) {
       map['profile_id'] = Variable<String>(profileId);
@@ -9070,6 +9104,7 @@ class SmsRule extends DataClass implements Insertable<SmsRule> {
           : Value(currency),
       notifyOnMatch: Value(notifyOnMatch),
       matchMode: Value(matchMode),
+      enabled: Value(enabled),
       createdAt: Value(createdAt),
       profileId: profileId == null && nullToAbsent
           ? const Value.absent()
@@ -9095,6 +9130,7 @@ class SmsRule extends DataClass implements Insertable<SmsRule> {
       currency: serializer.fromJson<String?>(json['currency']),
       notifyOnMatch: serializer.fromJson<bool>(json['notifyOnMatch']),
       matchMode: serializer.fromJson<String>(json['matchMode']),
+      enabled: serializer.fromJson<bool>(json['enabled']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
       profileId: serializer.fromJson<String?>(json['profileId']),
     );
@@ -9113,6 +9149,7 @@ class SmsRule extends DataClass implements Insertable<SmsRule> {
       'currency': serializer.toJson<String?>(currency),
       'notifyOnMatch': serializer.toJson<bool>(notifyOnMatch),
       'matchMode': serializer.toJson<String>(matchMode),
+      'enabled': serializer.toJson<bool>(enabled),
       'createdAt': serializer.toJson<DateTime>(createdAt),
       'profileId': serializer.toJson<String?>(profileId),
     };
@@ -9129,6 +9166,7 @@ class SmsRule extends DataClass implements Insertable<SmsRule> {
     Value<String?> currency = const Value.absent(),
     bool? notifyOnMatch,
     String? matchMode,
+    bool? enabled,
     DateTime? createdAt,
     Value<String?> profileId = const Value.absent(),
   }) => SmsRule(
@@ -9144,6 +9182,7 @@ class SmsRule extends DataClass implements Insertable<SmsRule> {
     currency: currency.present ? currency.value : this.currency,
     notifyOnMatch: notifyOnMatch ?? this.notifyOnMatch,
     matchMode: matchMode ?? this.matchMode,
+    enabled: enabled ?? this.enabled,
     createdAt: createdAt ?? this.createdAt,
     profileId: profileId.present ? profileId.value : this.profileId,
   );
@@ -9167,6 +9206,7 @@ class SmsRule extends DataClass implements Insertable<SmsRule> {
           ? data.notifyOnMatch.value
           : this.notifyOnMatch,
       matchMode: data.matchMode.present ? data.matchMode.value : this.matchMode,
+      enabled: data.enabled.present ? data.enabled.value : this.enabled,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
       profileId: data.profileId.present ? data.profileId.value : this.profileId,
     );
@@ -9185,6 +9225,7 @@ class SmsRule extends DataClass implements Insertable<SmsRule> {
           ..write('currency: $currency, ')
           ..write('notifyOnMatch: $notifyOnMatch, ')
           ..write('matchMode: $matchMode, ')
+          ..write('enabled: $enabled, ')
           ..write('createdAt: $createdAt, ')
           ..write('profileId: $profileId')
           ..write(')'))
@@ -9203,6 +9244,7 @@ class SmsRule extends DataClass implements Insertable<SmsRule> {
     currency,
     notifyOnMatch,
     matchMode,
+    enabled,
     createdAt,
     profileId,
   );
@@ -9220,6 +9262,7 @@ class SmsRule extends DataClass implements Insertable<SmsRule> {
           other.currency == this.currency &&
           other.notifyOnMatch == this.notifyOnMatch &&
           other.matchMode == this.matchMode &&
+          other.enabled == this.enabled &&
           other.createdAt == this.createdAt &&
           other.profileId == this.profileId);
 }
@@ -9235,6 +9278,7 @@ class SmsRulesCompanion extends UpdateCompanion<SmsRule> {
   final Value<String?> currency;
   final Value<bool> notifyOnMatch;
   final Value<String> matchMode;
+  final Value<bool> enabled;
   final Value<DateTime> createdAt;
   final Value<String?> profileId;
   final Value<int> rowid;
@@ -9249,6 +9293,7 @@ class SmsRulesCompanion extends UpdateCompanion<SmsRule> {
     this.currency = const Value.absent(),
     this.notifyOnMatch = const Value.absent(),
     this.matchMode = const Value.absent(),
+    this.enabled = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.profileId = const Value.absent(),
     this.rowid = const Value.absent(),
@@ -9264,6 +9309,7 @@ class SmsRulesCompanion extends UpdateCompanion<SmsRule> {
     this.currency = const Value.absent(),
     this.notifyOnMatch = const Value.absent(),
     this.matchMode = const Value.absent(),
+    this.enabled = const Value.absent(),
     required DateTime createdAt,
     this.profileId = const Value.absent(),
     this.rowid = const Value.absent(),
@@ -9284,6 +9330,7 @@ class SmsRulesCompanion extends UpdateCompanion<SmsRule> {
     Expression<String>? currency,
     Expression<bool>? notifyOnMatch,
     Expression<String>? matchMode,
+    Expression<bool>? enabled,
     Expression<DateTime>? createdAt,
     Expression<String>? profileId,
     Expression<int>? rowid,
@@ -9300,6 +9347,7 @@ class SmsRulesCompanion extends UpdateCompanion<SmsRule> {
       if (currency != null) 'currency': currency,
       if (notifyOnMatch != null) 'notify_on_match': notifyOnMatch,
       if (matchMode != null) 'match_mode': matchMode,
+      if (enabled != null) 'enabled': enabled,
       if (createdAt != null) 'created_at': createdAt,
       if (profileId != null) 'profile_id': profileId,
       if (rowid != null) 'rowid': rowid,
@@ -9317,6 +9365,7 @@ class SmsRulesCompanion extends UpdateCompanion<SmsRule> {
     Value<String?>? currency,
     Value<bool>? notifyOnMatch,
     Value<String>? matchMode,
+    Value<bool>? enabled,
     Value<DateTime>? createdAt,
     Value<String?>? profileId,
     Value<int>? rowid,
@@ -9332,6 +9381,7 @@ class SmsRulesCompanion extends UpdateCompanion<SmsRule> {
       currency: currency ?? this.currency,
       notifyOnMatch: notifyOnMatch ?? this.notifyOnMatch,
       matchMode: matchMode ?? this.matchMode,
+      enabled: enabled ?? this.enabled,
       createdAt: createdAt ?? this.createdAt,
       profileId: profileId ?? this.profileId,
       rowid: rowid ?? this.rowid,
@@ -9373,6 +9423,9 @@ class SmsRulesCompanion extends UpdateCompanion<SmsRule> {
     if (matchMode.present) {
       map['match_mode'] = Variable<String>(matchMode.value);
     }
+    if (enabled.present) {
+      map['enabled'] = Variable<bool>(enabled.value);
+    }
     if (createdAt.present) {
       map['created_at'] = Variable<DateTime>(createdAt.value);
     }
@@ -9398,6 +9451,7 @@ class SmsRulesCompanion extends UpdateCompanion<SmsRule> {
           ..write('currency: $currency, ')
           ..write('notifyOnMatch: $notifyOnMatch, ')
           ..write('matchMode: $matchMode, ')
+          ..write('enabled: $enabled, ')
           ..write('createdAt: $createdAt, ')
           ..write('profileId: $profileId, ')
           ..write('rowid: $rowid')
@@ -16955,6 +17009,7 @@ typedef $$SmsRulesTableCreateCompanionBuilder =
       Value<String?> currency,
       Value<bool> notifyOnMatch,
       Value<String> matchMode,
+      Value<bool> enabled,
       required DateTime createdAt,
       Value<String?> profileId,
       Value<int> rowid,
@@ -16971,6 +17026,7 @@ typedef $$SmsRulesTableUpdateCompanionBuilder =
       Value<String?> currency,
       Value<bool> notifyOnMatch,
       Value<String> matchMode,
+      Value<bool> enabled,
       Value<DateTime> createdAt,
       Value<String?> profileId,
       Value<int> rowid,
@@ -17081,6 +17137,11 @@ class $$SmsRulesTableFilterComposer
 
   ColumnFilters<String> get matchMode => $composableBuilder(
     column: $table.matchMode,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get enabled => $composableBuilder(
+    column: $table.enabled,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -17208,6 +17269,11 @@ class $$SmsRulesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<bool> get enabled => $composableBuilder(
+    column: $table.enabled,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<DateTime> get createdAt => $composableBuilder(
     column: $table.createdAt,
     builder: (column) => ColumnOrderings(column),
@@ -17321,6 +17387,9 @@ class $$SmsRulesTableAnnotationComposer
 
   GeneratedColumn<String> get matchMode =>
       $composableBuilder(column: $table.matchMode, builder: (column) => column);
+
+  GeneratedColumn<bool> get enabled =>
+      $composableBuilder(column: $table.enabled, builder: (column) => column);
 
   GeneratedColumn<DateTime> get createdAt =>
       $composableBuilder(column: $table.createdAt, builder: (column) => column);
@@ -17437,6 +17506,7 @@ class $$SmsRulesTableTableManager
                 Value<String?> currency = const Value.absent(),
                 Value<bool> notifyOnMatch = const Value.absent(),
                 Value<String> matchMode = const Value.absent(),
+                Value<bool> enabled = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<String?> profileId = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
@@ -17451,6 +17521,7 @@ class $$SmsRulesTableTableManager
                 currency: currency,
                 notifyOnMatch: notifyOnMatch,
                 matchMode: matchMode,
+                enabled: enabled,
                 createdAt: createdAt,
                 profileId: profileId,
                 rowid: rowid,
@@ -17467,6 +17538,7 @@ class $$SmsRulesTableTableManager
                 Value<String?> currency = const Value.absent(),
                 Value<bool> notifyOnMatch = const Value.absent(),
                 Value<String> matchMode = const Value.absent(),
+                Value<bool> enabled = const Value.absent(),
                 required DateTime createdAt,
                 Value<String?> profileId = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
@@ -17481,6 +17553,7 @@ class $$SmsRulesTableTableManager
                 currency: currency,
                 notifyOnMatch: notifyOnMatch,
                 matchMode: matchMode,
+                enabled: enabled,
                 createdAt: createdAt,
                 profileId: profileId,
                 rowid: rowid,
