@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -22,6 +23,36 @@ class _FixedBodyAdapter implements HttpClientAdapter {
     Future<void>? cancelFuture,
   ) async {
     return ResponseBody.fromBytes(bytes, 200);
+  }
+
+  @override
+  void close({bool force = false}) {}
+}
+
+/// Serves a fixed JSON `/releases` list response for page 1 and an empty
+/// list for every later page -- enough to exercise [AppUpdateService
+/// .fetchLatest]'s own pagination/filtering logic without a real network
+/// call.
+class _ReleasesListAdapter implements HttpClientAdapter {
+  _ReleasesListAdapter(this.releasesJson);
+
+  final String releasesJson;
+
+  @override
+  Future<ResponseBody> fetch(
+    RequestOptions options,
+    Stream<Uint8List>? requestStream,
+    Future<void>? cancelFuture,
+  ) async {
+    final page = int.tryParse('${options.queryParameters['page']}') ?? 1;
+    final body = page == 1 ? releasesJson : '[]';
+    return ResponseBody.fromBytes(
+      utf8.encode(body),
+      200,
+      headers: {
+        'content-type': ['application/json'],
+      },
+    );
   }
 
   @override
@@ -94,5 +125,57 @@ void main() {
 
       expect(File(savePath).existsSync(), isTrue);
     });
+  });
+
+  group('fetchLatest', () {
+    test(
+      'ignores tags from other apps sharing this repo and returns the highest build-<N>',
+      () async {
+        final releases = jsonEncode([
+          {'tag_name': 'mediahub-68', 'assets': <dynamic>[]},
+          {
+            'tag_name': 'build-134',
+            'assets': [
+              {
+                'name': 'wealth-tracker-debug.apk',
+                'browser_download_url': 'https://example.invalid/134.apk',
+                'size': 111,
+              },
+            ],
+          },
+          {
+            'tag_name': 'build-135',
+            'assets': [
+              {
+                'name': 'wealth-tracker-debug.apk',
+                'browser_download_url': 'https://example.invalid/135.apk',
+                'size': 222,
+              },
+            ],
+          },
+        ]);
+        final dio = Dio()..httpClientAdapter = _ReleasesListAdapter(releases);
+        final service = AppUpdateService(dio: dio);
+
+        final update = await service.fetchLatest();
+
+        expect(update, isNotNull);
+        expect(update!.buildNumber, 135);
+        expect(update.assetDownloadUrl, 'https://example.invalid/135.apk');
+      },
+    );
+
+    test(
+      'returns null when nothing on the shared repo matches build-<N>',
+      () async {
+        final releases = jsonEncode([
+          {'tag_name': 'mediahub-68', 'assets': <dynamic>[]},
+        ]);
+        final dio = Dio()..httpClientAdapter = _ReleasesListAdapter(releases);
+        final service = AppUpdateService(dio: dio);
+
+        expect(await service.fetchLatest(), isNull);
+      },
+    );
   });
 }

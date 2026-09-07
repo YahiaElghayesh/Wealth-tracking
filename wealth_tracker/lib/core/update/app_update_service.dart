@@ -65,45 +65,72 @@ class AppUpdateService {
 
   final Dio _dio;
 
-  /// Null means a release exists but has no usable `.apk` asset -- treated
-  /// as "nothing to update to" rather than an error, since that shouldn't
-  /// normally happen from CI's own release step.
+  /// Only a `build-<N>` tag counts -- [_repo] is shared with this
+  /// household's other apps (e.g. MediaHub, tagged `mediahub-<N>`), and
+  /// this deliberately does NOT use GitHub's `/releases/latest` endpoint:
+  /// that endpoint is repo-wide, so whichever app published most
+  /// *recently* wins it, not whichever `build-<N>` is numerically highest.
+  /// A confirmed real failure mode from exactly that: MediaHub published
+  /// after this app's own latest build, `/releases/latest` started
+  /// returning MediaHub's `mediahub-<N>` tag, and this app's update check
+  /// silently reported "up to date" forever after (a tag that doesn't
+  /// start with `build-` doesn't parse, and a failed parse here has always
+  /// meant "nothing to update to"). Listing releases and picking the
+  /// highest `build-<N>` tag among them is immune to whatever other apps
+  /// publish here, in any order.
+  static final RegExp _buildTag = RegExp(r'^build-(\d+)$');
+
+  /// Null means no `build-<N>` release could be found (or the winning one
+  /// has no usable `.apk` asset) -- treated as "nothing to update to"
+  /// rather than an error, since that shouldn't normally happen from CI's
+  /// own release step.
   Future<AvailableUpdate?> fetchLatest() async {
     try {
-      final response = await _dio.get<Map<String, dynamic>>(
-        'https://api.github.com/repos/$_owner/$_repo/releases/latest',
-        // A real, confirmed report: "Check again" kept reporting the app
-        // up to date against an *older* build, repeatably, well after a
-        // newer one was verified (via the CI logs that publish it) to
-        // already exist as this exact endpoint's marked "latest" release.
-        // The only way an actual 2xx response to this exact URL keeps
-        // disagreeing with the server's real state on every retry is a
-        // cache sitting somewhere between this request and GitHub --
-        // carrier/ISP transparent proxies caching a popular API host's GET
-        // responses being the most common culprit, but this guards against
-        // any such layer (an intermediate cache, or GitHub's own edge)
-        // rather than trying to identify exactly which one. The query
-        // param defeats a cache keyed purely on the URL; the headers ask
-        // any HTTP-aware cache in the path not to serve or store a copy at
-        // all -- belt and suspenders, since a misbehaving cache is
-        // precisely the kind of thing that might ignore one but not both.
-        queryParameters: {'_cacheBust': DateTime.now().millisecondsSinceEpoch},
-        options: Options(
-          headers: {
-            'Accept': 'application/vnd.github+json',
-            'X-GitHub-Api-Version': '2022-11-28',
-            'Cache-Control': 'no-cache, no-store',
-            'Pragma': 'no-cache',
+      Map<String, dynamic>? best;
+      var bestBuildNumber = -1;
+      // Three pages (up to 300 releases total, combined across every app
+      // sharing this repo) is generous headroom for this app's own latest
+      // build to still be recent enough to appear -- if it's fallen out of
+      // even that window, GitHub's own release list already can't help,
+      // same as the old `/releases/latest` call would have failed outright.
+      for (var page = 1; page <= 3; page++) {
+        final response = await _dio.get<List<dynamic>>(
+          'https://api.github.com/repos/$_owner/$_repo/releases',
+          // See the comment on carrier/ISP-cache mitigation this used to
+          // carry on `/releases/latest` -- same defense, same reasoning,
+          // just now applied to the list endpoint instead.
+          queryParameters: {
+            'per_page': 100,
+            'page': page,
+            '_cacheBust': DateTime.now().millisecondsSinceEpoch,
           },
-        ),
-      );
-      final tag = response.data?['tag_name'] as String?;
-      final buildNumber = tag == null
-          ? null
-          : int.tryParse(tag.replaceFirst('build-', ''));
-      if (buildNumber == null) return null;
+          options: Options(
+            headers: {
+              'Accept': 'application/vnd.github+json',
+              'X-GitHub-Api-Version': '2022-11-28',
+              'Cache-Control': 'no-cache, no-store',
+              'Pragma': 'no-cache',
+            },
+          ),
+        );
+        final releases = response.data ?? [];
+        for (final release in releases) {
+          if (release is! Map<String, dynamic>) continue;
+          final tagMatch = _buildTag.firstMatch(
+            release['tag_name'] as String? ?? '',
+          );
+          if (tagMatch == null) continue;
+          final buildNumber = int.parse(tagMatch.group(1)!);
+          if (buildNumber > bestBuildNumber) {
+            bestBuildNumber = buildNumber;
+            best = release;
+          }
+        }
+        if (releases.length < 100) break; // reached the last page
+      }
+      if (best == null) return null;
 
-      final assets = response.data?['assets'] as List<dynamic>? ?? [];
+      final assets = best['assets'] as List<dynamic>? ?? [];
       Map<String, dynamic>? apkAsset;
       String? checksumUrl;
       for (final asset in assets) {
@@ -122,7 +149,7 @@ class AppUpdateService {
           : await _fetchChecksum(checksumUrl);
 
       return AvailableUpdate(
-        buildNumber: buildNumber,
+        buildNumber: bestBuildNumber,
         assetDownloadUrl: apkAsset['browser_download_url'] as String,
         assetSizeBytes: apkAsset['size'] as int? ?? 0,
         expectedSha256: expectedSha256,
