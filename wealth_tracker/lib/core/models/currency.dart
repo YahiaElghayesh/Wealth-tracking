@@ -1,11 +1,12 @@
-/// Currencies selectable when entering an asset value or a ledger amount,
-/// or matched from an SMS Rule's `currency` tag. The full ISO-4217 list --
-/// every code `FxPriceProvider.fetchRatesPerUsd` can return a rate for --
-/// rather than a short hand-picked set, since a payment can land in any
-/// currency and the app shouldn't need a code change to support one.
-/// Sorted alphabetically so a long dropdown is at least easy to scan.
-const supportedCurrencies = [
-  'AED',
+/// The household's most-used currencies, in this exact order -- every
+/// currency dropdown in the app leads with these before the rest, so the
+/// one you actually want isn't buried in an alphabetical list of 150+.
+const _commonCurrencies = ['EGP', 'USD', 'EUR', 'SAR', 'AED', 'TRY'];
+
+/// Every other ISO-4217 code `FxPriceProvider.fetchRatesPerUsd` can return a
+/// rate for, alphabetically -- a payment can land in any currency, so the
+/// app shouldn't need a code change to support one.
+const _otherCurrencies = [
   'AFN',
   'ALL',
   'AMD',
@@ -44,10 +45,8 @@ const supportedCurrencies = [
   'DKK',
   'DOP',
   'DZD',
-  'EGP',
   'ERN',
   'ETB',
-  'EUR',
   'FJD',
   'FKP',
   'GBP',
@@ -120,7 +119,6 @@ const supportedCurrencies = [
   'RSD',
   'RUB',
   'RWF',
-  'SAR',
   'SBD',
   'SCR',
   'SDG',
@@ -139,13 +137,11 @@ const supportedCurrencies = [
   'TMT',
   'TND',
   'TOP',
-  'TRY',
   'TTD',
   'TWD',
   'TZS',
   'UAH',
   'UGX',
-  'USD',
   'UYU',
   'UZS',
   'VES',
@@ -161,5 +157,11 @@ const supportedCurrencies = [
   'ZMW',
   'ZWL',
 ];
+
+/// Currencies selectable when entering an asset value or a ledger amount,
+/// or matched from an SMS Rule's `currency` tag. [_commonCurrencies] first
+/// so the household's actual day-to-day currencies aren't buried in a
+/// 150+-entry alphabetical list, then every other supported code.
+const supportedCurrencies = [..._commonCurrencies, ..._otherCurrencies];
 
 const defaultCurrency = 'EGP';

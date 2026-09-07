@@ -66,6 +66,7 @@ void main() {
         targetCounterpartyId: null,
         currency: null,
         notifyOnMatch: false,
+        matchMode: 'strict',
         createdAt: DateTime(2026),
         profileId: null,
       );
@@ -88,6 +89,7 @@ void main() {
         targetCounterpartyId: null,
         currency: null,
         notifyOnMatch: false,
+        matchMode: 'strict',
         createdAt: DateTime(2026),
         profileId: null,
       );
@@ -112,6 +114,7 @@ void main() {
         targetCounterpartyId: null,
         currency: null,
         notifyOnMatch: false,
+        matchMode: 'strict',
         createdAt: DateTime(2026),
         profileId: null,
       );
@@ -129,6 +132,7 @@ void main() {
         targetCounterpartyId: null,
         currency: null,
         notifyOnMatch: false,
+        matchMode: 'strict',
         createdAt: DateTime(2026),
         profileId: null,
       );
@@ -154,6 +158,7 @@ void main() {
         targetCounterpartyId: null,
         currency: null,
         notifyOnMatch: false,
+        matchMode: 'strict',
         createdAt: DateTime(2026),
         profileId: null,
       );
@@ -180,6 +185,7 @@ void main() {
         targetCounterpartyId: null,
         currency: 'EGP',
         notifyOnMatch: false,
+        matchMode: 'strict',
         createdAt: DateTime(2026),
         profileId: null,
       );
@@ -202,6 +208,7 @@ void main() {
         targetCounterpartyId: null,
         currency: 'EGP',
         notifyOnMatch: false,
+        matchMode: 'strict',
         createdAt: DateTime(2026),
         profileId: null,
       );
@@ -229,6 +236,7 @@ void main() {
           targetCounterpartyId: null,
           currency: 'EGP',
           notifyOnMatch: false,
+          matchMode: 'strict',
           createdAt: DateTime(2026),
           profileId: null,
         );
@@ -244,6 +252,79 @@ void main() {
         expect(match.vendor, 'Dad Groceries');
       },
     );
+
+    test(
+      'strict mode fails when the untagged wording between tags changes',
+      () {
+        final rule = SmsRule(
+          id: 'r1',
+          bankId: 'b1',
+          operation: 'creditCardBalance',
+          sampleText: _cardBalanceSample,
+          segmentsJson: encodeSmsRuleSegments(_cardBalanceSegments()),
+          targetCounterpartyId: null,
+          currency: null,
+          notifyOnMatch: false,
+          matchMode: 'strict',
+          createdAt: DateTime(2026),
+          profileId: null,
+        );
+        final differentMerchantAndDate =
+            'Your credit card ending with#7777 was charged for EGP 123.45 at '
+            'CoffeeShop on 01/01/27. Card available limit is EGP 50000.00.';
+
+        expect(matchSmsRule(rule, differentMerchantAndDate), isNull);
+      },
+    );
+
+    test(
+      'flexible mode tolerates a changed merchant/date/amount between tags, keeping only the anchor words next to each tag',
+      () {
+        final rule = SmsRule(
+          id: 'r1',
+          bankId: 'b1',
+          operation: 'creditCardBalance',
+          sampleText: _cardBalanceSample,
+          segmentsJson: encodeSmsRuleSegments(_cardBalanceSegments()),
+          targetCounterpartyId: null,
+          currency: null,
+          notifyOnMatch: false,
+          matchMode: 'flexible',
+          createdAt: DateTime(2026),
+          profileId: null,
+        );
+        final differentMerchantAndDate =
+            'Your credit card ending with#7777 was charged for EGP 123.45 at '
+            'CoffeeShop on 01/01/27. Card available limit is EGP 50000.00.';
+
+        final match = matchSmsRule(rule, differentMerchantAndDate);
+
+        expect(match, isNotNull);
+        expect(match!.cardNumber, '7777');
+        expect(match.value, closeTo(50000.00, 0.001));
+      },
+    );
+
+    test('flexible mode still requires the anchor words to be present', () {
+      final rule = SmsRule(
+        id: 'r1',
+        bankId: 'b1',
+        operation: 'creditCardBalance',
+        sampleText: _cardBalanceSample,
+        segmentsJson: encodeSmsRuleSegments(_cardBalanceSegments()),
+        targetCounterpartyId: null,
+        currency: null,
+        notifyOnMatch: false,
+        matchMode: 'flexible',
+        createdAt: DateTime(2026),
+        profileId: null,
+      );
+
+      expect(
+        matchSmsRule(rule, 'Your OTP is 123456, do not share it.'),
+        isNull,
+      );
+    });
   });
 
   group('applySmsRule', () {
@@ -262,6 +343,7 @@ void main() {
       required String bank,
       required String lastFourDigits,
       double? currentAvailableBalance,
+      String? currency,
     }) {
       return db
           .into(db.creditCards)
@@ -271,8 +353,23 @@ void main() {
               name: 'Test card',
               bank: bank,
               limitAmount: 100000,
+              currency: currency == null
+                  ? const Value.absent()
+                  : Value(currency),
               lastFourDigits: Value(lastFourDigits),
               currentAvailableBalance: Value(currentAvailableBalance),
+            ),
+          );
+    }
+
+    Future<void> insertRate(String symbol, double priceUsd) {
+      return db
+          .into(db.priceCache)
+          .insertOnConflictUpdate(
+            PriceCacheCompanion.insert(
+              symbol: symbol,
+              priceUsd: priceUsd,
+              fetchedAt: DateTime(2026),
             ),
           );
     }
@@ -327,6 +424,7 @@ void main() {
           targetCounterpartyId: null,
           currency: null,
           notifyOnMatch: true,
+          matchMode: 'strict',
           createdAt: DateTime(2026),
           profileId: null,
         );
@@ -362,6 +460,7 @@ void main() {
         targetCounterpartyId: null,
         currency: null,
         notifyOnMatch: false,
+        matchMode: 'strict',
         createdAt: DateTime(2026),
         profileId: null,
       );
@@ -392,6 +491,7 @@ void main() {
           targetCounterpartyId: null,
           currency: null,
           notifyOnMatch: false,
+          matchMode: 'strict',
           createdAt: DateTime(2026),
           profileId: null,
         );
@@ -423,6 +523,7 @@ void main() {
         targetCounterpartyId: null,
         currency: null,
         notifyOnMatch: false,
+        matchMode: 'strict',
         createdAt: DateTime(2026),
         profileId: null,
       );
@@ -450,6 +551,7 @@ void main() {
         targetCounterpartyId: counterpartyId,
         currency: 'EGP',
         notifyOnMatch: true,
+        matchMode: 'strict',
         createdAt: DateTime(2026),
         profileId: null,
       );
@@ -483,6 +585,7 @@ void main() {
           targetCounterpartyId: counterpartyId,
           currency: null,
           notifyOnMatch: false,
+          matchMode: 'strict',
           createdAt: DateTime(2026),
           profileId: null,
         );
@@ -510,6 +613,7 @@ void main() {
           targetCounterpartyId: counterpartyId,
           currency: 'EGP',
           notifyOnMatch: false,
+          matchMode: 'strict',
           createdAt: DateTime(2026),
           profileId: null,
         );
@@ -541,6 +645,7 @@ void main() {
           targetCounterpartyId: counterpartyId,
           currency: 'EGP',
           notifyOnMatch: false,
+          matchMode: 'strict',
           createdAt: DateTime(2026),
           profileId: null,
         );
@@ -568,6 +673,7 @@ void main() {
         targetCounterpartyId: null,
         currency: null,
         notifyOnMatch: false,
+        matchMode: 'strict',
         createdAt: DateTime(2026),
         profileId: null,
       );
@@ -581,5 +687,120 @@ void main() {
 
       expect(outcome.applied, isFalse);
     });
+
+    test(
+      'creditCardBalance converts a matched currency that differs from the card\'s own',
+      () async {
+        final bankId = await insertBank('CIB');
+        await insertCard(
+          bank: 'CIB',
+          lastFourDigits: '4912',
+          currentAvailableBalance: 1000,
+          currency: 'EGP',
+        );
+        await insertRate('USD', 1.0);
+        await insertRate('EGP', 0.02); // 1 EGP = $0.02, i.e. $1 = 50 EGP
+        final rule = SmsRule(
+          id: 'r1',
+          bankId: bankId,
+          operation: 'creditCardBalance',
+          sampleText: '',
+          segmentsJson: '[]',
+          targetCounterpartyId: null,
+          currency: null,
+          notifyOnMatch: false,
+          matchMode: 'strict',
+          createdAt: DateTime(2026),
+          profileId: null,
+        );
+        const match = SmsRuleMatch(
+          cardNumber: '4912',
+          value: 100,
+          valueRole: 'add',
+          currency: 'USD',
+        );
+
+        await applySmsRule(db, rule, match);
+
+        final card = await db.select(db.creditCards).getSingle();
+        // $100 converts to 5000 EGP at this rate, added to the existing 1000.
+        expect(card.currentAvailableBalance, closeTo(6000, 0.001));
+      },
+    );
+
+    test(
+      'creditCardBalance applies the value as-is when the matched currency already matches the card\'s own',
+      () async {
+        final bankId = await insertBank('CIB');
+        await insertCard(
+          bank: 'CIB',
+          lastFourDigits: '4912',
+          currentAvailableBalance: 1000,
+          currency: 'EGP',
+        );
+        final rule = SmsRule(
+          id: 'r1',
+          bankId: bankId,
+          operation: 'creditCardBalance',
+          sampleText: '',
+          segmentsJson: '[]',
+          targetCounterpartyId: null,
+          currency: null,
+          notifyOnMatch: false,
+          matchMode: 'strict',
+          createdAt: DateTime(2026),
+          profileId: null,
+        );
+        const match = SmsRuleMatch(
+          cardNumber: '4912',
+          value: 250,
+          valueRole: 'add',
+          currency: 'EGP',
+        );
+
+        await applySmsRule(db, rule, match);
+
+        final card = await db.select(db.creditCards).getSingle();
+        expect(card.currentAvailableBalance, closeTo(1250, 0.001));
+      },
+    );
+
+    test(
+      'creditCardBalance skips applying rather than guessing when a matched currency has no cached rate',
+      () async {
+        final bankId = await insertBank('CIB');
+        await insertCard(
+          bank: 'CIB',
+          lastFourDigits: '4912',
+          currentAvailableBalance: 1000,
+          currency: 'EGP',
+        );
+        final rule = SmsRule(
+          id: 'r1',
+          bankId: bankId,
+          operation: 'creditCardBalance',
+          sampleText: '',
+          segmentsJson: '[]',
+          targetCounterpartyId: null,
+          currency: null,
+          notifyOnMatch: false,
+          matchMode: 'strict',
+          createdAt: DateTime(2026),
+          profileId: null,
+        );
+        const match = SmsRuleMatch(
+          cardNumber: '4912',
+          value: 100,
+          valueRole: 'add',
+          currency: 'USD',
+        );
+
+        final outcome = await applySmsRule(db, rule, match);
+
+        expect(outcome.applied, isFalse);
+        final card = await db.select(db.creditCards).getSingle();
+        expect(card.currentAvailableBalance, closeTo(1000, 0.001));
+      },
+    );
   });
 }

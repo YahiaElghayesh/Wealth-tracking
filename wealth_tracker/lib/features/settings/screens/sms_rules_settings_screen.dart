@@ -187,7 +187,8 @@ class _BankRulesSectionState extends State<_BankRulesSection> {
                     leading: const Icon(Icons.rule_outlined),
                     title: Text(_operationLabel(rule.operation)),
                     subtitle: Text(
-                      rule.notifyOnMatch ? 'Notifies on match' : 'Silent',
+                      '${rule.notifyOnMatch ? 'Notifies on match' : 'Silent'}'
+                      ' · ${rule.matchMode == 'flexible' ? 'Flexible' : 'Strict'}',
                       style: TextStyle(color: context.appColors.textDim),
                     ),
                     trailing: const Icon(Icons.chevron_right),
@@ -221,9 +222,14 @@ class _TaggedSpan {
 /// Add or edit one SMS Rule -- pick a bank and an operation, paste a real
 /// sample SMS, then mark and tag the portions that vary from one real
 /// message to the next (a card/account number, a value, a vendor/sender
-/// name, or -- for a ledger payment -- the currency, so payments in
-/// different currencies don't each need their own rule). Everything left
-/// unmarked becomes fixed text the rule requires a real SMS to contain.
+/// name, or a currency -- tagging currency lets one rule cover payments or
+/// balances in more than one currency instead of needing a rule per
+/// currency; for a balance rule specifically, a mismatched currency is
+/// converted using the app's cached FX rates before it's applied).
+/// Everything left unmarked becomes fixed text the rule requires a real
+/// SMS to contain, unless matching is set to Flexible, which only holds a
+/// couple of words next to each tag to that standard and lets everything
+/// else vary.
 class SmsRuleFormScreen extends ConsumerStatefulWidget {
   const SmsRuleFormScreen({super.key, this.existing});
 
@@ -240,6 +246,7 @@ class _SmsRuleFormScreenState extends ConsumerState<SmsRuleFormScreen> {
   String? _targetCounterpartyId;
   String _currency = defaultCurrency;
   bool _notifyOnMatch = false;
+  String _matchMode = 'strict';
   final List<_TaggedSpan> _tags = [];
 
   bool get _isEditing => widget.existing != null;
@@ -255,6 +262,7 @@ class _SmsRuleFormScreenState extends ConsumerState<SmsRuleFormScreen> {
       _targetCounterpartyId = existing.targetCounterpartyId;
       _currency = existing.currency ?? defaultCurrency;
       _notifyOnMatch = existing.notifyOnMatch;
+      _matchMode = existing.matchMode;
       var cursor = 0;
       for (final segment in decodeSmsRuleSegments(existing.segmentsJson)) {
         final len = segment.text.length;
@@ -281,8 +289,18 @@ class _SmsRuleFormScreenState extends ConsumerState<SmsRuleFormScreen> {
   }
 
   List<String> get _availableTags => switch (_operation) {
-    'creditCardBalance' ||
-    'bankAccountBalance' => const ['cardNumber', 'value'],
+    // Vendor/sender/currency aren't used by a balance update itself (only
+    // cardNumber/value are), but they're still offered here so a merchant
+    // name or a differently-currencied transaction sitting in the sample
+    // can be tagged instead of left as required literal text -- otherwise
+    // the rule would only ever match that one merchant/currency again.
+    'creditCardBalance' || 'bankAccountBalance' => const [
+      'cardNumber',
+      'value',
+      'vendor',
+      'sender',
+      'currency',
+    ],
     _ => const ['value', 'vendor', 'sender', 'currency'],
   };
 
@@ -397,6 +415,7 @@ class _SmsRuleFormScreenState extends ConsumerState<SmsRuleFormScreen> {
           ),
           currency: Value(_operation == 'ledgerPayment' ? _currency : null),
           notifyOnMatch: _notifyOnMatch,
+          matchMode: _matchMode,
         ),
       );
     } else {
@@ -410,6 +429,7 @@ class _SmsRuleFormScreenState extends ConsumerState<SmsRuleFormScreen> {
             : null,
         currency: _operation == 'ledgerPayment' ? _currency : null,
         notifyOnMatch: _notifyOnMatch,
+        matchMode: _matchMode,
       );
     }
     if (mounted) Navigator.of(context).pop();
@@ -598,6 +618,27 @@ class _SmsRuleFormScreenState extends ConsumerState<SmsRuleFormScreen> {
             ),
             value: _notifyOnMatch,
             onChanged: (v) => setState(() => _notifyOnMatch = v),
+          ),
+          const SizedBox(height: 20),
+          Text('Matching', style: Theme.of(context).textTheme.labelLarge),
+          const SizedBox(height: 4),
+          Text(
+            _matchMode == 'flexible'
+                ? 'Only a couple of words next to each tag are required -- '
+                      'everything else can vary, at the cost of a small '
+                      'chance of matching an unrelated message.'
+                : 'The untagged parts of your sample must appear in the '
+                      'real SMS almost exactly.',
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+          const SizedBox(height: 8),
+          SegmentedButton<String>(
+            segments: const [
+              ButtonSegment(value: 'strict', label: Text('Strict')),
+              ButtonSegment(value: 'flexible', label: Text('Flexible')),
+            ],
+            selected: {_matchMode},
+            onSelectionChanged: (s) => setState(() => _matchMode = s.first),
           ),
           const SizedBox(height: 20),
           FilledButton(onPressed: _save, child: const Text('Save')),

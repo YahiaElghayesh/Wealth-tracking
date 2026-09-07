@@ -579,15 +579,25 @@ class SmsRules extends Table {
   TextColumn get targetCounterpartyId =>
       text().nullable().references(Counterparties, #id)();
 
-  /// Only meaningful for a 'ledgerPayment' rule -- the currency its ledger
-  /// entries are recorded in (a bank SMS's own currency wording isn't
-  /// marked as a portion, so this is fixed per rule instead).
+  /// For a 'ledgerPayment' rule, the currency its ledger entries default to
+  /// when the message itself doesn't carry a recognized `currency` tag
+  /// match. For a balance rule, unused directly -- a matched `currency` is
+  /// only ever compared against the card's/account's own currency to
+  /// decide whether a conversion is needed, never stored.
   TextColumn get currency => text().nullable()();
 
   /// Whether a local notification is shown when this rule successfully
   /// applies to a real incoming SMS.
   BoolColumn get notifyOnMatch =>
       boolean().withDefault(const Constant(false))();
+
+  /// 'strict' (default) requires every un-tagged part of the sample to
+  /// appear in a real SMS essentially verbatim (whitespace aside) --
+  /// 'flexible' keeps only a couple of words immediately next to each tag
+  /// as an anchor and treats longer untagged stretches as "anything goes
+  /// here", tolerating a date, an extra sentence, or other wording a
+  /// single sample can't predict. See `compileSmsRulePattern`.
+  TextColumn get matchMode => text().withDefault(const Constant('strict'))();
 
   DateTimeColumn get createdAt => dateTime()();
   TextColumn get profileId => text().nullable().references(Profiles, #id)();

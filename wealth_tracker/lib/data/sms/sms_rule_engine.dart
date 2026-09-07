@@ -7,6 +7,7 @@ import '../../core/format/money_formatter.dart';
 import '../../core/models/currency.dart';
 import '../../core/models/sms_rule_segment.dart';
 import '../db/database.dart';
+import '../ledger/ledger_calculator.dart' show convertToSettlement;
 
 /// Strips invisible Unicode bidi/formatting characters banks commonly
 /// embed in Arabic SMS text around numbers, and folds a non-breaking space
@@ -62,6 +63,38 @@ String _escapeLiteral(String text) {
   );
 }
 
+/// How many words of a literal segment 'flexible' mode keeps as an anchor
+/// on each side before wildcarding the rest -- see [_escapeLiteralFlexible].
+const _flexibleEdgeWords = 2;
+
+/// 'flexible'-mode counterpart to [_escapeLiteral]: a short literal segment
+/// (at most [_flexibleEdgeWords] * 2 words) is kept exactly as-is, same as
+/// strict mode, since shortening it further would leave nothing to anchor
+/// the match at all. A longer one keeps only its first and last
+/// [_flexibleEdgeWords] words -- the part most likely to be fixed bank
+/// wording right next to a tag -- and replaces everything between them
+/// with a `.*?` gap, tolerating a merchant name, a date, or an extra
+/// clause a single sample can never fully predict. Leading/trailing
+/// whitespace is preserved as `\s+` exactly like strict mode either way.
+String _escapeLiteralFlexible(String text) {
+  final parts = RegExp(r'^(\s*)(.*?)(\s*)$', dotAll: true).firstMatch(text)!;
+  final leading = parts.group(1)!;
+  final core = parts.group(2)!;
+  final trailing = parts.group(3)!;
+  if (core.isEmpty) return _escapeLiteral(text);
+
+  final words = core.split(RegExp(r'\s+'));
+  final leadPattern = leading.isEmpty ? '' : r'\s+';
+  final trailPattern = trailing.isEmpty ? '' : r'\s+';
+  if (words.length <= _flexibleEdgeWords * 2) {
+    return '$leadPattern${_escapeLiteral(core)}$trailPattern';
+  }
+
+  final head = words.take(_flexibleEdgeWords).join(' ');
+  final tail = words.skip(words.length - _flexibleEdgeWords).join(' ');
+  return '$leadPattern${_escapeLiteral(head)}.*?${_escapeLiteral(tail)}$trailPattern';
+}
+
 /// Builds one capture-group pattern for a placeholder segment. A
 /// card/account number is a plain digit run; a value tolerates thousands
 /// separators and a decimal point; a currency is a short run of letters or
@@ -104,14 +137,23 @@ String? _resolveCurrencyToken(String raw) {
 }
 
 /// Compiles a rule's marked-up sample into a matcher -- alternating fixed
-/// literal text (escaped, whitespace-tolerant) and numbered capture groups
-/// for each placeholder, in the same order they appear in [segments].
-RegExp compileSmsRulePattern(List<SmsRuleSegment> segments) {
+/// literal text and numbered capture groups for each placeholder, in the
+/// same order they appear in [segments]. [flexible] selects which literal
+/// escaper is used ([_escapeLiteral] for 'strict' mode, [_escapeLiteralFlexible]
+/// for 'flexible') -- see [SmsRule.matchMode].
+RegExp compileSmsRulePattern(
+  List<SmsRuleSegment> segments, {
+  bool flexible = false,
+}) {
   final buffer = StringBuffer();
   for (var i = 0; i < segments.length; i++) {
     final segment = segments[i];
     if (segment.isLiteral) {
-      buffer.write(_escapeLiteral(segment.text));
+      buffer.write(
+        flexible
+            ? _escapeLiteralFlexible(segment.text)
+            : _escapeLiteral(segment.text),
+      );
     } else {
       buffer.write(_placeholderPattern(segment, i == segments.length - 1));
     }
@@ -158,9 +200,10 @@ class SmsRuleMatch {
 
   /// Resolved from a `currency` placeholder, if the rule marked one and it
   /// was recognized -- one of [supportedCurrencies], or null if there was
-  /// no `currency` tag or its capture wasn't recognized. Only meaningful
-  /// for a 'ledgerPayment' rule; a balance rule always uses the card's/
-  /// account's own already-set currency instead.
+  /// no `currency` tag or its capture wasn't recognized. For a
+  /// 'ledgerPayment' rule this picks which currency the entry is recorded
+  /// in; for a balance rule it's compared against the card's/account's own
+  /// currency to decide whether [applySmsRule] needs to convert first.
   final String? currency;
 }
 
@@ -170,7 +213,10 @@ class SmsRuleMatch {
 SmsRuleMatch? matchSmsRule(SmsRule rule, String rawBody) {
   final segments = decodeSmsRuleSegments(rule.segmentsJson);
   if (segments.isEmpty) return null;
-  final pattern = compileSmsRulePattern(segments);
+  final pattern = compileSmsRulePattern(
+    segments,
+    flexible: rule.matchMode == 'flexible',
+  );
   final body = normalizeSmsBody(rawBody);
   final match = pattern.firstMatch(body);
   if (match == null) return null;
@@ -268,6 +314,36 @@ double _resolveNewValue(double current, double delta, String? role) {
   };
 }
 
+/// Converts [value] from [matchedCurrency] (what a `currency` tag actually
+/// captured off the real SMS, if any) into [targetCurrency] (the card's/
+/// account's own tracked currency) using the app's cached FX rates -- the
+/// same `priceCache` table and conversion formula the ledger already uses
+/// for a mixed-currency running balance. Returns null, meaning "don't
+/// apply this", rather than guessing, when a conversion was actually
+/// needed but a rate for either side isn't cached yet -- applying an
+/// un-converted number as if it were already in [targetCurrency] would
+/// silently corrupt the tracked balance, which is worse than skipping one
+/// update until a rate is available.
+Future<double?> _resolveMatchedValue(
+  AppDatabase db,
+  double value,
+  String? matchedCurrency,
+  String targetCurrency,
+) async {
+  if (matchedCurrency == null ||
+      matchedCurrency.toUpperCase() == targetCurrency.toUpperCase()) {
+    return value;
+  }
+  final rows = await db.select(db.priceCache).get();
+  final ratesUsd = {for (final r in rows) r.symbol: r.priceUsd};
+  return convertToSettlement(
+    value,
+    matchedCurrency,
+    ratesUsd,
+    settlementCurrency: targetCurrency,
+  );
+}
+
 Future<SmsRuleApplyOutcome> _applyCreditCardBalance(
   AppDatabase db,
   SmsRule rule,
@@ -291,8 +367,16 @@ Future<SmsRuleApplyOutcome> _applyCreditCardBalance(
   }
   if (card == null) return _noop;
 
+  final convertedValue = await _resolveMatchedValue(
+    db,
+    value,
+    match.currency,
+    card.currency,
+  );
+  if (convertedValue == null) return _noop;
+
   final current = card.currentAvailableBalance ?? card.limitAmount;
-  final newBalance = _resolveNewValue(current, value, match.valueRole);
+  final newBalance = _resolveNewValue(current, convertedValue, match.valueRole);
 
   await db
       .update(db.creditCards)
@@ -335,8 +419,16 @@ Future<SmsRuleApplyOutcome> _applyBankAccountBalance(
   }
   if (account == null) return _noop;
 
+  final convertedValue = await _resolveMatchedValue(
+    db,
+    value,
+    match.currency,
+    account.currency,
+  );
+  if (convertedValue == null) return _noop;
+
   final current = account.currentAvailableBalance ?? 0;
-  final newBalance = _resolveNewValue(current, value, match.valueRole);
+  final newBalance = _resolveNewValue(current, convertedValue, match.valueRole);
 
   await db
       .update(db.bankAccounts)

@@ -8735,6 +8735,18 @@ class $SmsRulesTable extends SmsRules with TableInfo<$SmsRulesTable, SmsRule> {
     ),
     defaultValue: const Constant(false),
   );
+  static const VerificationMeta _matchModeMeta = const VerificationMeta(
+    'matchMode',
+  );
+  @override
+  late final GeneratedColumn<String> matchMode = GeneratedColumn<String>(
+    'match_mode',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('strict'),
+  );
   static const VerificationMeta _createdAtMeta = const VerificationMeta(
     'createdAt',
   );
@@ -8770,6 +8782,7 @@ class $SmsRulesTable extends SmsRules with TableInfo<$SmsRulesTable, SmsRule> {
     targetCounterpartyId,
     currency,
     notifyOnMatch,
+    matchMode,
     createdAt,
     profileId,
   ];
@@ -8849,6 +8862,12 @@ class $SmsRulesTable extends SmsRules with TableInfo<$SmsRulesTable, SmsRule> {
         ),
       );
     }
+    if (data.containsKey('match_mode')) {
+      context.handle(
+        _matchModeMeta,
+        matchMode.isAcceptableOrUnknown(data['match_mode']!, _matchModeMeta),
+      );
+    }
     if (data.containsKey('created_at')) {
       context.handle(
         _createdAtMeta,
@@ -8904,6 +8923,10 @@ class $SmsRulesTable extends SmsRules with TableInfo<$SmsRulesTable, SmsRule> {
         DriftSqlType.bool,
         data['${effectivePrefix}notify_on_match'],
       )!,
+      matchMode: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}match_mode'],
+      )!,
       createdAt: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
         data['${effectivePrefix}created_at'],
@@ -8928,10 +8951,9 @@ class SmsRule extends DataClass implements Insertable<SmsRule> {
   /// 'creditCardBalance' | 'bankAccountBalance' | 'ledgerPayment'.
   final String operation;
 
-  /// The real SMS this rule was built from -- kept for display when editing
-  /// the rule, since [segmentsJson] alone (fixed text + placeholder tags,
-  /// no positions) isn't reconstructable back into the original marked-up
-  /// text on its own.
+  /// The real SMS this rule was built from -- concatenating every segment
+  /// in [segmentsJson] reconstructs this exactly, but this column is kept
+  /// too since it's what the edit screen actually displays and re-marks.
   final String sampleText;
 
   /// JSON-encoded list of `{type, text, tag, role}` segments -- see
@@ -8946,14 +8968,24 @@ class SmsRule extends DataClass implements Insertable<SmsRule> {
   /// Rule already worked.
   final String? targetCounterpartyId;
 
-  /// Only meaningful for a 'ledgerPayment' rule -- the currency its ledger
-  /// entries are recorded in (a bank SMS's own currency wording isn't
-  /// marked as a portion, so this is fixed per rule instead).
+  /// For a 'ledgerPayment' rule, the currency its ledger entries default to
+  /// when the message itself doesn't carry a recognized `currency` tag
+  /// match. For a balance rule, unused directly -- a matched `currency` is
+  /// only ever compared against the card's/account's own currency to
+  /// decide whether a conversion is needed, never stored.
   final String? currency;
 
   /// Whether a local notification is shown when this rule successfully
   /// applies to a real incoming SMS.
   final bool notifyOnMatch;
+
+  /// 'strict' (default) requires every un-tagged part of the sample to
+  /// appear in a real SMS essentially verbatim (whitespace aside) --
+  /// 'flexible' keeps only a couple of words immediately next to each tag
+  /// as an anchor and treats longer untagged stretches as "anything goes
+  /// here", tolerating a date, an extra sentence, or other wording a
+  /// single sample can't predict. See `compileSmsRulePattern`.
+  final String matchMode;
   final DateTime createdAt;
   final String? profileId;
   const SmsRule({
@@ -8965,6 +8997,7 @@ class SmsRule extends DataClass implements Insertable<SmsRule> {
     this.targetCounterpartyId,
     this.currency,
     required this.notifyOnMatch,
+    required this.matchMode,
     required this.createdAt,
     this.profileId,
   });
@@ -8983,6 +9016,7 @@ class SmsRule extends DataClass implements Insertable<SmsRule> {
       map['currency'] = Variable<String>(currency);
     }
     map['notify_on_match'] = Variable<bool>(notifyOnMatch);
+    map['match_mode'] = Variable<String>(matchMode);
     map['created_at'] = Variable<DateTime>(createdAt);
     if (!nullToAbsent || profileId != null) {
       map['profile_id'] = Variable<String>(profileId);
@@ -9004,6 +9038,7 @@ class SmsRule extends DataClass implements Insertable<SmsRule> {
           ? const Value.absent()
           : Value(currency),
       notifyOnMatch: Value(notifyOnMatch),
+      matchMode: Value(matchMode),
       createdAt: Value(createdAt),
       profileId: profileId == null && nullToAbsent
           ? const Value.absent()
@@ -9027,6 +9062,7 @@ class SmsRule extends DataClass implements Insertable<SmsRule> {
       ),
       currency: serializer.fromJson<String?>(json['currency']),
       notifyOnMatch: serializer.fromJson<bool>(json['notifyOnMatch']),
+      matchMode: serializer.fromJson<String>(json['matchMode']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
       profileId: serializer.fromJson<String?>(json['profileId']),
     );
@@ -9043,6 +9079,7 @@ class SmsRule extends DataClass implements Insertable<SmsRule> {
       'targetCounterpartyId': serializer.toJson<String?>(targetCounterpartyId),
       'currency': serializer.toJson<String?>(currency),
       'notifyOnMatch': serializer.toJson<bool>(notifyOnMatch),
+      'matchMode': serializer.toJson<String>(matchMode),
       'createdAt': serializer.toJson<DateTime>(createdAt),
       'profileId': serializer.toJson<String?>(profileId),
     };
@@ -9057,6 +9094,7 @@ class SmsRule extends DataClass implements Insertable<SmsRule> {
     Value<String?> targetCounterpartyId = const Value.absent(),
     Value<String?> currency = const Value.absent(),
     bool? notifyOnMatch,
+    String? matchMode,
     DateTime? createdAt,
     Value<String?> profileId = const Value.absent(),
   }) => SmsRule(
@@ -9070,6 +9108,7 @@ class SmsRule extends DataClass implements Insertable<SmsRule> {
         : this.targetCounterpartyId,
     currency: currency.present ? currency.value : this.currency,
     notifyOnMatch: notifyOnMatch ?? this.notifyOnMatch,
+    matchMode: matchMode ?? this.matchMode,
     createdAt: createdAt ?? this.createdAt,
     profileId: profileId.present ? profileId.value : this.profileId,
   );
@@ -9091,6 +9130,7 @@ class SmsRule extends DataClass implements Insertable<SmsRule> {
       notifyOnMatch: data.notifyOnMatch.present
           ? data.notifyOnMatch.value
           : this.notifyOnMatch,
+      matchMode: data.matchMode.present ? data.matchMode.value : this.matchMode,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
       profileId: data.profileId.present ? data.profileId.value : this.profileId,
     );
@@ -9107,6 +9147,7 @@ class SmsRule extends DataClass implements Insertable<SmsRule> {
           ..write('targetCounterpartyId: $targetCounterpartyId, ')
           ..write('currency: $currency, ')
           ..write('notifyOnMatch: $notifyOnMatch, ')
+          ..write('matchMode: $matchMode, ')
           ..write('createdAt: $createdAt, ')
           ..write('profileId: $profileId')
           ..write(')'))
@@ -9123,6 +9164,7 @@ class SmsRule extends DataClass implements Insertable<SmsRule> {
     targetCounterpartyId,
     currency,
     notifyOnMatch,
+    matchMode,
     createdAt,
     profileId,
   );
@@ -9138,6 +9180,7 @@ class SmsRule extends DataClass implements Insertable<SmsRule> {
           other.targetCounterpartyId == this.targetCounterpartyId &&
           other.currency == this.currency &&
           other.notifyOnMatch == this.notifyOnMatch &&
+          other.matchMode == this.matchMode &&
           other.createdAt == this.createdAt &&
           other.profileId == this.profileId);
 }
@@ -9151,6 +9194,7 @@ class SmsRulesCompanion extends UpdateCompanion<SmsRule> {
   final Value<String?> targetCounterpartyId;
   final Value<String?> currency;
   final Value<bool> notifyOnMatch;
+  final Value<String> matchMode;
   final Value<DateTime> createdAt;
   final Value<String?> profileId;
   final Value<int> rowid;
@@ -9163,6 +9207,7 @@ class SmsRulesCompanion extends UpdateCompanion<SmsRule> {
     this.targetCounterpartyId = const Value.absent(),
     this.currency = const Value.absent(),
     this.notifyOnMatch = const Value.absent(),
+    this.matchMode = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.profileId = const Value.absent(),
     this.rowid = const Value.absent(),
@@ -9176,6 +9221,7 @@ class SmsRulesCompanion extends UpdateCompanion<SmsRule> {
     this.targetCounterpartyId = const Value.absent(),
     this.currency = const Value.absent(),
     this.notifyOnMatch = const Value.absent(),
+    this.matchMode = const Value.absent(),
     required DateTime createdAt,
     this.profileId = const Value.absent(),
     this.rowid = const Value.absent(),
@@ -9194,6 +9240,7 @@ class SmsRulesCompanion extends UpdateCompanion<SmsRule> {
     Expression<String>? targetCounterpartyId,
     Expression<String>? currency,
     Expression<bool>? notifyOnMatch,
+    Expression<String>? matchMode,
     Expression<DateTime>? createdAt,
     Expression<String>? profileId,
     Expression<int>? rowid,
@@ -9208,6 +9255,7 @@ class SmsRulesCompanion extends UpdateCompanion<SmsRule> {
         'target_counterparty_id': targetCounterpartyId,
       if (currency != null) 'currency': currency,
       if (notifyOnMatch != null) 'notify_on_match': notifyOnMatch,
+      if (matchMode != null) 'match_mode': matchMode,
       if (createdAt != null) 'created_at': createdAt,
       if (profileId != null) 'profile_id': profileId,
       if (rowid != null) 'rowid': rowid,
@@ -9223,6 +9271,7 @@ class SmsRulesCompanion extends UpdateCompanion<SmsRule> {
     Value<String?>? targetCounterpartyId,
     Value<String?>? currency,
     Value<bool>? notifyOnMatch,
+    Value<String>? matchMode,
     Value<DateTime>? createdAt,
     Value<String?>? profileId,
     Value<int>? rowid,
@@ -9236,6 +9285,7 @@ class SmsRulesCompanion extends UpdateCompanion<SmsRule> {
       targetCounterpartyId: targetCounterpartyId ?? this.targetCounterpartyId,
       currency: currency ?? this.currency,
       notifyOnMatch: notifyOnMatch ?? this.notifyOnMatch,
+      matchMode: matchMode ?? this.matchMode,
       createdAt: createdAt ?? this.createdAt,
       profileId: profileId ?? this.profileId,
       rowid: rowid ?? this.rowid,
@@ -9271,6 +9321,9 @@ class SmsRulesCompanion extends UpdateCompanion<SmsRule> {
     if (notifyOnMatch.present) {
       map['notify_on_match'] = Variable<bool>(notifyOnMatch.value);
     }
+    if (matchMode.present) {
+      map['match_mode'] = Variable<String>(matchMode.value);
+    }
     if (createdAt.present) {
       map['created_at'] = Variable<DateTime>(createdAt.value);
     }
@@ -9294,6 +9347,7 @@ class SmsRulesCompanion extends UpdateCompanion<SmsRule> {
           ..write('targetCounterpartyId: $targetCounterpartyId, ')
           ..write('currency: $currency, ')
           ..write('notifyOnMatch: $notifyOnMatch, ')
+          ..write('matchMode: $matchMode, ')
           ..write('createdAt: $createdAt, ')
           ..write('profileId: $profileId, ')
           ..write('rowid: $rowid')
@@ -16849,6 +16903,7 @@ typedef $$SmsRulesTableCreateCompanionBuilder =
       Value<String?> targetCounterpartyId,
       Value<String?> currency,
       Value<bool> notifyOnMatch,
+      Value<String> matchMode,
       required DateTime createdAt,
       Value<String?> profileId,
       Value<int> rowid,
@@ -16863,6 +16918,7 @@ typedef $$SmsRulesTableUpdateCompanionBuilder =
       Value<String?> targetCounterpartyId,
       Value<String?> currency,
       Value<bool> notifyOnMatch,
+      Value<String> matchMode,
       Value<DateTime> createdAt,
       Value<String?> profileId,
       Value<int> rowid,
@@ -16963,6 +17019,11 @@ class $$SmsRulesTableFilterComposer
 
   ColumnFilters<bool> get notifyOnMatch => $composableBuilder(
     column: $table.notifyOnMatch,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get matchMode => $composableBuilder(
+    column: $table.matchMode,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -17080,6 +17141,11 @@ class $$SmsRulesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get matchMode => $composableBuilder(
+    column: $table.matchMode,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<DateTime> get createdAt => $composableBuilder(
     column: $table.createdAt,
     builder: (column) => ColumnOrderings(column),
@@ -17187,6 +17253,9 @@ class $$SmsRulesTableAnnotationComposer
     column: $table.notifyOnMatch,
     builder: (column) => column,
   );
+
+  GeneratedColumn<String> get matchMode =>
+      $composableBuilder(column: $table.matchMode, builder: (column) => column);
 
   GeneratedColumn<DateTime> get createdAt =>
       $composableBuilder(column: $table.createdAt, builder: (column) => column);
@@ -17301,6 +17370,7 @@ class $$SmsRulesTableTableManager
                 Value<String?> targetCounterpartyId = const Value.absent(),
                 Value<String?> currency = const Value.absent(),
                 Value<bool> notifyOnMatch = const Value.absent(),
+                Value<String> matchMode = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<String?> profileId = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
@@ -17313,6 +17383,7 @@ class $$SmsRulesTableTableManager
                 targetCounterpartyId: targetCounterpartyId,
                 currency: currency,
                 notifyOnMatch: notifyOnMatch,
+                matchMode: matchMode,
                 createdAt: createdAt,
                 profileId: profileId,
                 rowid: rowid,
@@ -17327,6 +17398,7 @@ class $$SmsRulesTableTableManager
                 Value<String?> targetCounterpartyId = const Value.absent(),
                 Value<String?> currency = const Value.absent(),
                 Value<bool> notifyOnMatch = const Value.absent(),
+                Value<String> matchMode = const Value.absent(),
                 required DateTime createdAt,
                 Value<String?> profileId = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
@@ -17339,6 +17411,7 @@ class $$SmsRulesTableTableManager
                 targetCounterpartyId: targetCounterpartyId,
                 currency: currency,
                 notifyOnMatch: notifyOnMatch,
+                matchMode: matchMode,
                 createdAt: createdAt,
                 profileId: profileId,
                 rowid: rowid,

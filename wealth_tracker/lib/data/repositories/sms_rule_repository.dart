@@ -33,6 +33,7 @@ class SmsRuleRepository {
     String? targetCounterpartyId,
     String? currency,
     required bool notifyOnMatch,
+    String matchMode = 'strict',
   }) {
     return _db
         .into(_db.smsRules)
@@ -46,6 +47,7 @@ class SmsRuleRepository {
             targetCounterpartyId: Value(targetCounterpartyId),
             currency: Value(currency),
             notifyOnMatch: Value(notifyOnMatch),
+            matchMode: Value(matchMode),
             createdAt: DateTime.now(),
             profileId: Value(profileId),
           ),
