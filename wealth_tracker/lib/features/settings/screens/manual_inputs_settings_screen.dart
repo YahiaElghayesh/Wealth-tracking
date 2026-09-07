@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/models/currency.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/widgets/currency_picker_field.dart';
 import '../../../data/db/database.dart';
 import '../../calculator/providers/calculator_providers.dart';
 
@@ -179,12 +180,10 @@ class _ManualInputFormDialogState extends ConsumerState<_ManualInputFormDialog> 
                 onSelectionChanged: (s) => setState(() => _isAddition = s.first),
               ),
               const SizedBox(height: 12),
-              DropdownButtonFormField<String>(
-                isExpanded: true,
-                initialValue: _currency,
-                decoration: const InputDecoration(labelText: 'Currency'),
-                items: supportedCurrencies.map((c) => DropdownMenuItem(value: c, child: Text(c))).toList(),
-                onChanged: (c) => setState(() => _currency = c!),
+              CurrencyPickerField(
+                value: _currency,
+                labelText: 'Currency',
+                onChanged: (c) => setState(() => _currency = c),
               ),
             ],
           ),

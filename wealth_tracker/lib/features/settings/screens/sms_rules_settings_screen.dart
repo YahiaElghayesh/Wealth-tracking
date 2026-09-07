@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/models/currency.dart';
 import '../../../core/models/sms_rule_segment.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/widgets/currency_picker_field.dart';
 import '../../../data/db/database.dart';
 import '../../../data/sms/sms_rule_engine.dart';
 import '../../ledger/providers/ledger_providers.dart';
@@ -588,18 +589,12 @@ class _SmsRuleFormScreenState extends ConsumerState<SmsRuleFormScreen> {
               onChanged: (v) => setState(() => _targetCounterpartyId = v),
             ),
             const SizedBox(height: 12),
-            DropdownButtonFormField<String>(
-              isExpanded: true,
-              initialValue: _currency,
-              decoration: const InputDecoration(
-                labelText: 'Default currency',
-                helperText:
-                    'Used unless a Currency tag is marked and recognized in the message itself.',
-              ),
-              items: supportedCurrencies
-                  .map((c) => DropdownMenuItem(value: c, child: Text(c)))
-                  .toList(),
-              onChanged: (c) => setState(() => _currency = c!),
+            CurrencyPickerField(
+              value: _currency,
+              labelText: 'Default currency',
+              helperText:
+                  'Used unless a Currency tag is marked and recognized in the message itself.',
+              onChanged: (c) => setState(() => _currency = c),
             ),
           ],
           const SizedBox(height: 20),

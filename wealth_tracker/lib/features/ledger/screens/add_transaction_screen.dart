@@ -7,6 +7,7 @@ import '../../../core/models/currency.dart';
 import '../../../core/models/ledger_category.dart';
 import '../../../core/security/app_lock_exemption.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/widgets/currency_picker_field.dart';
 import '../../../data/db/database.dart';
 import '../providers/ledger_providers.dart';
 
@@ -551,18 +552,9 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
                           ),
                           const SizedBox(width: 12),
                           Expanded(
-                            child: DropdownButtonFormField<String>(
-                              isExpanded: true,
-                              initialValue: _currency,
-                              items: supportedCurrencies
-                                  .map(
-                                    (c) => DropdownMenuItem(
-                                      value: c,
-                                      child: Text(c),
-                                    ),
-                                  )
-                                  .toList(),
-                              onChanged: (c) => setState(() => _currency = c!),
+                            child: CurrencyPickerField(
+                              value: _currency,
+                              onChanged: (c) => setState(() => _currency = c),
                             ),
                           ),
                         ],

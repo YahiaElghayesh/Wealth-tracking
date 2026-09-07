@@ -2,9 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../core/models/currency.dart';
 import '../../../core/security/app_lock_exemption.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/widgets/currency_picker_field.dart';
 import '../../../data/sms/bank_charge_payload.dart';
 import '../../recurring/providers/recurring_payment_providers.dart';
 import '../../recurring/screens/add_recurring_payment_screen.dart';
@@ -281,18 +281,9 @@ class _SmsReviewScreenState extends ConsumerState<SmsReviewScreen> {
                         ),
                         const SizedBox(width: 12),
                         Expanded(
-                          child: DropdownButtonFormField<String>(
-                            isExpanded: true,
-                            initialValue: _currency,
-                            items: supportedCurrencies
-                                .map(
-                                  (c) => DropdownMenuItem(
-                                    value: c,
-                                    child: Text(c),
-                                  ),
-                                )
-                                .toList(),
-                            onChanged: (c) => setState(() => _currency = c!),
+                          child: CurrencyPickerField(
+                            value: _currency,
+                            onChanged: (c) => setState(() => _currency = c),
                           ),
                         ),
                       ],

@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/models/currency.dart';
 import '../../../core/models/recurring_payment_frequency.dart';
+import '../../../core/widgets/currency_picker_field.dart';
 import '../../../data/db/database.dart';
 import '../../../data/recurring/recurring_payment_mode_backup.dart';
 import '../providers/recurring_payment_providers.dart';
@@ -313,14 +314,10 @@ class _AddRecurringPaymentScreenState
                 ),
                 const SizedBox(width: 12),
                 Expanded(
-                  child: DropdownButtonFormField<String>(
-                    isExpanded: true,
-                    initialValue: _currency,
-                    decoration: const InputDecoration(labelText: 'Currency'),
-                    items: supportedCurrencies
-                        .map((c) => DropdownMenuItem(value: c, child: Text(c)))
-                        .toList(),
-                    onChanged: (c) => setState(() => _currency = c!),
+                  child: CurrencyPickerField(
+                    value: _currency,
+                    labelText: 'Currency',
+                    onChanged: (c) => setState(() => _currency = c),
                   ),
                 ),
               ],

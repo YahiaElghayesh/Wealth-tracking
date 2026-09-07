@@ -10,6 +10,7 @@ import '../../../core/models/currency.dart';
 import '../../../core/models/gold_karat.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/app_icons.dart';
+import '../../../core/widgets/currency_picker_field.dart';
 import '../../../data/db/database.dart';
 import '../../../data/pricing/coingecko_price_provider.dart';
 import '../../../data/pricing/yahoo_finance_price_provider.dart';
@@ -241,14 +242,10 @@ class _AddEditAssetScreenState extends ConsumerState<AddEditAssetScreen> {
               ),
               const SizedBox(width: 12),
               Expanded(
-                child: DropdownButtonFormField<String>(
-                  isExpanded: true,
-                  initialValue: _currency,
-                  decoration: const InputDecoration(labelText: 'Currency'),
-                  items: supportedCurrencies
-                      .map((c) => DropdownMenuItem(value: c, child: Text(c)))
-                      .toList(),
-                  onChanged: (c) => setState(() => _currency = c!),
+                child: CurrencyPickerField(
+                  value: _currency,
+                  labelText: 'Currency',
+                  onChanged: (c) => setState(() => _currency = c),
                 ),
               ),
             ],
@@ -436,12 +433,10 @@ class _AddEditAssetScreenState extends ConsumerState<AddEditAssetScreen> {
           ),
           const SizedBox(width: 12),
           Expanded(
-            child: DropdownButtonFormField<String>(
-              isExpanded: true,
-              initialValue: _purchaseCurrency,
-              decoration: const InputDecoration(labelText: 'Currency'),
-              items: supportedCurrencies.map((c) => DropdownMenuItem(value: c, child: Text(c))).toList(),
-              onChanged: (c) => setState(() => _purchaseCurrency = c!),
+            child: CurrencyPickerField(
+              value: _purchaseCurrency,
+              labelText: 'Currency',
+              onChanged: (c) => setState(() => _purchaseCurrency = c),
             ),
           ),
         ],

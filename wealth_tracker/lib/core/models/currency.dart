@@ -1,7 +1,8 @@
 /// The household's most-used currencies, in this exact order -- every
-/// currency dropdown in the app leads with these before the rest, so the
-/// one you actually want isn't buried in an alphabetical list of 150+.
-const _commonCurrencies = ['EGP', 'USD', 'EUR', 'SAR', 'AED', 'TRY'];
+/// currency dropdown in the app (`CurrencyPickerField`) shows only these
+/// inline, with the rest of [supportedCurrencies] reachable through its
+/// "More currencies" search instead of a 150+-entry wall of options.
+const commonCurrencies = ['EGP', 'USD', 'EUR', 'SAR', 'AED', 'TRY'];
 
 /// Every other ISO-4217 code `FxPriceProvider.fetchRatesPerUsd` can return a
 /// rate for, alphabetically -- a payment can land in any currency, so the
@@ -159,9 +160,9 @@ const _otherCurrencies = [
 ];
 
 /// Currencies selectable when entering an asset value or a ledger amount,
-/// or matched from an SMS Rule's `currency` tag. [_commonCurrencies] first
+/// or matched from an SMS Rule's `currency` tag. [commonCurrencies] first
 /// so the household's actual day-to-day currencies aren't buried in a
 /// 150+-entry alphabetical list, then every other supported code.
-const supportedCurrencies = [..._commonCurrencies, ..._otherCurrencies];
+const supportedCurrencies = [...commonCurrencies, ..._otherCurrencies];
 
 const defaultCurrency = 'EGP';

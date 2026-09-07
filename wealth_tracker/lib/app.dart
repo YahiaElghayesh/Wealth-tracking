@@ -65,6 +65,17 @@ class _RootShellState extends ConsumerState<_RootShell>
 
   static const _staleAfter = Duration(minutes: 30);
 
+  /// How long the app can sit backgrounded before a resume resets it back
+  /// to the Dashboard tab with no pushed screens on top -- so coming back
+  /// to the app after a while never lands on whatever settings/detail
+  /// screen happened to be open when it was left, the same way most apps
+  /// forget where you were after enough time away. A short backgrounding
+  /// (switching to another app for a moment, the screen locking briefly)
+  /// stays exactly where it was, since only [didChangeAppLifecycleState]'s
+  /// resume path checks this, not every pause.
+  static const _resetHomeAfter = Duration(minutes: 10);
+  DateTime? _pausedAt;
+
   @override
   void initState() {
     super.initState();
@@ -124,7 +135,20 @@ class _RootShellState extends ConsumerState<_RootShell>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused) {
+      _pausedAt = DateTime.now();
+      return;
+    }
     if (state != AppLifecycleState.resumed) return;
+
+    final pausedAt = _pausedAt;
+    _pausedAt = null;
+    if (pausedAt != null &&
+        DateTime.now().difference(pausedAt) > _resetHomeAfter) {
+      navigatorKey.currentState?.popUntil((route) => route.isFirst);
+      if (_index != 0) setState(() => _index = 0);
+    }
+
     final refreshState = ref.read(priceRefreshControllerProvider);
     final lastRefreshedAt = refreshState.lastRefreshedAt;
     final isStale =

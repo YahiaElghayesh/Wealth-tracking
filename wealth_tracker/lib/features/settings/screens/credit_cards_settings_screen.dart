@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/format/money_formatter.dart';
 import '../../../core/models/currency.dart';
+import '../../../core/widgets/currency_picker_field.dart';
 import '../../../data/db/database.dart';
 import '../../calculator/providers/calculator_providers.dart';
 import '../providers/sms_rule_providers.dart';
@@ -231,14 +232,10 @@ class _CardFormDialogState extends ConsumerState<_CardFormDialog> {
                   ),
                   const SizedBox(width: 12),
                   Expanded(
-                    child: DropdownButtonFormField<String>(
-                      isExpanded: true,
-                      initialValue: _currency,
-                      decoration: const InputDecoration(labelText: 'Currency'),
-                      items: supportedCurrencies
-                          .map((c) => DropdownMenuItem(value: c, child: Text(c)))
-                          .toList(),
-                      onChanged: (c) => setState(() => _currency = c!),
+                    child: CurrencyPickerField(
+                      value: _currency,
+                      labelText: 'Currency',
+                      onChanged: (c) => setState(() => _currency = c),
                     ),
                   ),
                 ],
