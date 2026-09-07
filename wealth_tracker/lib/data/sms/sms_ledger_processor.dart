@@ -207,7 +207,7 @@ Future<void> processIncomingSms(
   final payload = BankChargePayload(
     vendor: vendor,
     amount: match.value ?? 0,
-    currency: rule.currency ?? defaultCurrency,
+    currency: match.currency ?? rule.currency ?? defaultCurrency,
     occurredAt: DateTime.now(),
     dedupeId: dedupeId,
     counterpartyId: rule.targetCounterpartyId,

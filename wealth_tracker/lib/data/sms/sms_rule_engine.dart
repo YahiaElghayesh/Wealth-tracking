@@ -64,19 +64,43 @@ String _escapeLiteral(String text) {
 
 /// Builds one capture-group pattern for a placeholder segment. A
 /// card/account number is a plain digit run; a value tolerates thousands
-/// separators and a decimal point; a vendor/sender name is free text,
-/// captured non-greedily so it stops at the next literal segment rather
-/// than swallowing it (or greedily if this is the very last segment, with
-/// nothing after it to stop at).
+/// separators and a decimal point; a currency is a short run of letters or
+/// a common symbol (an ISO code like "EGP" or a symbol like "$"); a
+/// vendor/sender name is free text, captured non-greedily so it stops at
+/// the next literal segment rather than swallowing it (or greedily if this
+/// is the very last segment, with nothing after it to stop at).
 String _placeholderPattern(SmsRuleSegment segment, bool isLast) {
   switch (segment.tag) {
     case 'cardNumber':
       return r'(\d+)';
     case 'value':
       return r'([\d,]+(?:\.\d+)?)';
+    case 'currency':
+      return r'([A-Za-z$€₺]{1,8})';
     default: // vendor, sender
       return isLast ? r'(.+)' : r'(.+?)';
   }
+}
+
+/// Common symbols banks use in place of an ISO code, mapped to whichever
+/// [supportedCurrencies] entry they mean -- an ISO code captured directly
+/// (e.g. "EGP", "USD") already matches one of those verbatim and needs no
+/// lookup here.
+const _currencySymbolAliases = {
+  r'$': 'USD',
+  '€': 'EUR', // €
+  '₺': 'TRY', // ₺
+};
+
+/// Resolves whatever a `currency` placeholder actually captured to one of
+/// [supportedCurrencies], or null if it's not recognized -- the caller
+/// (`_applyLedgerPayment`) then falls back to the rule's own default
+/// currency, the same as when no `currency` tag was marked at all.
+String? _resolveCurrencyToken(String raw) {
+  final token = raw.trim();
+  final upper = token.toUpperCase();
+  if (supportedCurrencies.contains(upper)) return upper;
+  return _currencySymbolAliases[token];
 }
 
 /// Compiles a rule's marked-up sample into a matcher -- alternating fixed
@@ -119,6 +143,7 @@ class SmsRuleMatch {
     this.valueRole,
     this.vendor,
     this.sender,
+    this.currency,
   });
 
   final String? cardNumber;
@@ -130,6 +155,13 @@ class SmsRuleMatch {
   final String? valueRole;
   final String? vendor;
   final String? sender;
+
+  /// Resolved from a `currency` placeholder, if the rule marked one and it
+  /// was recognized -- one of [supportedCurrencies], or null if there was
+  /// no `currency` tag or its capture wasn't recognized. Only meaningful
+  /// for a 'ledgerPayment' rule; a balance rule always uses the card's/
+  /// account's own already-set currency instead.
+  final String? currency;
 }
 
 /// Tries [rule]'s compiled pattern against [rawBody] (normalized first,
@@ -148,6 +180,7 @@ SmsRuleMatch? matchSmsRule(SmsRule rule, String rawBody) {
   String? valueRole;
   String? vendor;
   String? sender;
+  String? currency;
   var groupIndex = 1;
   for (final segment in segments) {
     if (!segment.isPlaceholder) continue;
@@ -164,6 +197,8 @@ SmsRuleMatch? matchSmsRule(SmsRule rule, String rawBody) {
         vendor = captured.trim();
       case 'sender':
         sender = captured.trim();
+      case 'currency':
+        currency = _resolveCurrencyToken(captured);
     }
   }
   return SmsRuleMatch(
@@ -172,6 +207,7 @@ SmsRuleMatch? matchSmsRule(SmsRule rule, String rawBody) {
     valueRole: valueRole,
     vendor: vendor,
     sender: sender,
+    currency: currency,
   );
 }
 
@@ -332,7 +368,7 @@ Future<SmsRuleApplyOutcome> _applyLedgerPayment(
   final signedAmount = isRepayment ? -value : value;
   final vendor = match.vendor?.trim();
   final category = (vendor != null && vendor.isNotEmpty) ? vendor : 'Other';
-  final currency = rule.currency ?? defaultCurrency;
+  final currency = match.currency ?? rule.currency ?? defaultCurrency;
 
   await db
       .into(db.ledgerTransactions)

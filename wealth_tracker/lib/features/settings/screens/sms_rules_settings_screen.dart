@@ -26,6 +26,7 @@ const _tagColors = {
   'value': Color(0x3312B886),
   'vendor': Color(0x33F59F00),
   'sender': Color(0x33AE3EC9),
+  'currency': Color(0x33FA5252),
 };
 
 const _tagLabels = {
@@ -33,6 +34,7 @@ const _tagLabels = {
   'value': 'Value',
   'vendor': 'Vendor name',
   'sender': 'Sender name',
+  'currency': 'Currency',
 };
 
 const _balanceRoles = [
@@ -219,8 +221,9 @@ class _TaggedSpan {
 /// Add or edit one SMS Rule -- pick a bank and an operation, paste a real
 /// sample SMS, then mark and tag the portions that vary from one real
 /// message to the next (a card/account number, a value, a vendor/sender
-/// name). Everything left unmarked becomes fixed text the rule requires a
-/// real SMS to contain.
+/// name, or -- for a ledger payment -- the currency, so payments in
+/// different currencies don't each need their own rule). Everything left
+/// unmarked becomes fixed text the rule requires a real SMS to contain.
 class SmsRuleFormScreen extends ConsumerStatefulWidget {
   const SmsRuleFormScreen({super.key, this.existing});
 
@@ -280,7 +283,7 @@ class _SmsRuleFormScreenState extends ConsumerState<SmsRuleFormScreen> {
   List<String> get _availableTags => switch (_operation) {
     'creditCardBalance' ||
     'bankAccountBalance' => const ['cardNumber', 'value'],
-    _ => const ['value', 'vendor', 'sender'],
+    _ => const ['value', 'vendor', 'sender', 'currency'],
   };
 
   Future<void> _tagSelection() async {
@@ -517,7 +520,11 @@ class _SmsRuleFormScreenState extends ConsumerState<SmsRuleFormScreen> {
             DropdownButtonFormField<String>(
               isExpanded: true,
               initialValue: _currency,
-              decoration: const InputDecoration(labelText: 'Currency'),
+              decoration: const InputDecoration(
+                labelText: 'Default currency',
+                helperText:
+                    'Used unless a Currency tag is marked and recognized in the message itself.',
+              ),
               items: supportedCurrencies
                   .map((c) => DropdownMenuItem(value: c, child: Text(c)))
                   .toList(),

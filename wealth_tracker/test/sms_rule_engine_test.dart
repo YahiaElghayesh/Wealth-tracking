@@ -41,6 +41,19 @@ List<SmsRuleSegment> _ledgerPaymentSegments() => [
   const SmsRuleSegment.literal(' on your behalf.'),
 ];
 
+const _ledgerPaymentWithCurrencySample =
+    'You paid 50.00 USD to Dad Pharmacy on your behalf.';
+
+List<SmsRuleSegment> _ledgerPaymentWithCurrencySegments() => [
+  const SmsRuleSegment.literal('You paid '),
+  const SmsRuleSegment.placeholder(text: '50.00', tag: 'value', role: 'charge'),
+  const SmsRuleSegment.literal(' '),
+  const SmsRuleSegment.placeholder(text: 'USD', tag: 'currency'),
+  const SmsRuleSegment.literal(' to '),
+  const SmsRuleSegment.placeholder(text: 'Dad Pharmacy', tag: 'vendor'),
+  const SmsRuleSegment.literal(' on your behalf.'),
+];
+
 void main() {
   group('compileSmsRulePattern / matchSmsRule', () {
     test('extracts a card number and a value from a real-shaped sample', () {
@@ -154,6 +167,83 @@ void main() {
       expect(match, isNotNull);
       expect(match!.value, closeTo(85891.16, 0.001));
     });
+
+    test('a currency tag captures an ISO code directly', () {
+      final rule = SmsRule(
+        id: 'r3',
+        bankId: 'b1',
+        operation: 'ledgerPayment',
+        sampleText: _ledgerPaymentWithCurrencySample,
+        segmentsJson: encodeSmsRuleSegments(
+          _ledgerPaymentWithCurrencySegments(),
+        ),
+        targetCounterpartyId: null,
+        currency: 'EGP',
+        notifyOnMatch: false,
+        createdAt: DateTime(2026),
+        profileId: null,
+      );
+
+      final match = matchSmsRule(rule, _ledgerPaymentWithCurrencySample);
+
+      expect(match, isNotNull);
+      expect(match!.currency, 'USD');
+    });
+
+    test('a currency tag resolves a bare symbol to its ISO code', () {
+      final rule = SmsRule(
+        id: 'r3',
+        bankId: 'b1',
+        operation: 'ledgerPayment',
+        sampleText: _ledgerPaymentWithCurrencySample,
+        segmentsJson: encodeSmsRuleSegments(
+          _ledgerPaymentWithCurrencySegments(),
+        ),
+        targetCounterpartyId: null,
+        currency: 'EGP',
+        notifyOnMatch: false,
+        createdAt: DateTime(2026),
+        profileId: null,
+      );
+
+      final match = matchSmsRule(
+        rule,
+        r'You paid 75.00 $ to Dad Groceries on your behalf.',
+      );
+
+      expect(match, isNotNull);
+      expect(match!.currency, 'USD');
+    });
+
+    test(
+      'a currency tag that captures an unrecognized token resolves to null, without failing the rest of the match',
+      () {
+        final rule = SmsRule(
+          id: 'r3',
+          bankId: 'b1',
+          operation: 'ledgerPayment',
+          sampleText: _ledgerPaymentWithCurrencySample,
+          segmentsJson: encodeSmsRuleSegments(
+            _ledgerPaymentWithCurrencySegments(),
+          ),
+          targetCounterpartyId: null,
+          currency: 'EGP',
+          notifyOnMatch: false,
+          createdAt: DateTime(2026),
+          profileId: null,
+        );
+
+        final match = matchSmsRule(
+          rule,
+          'You paid 75.00 ZZZ to Dad Groceries on your behalf.',
+        );
+
+        expect(match, isNotNull);
+        expect(match!.currency, isNull);
+        expect(match.value, closeTo(75.00, 0.001));
+        expect(match.vendor, 'Dad Groceries');
+      },
+    );
   });
 
   group('applySmsRule', () {
@@ -403,6 +493,67 @@ void main() {
         final entry = await db.select(db.ledgerTransactions).getSingle();
         expect(entry.amount, closeTo(-100, 0.001));
         expect(entry.category, 'Other');
+      },
+    );
+
+    test(
+      'ledgerPayment uses the matched currency over the rule\'s default when both are present',
+      () async {
+        final bankId = await insertBank('CIB');
+        final counterpartyId = await insertCounterparty('Dad');
+        final rule = SmsRule(
+          id: 'r1',
+          bankId: bankId,
+          operation: 'ledgerPayment',
+          sampleText: '',
+          segmentsJson: '[]',
+          targetCounterpartyId: counterpartyId,
+          currency: 'EGP',
+          notifyOnMatch: false,
+          createdAt: DateTime(2026),
+          profileId: null,
+        );
+        const match = SmsRuleMatch(
+          value: 50,
+          valueRole: 'charge',
+          vendor: 'Pharmacy',
+          currency: 'USD',
+        );
+
+        await applySmsRule(db, rule, match);
+
+        final entry = await db.select(db.ledgerTransactions).getSingle();
+        expect(entry.currency, 'USD');
+      },
+    );
+
+    test(
+      'ledgerPayment falls back to the rule\'s default currency when nothing was matched',
+      () async {
+        final bankId = await insertBank('CIB');
+        final counterpartyId = await insertCounterparty('Dad');
+        final rule = SmsRule(
+          id: 'r1',
+          bankId: bankId,
+          operation: 'ledgerPayment',
+          sampleText: '',
+          segmentsJson: '[]',
+          targetCounterpartyId: counterpartyId,
+          currency: 'EGP',
+          notifyOnMatch: false,
+          createdAt: DateTime(2026),
+          profileId: null,
+        );
+        const match = SmsRuleMatch(
+          value: 50,
+          valueRole: 'charge',
+          vendor: 'Pharmacy',
+        );
+
+        await applySmsRule(db, rule, match);
+
+        final entry = await db.select(db.ledgerTransactions).getSingle();
+        expect(entry.currency, 'EGP');
       },
     );
 
