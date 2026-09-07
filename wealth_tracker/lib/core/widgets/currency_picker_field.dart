@@ -45,11 +45,12 @@ class CurrencyPickerField extends StatelessWidget {
         const DropdownMenuItem(
           value: _more,
           child: Row(
-            mainAxisSize: MainAxisSize.min,
             children: [
               Icon(Icons.search, size: 18),
               SizedBox(width: 8),
-              Text('More currencies'),
+              Flexible(
+                child: Text('More currencies', overflow: TextOverflow.ellipsis),
+              ),
             ],
           ),
         ),
