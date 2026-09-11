@@ -330,7 +330,35 @@ class _SmsRuleFormScreenState extends ConsumerState<SmsRuleFormScreen> {
         cursor += len;
       }
     }
-    _sampleController.addListener(() => setState(() {}));
+    _sampleController.addListener(_onSampleTextChanged);
+  }
+
+  /// Keeps the pasted sample normalized the same way a real incoming SMS
+  /// is at match time ([normalizeSmsBody], sms_rule_engine.dart) -- before
+  /// this existed, a sample pasted with its original invisible bidi marks/
+  /// non-breaking spaces/Arabic-Indic digits still intact would compile a
+  /// literal pattern containing those exact characters, which then could
+  /// never match a real SMS (normalized before matching, so those
+  /// characters are already gone from it) in *either* strict or flexible
+  /// mode -- the reported "this SMS fails to register no matter what I
+  /// choose" bug. Only runs while [_tags] is still empty: every tag's
+  /// start/end offset is computed once, by walking the saved segments in
+  /// [initState], and stays valid only as long as the text they index into
+  /// never changes again -- rewriting it out from under an existing tag
+  /// (a loaded rule, or one just tagged this session) would silently
+  /// desync every offset after that point.
+  void _onSampleTextChanged() {
+    if (_tags.isEmpty) {
+      final normalized = normalizeSmsBody(_sampleController.text);
+      if (normalized != _sampleController.text) {
+        _sampleController.value = TextEditingValue(
+          text: normalized,
+          selection: TextSelection.collapsed(offset: normalized.length),
+        );
+        return; // The assignment above re-enters this listener to finish.
+      }
+    }
+    setState(() {});
   }
 
   @override
