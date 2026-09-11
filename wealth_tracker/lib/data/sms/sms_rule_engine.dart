@@ -330,6 +330,19 @@ double _resolveNewValue(double current, double delta, String? role) {
   };
 }
 
+/// The matched value itself, signed and with its currency -- e.g.
+/// "+250.00 EGP" for an 'add', "-250.00 EGP" for a 'subtract'. A 'set'
+/// role has no meaningful +/- (the message set the balance directly, it
+/// didn't add or subtract from it), so that case, and any role-less
+/// match, is shown unsigned.
+String _signedValueText(double value, String? role, String currency) {
+  return switch (role) {
+    'add' => '+${formatMoney(value, currency)}',
+    'subtract' => '-${formatMoney(value, currency)}',
+    _ => formatMoney(value, currency),
+  };
+}
+
 /// Converts [value] from [matchedCurrency] (what a `currency` tag actually
 /// captured off the real SMS, if any) into [targetCurrency] (the card's/
 /// account's own tracked currency) using the app's cached FX rates -- the
@@ -414,7 +427,8 @@ Future<SmsRuleApplyOutcome> _applyCreditCardBalance(
     applied: true,
     notificationTitle: '${card.name} balance updated',
     notificationBody:
-        'Now ${formatMoney(newBalance, card.currency)} — from a recent SMS.',
+        '${_signedValueText(convertedValue, match.valueRole, card.currency)} — '
+        'now ${formatMoney(newBalance, card.currency)}.',
   );
 }
 
@@ -466,7 +480,8 @@ Future<SmsRuleApplyOutcome> _applyBankAccountBalance(
     applied: true,
     notificationTitle: '${account.name} balance updated',
     notificationBody:
-        'Now ${formatMoney(newBalance, account.currency)} — from a recent SMS.',
+        '${_signedValueText(convertedValue, match.valueRole, account.currency)} — '
+        'now ${formatMoney(newBalance, account.currency)}.',
   );
 }
 

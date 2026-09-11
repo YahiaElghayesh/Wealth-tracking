@@ -25,10 +25,12 @@ Future<void> showSmsRuleNotification({
     settings: const InitializationSettings(android: androidSettings),
   );
   await plugin.show(
-    // A fixed id -- one SMS rule notification replacing the last one it
-    // hasn't been dismissed yet is preferable to a growing pile of stale
-    // "balance updated" notifications from earlier in the day.
-    id: 9001,
+    // A unique id per call -- rather than one fixed id, which silently
+    // replaced an still-unread "balance updated" notification the moment
+    // another one arrived. Two balance updates in quick succession (a
+    // charge and its refund a minute apart, one from each of two cards)
+    // now both stay visible instead of one erasing the other.
+    id: DateTime.now().millisecondsSinceEpoch & 0x7fffffff,
     title: title,
     body: body,
     notificationDetails: const NotificationDetails(
