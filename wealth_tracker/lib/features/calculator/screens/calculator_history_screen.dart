@@ -119,6 +119,17 @@ class _SnapshotCard extends ConsumerWidget {
                 amount: entry.availableBalance,
                 currency: entry.currency,
               ),
+            for (final entry in snapshot.expectedTransactionEntries)
+              _BreakdownRow(
+                // A disabled entry didn't count toward resultAmount at all
+                // (see CalculatorScreen's own filtering) -- shown here
+                // anyway, labeled, rather than silently omitted, so history
+                // still reflects that it existed at save time.
+                isAddition: entry.isAddition,
+                label: entry.enabled ? entry.name : '${entry.name} (off)',
+                amount: entry.enabled ? entry.amount : 0,
+                currency: entry.currency,
+              ),
             for (final item in customItems)
               _BreakdownRow(isAddition: item.isAddition, label: item.label, amount: item.amount),
           ],

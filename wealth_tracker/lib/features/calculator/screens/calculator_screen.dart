@@ -9,6 +9,7 @@ import '../../../core/models/bank_account_snapshot_entry.dart';
 import '../../../core/models/calculator_custom_item.dart';
 import '../../../core/models/card_snapshot_entry.dart';
 import '../../../core/models/currency.dart';
+import '../../../core/models/expected_transaction_snapshot_entry.dart';
 import '../../../core/models/manual_input_snapshot_entry.dart';
 import '../../../core/providers/privacy_providers.dart';
 import '../../../core/theme/app_colors.dart';
@@ -24,6 +25,7 @@ import '../../networth/providers/asset_providers.dart'
     show pricesUsdPerUnitProvider;
 import '../../settings/screens/bank_accounts_settings_screen.dart';
 import '../../settings/screens/credit_cards_settings_screen.dart';
+import '../../settings/screens/expected_transactions_settings_screen.dart';
 import '../../settings/screens/manual_inputs_settings_screen.dart';
 import '../providers/calculator_providers.dart';
 import 'calculator_history_screen.dart';
@@ -339,6 +341,22 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
     return input.isAddition ? converted : -converted;
   }
 
+  /// Same shape as [_manualInputSignedAmount], but the amount itself is
+  /// fixed on the row rather than typed live into a controller here -- see
+  /// ExpectedTransactions' own doc comment in tables.dart. Callers filter
+  /// to `enabled` transactions before calling this; a disabled one simply
+  /// never enters the sum at all.
+  double _expectedTransactionSignedAmount(
+    ExpectedTransaction transaction,
+    Map<String, double> prices,
+  ) {
+    final converted = transaction.currency == defaultCurrency
+        ? transaction.amount
+        : (convertToSettlement(transaction.amount, transaction.currency, prices) ??
+              transaction.amount);
+    return transaction.isAddition ? converted : -converted;
+  }
+
   Future<void> _addCustomItem() async {
     final labelController = TextEditingController();
     final amountController = TextEditingController();
@@ -416,6 +434,7 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
     List<CreditCard> cards,
     List<ManualInput> manualInputs,
     List<BankAccount> bankAccounts,
+    List<ExpectedTransaction> expectedTransactions,
     Map<String, double> prices,
   ) async {
     if (_saving) return;
@@ -432,10 +451,15 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
       final bankAccountAmounts = [
         for (final account in bankAccounts) _bankAccountAmount(account, prices),
       ];
+      final expectedTransactionAmounts = [
+        for (final transaction in expectedTransactions)
+          if (transaction.enabled)
+            _expectedTransactionSignedAmount(transaction, prices),
+      ];
       final result = calculateCurrentMoney(
         ledgersTotal: ledgersTotal,
         cardOwedAmounts: cardOwedAmounts,
-        manualInputAmounts: manualInputAmounts,
+        manualInputAmounts: [...manualInputAmounts, ...expectedTransactionAmounts],
         bankAccountAmounts: bankAccountAmounts,
         customItems: _customItems,
       );
@@ -469,6 +493,16 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
             availableBalance: _parse(_bankAccountControllerFor(account)),
           ),
       ];
+      final expectedTransactionEntries = [
+        for (final transaction in expectedTransactions)
+          ExpectedTransactionSnapshotEntry(
+            name: transaction.name,
+            amount: transaction.amount,
+            isAddition: transaction.isAddition,
+            currency: transaction.currency,
+            enabled: transaction.enabled,
+          ),
+      ];
 
       await ref
           .read(calculatorRepositoryProvider)
@@ -478,6 +512,7 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
             cardEntries: cardEntries,
             manualInputEntries: manualInputEntries,
             bankAccountEntries: bankAccountEntries,
+            expectedTransactionEntries: expectedTransactionEntries,
             customItems: _customItems,
           );
 
@@ -538,6 +573,7 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
     final cardsAsync = ref.watch(creditCardsStreamProvider);
     final manualInputsAsync = ref.watch(manualInputsStreamProvider);
     final bankAccountsAsync = ref.watch(bankAccountsStreamProvider);
+    final expectedTransactionsAsync = ref.watch(expectedTransactionsStreamProvider);
     final ledgersTotal = ref.watch(ledgersTotalProvider);
     final historyAsync = ref.watch(calculatorHistoryStreamProvider);
     final prices = ref.watch(pricesUsdPerUnitProvider);
@@ -546,6 +582,7 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
     final currentCards = cardsAsync.valueOrNull;
     final currentManualInputs = manualInputsAsync.valueOrNull;
     final currentBankAccounts = bankAccountsAsync.valueOrNull;
+    final currentExpectedTransactions = expectedTransactionsAsync.valueOrNull;
     final cardsNeedingSeed = currentCards?.where((c) {
       if (!_seededCardIds.contains(c.id)) return true;
       if (c.balanceUpdatedAt == _cardSeedBalanceUpdatedAt[c.id]) return false;
@@ -695,6 +732,8 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
         data: (cards) {
           final manualInputs = currentManualInputs ?? const <ManualInput>[];
           final bankAccounts = currentBankAccounts ?? const <BankAccount>[];
+          final expectedTransactions =
+              currentExpectedTransactions ?? const <ExpectedTransaction>[];
           final cardOwedAmounts = [
             for (final card in cards) _owedInDefaultCurrency(card, prices),
           ];
@@ -706,10 +745,18 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
             for (final account in bankAccounts)
               _bankAccountAmount(account, prices),
           ];
+          final expectedTransactionAmounts = [
+            for (final transaction in expectedTransactions)
+              if (transaction.enabled)
+                _expectedTransactionSignedAmount(transaction, prices),
+          ];
           final result = calculateCurrentMoney(
             ledgersTotal: ledgersTotal,
             cardOwedAmounts: cardOwedAmounts,
-            manualInputAmounts: manualInputAmounts,
+            manualInputAmounts: [
+              ...manualInputAmounts,
+              ...expectedTransactionAmounts,
+            ],
             bankAccountAmounts: bankAccountAmounts,
             customItems: _customItems,
           );
@@ -777,6 +824,53 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
                             currency: input.currency,
                           ),
                           if (input != manualInputs.last)
+                            const SizedBox(height: 14),
+                        ],
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    _Section(
+                      title: 'Expected transactions',
+                      subtitle: expectedTransactions.isEmpty
+                          ? 'No expected transactions yet — add one in Settings.'
+                          : 'Switch one off to see the total as if it hadn\'t happened.',
+                      trailing: IconButton(
+                        icon: const Icon(Icons.settings),
+                        tooltip: 'Manage expected transactions',
+                        onPressed: () => Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) =>
+                                const ExpectedTransactionsSettingsScreen(),
+                          ),
+                        ),
+                      ),
+                      children: [
+                        for (final transaction in expectedTransactions) ...[
+                          _SignedRow(
+                            isAddition: transaction.isAddition,
+                            label: transaction.name,
+                            trailing: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                MoneyText(
+                                  formatMoney(
+                                    transaction.amount,
+                                    transaction.currency,
+                                  ),
+                                ),
+                                Switch(
+                                  value: transaction.enabled,
+                                  onChanged: (v) => ref
+                                      .read(calculatorRepositoryProvider)
+                                      .setExpectedTransactionEnabled(
+                                        transaction.id,
+                                        v,
+                                      ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          if (transaction != expectedTransactions.last)
                             const SizedBox(height: 14),
                         ],
                       ],
@@ -898,6 +992,7 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
                 cardsAsync.value!,
                 currentManualInputs ?? const [],
                 currentBankAccounts ?? const [],
+                currentExpectedTransactions ?? const [],
                 prices,
               ),
             )

@@ -3653,6 +3653,18 @@ class $CalculatorSnapshotsTable extends CalculatorSnapshots
         requiredDuringInsert: false,
         defaultValue: const Constant('[]'),
       );
+  static const VerificationMeta _expectedTransactionEntriesJsonMeta =
+      const VerificationMeta('expectedTransactionEntriesJson');
+  @override
+  late final GeneratedColumn<String> expectedTransactionEntriesJson =
+      GeneratedColumn<String>(
+        'expected_transaction_entries_json',
+        aliasedName,
+        false,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+        defaultValue: const Constant('[]'),
+      );
   static const VerificationMeta _profileIdMeta = const VerificationMeta(
     'profileId',
   );
@@ -3687,6 +3699,7 @@ class $CalculatorSnapshotsTable extends CalculatorSnapshots
     cardsRecorded,
     manualInputsRecorded,
     bankAccountEntriesJson,
+    expectedTransactionEntriesJson,
     profileId,
   ];
   @override
@@ -3863,6 +3876,15 @@ class $CalculatorSnapshotsTable extends CalculatorSnapshots
         ),
       );
     }
+    if (data.containsKey('expected_transaction_entries_json')) {
+      context.handle(
+        _expectedTransactionEntriesJsonMeta,
+        expectedTransactionEntriesJson.isAcceptableOrUnknown(
+          data['expected_transaction_entries_json']!,
+          _expectedTransactionEntriesJsonMeta,
+        ),
+      );
+    }
     if (data.containsKey('profile_id')) {
       context.handle(
         _profileIdMeta,
@@ -3950,6 +3972,10 @@ class $CalculatorSnapshotsTable extends CalculatorSnapshots
         DriftSqlType.string,
         data['${effectivePrefix}bank_account_entries_json'],
       )!,
+      expectedTransactionEntriesJson: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}expected_transaction_entries_json'],
+      )!,
       profileId: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}profile_id'],
@@ -4020,6 +4046,14 @@ class CalculatorSnapshot extends DataClass
   /// unambiguously means "no bank accounts configured" on every snapshot,
   /// old or new.
   final String bankAccountEntriesJson;
+
+  /// JSON-encoded list of per-expected-transaction entries (see
+  /// ExpectedTransactionSnapshotEntry) -- one per ExpectedTransactions row
+  /// that existed at save time, each carrying its own [enabled] state so
+  /// history shows exactly which ones actually counted toward that
+  /// snapshot's total. Same "no legacy predecessor, no *Recorded flag
+  /// needed" reasoning as [bankAccountEntriesJson].
+  final String expectedTransactionEntriesJson;
   final String? profileId;
   const CalculatorSnapshot({
     required this.id,
@@ -4040,6 +4074,7 @@ class CalculatorSnapshot extends DataClass
     required this.cardsRecorded,
     required this.manualInputsRecorded,
     required this.bankAccountEntriesJson,
+    required this.expectedTransactionEntriesJson,
     this.profileId,
   });
   @override
@@ -4065,6 +4100,9 @@ class CalculatorSnapshot extends DataClass
     map['cards_recorded'] = Variable<bool>(cardsRecorded);
     map['manual_inputs_recorded'] = Variable<bool>(manualInputsRecorded);
     map['bank_account_entries_json'] = Variable<String>(bankAccountEntriesJson);
+    map['expected_transaction_entries_json'] = Variable<String>(
+      expectedTransactionEntriesJson,
+    );
     if (!nullToAbsent || profileId != null) {
       map['profile_id'] = Variable<String>(profileId);
     }
@@ -4091,6 +4129,7 @@ class CalculatorSnapshot extends DataClass
       cardsRecorded: Value(cardsRecorded),
       manualInputsRecorded: Value(manualInputsRecorded),
       bankAccountEntriesJson: Value(bankAccountEntriesJson),
+      expectedTransactionEntriesJson: Value(expectedTransactionEntriesJson),
       profileId: profileId == null && nullToAbsent
           ? const Value.absent()
           : Value(profileId),
@@ -4133,6 +4172,9 @@ class CalculatorSnapshot extends DataClass
       bankAccountEntriesJson: serializer.fromJson<String>(
         json['bankAccountEntriesJson'],
       ),
+      expectedTransactionEntriesJson: serializer.fromJson<String>(
+        json['expectedTransactionEntriesJson'],
+      ),
       profileId: serializer.fromJson<String?>(json['profileId']),
     );
   }
@@ -4164,6 +4206,9 @@ class CalculatorSnapshot extends DataClass
       'bankAccountEntriesJson': serializer.toJson<String>(
         bankAccountEntriesJson,
       ),
+      'expectedTransactionEntriesJson': serializer.toJson<String>(
+        expectedTransactionEntriesJson,
+      ),
       'profileId': serializer.toJson<String?>(profileId),
     };
   }
@@ -4187,6 +4232,7 @@ class CalculatorSnapshot extends DataClass
     bool? cardsRecorded,
     bool? manualInputsRecorded,
     String? bankAccountEntriesJson,
+    String? expectedTransactionEntriesJson,
     Value<String?> profileId = const Value.absent(),
   }) => CalculatorSnapshot(
     id: id ?? this.id,
@@ -4210,6 +4256,8 @@ class CalculatorSnapshot extends DataClass
     manualInputsRecorded: manualInputsRecorded ?? this.manualInputsRecorded,
     bankAccountEntriesJson:
         bankAccountEntriesJson ?? this.bankAccountEntriesJson,
+    expectedTransactionEntriesJson:
+        expectedTransactionEntriesJson ?? this.expectedTransactionEntriesJson,
     profileId: profileId.present ? profileId.value : this.profileId,
   );
   CalculatorSnapshot copyWithCompanion(CalculatorSnapshotsCompanion data) {
@@ -4264,6 +4312,10 @@ class CalculatorSnapshot extends DataClass
       bankAccountEntriesJson: data.bankAccountEntriesJson.present
           ? data.bankAccountEntriesJson.value
           : this.bankAccountEntriesJson,
+      expectedTransactionEntriesJson:
+          data.expectedTransactionEntriesJson.present
+          ? data.expectedTransactionEntriesJson.value
+          : this.expectedTransactionEntriesJson,
       profileId: data.profileId.present ? data.profileId.value : this.profileId,
     );
   }
@@ -4289,6 +4341,9 @@ class CalculatorSnapshot extends DataClass
           ..write('cardsRecorded: $cardsRecorded, ')
           ..write('manualInputsRecorded: $manualInputsRecorded, ')
           ..write('bankAccountEntriesJson: $bankAccountEntriesJson, ')
+          ..write(
+            'expectedTransactionEntriesJson: $expectedTransactionEntriesJson, ',
+          )
           ..write('profileId: $profileId')
           ..write(')'))
         .toString();
@@ -4314,6 +4369,7 @@ class CalculatorSnapshot extends DataClass
     cardsRecorded,
     manualInputsRecorded,
     bankAccountEntriesJson,
+    expectedTransactionEntriesJson,
     profileId,
   );
   @override
@@ -4338,6 +4394,8 @@ class CalculatorSnapshot extends DataClass
           other.cardsRecorded == this.cardsRecorded &&
           other.manualInputsRecorded == this.manualInputsRecorded &&
           other.bankAccountEntriesJson == this.bankAccountEntriesJson &&
+          other.expectedTransactionEntriesJson ==
+              this.expectedTransactionEntriesJson &&
           other.profileId == this.profileId);
 }
 
@@ -4360,6 +4418,7 @@ class CalculatorSnapshotsCompanion extends UpdateCompanion<CalculatorSnapshot> {
   final Value<bool> cardsRecorded;
   final Value<bool> manualInputsRecorded;
   final Value<String> bankAccountEntriesJson;
+  final Value<String> expectedTransactionEntriesJson;
   final Value<String?> profileId;
   final Value<int> rowid;
   const CalculatorSnapshotsCompanion({
@@ -4381,6 +4440,7 @@ class CalculatorSnapshotsCompanion extends UpdateCompanion<CalculatorSnapshot> {
     this.cardsRecorded = const Value.absent(),
     this.manualInputsRecorded = const Value.absent(),
     this.bankAccountEntriesJson = const Value.absent(),
+    this.expectedTransactionEntriesJson = const Value.absent(),
     this.profileId = const Value.absent(),
     this.rowid = const Value.absent(),
   });
@@ -4403,6 +4463,7 @@ class CalculatorSnapshotsCompanion extends UpdateCompanion<CalculatorSnapshot> {
     this.cardsRecorded = const Value.absent(),
     this.manualInputsRecorded = const Value.absent(),
     this.bankAccountEntriesJson = const Value.absent(),
+    this.expectedTransactionEntriesJson = const Value.absent(),
     this.profileId = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
@@ -4430,6 +4491,7 @@ class CalculatorSnapshotsCompanion extends UpdateCompanion<CalculatorSnapshot> {
     Expression<bool>? cardsRecorded,
     Expression<bool>? manualInputsRecorded,
     Expression<String>? bankAccountEntriesJson,
+    Expression<String>? expectedTransactionEntriesJson,
     Expression<String>? profileId,
     Expression<int>? rowid,
   }) {
@@ -4458,6 +4520,8 @@ class CalculatorSnapshotsCompanion extends UpdateCompanion<CalculatorSnapshot> {
         'manual_inputs_recorded': manualInputsRecorded,
       if (bankAccountEntriesJson != null)
         'bank_account_entries_json': bankAccountEntriesJson,
+      if (expectedTransactionEntriesJson != null)
+        'expected_transaction_entries_json': expectedTransactionEntriesJson,
       if (profileId != null) 'profile_id': profileId,
       if (rowid != null) 'rowid': rowid,
     });
@@ -4482,6 +4546,7 @@ class CalculatorSnapshotsCompanion extends UpdateCompanion<CalculatorSnapshot> {
     Value<bool>? cardsRecorded,
     Value<bool>? manualInputsRecorded,
     Value<String>? bankAccountEntriesJson,
+    Value<String>? expectedTransactionEntriesJson,
     Value<String?>? profileId,
     Value<int>? rowid,
   }) {
@@ -4508,6 +4573,8 @@ class CalculatorSnapshotsCompanion extends UpdateCompanion<CalculatorSnapshot> {
       manualInputsRecorded: manualInputsRecorded ?? this.manualInputsRecorded,
       bankAccountEntriesJson:
           bankAccountEntriesJson ?? this.bankAccountEntriesJson,
+      expectedTransactionEntriesJson:
+          expectedTransactionEntriesJson ?? this.expectedTransactionEntriesJson,
       profileId: profileId ?? this.profileId,
       rowid: rowid ?? this.rowid,
     );
@@ -4582,6 +4649,11 @@ class CalculatorSnapshotsCompanion extends UpdateCompanion<CalculatorSnapshot> {
         bankAccountEntriesJson.value,
       );
     }
+    if (expectedTransactionEntriesJson.present) {
+      map['expected_transaction_entries_json'] = Variable<String>(
+        expectedTransactionEntriesJson.value,
+      );
+    }
     if (profileId.present) {
       map['profile_id'] = Variable<String>(profileId.value);
     }
@@ -4612,6 +4684,9 @@ class CalculatorSnapshotsCompanion extends UpdateCompanion<CalculatorSnapshot> {
           ..write('cardsRecorded: $cardsRecorded, ')
           ..write('manualInputsRecorded: $manualInputsRecorded, ')
           ..write('bankAccountEntriesJson: $bankAccountEntriesJson, ')
+          ..write(
+            'expectedTransactionEntriesJson: $expectedTransactionEntriesJson, ',
+          )
           ..write('profileId: $profileId, ')
           ..write('rowid: $rowid')
           ..write(')'))
@@ -10056,6 +10131,530 @@ class ReturnsCompanion extends UpdateCompanion<Return> {
   }
 }
 
+class $ExpectedTransactionsTable extends ExpectedTransactions
+    with TableInfo<$ExpectedTransactionsTable, ExpectedTransaction> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $ExpectedTransactionsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _nameMeta = const VerificationMeta('name');
+  @override
+  late final GeneratedColumn<String> name = GeneratedColumn<String>(
+    'name',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _isAdditionMeta = const VerificationMeta(
+    'isAddition',
+  );
+  @override
+  late final GeneratedColumn<bool> isAddition = GeneratedColumn<bool>(
+    'is_addition',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("is_addition" IN (0, 1))',
+    ),
+  );
+  static const VerificationMeta _amountMeta = const VerificationMeta('amount');
+  @override
+  late final GeneratedColumn<double> amount = GeneratedColumn<double>(
+    'amount',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _currencyMeta = const VerificationMeta(
+    'currency',
+  );
+  @override
+  late final GeneratedColumn<String> currency = GeneratedColumn<String>(
+    'currency',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('EGP'),
+  );
+  static const VerificationMeta _enabledMeta = const VerificationMeta(
+    'enabled',
+  );
+  @override
+  late final GeneratedColumn<bool> enabled = GeneratedColumn<bool>(
+    'enabled',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("enabled" IN (0, 1))',
+    ),
+    defaultValue: const Constant(true),
+  );
+  static const VerificationMeta _sortOrderMeta = const VerificationMeta(
+    'sortOrder',
+  );
+  @override
+  late final GeneratedColumn<int> sortOrder = GeneratedColumn<int>(
+    'sort_order',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _profileIdMeta = const VerificationMeta(
+    'profileId',
+  );
+  @override
+  late final GeneratedColumn<String> profileId = GeneratedColumn<String>(
+    'profile_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES profiles (id)',
+    ),
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    name,
+    isAddition,
+    amount,
+    currency,
+    enabled,
+    sortOrder,
+    profileId,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'expected_transactions';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<ExpectedTransaction> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('name')) {
+      context.handle(
+        _nameMeta,
+        name.isAcceptableOrUnknown(data['name']!, _nameMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_nameMeta);
+    }
+    if (data.containsKey('is_addition')) {
+      context.handle(
+        _isAdditionMeta,
+        isAddition.isAcceptableOrUnknown(data['is_addition']!, _isAdditionMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_isAdditionMeta);
+    }
+    if (data.containsKey('amount')) {
+      context.handle(
+        _amountMeta,
+        amount.isAcceptableOrUnknown(data['amount']!, _amountMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_amountMeta);
+    }
+    if (data.containsKey('currency')) {
+      context.handle(
+        _currencyMeta,
+        currency.isAcceptableOrUnknown(data['currency']!, _currencyMeta),
+      );
+    }
+    if (data.containsKey('enabled')) {
+      context.handle(
+        _enabledMeta,
+        enabled.isAcceptableOrUnknown(data['enabled']!, _enabledMeta),
+      );
+    }
+    if (data.containsKey('sort_order')) {
+      context.handle(
+        _sortOrderMeta,
+        sortOrder.isAcceptableOrUnknown(data['sort_order']!, _sortOrderMeta),
+      );
+    }
+    if (data.containsKey('profile_id')) {
+      context.handle(
+        _profileIdMeta,
+        profileId.isAcceptableOrUnknown(data['profile_id']!, _profileIdMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  ExpectedTransaction map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return ExpectedTransaction(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      name: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}name'],
+      )!,
+      isAddition: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}is_addition'],
+      )!,
+      amount: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}amount'],
+      )!,
+      currency: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}currency'],
+      )!,
+      enabled: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}enabled'],
+      )!,
+      sortOrder: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}sort_order'],
+      )!,
+      profileId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}profile_id'],
+      ),
+    );
+  }
+
+  @override
+  $ExpectedTransactionsTable createAlias(String alias) {
+    return $ExpectedTransactionsTable(attachedDatabase, alias);
+  }
+}
+
+class ExpectedTransaction extends DataClass
+    implements Insertable<ExpectedTransaction> {
+  final String id;
+  final String name;
+  final bool isAddition;
+  final double amount;
+  final String currency;
+
+  /// Whether this currently counts toward the Calculator total -- see the
+  /// class doc comment. Defaults to on: adding one is itself the "count
+  /// this" action, the same way adding a manual input or a bank account
+  /// immediately counts too.
+  final bool enabled;
+
+  /// Manual ordering for display -- same convention as
+  /// [ManualInputs.sortOrder].
+  final int sortOrder;
+  final String? profileId;
+  const ExpectedTransaction({
+    required this.id,
+    required this.name,
+    required this.isAddition,
+    required this.amount,
+    required this.currency,
+    required this.enabled,
+    required this.sortOrder,
+    this.profileId,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['name'] = Variable<String>(name);
+    map['is_addition'] = Variable<bool>(isAddition);
+    map['amount'] = Variable<double>(amount);
+    map['currency'] = Variable<String>(currency);
+    map['enabled'] = Variable<bool>(enabled);
+    map['sort_order'] = Variable<int>(sortOrder);
+    if (!nullToAbsent || profileId != null) {
+      map['profile_id'] = Variable<String>(profileId);
+    }
+    return map;
+  }
+
+  ExpectedTransactionsCompanion toCompanion(bool nullToAbsent) {
+    return ExpectedTransactionsCompanion(
+      id: Value(id),
+      name: Value(name),
+      isAddition: Value(isAddition),
+      amount: Value(amount),
+      currency: Value(currency),
+      enabled: Value(enabled),
+      sortOrder: Value(sortOrder),
+      profileId: profileId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(profileId),
+    );
+  }
+
+  factory ExpectedTransaction.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return ExpectedTransaction(
+      id: serializer.fromJson<String>(json['id']),
+      name: serializer.fromJson<String>(json['name']),
+      isAddition: serializer.fromJson<bool>(json['isAddition']),
+      amount: serializer.fromJson<double>(json['amount']),
+      currency: serializer.fromJson<String>(json['currency']),
+      enabled: serializer.fromJson<bool>(json['enabled']),
+      sortOrder: serializer.fromJson<int>(json['sortOrder']),
+      profileId: serializer.fromJson<String?>(json['profileId']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'name': serializer.toJson<String>(name),
+      'isAddition': serializer.toJson<bool>(isAddition),
+      'amount': serializer.toJson<double>(amount),
+      'currency': serializer.toJson<String>(currency),
+      'enabled': serializer.toJson<bool>(enabled),
+      'sortOrder': serializer.toJson<int>(sortOrder),
+      'profileId': serializer.toJson<String?>(profileId),
+    };
+  }
+
+  ExpectedTransaction copyWith({
+    String? id,
+    String? name,
+    bool? isAddition,
+    double? amount,
+    String? currency,
+    bool? enabled,
+    int? sortOrder,
+    Value<String?> profileId = const Value.absent(),
+  }) => ExpectedTransaction(
+    id: id ?? this.id,
+    name: name ?? this.name,
+    isAddition: isAddition ?? this.isAddition,
+    amount: amount ?? this.amount,
+    currency: currency ?? this.currency,
+    enabled: enabled ?? this.enabled,
+    sortOrder: sortOrder ?? this.sortOrder,
+    profileId: profileId.present ? profileId.value : this.profileId,
+  );
+  ExpectedTransaction copyWithCompanion(ExpectedTransactionsCompanion data) {
+    return ExpectedTransaction(
+      id: data.id.present ? data.id.value : this.id,
+      name: data.name.present ? data.name.value : this.name,
+      isAddition: data.isAddition.present
+          ? data.isAddition.value
+          : this.isAddition,
+      amount: data.amount.present ? data.amount.value : this.amount,
+      currency: data.currency.present ? data.currency.value : this.currency,
+      enabled: data.enabled.present ? data.enabled.value : this.enabled,
+      sortOrder: data.sortOrder.present ? data.sortOrder.value : this.sortOrder,
+      profileId: data.profileId.present ? data.profileId.value : this.profileId,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ExpectedTransaction(')
+          ..write('id: $id, ')
+          ..write('name: $name, ')
+          ..write('isAddition: $isAddition, ')
+          ..write('amount: $amount, ')
+          ..write('currency: $currency, ')
+          ..write('enabled: $enabled, ')
+          ..write('sortOrder: $sortOrder, ')
+          ..write('profileId: $profileId')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    name,
+    isAddition,
+    amount,
+    currency,
+    enabled,
+    sortOrder,
+    profileId,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is ExpectedTransaction &&
+          other.id == this.id &&
+          other.name == this.name &&
+          other.isAddition == this.isAddition &&
+          other.amount == this.amount &&
+          other.currency == this.currency &&
+          other.enabled == this.enabled &&
+          other.sortOrder == this.sortOrder &&
+          other.profileId == this.profileId);
+}
+
+class ExpectedTransactionsCompanion
+    extends UpdateCompanion<ExpectedTransaction> {
+  final Value<String> id;
+  final Value<String> name;
+  final Value<bool> isAddition;
+  final Value<double> amount;
+  final Value<String> currency;
+  final Value<bool> enabled;
+  final Value<int> sortOrder;
+  final Value<String?> profileId;
+  final Value<int> rowid;
+  const ExpectedTransactionsCompanion({
+    this.id = const Value.absent(),
+    this.name = const Value.absent(),
+    this.isAddition = const Value.absent(),
+    this.amount = const Value.absent(),
+    this.currency = const Value.absent(),
+    this.enabled = const Value.absent(),
+    this.sortOrder = const Value.absent(),
+    this.profileId = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  ExpectedTransactionsCompanion.insert({
+    required String id,
+    required String name,
+    required bool isAddition,
+    required double amount,
+    this.currency = const Value.absent(),
+    this.enabled = const Value.absent(),
+    this.sortOrder = const Value.absent(),
+    this.profileId = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       name = Value(name),
+       isAddition = Value(isAddition),
+       amount = Value(amount);
+  static Insertable<ExpectedTransaction> custom({
+    Expression<String>? id,
+    Expression<String>? name,
+    Expression<bool>? isAddition,
+    Expression<double>? amount,
+    Expression<String>? currency,
+    Expression<bool>? enabled,
+    Expression<int>? sortOrder,
+    Expression<String>? profileId,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (name != null) 'name': name,
+      if (isAddition != null) 'is_addition': isAddition,
+      if (amount != null) 'amount': amount,
+      if (currency != null) 'currency': currency,
+      if (enabled != null) 'enabled': enabled,
+      if (sortOrder != null) 'sort_order': sortOrder,
+      if (profileId != null) 'profile_id': profileId,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  ExpectedTransactionsCompanion copyWith({
+    Value<String>? id,
+    Value<String>? name,
+    Value<bool>? isAddition,
+    Value<double>? amount,
+    Value<String>? currency,
+    Value<bool>? enabled,
+    Value<int>? sortOrder,
+    Value<String?>? profileId,
+    Value<int>? rowid,
+  }) {
+    return ExpectedTransactionsCompanion(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      isAddition: isAddition ?? this.isAddition,
+      amount: amount ?? this.amount,
+      currency: currency ?? this.currency,
+      enabled: enabled ?? this.enabled,
+      sortOrder: sortOrder ?? this.sortOrder,
+      profileId: profileId ?? this.profileId,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (name.present) {
+      map['name'] = Variable<String>(name.value);
+    }
+    if (isAddition.present) {
+      map['is_addition'] = Variable<bool>(isAddition.value);
+    }
+    if (amount.present) {
+      map['amount'] = Variable<double>(amount.value);
+    }
+    if (currency.present) {
+      map['currency'] = Variable<String>(currency.value);
+    }
+    if (enabled.present) {
+      map['enabled'] = Variable<bool>(enabled.value);
+    }
+    if (sortOrder.present) {
+      map['sort_order'] = Variable<int>(sortOrder.value);
+    }
+    if (profileId.present) {
+      map['profile_id'] = Variable<String>(profileId.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ExpectedTransactionsCompanion(')
+          ..write('id: $id, ')
+          ..write('name: $name, ')
+          ..write('isAddition: $isAddition, ')
+          ..write('amount: $amount, ')
+          ..write('currency: $currency, ')
+          ..write('enabled: $enabled, ')
+          ..write('sortOrder: $sortOrder, ')
+          ..write('profileId: $profileId, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -10085,6 +10684,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $BanksTable banks = $BanksTable(this);
   late final $SmsRulesTable smsRules = $SmsRulesTable(this);
   late final $ReturnsTable returns = $ReturnsTable(this);
+  late final $ExpectedTransactionsTable expectedTransactions =
+      $ExpectedTransactionsTable(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -10108,6 +10709,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     banks,
     smsRules,
     returns,
+    expectedTransactions,
   ];
 }
 
@@ -10404,6 +11006,31 @@ final class $$ProfilesTableReferences
     ).filter((f) => f.profileId.id.sqlEquals($_itemColumn<String>('id')!));
 
     final cache = $_typedResult.readTableOrNull(_returnsRefsTable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<
+    $ExpectedTransactionsTable,
+    List<ExpectedTransaction>
+  >
+  _expectedTransactionsRefsTable(_$AppDatabase db) =>
+      MultiTypedResultKey.fromTable(
+        db.expectedTransactions,
+        aliasName: 'profiles__id__expected_transactions__profile_id',
+      );
+
+  $$ExpectedTransactionsTableProcessedTableManager
+  get expectedTransactionsRefs {
+    final manager = $$ExpectedTransactionsTableTableManager(
+      $_db,
+      $_db.expectedTransactions,
+    ).filter((f) => f.profileId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _expectedTransactionsRefsTable($_db),
+    );
     return ProcessedTableManager(
       manager.$state.copyWith(prefetchedData: cache),
     );
@@ -10781,6 +11408,31 @@ class $$ProfilesTableFilterComposer
           }) => $$ReturnsTableFilterComposer(
             $db: $db,
             $table: $db.returns,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> expectedTransactionsRefs(
+    Expression<bool> Function($$ExpectedTransactionsTableFilterComposer f) f,
+  ) {
+    final $$ExpectedTransactionsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.expectedTransactions,
+      getReferencedColumn: (t) => t.profileId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ExpectedTransactionsTableFilterComposer(
+            $db: $db,
+            $table: $db.expectedTransactions,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -11196,6 +11848,32 @@ class $$ProfilesTableAnnotationComposer
     );
     return f(composer);
   }
+
+  Expression<T> expectedTransactionsRefs<T extends Object>(
+    Expression<T> Function($$ExpectedTransactionsTableAnnotationComposer a) f,
+  ) {
+    final $$ExpectedTransactionsTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.expectedTransactions,
+          getReferencedColumn: (t) => t.profileId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$ExpectedTransactionsTableAnnotationComposer(
+                $db: $db,
+                $table: $db.expectedTransactions,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
 }
 
 class $$ProfilesTableTableManager
@@ -11226,6 +11904,7 @@ class $$ProfilesTableTableManager
             bool banksRefs,
             bool smsRulesRefs,
             bool returnsRefs,
+            bool expectedTransactionsRefs,
           })
         > {
   $$ProfilesTableTableManager(_$AppDatabase db, $ProfilesTable table)
@@ -11291,6 +11970,7 @@ class $$ProfilesTableTableManager
                 banksRefs = false,
                 smsRulesRefs = false,
                 returnsRefs = false,
+                expectedTransactionsRefs = false,
               }) {
                 return PrefetchHooks(
                   db: db,
@@ -11309,6 +11989,7 @@ class $$ProfilesTableTableManager
                     if (banksRefs) db.banks,
                     if (smsRulesRefs) db.smsRules,
                     if (returnsRefs) db.returns,
+                    if (expectedTransactionsRefs) db.expectedTransactions,
                   ],
                   addJoins: null,
                   getPrefetchedDataCallback: (items) async {
@@ -11607,6 +12288,27 @@ class $$ProfilesTableTableManager
                               ),
                           typedResults: items,
                         ),
+                      if (expectedTransactionsRefs)
+                        await $_getPrefetchedData<
+                          Profile,
+                          $ProfilesTable,
+                          ExpectedTransaction
+                        >(
+                          currentTable: table,
+                          referencedTable: $$ProfilesTableReferences
+                              ._expectedTransactionsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$ProfilesTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).expectedTransactionsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.profileId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
                     ];
                   },
                 );
@@ -11642,6 +12344,7 @@ typedef $$ProfilesTableProcessedTableManager =
         bool banksRefs,
         bool smsRulesRefs,
         bool returnsRefs,
+        bool expectedTransactionsRefs,
       })
     >;
 typedef $$AssetsTableCreateCompanionBuilder =
@@ -14215,6 +14918,7 @@ typedef $$CalculatorSnapshotsTableCreateCompanionBuilder =
       Value<bool> cardsRecorded,
       Value<bool> manualInputsRecorded,
       Value<String> bankAccountEntriesJson,
+      Value<String> expectedTransactionEntriesJson,
       Value<String?> profileId,
       Value<int> rowid,
     });
@@ -14238,6 +14942,7 @@ typedef $$CalculatorSnapshotsTableUpdateCompanionBuilder =
       Value<bool> cardsRecorded,
       Value<bool> manualInputsRecorded,
       Value<String> bankAccountEntriesJson,
+      Value<String> expectedTransactionEntriesJson,
       Value<String?> profileId,
       Value<int> rowid,
     });
@@ -14372,6 +15077,12 @@ class $$CalculatorSnapshotsTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
+  ColumnFilters<String> get expectedTransactionEntriesJson =>
+      $composableBuilder(
+        column: $table.expectedTransactionEntriesJson,
+        builder: (column) => ColumnFilters(column),
+      );
+
   $$ProfilesTableFilterComposer get profileId {
     final $$ProfilesTableFilterComposer composer = $composerBuilder(
       composer: this,
@@ -14495,6 +15206,12 @@ class $$CalculatorSnapshotsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get expectedTransactionEntriesJson =>
+      $composableBuilder(
+        column: $table.expectedTransactionEntriesJson,
+        builder: (column) => ColumnOrderings(column),
+      );
+
   $$ProfilesTableOrderingComposer get profileId {
     final $$ProfilesTableOrderingComposer composer = $composerBuilder(
       composer: this,
@@ -14614,6 +15331,12 @@ class $$CalculatorSnapshotsTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<String> get expectedTransactionEntriesJson =>
+      $composableBuilder(
+        column: $table.expectedTransactionEntriesJson,
+        builder: (column) => column,
+      );
+
   $$ProfilesTableAnnotationComposer get profileId {
     final $$ProfilesTableAnnotationComposer composer = $composerBuilder(
       composer: this,
@@ -14692,6 +15415,8 @@ class $$CalculatorSnapshotsTableTableManager
                 Value<bool> cardsRecorded = const Value.absent(),
                 Value<bool> manualInputsRecorded = const Value.absent(),
                 Value<String> bankAccountEntriesJson = const Value.absent(),
+                Value<String> expectedTransactionEntriesJson =
+                    const Value.absent(),
                 Value<String?> profileId = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => CalculatorSnapshotsCompanion(
@@ -14713,6 +15438,7 @@ class $$CalculatorSnapshotsTableTableManager
                 cardsRecorded: cardsRecorded,
                 manualInputsRecorded: manualInputsRecorded,
                 bankAccountEntriesJson: bankAccountEntriesJson,
+                expectedTransactionEntriesJson: expectedTransactionEntriesJson,
                 profileId: profileId,
                 rowid: rowid,
               ),
@@ -14736,6 +15462,8 @@ class $$CalculatorSnapshotsTableTableManager
                 Value<bool> cardsRecorded = const Value.absent(),
                 Value<bool> manualInputsRecorded = const Value.absent(),
                 Value<String> bankAccountEntriesJson = const Value.absent(),
+                Value<String> expectedTransactionEntriesJson =
+                    const Value.absent(),
                 Value<String?> profileId = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => CalculatorSnapshotsCompanion.insert(
@@ -14757,6 +15485,7 @@ class $$CalculatorSnapshotsTableTableManager
                 cardsRecorded: cardsRecorded,
                 manualInputsRecorded: manualInputsRecorded,
                 bankAccountEntriesJson: bankAccountEntriesJson,
+                expectedTransactionEntriesJson: expectedTransactionEntriesJson,
                 profileId: profileId,
                 rowid: rowid,
               ),
@@ -18753,6 +19482,401 @@ typedef $$ReturnsTableProcessedTableManager =
       Return,
       PrefetchHooks Function({bool profileId})
     >;
+typedef $$ExpectedTransactionsTableCreateCompanionBuilder =
+    ExpectedTransactionsCompanion Function({
+      required String id,
+      required String name,
+      required bool isAddition,
+      required double amount,
+      Value<String> currency,
+      Value<bool> enabled,
+      Value<int> sortOrder,
+      Value<String?> profileId,
+      Value<int> rowid,
+    });
+typedef $$ExpectedTransactionsTableUpdateCompanionBuilder =
+    ExpectedTransactionsCompanion Function({
+      Value<String> id,
+      Value<String> name,
+      Value<bool> isAddition,
+      Value<double> amount,
+      Value<String> currency,
+      Value<bool> enabled,
+      Value<int> sortOrder,
+      Value<String?> profileId,
+      Value<int> rowid,
+    });
+
+final class $$ExpectedTransactionsTableReferences
+    extends
+        BaseReferences<
+          _$AppDatabase,
+          $ExpectedTransactionsTable,
+          ExpectedTransaction
+        > {
+  $$ExpectedTransactionsTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static $ProfilesTable _profileIdTable(_$AppDatabase db) => db.profiles
+      .createAlias('expected_transactions__profile_id__profiles__id');
+
+  $$ProfilesTableProcessedTableManager? get profileId {
+    final $_column = $_itemColumn<String>('profile_id');
+    if ($_column == null) return null;
+    final manager = $$ProfilesTableTableManager(
+      $_db,
+      $_db.profiles,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_profileIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$ExpectedTransactionsTableFilterComposer
+    extends Composer<_$AppDatabase, $ExpectedTransactionsTable> {
+  $$ExpectedTransactionsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get isAddition => $composableBuilder(
+    column: $table.isAddition,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get amount => $composableBuilder(
+    column: $table.amount,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get currency => $composableBuilder(
+    column: $table.currency,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get enabled => $composableBuilder(
+    column: $table.enabled,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get sortOrder => $composableBuilder(
+    column: $table.sortOrder,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$ProfilesTableFilterComposer get profileId {
+    final $$ProfilesTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.profileId,
+      referencedTable: $db.profiles,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ProfilesTableFilterComposer(
+            $db: $db,
+            $table: $db.profiles,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$ExpectedTransactionsTableOrderingComposer
+    extends Composer<_$AppDatabase, $ExpectedTransactionsTable> {
+  $$ExpectedTransactionsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get isAddition => $composableBuilder(
+    column: $table.isAddition,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get amount => $composableBuilder(
+    column: $table.amount,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get currency => $composableBuilder(
+    column: $table.currency,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get enabled => $composableBuilder(
+    column: $table.enabled,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get sortOrder => $composableBuilder(
+    column: $table.sortOrder,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$ProfilesTableOrderingComposer get profileId {
+    final $$ProfilesTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.profileId,
+      referencedTable: $db.profiles,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ProfilesTableOrderingComposer(
+            $db: $db,
+            $table: $db.profiles,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$ExpectedTransactionsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $ExpectedTransactionsTable> {
+  $$ExpectedTransactionsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get name =>
+      $composableBuilder(column: $table.name, builder: (column) => column);
+
+  GeneratedColumn<bool> get isAddition => $composableBuilder(
+    column: $table.isAddition,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get amount =>
+      $composableBuilder(column: $table.amount, builder: (column) => column);
+
+  GeneratedColumn<String> get currency =>
+      $composableBuilder(column: $table.currency, builder: (column) => column);
+
+  GeneratedColumn<bool> get enabled =>
+      $composableBuilder(column: $table.enabled, builder: (column) => column);
+
+  GeneratedColumn<int> get sortOrder =>
+      $composableBuilder(column: $table.sortOrder, builder: (column) => column);
+
+  $$ProfilesTableAnnotationComposer get profileId {
+    final $$ProfilesTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.profileId,
+      referencedTable: $db.profiles,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ProfilesTableAnnotationComposer(
+            $db: $db,
+            $table: $db.profiles,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$ExpectedTransactionsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $ExpectedTransactionsTable,
+          ExpectedTransaction,
+          $$ExpectedTransactionsTableFilterComposer,
+          $$ExpectedTransactionsTableOrderingComposer,
+          $$ExpectedTransactionsTableAnnotationComposer,
+          $$ExpectedTransactionsTableCreateCompanionBuilder,
+          $$ExpectedTransactionsTableUpdateCompanionBuilder,
+          (ExpectedTransaction, $$ExpectedTransactionsTableReferences),
+          ExpectedTransaction,
+          PrefetchHooks Function({bool profileId})
+        > {
+  $$ExpectedTransactionsTableTableManager(
+    _$AppDatabase db,
+    $ExpectedTransactionsTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$ExpectedTransactionsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$ExpectedTransactionsTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$ExpectedTransactionsTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> name = const Value.absent(),
+                Value<bool> isAddition = const Value.absent(),
+                Value<double> amount = const Value.absent(),
+                Value<String> currency = const Value.absent(),
+                Value<bool> enabled = const Value.absent(),
+                Value<int> sortOrder = const Value.absent(),
+                Value<String?> profileId = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => ExpectedTransactionsCompanion(
+                id: id,
+                name: name,
+                isAddition: isAddition,
+                amount: amount,
+                currency: currency,
+                enabled: enabled,
+                sortOrder: sortOrder,
+                profileId: profileId,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String name,
+                required bool isAddition,
+                required double amount,
+                Value<String> currency = const Value.absent(),
+                Value<bool> enabled = const Value.absent(),
+                Value<int> sortOrder = const Value.absent(),
+                Value<String?> profileId = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => ExpectedTransactionsCompanion.insert(
+                id: id,
+                name: name,
+                isAddition: isAddition,
+                amount: amount,
+                currency: currency,
+                enabled: enabled,
+                sortOrder: sortOrder,
+                profileId: profileId,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable(table),
+                  $$ExpectedTransactionsTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({profileId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (profileId) {
+                      state =
+                          state.withJoin(
+                                currentTable: table,
+                                currentColumn: table.profileId,
+                                referencedTable:
+                                    $$ExpectedTransactionsTableReferences
+                                        ._profileIdTable(db),
+                                referencedColumn:
+                                    $$ExpectedTransactionsTableReferences
+                                        ._profileIdTable(db)
+                                        .id,
+                              )
+                              as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$ExpectedTransactionsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $ExpectedTransactionsTable,
+      ExpectedTransaction,
+      $$ExpectedTransactionsTableFilterComposer,
+      $$ExpectedTransactionsTableOrderingComposer,
+      $$ExpectedTransactionsTableAnnotationComposer,
+      $$ExpectedTransactionsTableCreateCompanionBuilder,
+      $$ExpectedTransactionsTableUpdateCompanionBuilder,
+      (ExpectedTransaction, $$ExpectedTransactionsTableReferences),
+      ExpectedTransaction,
+      PrefetchHooks Function({bool profileId})
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -18796,4 +19920,6 @@ class $AppDatabaseManager {
       $$SmsRulesTableTableManager(_db, _db.smsRules);
   $$ReturnsTableTableManager get returns =>
       $$ReturnsTableTableManager(_db, _db.returns);
+  $$ExpectedTransactionsTableTableManager get expectedTransactions =>
+      $$ExpectedTransactionsTableTableManager(_db, _db.expectedTransactions);
 }

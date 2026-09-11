@@ -23,6 +23,10 @@ final bankAccountsStreamProvider = StreamProvider<List<BankAccount>>((ref) {
   return ref.watch(calculatorRepositoryProvider).watchBankAccounts();
 });
 
+final expectedTransactionsStreamProvider = StreamProvider<List<ExpectedTransaction>>((ref) {
+  return ref.watch(calculatorRepositoryProvider).watchExpectedTransactions();
+});
+
 final calculatorHistoryStreamProvider = StreamProvider<List<CalculatorSnapshot>>((ref) {
   return ref.watch(calculatorRepositoryProvider).watchSnapshots();
 });

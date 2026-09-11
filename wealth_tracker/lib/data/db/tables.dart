@@ -256,6 +256,15 @@ class CalculatorSnapshots extends Table {
   TextColumn get bankAccountEntriesJson =>
       text().withDefault(const Constant('[]'))();
 
+  /// JSON-encoded list of per-expected-transaction entries (see
+  /// ExpectedTransactionSnapshotEntry) -- one per ExpectedTransactions row
+  /// that existed at save time, each carrying its own [enabled] state so
+  /// history shows exactly which ones actually counted toward that
+  /// snapshot's total. Same "no legacy predecessor, no *Recorded flag
+  /// needed" reasoning as [bankAccountEntriesJson].
+  TextColumn get expectedTransactionEntriesJson =>
+      text().withDefault(const Constant('[]'))();
+
   TextColumn get profileId => text().nullable().references(Profiles, #id)();
 
   @override
@@ -374,6 +383,35 @@ class ManualInputs extends Table {
   /// last saved snapshot's matching-by-name entry in that case, same as it
   /// always has.
   RealColumn get currentValue => real().nullable()();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
+/// A one-off +/- amount the user expects to happen but hasn't yet --
+/// unlike [ManualInputs] (a standing slot you retype a fresh number into
+/// over time), this carries its own fixed [amount] set once at creation,
+/// and its own [enabled] switch: flipped off on the Calculator tab itself
+/// to see the total as if this transaction hadn't happened, without
+/// deleting it or losing its details.
+class ExpectedTransactions extends Table {
+  TextColumn get id => text()();
+  TextColumn get name => text()();
+  BoolColumn get isAddition => boolean()();
+  RealColumn get amount => real()();
+  TextColumn get currency => text().withDefault(const Constant('EGP'))();
+
+  /// Whether this currently counts toward the Calculator total -- see the
+  /// class doc comment. Defaults to on: adding one is itself the "count
+  /// this" action, the same way adding a manual input or a bank account
+  /// immediately counts too.
+  BoolColumn get enabled => boolean().withDefault(const Constant(true))();
+
+  /// Manual ordering for display -- same convention as
+  /// [ManualInputs.sortOrder].
+  IntColumn get sortOrder => integer().withDefault(const Constant(0))();
+
+  TextColumn get profileId => text().nullable().references(Profiles, #id)();
 
   @override
   Set<Column> get primaryKey => {id};

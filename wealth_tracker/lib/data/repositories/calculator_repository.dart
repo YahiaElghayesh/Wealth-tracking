@@ -6,6 +6,7 @@ import 'package:uuid/uuid.dart';
 import '../../core/models/bank_account_snapshot_entry.dart';
 import '../../core/models/calculator_custom_item.dart';
 import '../../core/models/card_snapshot_entry.dart';
+import '../../core/models/expected_transaction_snapshot_entry.dart';
 import '../../core/models/manual_input_snapshot_entry.dart';
 import '../db/database.dart';
 
@@ -164,6 +165,61 @@ class CalculatorRepository {
     return (_db.delete(_db.bankAccounts)..where((t) => t.id.equals(id))).go();
   }
 
+  Stream<List<ExpectedTransaction>> watchExpectedTransactions() {
+    return (_db.select(_db.expectedTransactions)
+          ..where((t) => t.profileId.equals(profileId))
+          ..orderBy([(t) => OrderingTerm.asc(t.sortOrder)]))
+        .watch();
+  }
+
+  Future<void> addExpectedTransaction({
+    required String name,
+    required bool isAddition,
+    required double amount,
+    required String currency,
+  }) async {
+    final count = await (_db.select(
+      _db.expectedTransactions,
+    )..where((t) => t.profileId.equals(profileId))).get();
+    await _db
+        .into(_db.expectedTransactions)
+        .insert(
+          ExpectedTransactionsCompanion.insert(
+            id: _uuid.v4(),
+            name: name,
+            isAddition: isAddition,
+            amount: amount,
+            currency: Value(currency),
+            sortOrder: Value(count.length),
+            profileId: Value(profileId),
+          ),
+        );
+  }
+
+  Future<void> updateExpectedTransaction(ExpectedTransaction transaction) {
+    return _db.update(_db.expectedTransactions).replace(transaction);
+  }
+
+  /// Sets just [ExpectedTransaction.enabled] -- the Calculator tab's own
+  /// on/off switch, flipped far more often than anything else about an
+  /// expected transaction, so a narrow write here (like
+  /// [setManualInputCurrentValue]) rather than a full-row
+  /// [updateExpectedTransaction] never risks racing an in-flight edit to
+  /// its name/sign/amount/currency.
+  Future<void> setExpectedTransactionEnabled(String id, bool enabled) {
+    return (_db.update(
+      _db.expectedTransactions,
+    )..where((t) => t.id.equals(id))).write(
+      ExpectedTransactionsCompanion(enabled: Value(enabled)),
+    );
+  }
+
+  Future<void> deleteExpectedTransaction(String id) {
+    return (_db.delete(
+      _db.expectedTransactions,
+    )..where((t) => t.id.equals(id))).go();
+  }
+
   Stream<List<CalculatorSnapshot>> watchSnapshots() {
     return (_db.select(_db.calculatorSnapshots)
           ..where((s) => s.profileId.equals(profileId))
@@ -177,6 +233,7 @@ class CalculatorRepository {
     required List<CardSnapshotEntry> cardEntries,
     required List<ManualInputSnapshotEntry> manualInputEntries,
     required List<BankAccountSnapshotEntry> bankAccountEntries,
+    required List<ExpectedTransactionSnapshotEntry> expectedTransactionEntries,
     required List<CustomCalculatorItem> customItems,
   }) {
     return _db
@@ -204,6 +261,11 @@ class CalculatorRepository {
             ),
             bankAccountEntriesJson: Value(
               jsonEncode(bankAccountEntries.map((e) => e.toJson()).toList()),
+            ),
+            expectedTransactionEntriesJson: Value(
+              jsonEncode(
+                expectedTransactionEntries.map((e) => e.toJson()).toList(),
+              ),
             ),
             // Unconditionally true -- this snapshot's card/manual-input
             // lists are authoritative even when genuinely empty (e.g. a
@@ -257,6 +319,15 @@ extension CalculatorSnapshotCustomItems on CalculatorSnapshot {
     return decoded
         .cast<Map<String, dynamic>>()
         .map(BankAccountSnapshotEntry.fromJson)
+        .toList();
+  }
+
+  List<ExpectedTransactionSnapshotEntry> get expectedTransactionEntries {
+    final decoded = jsonDecode(expectedTransactionEntriesJson);
+    if (decoded is! List) return const [];
+    return decoded
+        .cast<Map<String, dynamic>>()
+        .map(ExpectedTransactionSnapshotEntry.fromJson)
         .toList();
   }
 

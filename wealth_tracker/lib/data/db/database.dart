@@ -34,6 +34,7 @@ const defaultProfileId = 'default-profile';
     Banks,
     SmsRules,
     Returns,
+    ExpectedTransactions,
   ],
 )
 class AppDatabase extends _$AppDatabase {
@@ -42,7 +43,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 33;
+  int get schemaVersion => 34;
 
   /// Public so `ProfileRepository.addProfile` can give a newly created
   /// profile the same starter categories a fresh install gets -- otherwise
@@ -447,6 +448,13 @@ class AppDatabase extends _$AppDatabase {
       }
       if (from < 33) {
         await m.createTable(returns);
+      }
+      if (from < 34) {
+        await m.createTable(expectedTransactions);
+        await m.addColumn(
+          calculatorSnapshots,
+          calculatorSnapshots.expectedTransactionEntriesJson,
+        );
       }
     },
     // The "Breakfast" quick-pick category was a voice-transcription
