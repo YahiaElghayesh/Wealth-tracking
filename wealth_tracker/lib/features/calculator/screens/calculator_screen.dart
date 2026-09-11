@@ -50,6 +50,7 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
   final _cardControllers = <String, TextEditingController>{};
   final _manualInputControllers = <String, TextEditingController>{};
   final _bankAccountControllers = <String, TextEditingController>{};
+  final _expectedTransactionControllers = <String, TextEditingController>{};
   final _customItems = <CustomCalculatorItem>[];
   final _scrollController = ScrollController();
 
@@ -77,6 +78,15 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
   final _cardSeedText = <String, String>{};
   final _seededManualInputIds = <String>{};
   final _seededBankAccountIds = <String>{};
+  final _seededExpectedTransactionIds = <String>{};
+  // Same freshness bookkeeping as the card fields above -- a bank account
+  // can now also be updated by SMS capture (a `bankAccountBalance` SMS
+  // Rule), not just typed into directly, so it needs the same re-seed-on-a-
+  // newer-`balanceUpdatedAt` treatment cards already get instead of the
+  // "seed once, never again" it used to get (the reported "the notification
+  // says updated but the number on screen doesn't change" bug).
+  final _bankAccountSeedBalanceUpdatedAt = <String, DateTime?>{};
+  final _bankAccountSeedText = <String, String>{};
   bool _saving = false;
   bool _scrolled = false;
 
@@ -93,12 +103,15 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
   bool _isSeedingManualInput = false;
   final _manualInputSaveDebounce = <String, Timer>{};
 
-  // Same idea again, for bank accounts -- a bank account has no SMS source
-  // to race against (unlike credit cards), so its seeding is a one-shot
-  // "seed once from currentAvailableBalance" like manual inputs, not the
-  // freshness-tracked re-seed cards need.
+  // Same idea again, for bank accounts.
   bool _isSeedingBankAccount = false;
   final _bankAccountSaveDebounce = <String, Timer>{};
+
+  // Same idea again, for expected transactions -- like a bank account
+  // (before the fix above), nothing outside this screen ever changes an
+  // expected transaction's amount, so a one-shot seed is correct here.
+  bool _isSeedingExpectedTransaction = false;
+  final _expectedTransactionSaveDebounce = <String, Timer>{};
 
   // A second, independent copy of every manual input's last-known value --
   // see ManualInputValueBackup's own doc comment for why. Loaded once at
@@ -199,7 +212,53 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
 
   Future<void> _saveBankAccountBalance(String accountId) async {
     if (!mounted) return;
+    final accounts = ref.read(bankAccountsStreamProvider).valueOrNull;
+    BankAccount? account;
+    for (final a in accounts ?? const <BankAccount>[]) {
+      if (a.id == accountId) {
+        account = a;
+        break;
+      }
+    }
     final controller = _bankAccountControllers[accountId];
+    if (account == null || controller == null) return;
+
+    final newValue = double.tryParse(controller.text.trim());
+    // Same reasoning as _saveManualInputValue -- never persist an
+    // unparseable/momentarily-empty field over a good saved value.
+    if (newValue == null || newValue == account.currentAvailableBalance) {
+      return;
+    }
+
+    final now = DateTime.now();
+    await ref
+        .read(calculatorRepositoryProvider)
+        .updateBankAccount(
+          account.copyWith(
+            currentAvailableBalance: Value(newValue),
+            balanceUpdatedAt: Value(now),
+            balanceUpdatedSource: const Value('manual'),
+          ),
+        );
+    // Same bookkeeping-in-lockstep reasoning as [_saveCardBalance].
+    _bankAccountSeedBalanceUpdatedAt[accountId] = now;
+    _bankAccountSeedText[accountId] = controller.text;
+  }
+
+  /// Same fix as [_scheduleManualInputSave], for an expected transaction's
+  /// amount field.
+  void _scheduleExpectedTransactionSave(String transactionId) {
+    if (_isSeedingExpectedTransaction) return;
+    _expectedTransactionSaveDebounce[transactionId]?.cancel();
+    _expectedTransactionSaveDebounce[transactionId] = Timer(
+      const Duration(milliseconds: 600),
+      () => _saveExpectedTransactionAmount(transactionId),
+    );
+  }
+
+  Future<void> _saveExpectedTransactionAmount(String transactionId) async {
+    if (!mounted) return;
+    final controller = _expectedTransactionControllers[transactionId];
     if (controller == null) return;
     final newValue = double.tryParse(controller.text.trim());
     // Same reasoning as _saveManualInputValue -- never persist an
@@ -208,7 +267,7 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
 
     await ref
         .read(calculatorRepositoryProvider)
-        .setBankAccountCurrentBalance(accountId, newValue);
+        .setExpectedTransactionAmount(transactionId, newValue);
   }
 
   /// Persists a manual edit of [cardId]'s balance field back to the card
@@ -304,6 +363,19 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
     });
   }
 
+  TextEditingController _expectedTransactionControllerFor(
+    ExpectedTransaction transaction,
+  ) {
+    return _expectedTransactionControllers.putIfAbsent(transaction.id, () {
+      final controller = TextEditingController();
+      controller.addListener(_onFieldChanged);
+      controller.addListener(
+        () => _scheduleExpectedTransactionSave(transaction.id),
+      );
+      return controller;
+    });
+  }
+
   /// A bank account's balance, converted to the app's settlement currency
   /// -- always added, unlike a manual input (which can be either sign).
   double _bankAccountAmount(BankAccount account, Map<String, double> prices) {
@@ -341,19 +413,18 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
     return input.isAddition ? converted : -converted;
   }
 
-  /// Same shape as [_manualInputSignedAmount], but the amount itself is
-  /// fixed on the row rather than typed live into a controller here -- see
-  /// ExpectedTransactions' own doc comment in tables.dart. Callers filter
-  /// to `enabled` transactions before calling this; a disabled one simply
-  /// never enters the sum at all.
+  /// Same shape (and same live-typed-controller source) as
+  /// [_manualInputSignedAmount]. Callers filter to `enabled` transactions
+  /// before calling this; a disabled one simply never enters the sum at
+  /// all.
   double _expectedTransactionSignedAmount(
     ExpectedTransaction transaction,
     Map<String, double> prices,
   ) {
+    final raw = _parse(_expectedTransactionControllerFor(transaction));
     final converted = transaction.currency == defaultCurrency
-        ? transaction.amount
-        : (convertToSettlement(transaction.amount, transaction.currency, prices) ??
-              transaction.amount);
+        ? raw
+        : (convertToSettlement(raw, transaction.currency, prices) ?? raw);
     return transaction.isAddition ? converted : -converted;
   }
 
@@ -497,7 +568,7 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
         for (final transaction in expectedTransactions)
           ExpectedTransactionSnapshotEntry(
             name: transaction.name,
-            amount: transaction.amount,
+            amount: _parse(_expectedTransactionControllerFor(transaction)),
             isAddition: transaction.isAddition,
             currency: transaction.currency,
             enabled: transaction.enabled,
@@ -607,13 +678,22 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
               .where((m) => !_seededManualInputIds.contains(m.id))
               .toList()
         : null;
-    final unseededBankAccounts = currentBankAccounts
-        ?.where((a) => !_seededBankAccountIds.contains(a.id))
+    final accountsNeedingSeed = currentBankAccounts?.where((a) {
+      if (!_seededBankAccountIds.contains(a.id)) return true;
+      if (a.balanceUpdatedAt == _bankAccountSeedBalanceUpdatedAt[a.id]) {
+        return false;
+      }
+      return _bankAccountControllerFor(a).text == _bankAccountSeedText[a.id];
+    }).toList();
+    final unseededExpectedTransactions = currentExpectedTransactions
+        ?.where((t) => !_seededExpectedTransactionIds.contains(t.id))
         .toList();
     final needsSeeding =
         (cardsNeedingSeed != null && cardsNeedingSeed.isNotEmpty) ||
         (unseededManualInputs != null && unseededManualInputs.isNotEmpty) ||
-        (unseededBankAccounts != null && unseededBankAccounts.isNotEmpty);
+        (accountsNeedingSeed != null && accountsNeedingSeed.isNotEmpty) ||
+        (unseededExpectedTransactions != null &&
+            unseededExpectedTransactions.isNotEmpty);
     if (needsSeeding) {
       // Setting controller.text synchronously here would fire the field
       // listener (which calls setState) mid-build, which Flutter forbids —
@@ -692,18 +772,31 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
             }
             _isSeedingManualInput = false;
           }
-          if (unseededBankAccounts != null) {
+          if (accountsNeedingSeed != null) {
             _isSeedingBankAccount = true;
-            for (final account in unseededBankAccounts) {
+            for (final account in accountsNeedingSeed) {
               final seedAmount = account.currentAvailableBalance;
-              if (seedAmount != null && seedAmount != 0) {
-                _bankAccountControllerFor(account).text = _formatAmount(
-                  seedAmount,
-                );
-              }
+              final text = seedAmount == null || seedAmount == 0
+                  ? ''
+                  : _formatAmount(seedAmount);
+              _bankAccountControllerFor(account).text = text;
               _seededBankAccountIds.add(account.id);
+              _bankAccountSeedBalanceUpdatedAt[account.id] =
+                  account.balanceUpdatedAt;
+              _bankAccountSeedText[account.id] = text;
             }
             _isSeedingBankAccount = false;
+          }
+          if (unseededExpectedTransactions != null) {
+            _isSeedingExpectedTransaction = true;
+            for (final transaction in unseededExpectedTransactions) {
+              if (transaction.amount != 0) {
+                _expectedTransactionControllerFor(transaction).text =
+                    _formatAmount(transaction.amount);
+              }
+              _seededExpectedTransactionIds.add(transaction.id);
+            }
+            _isSeedingExpectedTransaction = false;
           }
         });
       });
@@ -830,53 +923,6 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
                     ),
                     const SizedBox(height: 16),
                     _Section(
-                      title: 'Expected transactions',
-                      subtitle: expectedTransactions.isEmpty
-                          ? 'No expected transactions yet — add one in Settings.'
-                          : 'Switch one off to see the total as if it hadn\'t happened.',
-                      trailing: IconButton(
-                        icon: const Icon(Icons.settings),
-                        tooltip: 'Manage expected transactions',
-                        onPressed: () => Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (_) =>
-                                const ExpectedTransactionsSettingsScreen(),
-                          ),
-                        ),
-                      ),
-                      children: [
-                        for (final transaction in expectedTransactions) ...[
-                          _SignedRow(
-                            isAddition: transaction.isAddition,
-                            label: transaction.name,
-                            trailing: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                MoneyText(
-                                  formatMoney(
-                                    transaction.amount,
-                                    transaction.currency,
-                                  ),
-                                ),
-                                Switch(
-                                  value: transaction.enabled,
-                                  onChanged: (v) => ref
-                                      .read(calculatorRepositoryProvider)
-                                      .setExpectedTransactionEnabled(
-                                        transaction.id,
-                                        v,
-                                      ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          if (transaction != expectedTransactions.last)
-                            const SizedBox(height: 14),
-                        ],
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    _Section(
                       title: 'Bank accounts',
                       subtitle: bankAccounts.isEmpty
                           ? 'No bank accounts yet — add one in Settings.'
@@ -899,6 +945,16 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
                             label: '${account.name} · ${account.bank}',
                             controller: _bankAccountControllerFor(account),
                             currency: account.currency,
+                            updatedLabel: account.balanceUpdatedAt == null
+                                ? null
+                                : switch (account.balanceUpdatedSource) {
+                                    'sms' =>
+                                      'Updated from SMS ${_relativeTime(account.balanceUpdatedAt!)}',
+                                    'manual' =>
+                                      'Updated manually ${_relativeTime(account.balanceUpdatedAt!)}',
+                                    _ =>
+                                      'Updated ${_relativeTime(account.balanceUpdatedAt!)}',
+                                  },
                           ),
                           if (account != bankAccounts.last)
                             const SizedBox(height: 14),
@@ -933,6 +989,36 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
                                     null,
                           ),
                           if (card != cards.last) const SizedBox(height: 14),
+                        ],
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    _Section(
+                      title: 'Expected transactions',
+                      subtitle: expectedTransactions.isEmpty
+                          ? 'No expected transactions yet — add one in Settings.'
+                          : 'Switch one off to see the total as if it hadn\'t happened.',
+                      trailing: IconButton(
+                        icon: const Icon(Icons.settings),
+                        tooltip: 'Manage expected transactions',
+                        onPressed: () => Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) =>
+                                const ExpectedTransactionsSettingsScreen(),
+                          ),
+                        ),
+                      ),
+                      children: [
+                        for (final transaction in expectedTransactions) ...[
+                          _ExpectedTransactionField(
+                            key: ValueKey('expected-${transaction.id}'),
+                            transaction: transaction,
+                            controller: _expectedTransactionControllerFor(
+                              transaction,
+                            ),
+                          ),
+                          if (transaction != expectedTransactions.last)
+                            const SizedBox(height: 14),
                         ],
                       ],
                     ),
@@ -1240,6 +1326,7 @@ class _SignedAmountField extends ConsumerWidget {
     required this.label,
     required this.controller,
     required this.currency,
+    this.updatedLabel,
   });
 
   final bool isAddition;
@@ -1247,10 +1334,17 @@ class _SignedAmountField extends ConsumerWidget {
   final TextEditingController controller;
   final String currency;
 
+  /// e.g. "Updated from SMS 2h ago" -- shown under the field, same as
+  /// [_CardField]'s own balanceUpdatedAt label, for a field whose value can
+  /// also be set by something other than typing into it directly (a bank
+  /// account's SMS-driven balance). Null (the default, used by Manual
+  /// Inputs) renders nothing extra.
+  final String? updatedLabel;
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final hideValues = ref.watch(hideValuesProvider);
-    return Row(
+    final field = Row(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         _SignBadge(isAddition: isAddition),
@@ -1269,6 +1363,91 @@ class _SignedAmountField extends ConsumerWidget {
           ),
         ),
         _AdjustButton(controller: controller, currency: currency),
+      ],
+    );
+    final updatedLabel = this.updatedLabel;
+    if (updatedLabel == null) return field;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        field,
+        const SizedBox(height: 2),
+        Padding(
+          padding: const EdgeInsets.only(left: 34),
+          child: Text(
+            updatedLabel,
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+              color: Theme.of(context).colorScheme.primary,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// An expected transaction's row -- name and its on/off switch on one line,
+/// the editable amount field (with the same [_AdjustButton] every other
+/// amount field gets) on the line below, rather than all three crammed
+/// into [_SignedAmountField]'s single row: the switch is about the whole
+/// transaction, not the amount specifically, so it sits with the name.
+class _ExpectedTransactionField extends ConsumerWidget {
+  const _ExpectedTransactionField({
+    super.key,
+    required this.transaction,
+    required this.controller,
+  });
+
+  final ExpectedTransaction transaction;
+  final TextEditingController controller;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final hideValues = ref.watch(hideValuesProvider);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            _SignBadge(isAddition: transaction.isAddition),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                hideValues ? '••••••' : transaction.name,
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
+            ),
+            Switch(
+              value: transaction.enabled,
+              onChanged: (v) => ref
+                  .read(calculatorRepositoryProvider)
+                  .setExpectedTransactionEnabled(transaction.id, v),
+            ),
+          ],
+        ),
+        const SizedBox(height: 6),
+        Padding(
+          padding: const EdgeInsets.only(left: 34),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Expanded(
+                child: _SelectAllOnFocusField(
+                  controller: controller,
+                  decoration: InputDecoration(
+                    hintText: '0.00',
+                    suffixText: transaction.currency,
+                  ),
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
+                  obscureText: hideValues,
+                ),
+              ),
+              _AdjustButton(controller: controller, currency: transaction.currency),
+            ],
+          ),
+        ),
       ],
     );
   }

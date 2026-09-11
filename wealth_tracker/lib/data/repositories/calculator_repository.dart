@@ -148,19 +148,6 @@ class CalculatorRepository {
     return _db.update(_db.bankAccounts).replace(account);
   }
 
-  /// Sets just [currentAvailableBalance], as a single narrow-field write --
-  /// same reasoning as [setManualInputCurrentValue].
-  Future<void> setBankAccountCurrentBalance(
-    String id,
-    double? currentAvailableBalance,
-  ) {
-    return (_db.update(_db.bankAccounts)..where((t) => t.id.equals(id))).write(
-      BankAccountsCompanion(
-        currentAvailableBalance: Value(currentAvailableBalance),
-      ),
-    );
-  }
-
   Future<void> deleteBankAccount(String id) {
     return (_db.delete(_db.bankAccounts)..where((t) => t.id.equals(id))).go();
   }
@@ -172,10 +159,13 @@ class CalculatorRepository {
         .watch();
   }
 
+  /// [amount] starts at 0 -- like a [ManualInputs] row, a freshly-added
+  /// expected transaction has no number yet; the Calculator tab's own
+  /// field is where a real one gets typed in and kept live from then on
+  /// (see [setExpectedTransactionAmount]).
   Future<void> addExpectedTransaction({
     required String name,
     required bool isAddition,
-    required double amount,
     required String currency,
   }) async {
     final count = await (_db.select(
@@ -188,7 +178,7 @@ class CalculatorRepository {
             id: _uuid.v4(),
             name: name,
             isAddition: isAddition,
-            amount: amount,
+            amount: 0.0,
             currency: Value(currency),
             sortOrder: Value(count.length),
             profileId: Value(profileId),
@@ -198,6 +188,17 @@ class CalculatorRepository {
 
   Future<void> updateExpectedTransaction(ExpectedTransaction transaction) {
     return _db.update(_db.expectedTransactions).replace(transaction);
+  }
+
+  /// Sets just [ExpectedTransaction.amount] -- CalculatorScreen's debounced
+  /// save-back the moment the user edits it, same reasoning as
+  /// [setManualInputCurrentValue].
+  Future<void> setExpectedTransactionAmount(String id, double amount) {
+    return (_db.update(
+      _db.expectedTransactions,
+    )..where((t) => t.id.equals(id))).write(
+      ExpectedTransactionsCompanion(amount: Value(amount)),
+    );
   }
 
   /// Sets just [ExpectedTransaction.enabled] -- the Calculator tab's own

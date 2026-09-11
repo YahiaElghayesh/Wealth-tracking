@@ -345,6 +345,19 @@ class BankAccounts extends Table {
   /// field. Null until the user first types a value in.
   RealColumn get currentAvailableBalance => real().nullable()();
 
+  /// Same as [CreditCards.balanceUpdatedAt]/[CreditCards.balanceUpdatedSource]
+  /// -- added after a bank account could only ever be seeded once from
+  /// [currentAvailableBalance] and never again, which meant an SMS-driven
+  /// update to that column after the field was first seeded landed in the
+  /// database but never reached the on-screen field (the reported "the
+  /// notification says updated but the number on screen doesn't change"
+  /// bug). CalculatorScreen now re-seeds a bank account exactly the way it
+  /// already re-seeds a card: whenever [balanceUpdatedAt] has moved past
+  /// what was last seeded *and* the field still holds exactly that seeded
+  /// text (never clobbering an in-progress edit).
+  DateTimeColumn get balanceUpdatedAt => dateTime().nullable()();
+  TextColumn get balanceUpdatedSource => text().nullable()();
+
   TextColumn get profileId => text().nullable().references(Profiles, #id)();
 
   @override

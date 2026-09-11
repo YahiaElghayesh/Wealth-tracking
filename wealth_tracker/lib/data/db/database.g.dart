@@ -8013,6 +8013,29 @@ class $BankAccountsTable extends BankAccounts
         type: DriftSqlType.double,
         requiredDuringInsert: false,
       );
+  static const VerificationMeta _balanceUpdatedAtMeta = const VerificationMeta(
+    'balanceUpdatedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> balanceUpdatedAt =
+      GeneratedColumn<DateTime>(
+        'balance_updated_at',
+        aliasedName,
+        true,
+        type: DriftSqlType.dateTime,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _balanceUpdatedSourceMeta =
+      const VerificationMeta('balanceUpdatedSource');
+  @override
+  late final GeneratedColumn<String> balanceUpdatedSource =
+      GeneratedColumn<String>(
+        'balance_updated_source',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
   static const VerificationMeta _profileIdMeta = const VerificationMeta(
     'profileId',
   );
@@ -8036,6 +8059,8 @@ class $BankAccountsTable extends BankAccounts
     sortOrder,
     accountNumber,
     currentAvailableBalance,
+    balanceUpdatedAt,
+    balanceUpdatedSource,
     profileId,
   ];
   @override
@@ -8101,6 +8126,24 @@ class $BankAccountsTable extends BankAccounts
         ),
       );
     }
+    if (data.containsKey('balance_updated_at')) {
+      context.handle(
+        _balanceUpdatedAtMeta,
+        balanceUpdatedAt.isAcceptableOrUnknown(
+          data['balance_updated_at']!,
+          _balanceUpdatedAtMeta,
+        ),
+      );
+    }
+    if (data.containsKey('balance_updated_source')) {
+      context.handle(
+        _balanceUpdatedSourceMeta,
+        balanceUpdatedSource.isAcceptableOrUnknown(
+          data['balance_updated_source']!,
+          _balanceUpdatedSourceMeta,
+        ),
+      );
+    }
     if (data.containsKey('profile_id')) {
       context.handle(
         _profileIdMeta,
@@ -8144,6 +8187,14 @@ class $BankAccountsTable extends BankAccounts
         DriftSqlType.double,
         data['${effectivePrefix}current_available_balance'],
       ),
+      balanceUpdatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}balance_updated_at'],
+      ),
+      balanceUpdatedSource: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}balance_updated_source'],
+      ),
       profileId: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}profile_id'],
@@ -8174,6 +8225,19 @@ class BankAccount extends DataClass implements Insertable<BankAccount> {
   /// "reset itself" bug it fixes) exactly, since this is the same kind of
   /// field. Null until the user first types a value in.
   final double? currentAvailableBalance;
+
+  /// Same as [CreditCards.balanceUpdatedAt]/[CreditCards.balanceUpdatedSource]
+  /// -- added after a bank account could only ever be seeded once from
+  /// [currentAvailableBalance] and never again, which meant an SMS-driven
+  /// update to that column after the field was first seeded landed in the
+  /// database but never reached the on-screen field (the reported "the
+  /// notification says updated but the number on screen doesn't change"
+  /// bug). CalculatorScreen now re-seeds a bank account exactly the way it
+  /// already re-seeds a card: whenever [balanceUpdatedAt] has moved past
+  /// what was last seeded *and* the field still holds exactly that seeded
+  /// text (never clobbering an in-progress edit).
+  final DateTime? balanceUpdatedAt;
+  final String? balanceUpdatedSource;
   final String? profileId;
   const BankAccount({
     required this.id,
@@ -8183,6 +8247,8 @@ class BankAccount extends DataClass implements Insertable<BankAccount> {
     required this.sortOrder,
     this.accountNumber,
     this.currentAvailableBalance,
+    this.balanceUpdatedAt,
+    this.balanceUpdatedSource,
     this.profileId,
   });
   @override
@@ -8200,6 +8266,12 @@ class BankAccount extends DataClass implements Insertable<BankAccount> {
       map['current_available_balance'] = Variable<double>(
         currentAvailableBalance,
       );
+    }
+    if (!nullToAbsent || balanceUpdatedAt != null) {
+      map['balance_updated_at'] = Variable<DateTime>(balanceUpdatedAt);
+    }
+    if (!nullToAbsent || balanceUpdatedSource != null) {
+      map['balance_updated_source'] = Variable<String>(balanceUpdatedSource);
     }
     if (!nullToAbsent || profileId != null) {
       map['profile_id'] = Variable<String>(profileId);
@@ -8220,6 +8292,12 @@ class BankAccount extends DataClass implements Insertable<BankAccount> {
       currentAvailableBalance: currentAvailableBalance == null && nullToAbsent
           ? const Value.absent()
           : Value(currentAvailableBalance),
+      balanceUpdatedAt: balanceUpdatedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(balanceUpdatedAt),
+      balanceUpdatedSource: balanceUpdatedSource == null && nullToAbsent
+          ? const Value.absent()
+          : Value(balanceUpdatedSource),
       profileId: profileId == null && nullToAbsent
           ? const Value.absent()
           : Value(profileId),
@@ -8241,6 +8319,12 @@ class BankAccount extends DataClass implements Insertable<BankAccount> {
       currentAvailableBalance: serializer.fromJson<double?>(
         json['currentAvailableBalance'],
       ),
+      balanceUpdatedAt: serializer.fromJson<DateTime?>(
+        json['balanceUpdatedAt'],
+      ),
+      balanceUpdatedSource: serializer.fromJson<String?>(
+        json['balanceUpdatedSource'],
+      ),
       profileId: serializer.fromJson<String?>(json['profileId']),
     );
   }
@@ -8257,6 +8341,8 @@ class BankAccount extends DataClass implements Insertable<BankAccount> {
       'currentAvailableBalance': serializer.toJson<double?>(
         currentAvailableBalance,
       ),
+      'balanceUpdatedAt': serializer.toJson<DateTime?>(balanceUpdatedAt),
+      'balanceUpdatedSource': serializer.toJson<String?>(balanceUpdatedSource),
       'profileId': serializer.toJson<String?>(profileId),
     };
   }
@@ -8269,6 +8355,8 @@ class BankAccount extends DataClass implements Insertable<BankAccount> {
     int? sortOrder,
     Value<String?> accountNumber = const Value.absent(),
     Value<double?> currentAvailableBalance = const Value.absent(),
+    Value<DateTime?> balanceUpdatedAt = const Value.absent(),
+    Value<String?> balanceUpdatedSource = const Value.absent(),
     Value<String?> profileId = const Value.absent(),
   }) => BankAccount(
     id: id ?? this.id,
@@ -8282,6 +8370,12 @@ class BankAccount extends DataClass implements Insertable<BankAccount> {
     currentAvailableBalance: currentAvailableBalance.present
         ? currentAvailableBalance.value
         : this.currentAvailableBalance,
+    balanceUpdatedAt: balanceUpdatedAt.present
+        ? balanceUpdatedAt.value
+        : this.balanceUpdatedAt,
+    balanceUpdatedSource: balanceUpdatedSource.present
+        ? balanceUpdatedSource.value
+        : this.balanceUpdatedSource,
     profileId: profileId.present ? profileId.value : this.profileId,
   );
   BankAccount copyWithCompanion(BankAccountsCompanion data) {
@@ -8297,6 +8391,12 @@ class BankAccount extends DataClass implements Insertable<BankAccount> {
       currentAvailableBalance: data.currentAvailableBalance.present
           ? data.currentAvailableBalance.value
           : this.currentAvailableBalance,
+      balanceUpdatedAt: data.balanceUpdatedAt.present
+          ? data.balanceUpdatedAt.value
+          : this.balanceUpdatedAt,
+      balanceUpdatedSource: data.balanceUpdatedSource.present
+          ? data.balanceUpdatedSource.value
+          : this.balanceUpdatedSource,
       profileId: data.profileId.present ? data.profileId.value : this.profileId,
     );
   }
@@ -8311,6 +8411,8 @@ class BankAccount extends DataClass implements Insertable<BankAccount> {
           ..write('sortOrder: $sortOrder, ')
           ..write('accountNumber: $accountNumber, ')
           ..write('currentAvailableBalance: $currentAvailableBalance, ')
+          ..write('balanceUpdatedAt: $balanceUpdatedAt, ')
+          ..write('balanceUpdatedSource: $balanceUpdatedSource, ')
           ..write('profileId: $profileId')
           ..write(')'))
         .toString();
@@ -8325,6 +8427,8 @@ class BankAccount extends DataClass implements Insertable<BankAccount> {
     sortOrder,
     accountNumber,
     currentAvailableBalance,
+    balanceUpdatedAt,
+    balanceUpdatedSource,
     profileId,
   );
   @override
@@ -8338,6 +8442,8 @@ class BankAccount extends DataClass implements Insertable<BankAccount> {
           other.sortOrder == this.sortOrder &&
           other.accountNumber == this.accountNumber &&
           other.currentAvailableBalance == this.currentAvailableBalance &&
+          other.balanceUpdatedAt == this.balanceUpdatedAt &&
+          other.balanceUpdatedSource == this.balanceUpdatedSource &&
           other.profileId == this.profileId);
 }
 
@@ -8349,6 +8455,8 @@ class BankAccountsCompanion extends UpdateCompanion<BankAccount> {
   final Value<int> sortOrder;
   final Value<String?> accountNumber;
   final Value<double?> currentAvailableBalance;
+  final Value<DateTime?> balanceUpdatedAt;
+  final Value<String?> balanceUpdatedSource;
   final Value<String?> profileId;
   final Value<int> rowid;
   const BankAccountsCompanion({
@@ -8359,6 +8467,8 @@ class BankAccountsCompanion extends UpdateCompanion<BankAccount> {
     this.sortOrder = const Value.absent(),
     this.accountNumber = const Value.absent(),
     this.currentAvailableBalance = const Value.absent(),
+    this.balanceUpdatedAt = const Value.absent(),
+    this.balanceUpdatedSource = const Value.absent(),
     this.profileId = const Value.absent(),
     this.rowid = const Value.absent(),
   });
@@ -8370,6 +8480,8 @@ class BankAccountsCompanion extends UpdateCompanion<BankAccount> {
     this.sortOrder = const Value.absent(),
     this.accountNumber = const Value.absent(),
     this.currentAvailableBalance = const Value.absent(),
+    this.balanceUpdatedAt = const Value.absent(),
+    this.balanceUpdatedSource = const Value.absent(),
     this.profileId = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
@@ -8383,6 +8495,8 @@ class BankAccountsCompanion extends UpdateCompanion<BankAccount> {
     Expression<int>? sortOrder,
     Expression<String>? accountNumber,
     Expression<double>? currentAvailableBalance,
+    Expression<DateTime>? balanceUpdatedAt,
+    Expression<String>? balanceUpdatedSource,
     Expression<String>? profileId,
     Expression<int>? rowid,
   }) {
@@ -8395,6 +8509,9 @@ class BankAccountsCompanion extends UpdateCompanion<BankAccount> {
       if (accountNumber != null) 'account_number': accountNumber,
       if (currentAvailableBalance != null)
         'current_available_balance': currentAvailableBalance,
+      if (balanceUpdatedAt != null) 'balance_updated_at': balanceUpdatedAt,
+      if (balanceUpdatedSource != null)
+        'balance_updated_source': balanceUpdatedSource,
       if (profileId != null) 'profile_id': profileId,
       if (rowid != null) 'rowid': rowid,
     });
@@ -8408,6 +8525,8 @@ class BankAccountsCompanion extends UpdateCompanion<BankAccount> {
     Value<int>? sortOrder,
     Value<String?>? accountNumber,
     Value<double?>? currentAvailableBalance,
+    Value<DateTime?>? balanceUpdatedAt,
+    Value<String?>? balanceUpdatedSource,
     Value<String?>? profileId,
     Value<int>? rowid,
   }) {
@@ -8420,6 +8539,8 @@ class BankAccountsCompanion extends UpdateCompanion<BankAccount> {
       accountNumber: accountNumber ?? this.accountNumber,
       currentAvailableBalance:
           currentAvailableBalance ?? this.currentAvailableBalance,
+      balanceUpdatedAt: balanceUpdatedAt ?? this.balanceUpdatedAt,
+      balanceUpdatedSource: balanceUpdatedSource ?? this.balanceUpdatedSource,
       profileId: profileId ?? this.profileId,
       rowid: rowid ?? this.rowid,
     );
@@ -8451,6 +8572,14 @@ class BankAccountsCompanion extends UpdateCompanion<BankAccount> {
         currentAvailableBalance.value,
       );
     }
+    if (balanceUpdatedAt.present) {
+      map['balance_updated_at'] = Variable<DateTime>(balanceUpdatedAt.value);
+    }
+    if (balanceUpdatedSource.present) {
+      map['balance_updated_source'] = Variable<String>(
+        balanceUpdatedSource.value,
+      );
+    }
     if (profileId.present) {
       map['profile_id'] = Variable<String>(profileId.value);
     }
@@ -8470,6 +8599,8 @@ class BankAccountsCompanion extends UpdateCompanion<BankAccount> {
           ..write('sortOrder: $sortOrder, ')
           ..write('accountNumber: $accountNumber, ')
           ..write('currentAvailableBalance: $currentAvailableBalance, ')
+          ..write('balanceUpdatedAt: $balanceUpdatedAt, ')
+          ..write('balanceUpdatedSource: $balanceUpdatedSource, ')
           ..write('profileId: $profileId, ')
           ..write('rowid: $rowid')
           ..write(')'))
@@ -17696,6 +17827,8 @@ typedef $$BankAccountsTableCreateCompanionBuilder =
       Value<int> sortOrder,
       Value<String?> accountNumber,
       Value<double?> currentAvailableBalance,
+      Value<DateTime?> balanceUpdatedAt,
+      Value<String?> balanceUpdatedSource,
       Value<String?> profileId,
       Value<int> rowid,
     });
@@ -17708,6 +17841,8 @@ typedef $$BankAccountsTableUpdateCompanionBuilder =
       Value<int> sortOrder,
       Value<String?> accountNumber,
       Value<double?> currentAvailableBalance,
+      Value<DateTime?> balanceUpdatedAt,
+      Value<String?> balanceUpdatedSource,
       Value<String?> profileId,
       Value<int> rowid,
     });
@@ -17775,6 +17910,16 @@ class $$BankAccountsTableFilterComposer
 
   ColumnFilters<double> get currentAvailableBalance => $composableBuilder(
     column: $table.currentAvailableBalance,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get balanceUpdatedAt => $composableBuilder(
+    column: $table.balanceUpdatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get balanceUpdatedSource => $composableBuilder(
+    column: $table.balanceUpdatedSource,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -17846,6 +17991,16 @@ class $$BankAccountsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<DateTime> get balanceUpdatedAt => $composableBuilder(
+    column: $table.balanceUpdatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get balanceUpdatedSource => $composableBuilder(
+    column: $table.balanceUpdatedSource,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   $$ProfilesTableOrderingComposer get profileId {
     final $$ProfilesTableOrderingComposer composer = $composerBuilder(
       composer: this,
@@ -17901,6 +18056,16 @@ class $$BankAccountsTableAnnotationComposer
 
   GeneratedColumn<double> get currentAvailableBalance => $composableBuilder(
     column: $table.currentAvailableBalance,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get balanceUpdatedAt => $composableBuilder(
+    column: $table.balanceUpdatedAt,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get balanceUpdatedSource => $composableBuilder(
+    column: $table.balanceUpdatedSource,
     builder: (column) => column,
   );
 
@@ -17963,6 +18128,8 @@ class $$BankAccountsTableTableManager
                 Value<int> sortOrder = const Value.absent(),
                 Value<String?> accountNumber = const Value.absent(),
                 Value<double?> currentAvailableBalance = const Value.absent(),
+                Value<DateTime?> balanceUpdatedAt = const Value.absent(),
+                Value<String?> balanceUpdatedSource = const Value.absent(),
                 Value<String?> profileId = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => BankAccountsCompanion(
@@ -17973,6 +18140,8 @@ class $$BankAccountsTableTableManager
                 sortOrder: sortOrder,
                 accountNumber: accountNumber,
                 currentAvailableBalance: currentAvailableBalance,
+                balanceUpdatedAt: balanceUpdatedAt,
+                balanceUpdatedSource: balanceUpdatedSource,
                 profileId: profileId,
                 rowid: rowid,
               ),
@@ -17985,6 +18154,8 @@ class $$BankAccountsTableTableManager
                 Value<int> sortOrder = const Value.absent(),
                 Value<String?> accountNumber = const Value.absent(),
                 Value<double?> currentAvailableBalance = const Value.absent(),
+                Value<DateTime?> balanceUpdatedAt = const Value.absent(),
+                Value<String?> balanceUpdatedSource = const Value.absent(),
                 Value<String?> profileId = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => BankAccountsCompanion.insert(
@@ -17995,6 +18166,8 @@ class $$BankAccountsTableTableManager
                 sortOrder: sortOrder,
                 accountNumber: accountNumber,
                 currentAvailableBalance: currentAvailableBalance,
+                balanceUpdatedAt: balanceUpdatedAt,
+                balanceUpdatedSource: balanceUpdatedSource,
                 profileId: profileId,
                 rowid: rowid,
               ),

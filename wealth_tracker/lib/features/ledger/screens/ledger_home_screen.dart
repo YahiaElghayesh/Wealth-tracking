@@ -163,7 +163,7 @@ class _LedgerHomeScreenState extends ConsumerState<LedgerHomeScreen>
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Ledgers, Tabs & Returns'),
+        title: const Text('Ledgers'),
         actions: [
           if (onReturnsTab)
             IconButton(

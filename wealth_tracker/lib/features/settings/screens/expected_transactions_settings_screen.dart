@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../core/format/money_formatter.dart';
 import '../../../core/models/currency.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/currency_picker_field.dart';
@@ -9,10 +8,12 @@ import '../../../data/db/database.dart';
 import '../../calculator/providers/calculator_providers.dart';
 
 /// Fully user-managed one-off +/- amounts for the Calculator tab — each
-/// with its own name, sign, fixed amount, and currency, set once here.
-/// The Calculator tab itself only ever flips the on/off switch (see
-/// ExpectedTransactions' own doc comment in tables.dart); editing the
-/// amount always comes back through this screen.
+/// with its own name, sign, and currency, set once here. The amount itself
+/// is typed live on the Calculator tab, same as a Manual Input's, since
+/// what actually varies here is a real number that changes over time, not
+/// a fixed one decided at creation; this screen's own on/off switch there
+/// (see ExpectedTransactions' own doc comment in tables.dart) is the one
+/// thing unique to an expected transaction.
 class ExpectedTransactionsSettingsScreen extends ConsumerWidget {
   const ExpectedTransactionsSettingsScreen({super.key});
 
@@ -43,8 +44,8 @@ class ExpectedTransactionsSettingsScreen extends ConsumerWidget {
               child: Padding(
                 padding: EdgeInsets.all(24),
                 child: Text(
-                  'No expected transactions yet. Tap + to add one — turn '
-                  'it on or off from the Calculator tab.',
+                  'No expected transactions yet. Tap + to add one — used '
+                  'by the Calculator tab.',
                 ),
               ),
             );
@@ -99,9 +100,7 @@ class ExpectedTransactionsSettingsScreen extends ConsumerWidget {
                       ),
                     ),
                     title: Text(transaction.name),
-                    subtitle: Text(
-                      formatMoney(transaction.amount, transaction.currency),
-                    ),
+                    subtitle: Text(transaction.currency),
                     trailing: const Icon(Icons.chevron_right),
                     onTap: () => _openForm(context, ref, existing: transaction),
                   ),
@@ -133,7 +132,6 @@ class _ExpectedTransactionFormDialogState
     extends ConsumerState<_ExpectedTransactionFormDialog> {
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _nameController;
-  late final TextEditingController _amountController;
   late bool _isAddition;
   late String _currency;
 
@@ -144,30 +142,19 @@ class _ExpectedTransactionFormDialogState
     super.initState();
     final existing = widget.existing;
     _nameController = TextEditingController(text: existing?.name ?? '');
-    _amountController = TextEditingController(
-      text: existing == null ? '' : _formatValue(existing.amount),
-    );
     _isAddition = existing?.isAddition ?? true;
     _currency = existing?.currency ?? defaultCurrency;
-  }
-
-  static String _formatValue(double value) {
-    return value == value.roundToDouble()
-        ? value.toInt().toString()
-        : value.toString();
   }
 
   @override
   void dispose() {
     _nameController.dispose();
-    _amountController.dispose();
     super.dispose();
   }
 
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
     final name = _nameController.text.trim();
-    final amount = double.parse(_amountController.text.trim());
 
     final repo = ref.read(calculatorRepositoryProvider);
     if (_isEditing) {
@@ -175,7 +162,6 @@ class _ExpectedTransactionFormDialogState
         widget.existing!.copyWith(
           name: name,
           isAddition: _isAddition,
-          amount: amount,
           currency: _currency,
         ),
       );
@@ -183,7 +169,6 @@ class _ExpectedTransactionFormDialogState
       await repo.addExpectedTransaction(
         name: name,
         isAddition: _isAddition,
-        amount: amount,
         currency: _currency,
       );
     }
@@ -231,35 +216,10 @@ class _ExpectedTransactionFormDialogState
                     setState(() => _isAddition = s.first),
               ),
               const SizedBox(height: 12),
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
-                    flex: 2,
-                    child: TextFormField(
-                      controller: _amountController,
-                      decoration: const InputDecoration(labelText: 'Amount'),
-                      keyboardType: const TextInputType.numberWithOptions(
-                        decimal: true,
-                      ),
-                      validator: (v) {
-                        if (v == null || v.trim().isEmpty) return 'Required';
-                        if (double.tryParse(v.trim()) == null) {
-                          return 'Enter a number';
-                        }
-                        return null;
-                      },
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: CurrencyPickerField(
-                      value: _currency,
-                      labelText: 'Currency',
-                      onChanged: (c) => setState(() => _currency = c),
-                    ),
-                  ),
-                ],
+              CurrencyPickerField(
+                value: _currency,
+                labelText: 'Currency',
+                onChanged: (c) => setState(() => _currency = c),
               ),
             ],
           ),

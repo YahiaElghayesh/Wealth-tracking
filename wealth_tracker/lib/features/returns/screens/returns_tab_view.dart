@@ -130,20 +130,31 @@ Future<void> showAddReturnDialog(BuildContext context, WidgetRef ref) async {
   amountController.dispose();
 }
 
-/// One day count -- "Returned today" / "...yesterday" / "...N days ago" --
-/// shared between the pending card and (for "Received Nd after return")
-/// history rows.
-String _daysAgoLabel(DateTime from) {
+/// Whole calendar days between [from] and today -- never negative, so a
+/// return dated "today" (or, oddly, in the future) still reads as day 0
+/// rather than a confusing negative count.
+int _daysSince(DateTime from) {
   final today = DateTime.now();
   final days = DateTime(
     today.year,
     today.month,
     today.day,
   ).difference(DateTime(from.year, from.month, from.day)).inDays;
-  if (days <= 0) return 'today';
+  return days < 0 ? 0 : days;
+}
+
+/// "today" / "yesterday" / "N days ago", from [_daysSince]'s count.
+String _daysAgoLabel(DateTime from) {
+  final days = _daysSince(from);
+  if (days == 0) return 'today';
   if (days == 1) return 'yesterday';
   return '$days days ago';
 }
+
+/// A week with no movement on a return is worth flagging -- past this many
+/// days, [_DaysAgoChip] switches from "still fresh" to "worth following up
+/// on" styling.
+const _returnOverdueAfterDays = 7;
 
 class ReturnsTabView extends ConsumerWidget {
   const ReturnsTabView({super.key});
@@ -179,7 +190,6 @@ class _ReturnCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final colors = context.appColors;
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       child: Padding(
@@ -200,17 +210,10 @@ class _ReturnCard extends ConsumerWidget {
                 MoneyText(formatMoney(item.amount, item.currency)),
               ],
             ),
-            const SizedBox(height: 4),
+            const SizedBox(height: 8),
             Row(
               children: [
-                Expanded(
-                  child: Text(
-                    'Returned ${_daysAgoLabel(item.returnDate)}',
-                    style: Theme.of(
-                      context,
-                    ).textTheme.bodySmall?.copyWith(color: colors.textDim),
-                  ),
-                ),
+                Expanded(child: _DaysAgoChip(returnDate: item.returnDate)),
                 FilledButton.tonal(
                   onPressed: () =>
                       ref.read(returnsRepositoryProvider).markReceived(item.id),
@@ -220,6 +223,49 @@ class _ReturnCard extends ConsumerWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// A colored pill for how long ago a return happened -- green while it's
+/// still fresh, switching to the app's "bad" red-orange past
+/// [_returnOverdueAfterDays] to flag it as worth following up on. Matches
+/// the mockup shown when Returns' placement was being decided.
+class _DaysAgoChip extends StatelessWidget {
+  const _DaysAgoChip({required this.returnDate});
+
+  final DateTime returnDate;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.appColors;
+    final days = _daysSince(returnDate);
+    final overdue = days > _returnOverdueAfterDays;
+    final color = overdue ? colors.bad : colors.good;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            overdue ? Icons.warning_amber_rounded : Icons.schedule,
+            size: 14,
+            color: color,
+          ),
+          const SizedBox(width: 5),
+          Text(
+            'Returned ${_daysAgoLabel(returnDate)}',
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+              color: color,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
       ),
     );
   }

@@ -23,7 +23,7 @@ class AppBottomNav extends StatelessWidget {
     (
       icon: Icons.receipt_long_outlined,
       selectedIcon: Icons.receipt_long,
-      label: 'Ledgers, Tabs & Returns',
+      label: 'Ledgers',
     ),
     (
       icon: Icons.bar_chart_outlined,

@@ -454,7 +454,13 @@ Future<SmsRuleApplyOutcome> _applyBankAccountBalance(
 
   await db
       .update(db.bankAccounts)
-      .replace(account.copyWith(currentAvailableBalance: Value(newBalance)));
+      .replace(
+        account.copyWith(
+          currentAvailableBalance: Value(newBalance),
+          balanceUpdatedAt: Value(DateTime.now()),
+          balanceUpdatedSource: const Value('sms'),
+        ),
+      );
 
   return SmsRuleApplyOutcome(
     applied: true,

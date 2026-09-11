@@ -43,7 +43,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 34;
+  int get schemaVersion => 35;
 
   /// Public so `ProfileRepository.addProfile` can give a newly created
   /// profile the same starter categories a fresh install gets -- otherwise
@@ -455,6 +455,10 @@ class AppDatabase extends _$AppDatabase {
           calculatorSnapshots,
           calculatorSnapshots.expectedTransactionEntriesJson,
         );
+      }
+      if (from < 35) {
+        await m.addColumn(bankAccounts, bankAccounts.balanceUpdatedAt);
+        await m.addColumn(bankAccounts, bankAccounts.balanceUpdatedSource);
       }
     },
     // The "Breakfast" quick-pick category was a voice-transcription
