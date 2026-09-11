@@ -100,10 +100,12 @@ String _escapeLiteralFlexible(String text) {
 /// separators and a decimal point; a currency is a short run of Latin or
 /// Arabic letters or a common symbol (an ISO code like "EGP", an Arabic
 /// word like "جنيه", or a symbol like "$") -- see [_resolveCurrencyToken]
-/// for how each of those is actually recognized; a vendor/sender name is
-/// free text, captured non-greedily so it stops at the next literal
-/// segment rather than swallowing it (or greedily if this is the very last
-/// segment, with nothing after it to stop at).
+/// for how each of those is actually recognized; a vendor/sender name, or
+/// an `ignore` tag (see [SmsRuleSegment]'s own doc comment -- a date,
+/// time, or reference number the user marked as "this varies, don't
+/// require it to match"), is free text, captured non-greedily so it stops
+/// at the next literal segment rather than swallowing it (or greedily if
+/// this is the very last segment, with nothing after it to stop at).
 String _placeholderPattern(SmsRuleSegment segment, bool isLast) {
   switch (segment.tag) {
     case 'cardNumber':
@@ -112,7 +114,7 @@ String _placeholderPattern(SmsRuleSegment segment, bool isLast) {
       return r'([\d,]+(?:\.\d+)?)';
     case 'currency':
       return '([A-Za-z\u0600-\u06FF\$€₺]{1,12})';
-    default: // vendor, sender
+    default: // vendor, sender, ignore
       return isLast ? r'(.+)' : r'(.+?)';
   }
 }

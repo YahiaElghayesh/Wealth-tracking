@@ -84,16 +84,26 @@ Future<void> showSmsChargeReviewNotification({
   required String body,
   required int timestampMillis,
   required String vendor,
+  String? amountText,
+  String? targetName,
 }) async {
   final plugin = FlutterLocalNotificationsPlugin();
   const androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');
   await plugin.initialize(
     settings: const InitializationSettings(android: androidSettings),
   );
+  final addedTo = amountText == null
+      ? null
+      : (targetName == null
+            ? '$amountText will be added'
+            : '$amountText will be added to $targetName');
+  final notificationBody = addedTo == null
+      ? 'Tap to review, or Quick add to log it as-is.'
+      : '$addedTo. Tap to review, or Quick add to log it as-is.';
   await plugin.show(
     id: timestampMillis & 0x7fffffff, // masked to a positive 32-bit id
     title: 'Charge detected: $vendor',
-    body: 'Tap to review, or Quick add to log it as-is.',
+    body: notificationBody,
     payload: jsonEncode(
       smsChargeReviewPayload(body: body, timestampMillis: timestampMillis),
     ),

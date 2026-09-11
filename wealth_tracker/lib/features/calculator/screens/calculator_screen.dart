@@ -786,7 +786,8 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
                       title: 'Bank accounts',
                       subtitle: bankAccounts.isEmpty
                           ? 'No bank accounts yet — add one in Settings.'
-                          : null,
+                          : 'Enter the balance currently in the account, as shown in your '
+                                'banking app.',
                       trailing: IconButton(
                         icon: const Icon(Icons.settings),
                         tooltip: 'Manage bank accounts',

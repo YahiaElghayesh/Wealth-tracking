@@ -8,11 +8,16 @@
 /// saved rule's tagged spans when editing it, since offsets alone aren't
 /// stored anywhere.
 ///
-/// [tag] is one of 'cardNumber', 'value', 'vendor', 'sender' -- only set
-/// when [type] is 'placeholder'. [role] only applies to a 'value'
-/// placeholder: 'set' | 'add' | 'subtract' for a 'creditCardBalance' or
-/// 'bankAccountBalance' rule, 'charge' | 'repayment' for a 'ledgerPayment'
-/// rule.
+/// [tag] is one of 'cardNumber', 'value', 'vendor', 'sender', 'currency',
+/// or 'ignore' -- only set when [type] is 'placeholder'. 'ignore' is the
+/// tag for a portion that isn't any of the others but still changes
+/// message to message -- a date, a time, a reference number -- so it needs
+/// to be marked as *something* to keep the rule from requiring that exact
+/// value forever; its match is discarded rather than fed into
+/// [SmsRuleMatch] the way every other tag's is. [role] only applies to a
+/// 'value' placeholder: 'set' | 'add' | 'subtract' for a
+/// 'creditCardBalance' or 'bankAccountBalance' rule, 'charge' |
+/// 'repayment' for a 'ledgerPayment' rule.
 class SmsRuleSegment {
   const SmsRuleSegment.literal(this.text)
     : type = 'literal',

@@ -41,6 +41,28 @@ List<SmsRuleSegment> _ledgerPaymentSegments() => [
   const SmsRuleSegment.literal(' on your behalf.'),
 ];
 
+const _ledgerPaymentWithDateSample =
+    'You paid EGP 250.00 to Dad Pharmacy on 27/08/26.';
+
+/// Marks the date with the `ignore` tag -- exactly the "this varies, don't
+/// require an exact match" escape hatch for a portion that isn't
+/// cardNumber/value/vendor/sender/currency but still changes message to
+/// message, which a rule with no way to mark it would otherwise bake into
+/// its literal pattern as one specific, never-again-matching date.
+List<SmsRuleSegment> _ledgerPaymentWithDateSegments() => [
+  const SmsRuleSegment.literal('You paid EGP '),
+  const SmsRuleSegment.placeholder(
+    text: '250.00',
+    tag: 'value',
+    role: 'charge',
+  ),
+  const SmsRuleSegment.literal(' to '),
+  const SmsRuleSegment.placeholder(text: 'Dad Pharmacy', tag: 'vendor'),
+  const SmsRuleSegment.literal(' on '),
+  const SmsRuleSegment.placeholder(text: '27/08/26', tag: 'ignore'),
+  const SmsRuleSegment.literal('.'),
+];
+
 const _ledgerPaymentWithCurrencySample =
     'You paid 50.00 USD to Dad Pharmacy on your behalf.';
 
@@ -155,6 +177,37 @@ void main() {
       expect(match.vendor, 'Dad Groceries');
       expect(match.valueRole, 'charge');
     });
+
+    test(
+      "an 'ignore'-tagged date matches even when the real SMS's date differs "
+      'from the sample it was built from',
+      () {
+        final rule = SmsRule(
+          id: 'r2b',
+          bankId: 'b1',
+          operation: 'ledgerPayment',
+          sampleText: _ledgerPaymentWithDateSample,
+          segmentsJson: encodeSmsRuleSegments(_ledgerPaymentWithDateSegments()),
+          targetCounterpartyId: null,
+          name: null,
+          currency: null,
+          notifyOnMatch: false,
+          matchMode: 'strict',
+          enabled: true,
+          createdAt: DateTime(2026),
+          profileId: null,
+        );
+
+        final match = matchSmsRule(
+          rule,
+          'You paid EGP 250.00 to Dad Pharmacy on 03/01/27.',
+        );
+
+        expect(match, isNotNull);
+        expect(match!.value, closeTo(250.00, 0.001));
+        expect(match.vendor, 'Dad Pharmacy');
+      },
+    );
 
     test('invisible bidi marks around a value do not break matching', () {
       final rule = SmsRule(

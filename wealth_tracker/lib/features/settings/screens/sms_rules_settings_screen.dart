@@ -58,6 +58,7 @@ const _tagColors = {
   'vendor': Color(0x33F59F00),
   'sender': Color(0x33AE3EC9),
   'currency': Color(0x33FA5252),
+  'ignore': Color(0x33868E96),
 };
 
 const _tagLabels = {
@@ -66,6 +67,7 @@ const _tagLabels = {
   'vendor': 'Vendor name',
   'sender': 'Sender name',
   'currency': 'Currency',
+  'ignore': 'Varies (date, time, ref #...)',
 };
 
 const _balanceRoles = [
@@ -344,14 +346,18 @@ class _SmsRuleFormScreenState extends ConsumerState<SmsRuleFormScreen> {
     // name or a differently-currencied transaction sitting in the sample
     // can be tagged instead of left as required literal text -- otherwise
     // the rule would only ever match that one merchant/currency again.
+    // 'ignore' is offered for every operation for the same reason, for
+    // whatever else in the sample isn't any of the others but still
+    // changes message to message -- a date, a time, a reference number.
     'creditCardBalance' || 'bankAccountBalance' => const [
       'cardNumber',
       'value',
       'vendor',
       'sender',
       'currency',
+      'ignore',
     ],
-    _ => const ['value', 'vendor', 'sender', 'currency'],
+    _ => const ['value', 'vendor', 'sender', 'currency', 'ignore'],
   };
 
   Future<void> _tagSelection() async {
@@ -746,7 +752,18 @@ class _TagPickerDialogState extends State<_TagPickerDialog> {
         ? _ledgerRoles
         : _balanceRoles;
     return AlertDialog(
-      title: Text('Tag "${widget.selectedText}"'),
+      // Directional, not just the ambient (LTR) dialog default: a
+      // selection dragged across an Arabic/English or Arabic/digit
+      // boundary is exactly the case bidi text makes hardest to select
+      // precisely (see _detectSampleDirection's own doc comment), so this
+      // confirmation -- showing back exactly the substring that was
+      // captured -- needs to render it the same way the sample field
+      // itself did, not silently reorder it into something that looks
+      // "close enough" and hides an off-by-a-few-characters selection.
+      title: Text(
+        'Tag "${widget.selectedText}"',
+        textDirection: _detectSampleDirection(widget.selectedText),
+      ),
       content: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,

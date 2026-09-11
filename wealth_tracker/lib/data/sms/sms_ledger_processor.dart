@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 
+import '../../core/format/money_formatter.dart';
 import '../../core/models/currency.dart';
 import '../../core/navigation/app_navigator.dart';
 import '../../core/security/app_lock_exemption.dart';
@@ -348,10 +349,21 @@ Future<void> commitSmsAutoDetect(
   final vendor = (reviewable.match.vendor?.trim().isNotEmpty ?? false)
       ? reviewable.match.vendor!
       : (reviewable.match.sender ?? 'a bank text');
+  final value = reviewable.match.value;
+  final currency =
+      reviewable.match.currency ?? reviewable.rule.currency ?? defaultCurrency;
+  final targetId = reviewable.rule.targetCounterpartyId;
+  final targetName = targetId == null
+      ? null
+      : (await (db.select(
+          db.counterparties,
+        )..where((c) => c.id.equals(targetId))).getSingleOrNull())?.name;
   await showSmsChargeReviewNotification(
     body: body,
     timestampMillis: timestampMillis,
     vendor: vendor,
+    amountText: value == null ? null : formatMoney(value, currency),
+    targetName: targetName,
   );
 }
 

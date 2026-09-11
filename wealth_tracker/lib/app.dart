@@ -9,6 +9,7 @@ import 'package:home_widget/home_widget.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'core/navigation/app_navigator.dart';
+import 'core/security/app_lock_exemption.dart';
 import 'core/security/app_lock_gate.dart';
 import 'core/security/secure_settings_store.dart';
 import 'core/theme/app_theme.dart';
@@ -18,7 +19,11 @@ import 'data/notifications/sms_rule_notifications.dart';
 import 'data/repositories/settings_repository.dart';
 import 'data/sms/native_sms_channel.dart';
 import 'data/sms/sms_ledger_processor.dart';
+import 'features/calculator/providers/calculator_providers.dart'
+    show calculatorRepositoryProvider;
 import 'features/calculator/screens/calculator_screen.dart';
+import 'features/ledger/providers/ledger_providers.dart'
+    show ledgerRepositoryProvider;
 import 'features/ledger/providers/quick_add_launch.dart';
 import 'features/ledger/providers/widget_counterparties_sync.dart';
 import 'features/ledger/screens/ledger_home_screen.dart';
@@ -27,6 +32,8 @@ import 'features/networth/providers/asset_providers.dart' show databaseProvider;
 import 'features/networth/providers/home_widget_providers.dart';
 import 'features/networth/providers/pricing_providers.dart';
 import 'features/networth/screens/dashboard_screen.dart';
+import 'features/recurring/providers/recurring_payment_providers.dart'
+    show recurringPaymentRepositoryProvider;
 import 'features/recurring/screens/recurring_payments_screen.dart';
 import 'features/settings/providers/settings_providers.dart';
 
@@ -274,8 +281,7 @@ class _RootShellState extends ConsumerState<_RootShell>
     _pausedAt = null;
     if (pausedAt != null &&
         DateTime.now().difference(pausedAt) > _resetHomeAfter) {
-      navigatorKey.currentState?.popUntil((route) => route.isFirst);
-      if (_index != 0) setState(() => _index = 0);
+      unawaited(_resetToHomeUnlessQuickAddLaunching());
     }
 
     final refreshState = ref.read(priceRefreshControllerProvider);
@@ -286,6 +292,55 @@ class _RootShellState extends ConsumerState<_RootShell>
     if (!refreshState.isRefreshing && isStale) {
       ref.read(priceRefreshControllerProvider.notifier).refresh();
     }
+
+    // A background WorkManager isolate (an SMS Rule balance/ledger update,
+    // a recurring payment reminder's "Done" action, ...) may have written
+    // to the very same database file while this app sat backgrounded --
+    // sharing one drift connection across isolates (see database.dart's
+    // `shareAcrossIsolates`) is meant to push that isolate's writes back
+    // into this app's already-open watch streams live, but that bridge is
+    // exactly the kind of cross-isolate plumbing that's easy to get into a
+    // state where it silently stops delivering (the bank-account-balance-
+    // updated-but-still-shows-the-old-number report this fixed). Refetching
+    // these three repositories' streams on every resume is a cheap,
+    // unconditional correctness backstop regardless of why the live push
+    // didn't arrive -- each is a plain local-sqlite re-query, so any
+    // screen currently watching one of their derived streams sees at most
+    // a same-frame refresh, not a visible reload.
+    ref.invalidate(calculatorRepositoryProvider);
+    ref.invalidate(ledgerRepositoryProvider);
+    ref.invalidate(recurringPaymentRepositoryProvider);
+  }
+
+  /// Resets the nav stack/tab back to Dashboard after a long background --
+  /// except when this very resume is actually the "Add Payment" home-
+  /// screen widget/shortcut being tapped (`handleQuickAddLaunch`,
+  /// quick_add_launch.dart), which is also a resume as far as
+  /// [didChangeAppLifecycleState] is concerned. That launch claims
+  /// [QuickActionExemption] synchronously the instant it sees the tap, but
+  /// doesn't actually push [AddTransactionScreen] until a Navigator/
+  /// database round-trip finishes a moment later -- Android delivers the
+  /// new Intent (which is what feeds that launch) before resuming the
+  /// Activity, so the claim should already be in place by the time this
+  /// runs, but platform-channel delivery order isn't a documented
+  /// guarantee to lean on for something this visible. Racing a
+  /// `popUntil` against that pending push either yanks the just-opened
+  /// quick-add form straight back to Dashboard or discards it before it
+  /// ever appears -- either way surfacing as the reported "the add-
+  /// payment icon sometimes just opens the home/last page instead, and
+  /// only works on a second tap". A short poll (mirroring
+  /// `_awaitNavigator`'s own "wait briefly rather than assume" shape)
+  /// gives a same-moment claim a little extra room to show up before this
+  /// concludes there isn't one; skipping the reset when there is one costs
+  /// nothing -- the next resume that isn't racing a launch does it instead.
+  Future<void> _resetToHomeUnlessQuickAddLaunching() async {
+    for (var attempt = 0; attempt < 5; attempt++) {
+      if (QuickActionExemption.isActive) return;
+      await Future.delayed(const Duration(milliseconds: 40));
+    }
+    if (!mounted || QuickActionExemption.isActive) return;
+    navigatorKey.currentState?.popUntil((route) => route.isFirst);
+    if (_index != 0) setState(() => _index = 0);
   }
 
   @override
