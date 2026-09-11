@@ -12,19 +12,59 @@ import '../../../data/db/database.dart';
 import '../../../data/ledger/ledger_calculator.dart';
 import '../../networth/providers/asset_providers.dart'
     show pricesUsdPerUnitProvider;
+import '../../returns/screens/returns_history_screen.dart';
+import '../../returns/screens/returns_tab_view.dart';
 import '../providers/ledger_providers.dart';
 import '../providers/ledger_shortcut_channel.dart';
 import 'counterparty_detail_screen.dart';
 
-class LedgerHomeScreen extends ConsumerWidget {
+/// Ledgers, Tabs and Returns as three tabs of one screen -- a ledger and a
+/// tab used to sit intermixed in a single list (distinguished only by the
+/// [Counterparty.isTab] flag), which is what the add/edit dialogs' own
+/// Ledger/Tab toggle further down still reflects; splitting them into their
+/// own [TabBarView] pages here is purely a display change; a Return is a
+/// third, unrelated kind of thing entirely (see returns_tab_view.dart) that
+/// simply shares this screen's tab strip rather than adding a whole new
+/// bottom-nav icon.
+class LedgerHomeScreen extends ConsumerStatefulWidget {
   const LedgerHomeScreen({super.key});
 
-  Future<void> _addCounterparty(BuildContext context, WidgetRef ref) async {
+  @override
+  ConsumerState<LedgerHomeScreen> createState() => _LedgerHomeScreenState();
+}
+
+class _LedgerHomeScreenState extends ConsumerState<LedgerHomeScreen>
+    with SingleTickerProviderStateMixin {
+  late final TabController _tabController;
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 3, vsync: this)
+      ..addListener(() {
+        // Only the settled index matters here (which FAB/AppBar action to
+        // show) -- listening unconditionally would also fire mid-swipe,
+        // rebuilding this Scaffold on every frame of the transition.
+        if (!_tabController.indexIsChanging) setState(() {});
+      });
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _addCounterparty(
+    BuildContext context,
+    WidgetRef ref, {
+    required bool initialIsTab,
+  }) async {
     final controller = TextEditingController();
     var includeInStatistics = true;
     var includeInCalculator = true;
     var visible = true;
-    var isTab = false;
+    var isTab = initialIsTab;
     final name = await showDialog<String>(
       context: context,
       builder: (context) => StatefulBuilder(
@@ -118,59 +158,112 @@ class LedgerHomeScreen extends ConsumerWidget {
   }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final counterpartiesAsync = ref.watch(counterpartiesStreamProvider);
+  Widget build(BuildContext context) {
+    final onReturnsTab = _tabController.index == 2;
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Ledgers and Tabs'),
+        title: const Text('Ledgers, Tabs & Returns'),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.add_to_home_screen_outlined),
-            tooltip: 'Add home screen icon',
-            onPressed: () => showDialog<void>(
-              context: context,
-              builder: (_) => const _LedgerShortcutPickerDialog(),
+          if (onReturnsTab)
+            IconButton(
+              icon: const Icon(Icons.history),
+              tooltip: 'Returns history',
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const ReturnsHistoryScreen()),
+              ),
+            )
+          else
+            IconButton(
+              icon: const Icon(Icons.add_to_home_screen_outlined),
+              tooltip: 'Add home screen icon',
+              onPressed: () => showDialog<void>(
+                context: context,
+                builder: (_) => const _LedgerShortcutPickerDialog(),
+              ),
             ),
-          ),
           const HideValuesAction(),
           const SettingsAction(),
         ],
+        bottom: TabBar(
+          controller: _tabController,
+          tabs: const [
+            Tab(text: 'Ledgers'),
+            Tab(text: 'Tabs'),
+            Tab(text: 'Returns'),
+          ],
+        ),
       ),
-      body: counterpartiesAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, st) => Center(child: Text('Error: $e')),
-        data: (counterparties) {
-          if (counterparties.isEmpty) {
-            return const Center(
-              child: Text('Add a ledger or tab to start tracking payments.'),
-            );
-          }
-          final visibleCounterparties = counterparties
-              .where((c) => c.visible)
-              .toList();
-          final hiddenCounterparties = counterparties
-              .where((c) => !c.visible)
-              .toList();
-          return ListView(
-            // Extra bottom clearance so the last row -- including the
-            // "Hidden ledgers" section once expanded -- never ends up
-            // sitting under the add FAB.
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 88),
-            children: [
-              ...visibleCounterparties.map(
-                (c) => _CounterpartyTile(counterparty: c),
-              ),
-              if (hiddenCounterparties.isNotEmpty)
-                _HiddenLedgersSection(counterparties: hiddenCounterparties),
-            ],
-          );
-        },
+      body: TabBarView(
+        controller: _tabController,
+        children: const [
+          _CounterpartyListView(isTab: false),
+          _CounterpartyListView(isTab: true),
+          ReturnsTabView(),
+        ],
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: () => _addCounterparty(context, ref),
-        child: const Icon(Icons.person_add),
+        onPressed: () => onReturnsTab
+            ? showAddReturnDialog(context, ref)
+            : _addCounterparty(
+                context,
+                ref,
+                initialIsTab: _tabController.index == 1,
+              ),
+        child: Icon(onReturnsTab ? Icons.add : Icons.person_add),
       ),
+    );
+  }
+}
+
+/// One of the two counterparty tabs -- [isTab] picks which; everything
+/// else (empty state aside) is identical, since [Counterparty] itself
+/// already carries all the ledger-vs-tab-specific behavior (balance
+/// wording, Statistics/Calculator opt-outs, ...) that [_CounterpartyTile]
+/// renders.
+class _CounterpartyListView extends ConsumerWidget {
+  const _CounterpartyListView({required this.isTab});
+
+  final bool isTab;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final counterpartiesAsync = ref.watch(counterpartiesStreamProvider);
+
+    return counterpartiesAsync.when(
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (e, st) => Center(child: Text('Error: $e')),
+      data: (all) {
+        final counterparties = all.where((c) => c.isTab == isTab).toList();
+        if (counterparties.isEmpty) {
+          return Center(
+            child: Text(
+              isTab
+                  ? 'Add a tab to start tracking payments.'
+                  : 'Add a ledger to start tracking payments.',
+            ),
+          );
+        }
+        final visibleCounterparties = counterparties
+            .where((c) => c.visible)
+            .toList();
+        final hiddenCounterparties = counterparties
+            .where((c) => !c.visible)
+            .toList();
+        return ListView(
+          // Extra bottom clearance so the last row -- including the
+          // "Hidden" section once expanded -- never ends up sitting under
+          // the shared add FAB.
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 88),
+          children: [
+            ...visibleCounterparties.map(
+              (c) => _CounterpartyTile(counterparty: c),
+            ),
+            if (hiddenCounterparties.isNotEmpty)
+              _HiddenLedgersSection(counterparties: hiddenCounterparties),
+          ],
+        );
+      },
     );
   }
 }

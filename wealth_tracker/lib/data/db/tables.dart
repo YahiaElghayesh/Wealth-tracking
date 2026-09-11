@@ -625,3 +625,32 @@ class SmsRules extends Table {
   @override
   Set<Column> get primaryKey => {id};
 }
+
+/// A store return the user is waiting on a refund/exchange for -- its own
+/// tab under Ledgers, Tabs & Returns, unrelated to a ledger or a tab
+/// (nobody owes anyone anything here, and it never feeds Statistics or the
+/// Calculator, the same way a Tab doesn't). Pending vs. history is just
+/// [receivedAt] being null or not -- there's no separate history table,
+/// the same way a ledger transaction isn't moved to a different table once
+/// it's old.
+class Returns extends Table {
+  TextColumn get id => text()();
+  TextColumn get vendor => text()();
+  RealColumn get amount => real()();
+  TextColumn get currency => text().withDefault(const Constant('EGP'))();
+
+  /// When the item was actually returned to the store -- what the "N days
+  /// ago" counter on the pending list counts from, not when this row was
+  /// created.
+  DateTimeColumn get returnDate => dateTime()();
+
+  /// Null while still pending; set the moment "Received" is tapped, which
+  /// is also what moves it from the pending list into history.
+  DateTimeColumn get receivedAt => dateTime().nullable()();
+
+  DateTimeColumn get createdAt => dateTime()();
+  TextColumn get profileId => text().nullable().references(Profiles, #id)();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}

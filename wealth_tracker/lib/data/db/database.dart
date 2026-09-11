@@ -33,6 +33,7 @@ const defaultProfileId = 'default-profile';
     BankAccounts,
     Banks,
     SmsRules,
+    Returns,
   ],
 )
 class AppDatabase extends _$AppDatabase {
@@ -41,7 +42,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 32;
+  int get schemaVersion => 33;
 
   /// Public so `ProfileRepository.addProfile` can give a newly created
   /// profile the same starter categories a fresh install gets -- otherwise
@@ -443,6 +444,9 @@ class AppDatabase extends _$AppDatabase {
         // A supplementary card's own last-4 digits -- every existing card
         // simply has none yet.
         await m.addColumn(creditCards, creditCards.supplementaryLastFourDigits);
+      }
+      if (from < 33) {
+        await m.createTable(returns);
       }
     },
     // The "Breakfast" quick-pick category was a voice-transcription
