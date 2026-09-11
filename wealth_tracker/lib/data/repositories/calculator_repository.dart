@@ -32,6 +32,7 @@ class CalculatorRepository {
     required double limit,
     required String currency,
     String? lastFourDigits,
+    String? supplementaryLastFourDigits,
   }) async {
     final count = await (_db.select(
       _db.creditCards,
@@ -47,6 +48,7 @@ class CalculatorRepository {
             currency: Value(currency),
             sortOrder: Value(count.length),
             lastFourDigits: Value(lastFourDigits),
+            supplementaryLastFourDigits: Value(supplementaryLastFourDigits),
             profileId: Value(profileId),
           ),
         );

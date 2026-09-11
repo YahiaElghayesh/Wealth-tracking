@@ -419,6 +419,7 @@ void main() {
       required String lastFourDigits,
       double? currentAvailableBalance,
       String? currency,
+      String? supplementaryLastFourDigits,
     }) {
       return db
           .into(db.creditCards)
@@ -432,6 +433,7 @@ void main() {
                   ? const Value.absent()
                   : Value(currency),
               lastFourDigits: Value(lastFourDigits),
+              supplementaryLastFourDigits: Value(supplementaryLastFourDigits),
               currentAvailableBalance: Value(currentAvailableBalance),
             ),
           );
@@ -585,6 +587,46 @@ void main() {
         final outcome = await applySmsRule(db, rule, match);
 
         expect(outcome.applied, isFalse);
+      },
+    );
+
+    test(
+      "creditCardBalance matches a card by its supplementary card's number, "
+      'updating the same shared balance',
+      () async {
+        final bankId = await insertBank('CIB');
+        await insertCard(
+          bank: 'CIB',
+          lastFourDigits: '4912',
+          supplementaryLastFourDigits: '7788',
+          currentAvailableBalance: 1000,
+        );
+        final rule = SmsRule(
+          id: 'r1',
+          bankId: bankId,
+          operation: 'creditCardBalance',
+          sampleText: '',
+          segmentsJson: '[]',
+          targetCounterpartyId: null,
+          name: null,
+          currency: null,
+          notifyOnMatch: false,
+          matchMode: 'strict',
+          enabled: true,
+          createdAt: DateTime(2026),
+          profileId: null,
+        );
+        const match = SmsRuleMatch(
+          cardNumber: '7788',
+          value: 500,
+          valueRole: 'set',
+        );
+
+        final outcome = await applySmsRule(db, rule, match);
+
+        expect(outcome.applied, isTrue);
+        final card = await db.select(db.creditCards).getSingle();
+        expect(card.currentAvailableBalance, closeTo(500, 0.001));
       },
     );
 

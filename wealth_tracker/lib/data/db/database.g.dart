@@ -4698,6 +4698,17 @@ class $CreditCardsTable extends CreditCards
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _supplementaryLastFourDigitsMeta =
+      const VerificationMeta('supplementaryLastFourDigits');
+  @override
+  late final GeneratedColumn<String> supplementaryLastFourDigits =
+      GeneratedColumn<String>(
+        'supplementary_last_four_digits',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
   static const VerificationMeta _currentAvailableBalanceMeta =
       const VerificationMeta('currentAvailableBalance');
   @override
@@ -4755,6 +4766,7 @@ class $CreditCardsTable extends CreditCards
     currency,
     sortOrder,
     lastFourDigits,
+    supplementaryLastFourDigits,
     currentAvailableBalance,
     balanceUpdatedAt,
     balanceUpdatedSource,
@@ -4822,6 +4834,15 @@ class $CreditCardsTable extends CreditCards
         lastFourDigits.isAcceptableOrUnknown(
           data['last_four_digits']!,
           _lastFourDigitsMeta,
+        ),
+      );
+    }
+    if (data.containsKey('supplementary_last_four_digits')) {
+      context.handle(
+        _supplementaryLastFourDigitsMeta,
+        supplementaryLastFourDigits.isAcceptableOrUnknown(
+          data['supplementary_last_four_digits']!,
+          _supplementaryLastFourDigitsMeta,
         ),
       );
     }
@@ -4895,6 +4916,10 @@ class $CreditCardsTable extends CreditCards
         DriftSqlType.string,
         data['${effectivePrefix}last_four_digits'],
       ),
+      supplementaryLastFourDigits: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}supplementary_last_four_digits'],
+      ),
       currentAvailableBalance: attachedDatabase.typeMapping.read(
         DriftSqlType.double,
         data['${effectivePrefix}current_available_balance'],
@@ -4936,6 +4961,14 @@ class CreditCard extends DataClass implements Insertable<CreditCard> {
   /// know which card a given message is about.
   final String? lastFourDigits;
 
+  /// A supplementary card's own last-4 digits -- a supplementary card
+  /// shares its primary card's limit and balance outright (a real bank
+  /// doesn't track them separately), so it's never a second [CreditCards]
+  /// row of its own; it's just a second number an SMS about *this* card
+  /// might carry instead of [lastFourDigits]. See
+  /// `sms_rule_engine.dart`'s card-matching loop, which checks both.
+  final String? supplementaryLastFourDigits;
+
   /// Available-to-spend balance, kept current by SMS capture (or left null
   /// until the user first types one into the Calculator). Separate from any
   /// particular Calculator session's typed value — this is the card's own
@@ -4963,6 +4996,7 @@ class CreditCard extends DataClass implements Insertable<CreditCard> {
     required this.currency,
     required this.sortOrder,
     this.lastFourDigits,
+    this.supplementaryLastFourDigits,
     this.currentAvailableBalance,
     this.balanceUpdatedAt,
     this.balanceUpdatedSource,
@@ -4979,6 +5013,11 @@ class CreditCard extends DataClass implements Insertable<CreditCard> {
     map['sort_order'] = Variable<int>(sortOrder);
     if (!nullToAbsent || lastFourDigits != null) {
       map['last_four_digits'] = Variable<String>(lastFourDigits);
+    }
+    if (!nullToAbsent || supplementaryLastFourDigits != null) {
+      map['supplementary_last_four_digits'] = Variable<String>(
+        supplementaryLastFourDigits,
+      );
     }
     if (!nullToAbsent || currentAvailableBalance != null) {
       map['current_available_balance'] = Variable<double>(
@@ -5008,6 +5047,10 @@ class CreditCard extends DataClass implements Insertable<CreditCard> {
       lastFourDigits: lastFourDigits == null && nullToAbsent
           ? const Value.absent()
           : Value(lastFourDigits),
+      supplementaryLastFourDigits:
+          supplementaryLastFourDigits == null && nullToAbsent
+          ? const Value.absent()
+          : Value(supplementaryLastFourDigits),
       currentAvailableBalance: currentAvailableBalance == null && nullToAbsent
           ? const Value.absent()
           : Value(currentAvailableBalance),
@@ -5036,6 +5079,9 @@ class CreditCard extends DataClass implements Insertable<CreditCard> {
       currency: serializer.fromJson<String>(json['currency']),
       sortOrder: serializer.fromJson<int>(json['sortOrder']),
       lastFourDigits: serializer.fromJson<String?>(json['lastFourDigits']),
+      supplementaryLastFourDigits: serializer.fromJson<String?>(
+        json['supplementaryLastFourDigits'],
+      ),
       currentAvailableBalance: serializer.fromJson<double?>(
         json['currentAvailableBalance'],
       ),
@@ -5059,6 +5105,9 @@ class CreditCard extends DataClass implements Insertable<CreditCard> {
       'currency': serializer.toJson<String>(currency),
       'sortOrder': serializer.toJson<int>(sortOrder),
       'lastFourDigits': serializer.toJson<String?>(lastFourDigits),
+      'supplementaryLastFourDigits': serializer.toJson<String?>(
+        supplementaryLastFourDigits,
+      ),
       'currentAvailableBalance': serializer.toJson<double?>(
         currentAvailableBalance,
       ),
@@ -5076,6 +5125,7 @@ class CreditCard extends DataClass implements Insertable<CreditCard> {
     String? currency,
     int? sortOrder,
     Value<String?> lastFourDigits = const Value.absent(),
+    Value<String?> supplementaryLastFourDigits = const Value.absent(),
     Value<double?> currentAvailableBalance = const Value.absent(),
     Value<DateTime?> balanceUpdatedAt = const Value.absent(),
     Value<String?> balanceUpdatedSource = const Value.absent(),
@@ -5090,6 +5140,9 @@ class CreditCard extends DataClass implements Insertable<CreditCard> {
     lastFourDigits: lastFourDigits.present
         ? lastFourDigits.value
         : this.lastFourDigits,
+    supplementaryLastFourDigits: supplementaryLastFourDigits.present
+        ? supplementaryLastFourDigits.value
+        : this.supplementaryLastFourDigits,
     currentAvailableBalance: currentAvailableBalance.present
         ? currentAvailableBalance.value
         : this.currentAvailableBalance,
@@ -5114,6 +5167,9 @@ class CreditCard extends DataClass implements Insertable<CreditCard> {
       lastFourDigits: data.lastFourDigits.present
           ? data.lastFourDigits.value
           : this.lastFourDigits,
+      supplementaryLastFourDigits: data.supplementaryLastFourDigits.present
+          ? data.supplementaryLastFourDigits.value
+          : this.supplementaryLastFourDigits,
       currentAvailableBalance: data.currentAvailableBalance.present
           ? data.currentAvailableBalance.value
           : this.currentAvailableBalance,
@@ -5137,6 +5193,7 @@ class CreditCard extends DataClass implements Insertable<CreditCard> {
           ..write('currency: $currency, ')
           ..write('sortOrder: $sortOrder, ')
           ..write('lastFourDigits: $lastFourDigits, ')
+          ..write('supplementaryLastFourDigits: $supplementaryLastFourDigits, ')
           ..write('currentAvailableBalance: $currentAvailableBalance, ')
           ..write('balanceUpdatedAt: $balanceUpdatedAt, ')
           ..write('balanceUpdatedSource: $balanceUpdatedSource, ')
@@ -5154,6 +5211,7 @@ class CreditCard extends DataClass implements Insertable<CreditCard> {
     currency,
     sortOrder,
     lastFourDigits,
+    supplementaryLastFourDigits,
     currentAvailableBalance,
     balanceUpdatedAt,
     balanceUpdatedSource,
@@ -5170,6 +5228,8 @@ class CreditCard extends DataClass implements Insertable<CreditCard> {
           other.currency == this.currency &&
           other.sortOrder == this.sortOrder &&
           other.lastFourDigits == this.lastFourDigits &&
+          other.supplementaryLastFourDigits ==
+              this.supplementaryLastFourDigits &&
           other.currentAvailableBalance == this.currentAvailableBalance &&
           other.balanceUpdatedAt == this.balanceUpdatedAt &&
           other.balanceUpdatedSource == this.balanceUpdatedSource &&
@@ -5184,6 +5244,7 @@ class CreditCardsCompanion extends UpdateCompanion<CreditCard> {
   final Value<String> currency;
   final Value<int> sortOrder;
   final Value<String?> lastFourDigits;
+  final Value<String?> supplementaryLastFourDigits;
   final Value<double?> currentAvailableBalance;
   final Value<DateTime?> balanceUpdatedAt;
   final Value<String?> balanceUpdatedSource;
@@ -5197,6 +5258,7 @@ class CreditCardsCompanion extends UpdateCompanion<CreditCard> {
     this.currency = const Value.absent(),
     this.sortOrder = const Value.absent(),
     this.lastFourDigits = const Value.absent(),
+    this.supplementaryLastFourDigits = const Value.absent(),
     this.currentAvailableBalance = const Value.absent(),
     this.balanceUpdatedAt = const Value.absent(),
     this.balanceUpdatedSource = const Value.absent(),
@@ -5211,6 +5273,7 @@ class CreditCardsCompanion extends UpdateCompanion<CreditCard> {
     this.currency = const Value.absent(),
     this.sortOrder = const Value.absent(),
     this.lastFourDigits = const Value.absent(),
+    this.supplementaryLastFourDigits = const Value.absent(),
     this.currentAvailableBalance = const Value.absent(),
     this.balanceUpdatedAt = const Value.absent(),
     this.balanceUpdatedSource = const Value.absent(),
@@ -5228,6 +5291,7 @@ class CreditCardsCompanion extends UpdateCompanion<CreditCard> {
     Expression<String>? currency,
     Expression<int>? sortOrder,
     Expression<String>? lastFourDigits,
+    Expression<String>? supplementaryLastFourDigits,
     Expression<double>? currentAvailableBalance,
     Expression<DateTime>? balanceUpdatedAt,
     Expression<String>? balanceUpdatedSource,
@@ -5242,6 +5306,8 @@ class CreditCardsCompanion extends UpdateCompanion<CreditCard> {
       if (currency != null) 'currency': currency,
       if (sortOrder != null) 'sort_order': sortOrder,
       if (lastFourDigits != null) 'last_four_digits': lastFourDigits,
+      if (supplementaryLastFourDigits != null)
+        'supplementary_last_four_digits': supplementaryLastFourDigits,
       if (currentAvailableBalance != null)
         'current_available_balance': currentAvailableBalance,
       if (balanceUpdatedAt != null) 'balance_updated_at': balanceUpdatedAt,
@@ -5260,6 +5326,7 @@ class CreditCardsCompanion extends UpdateCompanion<CreditCard> {
     Value<String>? currency,
     Value<int>? sortOrder,
     Value<String?>? lastFourDigits,
+    Value<String?>? supplementaryLastFourDigits,
     Value<double?>? currentAvailableBalance,
     Value<DateTime?>? balanceUpdatedAt,
     Value<String?>? balanceUpdatedSource,
@@ -5274,6 +5341,8 @@ class CreditCardsCompanion extends UpdateCompanion<CreditCard> {
       currency: currency ?? this.currency,
       sortOrder: sortOrder ?? this.sortOrder,
       lastFourDigits: lastFourDigits ?? this.lastFourDigits,
+      supplementaryLastFourDigits:
+          supplementaryLastFourDigits ?? this.supplementaryLastFourDigits,
       currentAvailableBalance:
           currentAvailableBalance ?? this.currentAvailableBalance,
       balanceUpdatedAt: balanceUpdatedAt ?? this.balanceUpdatedAt,
@@ -5307,6 +5376,11 @@ class CreditCardsCompanion extends UpdateCompanion<CreditCard> {
     if (lastFourDigits.present) {
       map['last_four_digits'] = Variable<String>(lastFourDigits.value);
     }
+    if (supplementaryLastFourDigits.present) {
+      map['supplementary_last_four_digits'] = Variable<String>(
+        supplementaryLastFourDigits.value,
+      );
+    }
     if (currentAvailableBalance.present) {
       map['current_available_balance'] = Variable<double>(
         currentAvailableBalance.value,
@@ -5339,6 +5413,7 @@ class CreditCardsCompanion extends UpdateCompanion<CreditCard> {
           ..write('currency: $currency, ')
           ..write('sortOrder: $sortOrder, ')
           ..write('lastFourDigits: $lastFourDigits, ')
+          ..write('supplementaryLastFourDigits: $supplementaryLastFourDigits, ')
           ..write('currentAvailableBalance: $currentAvailableBalance, ')
           ..write('balanceUpdatedAt: $balanceUpdatedAt, ')
           ..write('balanceUpdatedSource: $balanceUpdatedSource, ')
@@ -14146,6 +14221,7 @@ typedef $$CreditCardsTableCreateCompanionBuilder =
       Value<String> currency,
       Value<int> sortOrder,
       Value<String?> lastFourDigits,
+      Value<String?> supplementaryLastFourDigits,
       Value<double?> currentAvailableBalance,
       Value<DateTime?> balanceUpdatedAt,
       Value<String?> balanceUpdatedSource,
@@ -14161,6 +14237,7 @@ typedef $$CreditCardsTableUpdateCompanionBuilder =
       Value<String> currency,
       Value<int> sortOrder,
       Value<String?> lastFourDigits,
+      Value<String?> supplementaryLastFourDigits,
       Value<double?> currentAvailableBalance,
       Value<DateTime?> balanceUpdatedAt,
       Value<String?> balanceUpdatedSource,
@@ -14231,6 +14308,11 @@ class $$CreditCardsTableFilterComposer
 
   ColumnFilters<String> get lastFourDigits => $composableBuilder(
     column: $table.lastFourDigits,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get supplementaryLastFourDigits => $composableBuilder(
+    column: $table.supplementaryLastFourDigits,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -14317,6 +14399,11 @@ class $$CreditCardsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get supplementaryLastFourDigits => $composableBuilder(
+    column: $table.supplementaryLastFourDigits,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<double> get currentAvailableBalance => $composableBuilder(
     column: $table.currentAvailableBalance,
     builder: (column) => ColumnOrderings(column),
@@ -14387,6 +14474,11 @@ class $$CreditCardsTableAnnotationComposer
 
   GeneratedColumn<String> get lastFourDigits => $composableBuilder(
     column: $table.lastFourDigits,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get supplementaryLastFourDigits => $composableBuilder(
+    column: $table.supplementaryLastFourDigits,
     builder: (column) => column,
   );
 
@@ -14464,6 +14556,8 @@ class $$CreditCardsTableTableManager
                 Value<String> currency = const Value.absent(),
                 Value<int> sortOrder = const Value.absent(),
                 Value<String?> lastFourDigits = const Value.absent(),
+                Value<String?> supplementaryLastFourDigits =
+                    const Value.absent(),
                 Value<double?> currentAvailableBalance = const Value.absent(),
                 Value<DateTime?> balanceUpdatedAt = const Value.absent(),
                 Value<String?> balanceUpdatedSource = const Value.absent(),
@@ -14477,6 +14571,7 @@ class $$CreditCardsTableTableManager
                 currency: currency,
                 sortOrder: sortOrder,
                 lastFourDigits: lastFourDigits,
+                supplementaryLastFourDigits: supplementaryLastFourDigits,
                 currentAvailableBalance: currentAvailableBalance,
                 balanceUpdatedAt: balanceUpdatedAt,
                 balanceUpdatedSource: balanceUpdatedSource,
@@ -14492,6 +14587,8 @@ class $$CreditCardsTableTableManager
                 Value<String> currency = const Value.absent(),
                 Value<int> sortOrder = const Value.absent(),
                 Value<String?> lastFourDigits = const Value.absent(),
+                Value<String?> supplementaryLastFourDigits =
+                    const Value.absent(),
                 Value<double?> currentAvailableBalance = const Value.absent(),
                 Value<DateTime?> balanceUpdatedAt = const Value.absent(),
                 Value<String?> balanceUpdatedSource = const Value.absent(),
@@ -14505,6 +14602,7 @@ class $$CreditCardsTableTableManager
                 currency: currency,
                 sortOrder: sortOrder,
                 lastFourDigits: lastFourDigits,
+                supplementaryLastFourDigits: supplementaryLastFourDigits,
                 currentAvailableBalance: currentAvailableBalance,
                 balanceUpdatedAt: balanceUpdatedAt,
                 balanceUpdatedSource: balanceUpdatedSource,

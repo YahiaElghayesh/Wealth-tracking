@@ -280,6 +280,14 @@ class CreditCards extends Table {
   /// know which card a given message is about.
   TextColumn get lastFourDigits => text().nullable()();
 
+  /// A supplementary card's own last-4 digits -- a supplementary card
+  /// shares its primary card's limit and balance outright (a real bank
+  /// doesn't track them separately), so it's never a second [CreditCards]
+  /// row of its own; it's just a second number an SMS about *this* card
+  /// might carry instead of [lastFourDigits]. See
+  /// `sms_rule_engine.dart`'s card-matching loop, which checks both.
+  TextColumn get supplementaryLastFourDigits => text().nullable()();
+
   /// Available-to-spend balance, kept current by SMS capture (or left null
   /// until the user first types one into the Calculator). Separate from any
   /// particular Calculator session's typed value — this is the card's own

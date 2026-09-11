@@ -67,6 +67,7 @@ class CreditCardsSettingsScreen extends ConsumerWidget {
                     subtitle: Text(
                       '${card.bank}'
                       '${card.lastFourDigits == null ? '' : ' ••${card.lastFourDigits}'}'
+                      '${card.supplementaryLastFourDigits == null ? '' : ' / ••${card.supplementaryLastFourDigits}'}'
                       ' · Limit ${formatMoney(card.limitAmount, card.currency)}',
                     ),
                     trailing: const Icon(Icons.chevron_right),
@@ -100,6 +101,7 @@ class _CardFormDialogState extends ConsumerState<_CardFormDialog> {
   late final TextEditingController _nameController;
   late final TextEditingController _limitController;
   late final TextEditingController _lastFourController;
+  late final TextEditingController _supplementaryLastFourController;
   String? _bank;
   late String _currency;
 
@@ -113,6 +115,7 @@ class _CardFormDialogState extends ConsumerState<_CardFormDialog> {
     _bank = existing?.bank;
     _limitController = TextEditingController(text: existing == null ? '' : _formatValue(existing.limitAmount));
     _lastFourController = TextEditingController(text: existing?.lastFourDigits ?? '');
+    _supplementaryLastFourController = TextEditingController(text: existing?.supplementaryLastFourDigits ?? '');
     _currency = existing?.currency ?? defaultCurrency;
   }
 
@@ -125,6 +128,7 @@ class _CardFormDialogState extends ConsumerState<_CardFormDialog> {
     _nameController.dispose();
     _limitController.dispose();
     _lastFourController.dispose();
+    _supplementaryLastFourController.dispose();
     super.dispose();
   }
 
@@ -138,6 +142,7 @@ class _CardFormDialogState extends ConsumerState<_CardFormDialog> {
     final name = _nameController.text.trim();
     final limit = double.parse(_limitController.text.trim());
     final lastFour = _lastFourController.text.trim();
+    final supplementaryLastFour = _supplementaryLastFourController.text.trim();
 
     final repo = ref.read(calculatorRepositoryProvider);
     if (_isEditing) {
@@ -148,6 +153,7 @@ class _CardFormDialogState extends ConsumerState<_CardFormDialog> {
           limitAmount: limit,
           currency: _currency,
           lastFourDigits: Value(lastFour.isEmpty ? null : lastFour),
+          supplementaryLastFourDigits: Value(supplementaryLastFour.isEmpty ? null : supplementaryLastFour),
         ),
       );
     } else {
@@ -157,6 +163,7 @@ class _CardFormDialogState extends ConsumerState<_CardFormDialog> {
         limit: limit,
         currency: _currency,
         lastFourDigits: lastFour.isEmpty ? null : lastFour,
+        supplementaryLastFourDigits: supplementaryLastFour.isEmpty ? null : supplementaryLastFour,
       );
     }
 
@@ -247,6 +254,21 @@ class _CardFormDialogState extends ConsumerState<_CardFormDialog> {
                   labelText: 'Last 4 digits (optional)',
                   hintText: 'e.g. 4912',
                   helperText: 'As shown in your bank\'s SMS alerts — "...ending in 4912".',
+                ),
+                keyboardType: TextInputType.number,
+                maxLength: 4,
+                validator: (v) {
+                  if (v == null || v.trim().isEmpty) return null;
+                  if (!RegExp(r'^\d{4}$').hasMatch(v.trim())) return 'Enter exactly 4 digits';
+                  return null;
+                },
+              ),
+              TextFormField(
+                controller: _supplementaryLastFourController,
+                decoration: const InputDecoration(
+                  labelText: 'Supplementary card\'s last 4 digits (optional)',
+                  hintText: 'e.g. 7788',
+                  helperText: 'Same limit, same balance — an SMS for either number updates this one card.',
                 ),
                 keyboardType: TextInputType.number,
                 maxLength: 4,

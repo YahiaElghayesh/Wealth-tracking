@@ -373,8 +373,14 @@ Future<SmsRuleApplyOutcome> _applyCreditCardBalance(
   final cards = await db.select(db.creditCards).get();
   CreditCard? card;
   for (final c in cards) {
-    final last4 = c.lastFourDigits;
-    if (last4 == null || !cardNumber.endsWith(last4)) continue;
+    // A supplementary card number is checked here too, not treated as a
+    // card of its own -- it shares this card's limit and balance outright,
+    // so an SMS naming either number should update the very same row.
+    final matchesNumber =
+        (c.lastFourDigits != null && cardNumber.endsWith(c.lastFourDigits!)) ||
+        (c.supplementaryLastFourDigits != null &&
+            cardNumber.endsWith(c.supplementaryLastFourDigits!));
+    if (!matchesNumber) continue;
     if (bankName != null && c.bank.toLowerCase() != bankName.toLowerCase()) {
       continue;
     }
