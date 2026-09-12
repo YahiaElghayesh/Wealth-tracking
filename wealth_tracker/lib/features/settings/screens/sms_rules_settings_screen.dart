@@ -456,6 +456,64 @@ class _SmsRuleFormScreenState extends ConsumerState<SmsRuleFormScreen> {
     return segments;
   }
 
+  /// A run of 2+ digits, with an optional decimal/thousands group -- "978",
+  /// "978.00", "45,623.09" -- found inside an *untagged* (literal) segment.
+  /// A number like this sitting in literal text is exactly what turned a
+  /// past-tense purchase amount into a permanent requirement on a real
+  /// rule (see [_showUntaggedNumbersWarning]'s own doc comment): it's
+  /// baked in verbatim, either as a strict-mode exact match or, in
+  /// flexible mode, as one of the couple of anchor words kept next to a
+  /// tag -- either way, a real SMS with any other value there can never
+  /// match again.
+  static final _numberLikePattern = RegExp(r'\d{2,}(?:[.,]\d+)?');
+
+  List<String> _untaggedNumbersIn(List<SmsRuleSegment> segments) {
+    return [
+      for (final segment in segments)
+        if (segment.isLiteral)
+          for (final match in _numberLikePattern.allMatches(segment.text))
+            match.group(0)!,
+    ];
+  }
+
+  /// A soft, dismissible check on Save -- not everything numeric in a
+  /// literal segment is actually a problem (a fixed customer-service
+  /// number in the message's boilerplate footer never changes, for
+  /// instance), so this warns rather than blocks. Returns whether to go
+  /// ahead and save; `true` when there was nothing to flag in the first
+  /// place.
+  Future<bool> _confirmUntaggedNumbers(List<SmsRuleSegment> segments) async {
+    final numbers = _untaggedNumbersIn(segments);
+    if (numbers.isEmpty) return true;
+    final proceed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Untagged numbers in this rule'),
+        content: Text(
+          '${numbers.length == 1 ? 'This number isn\'t' : 'These numbers aren\'t'} '
+          'tagged, so the rule requires ${numbers.length == 1 ? 'it' : 'them'} to '
+          'appear exactly like this in every future SMS: '
+          '${numbers.map((n) => '"$n"').join(', ')}.\n\n'
+          'If any of these can be different next time -- an amount, a reference '
+          'number, an extension -- go back and mark it (Value or "Varies") '
+          'before saving, or this rule will stop matching once it does change. '
+          'If it\'s always the same, it\'s fine to save as-is.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Go back'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Save anyway'),
+          ),
+        ],
+      ),
+    );
+    return proceed ?? false;
+  }
+
   String? _validate() {
     if (_bankId == null) return 'Pick a bank';
     if (_sampleController.text.trim().isEmpty) return 'Paste a sample SMS';
@@ -486,6 +544,8 @@ class _SmsRuleFormScreenState extends ConsumerState<SmsRuleFormScreen> {
       return;
     }
     final segments = _buildSegments();
+    if (!await _confirmUntaggedNumbers(segments)) return;
+    if (!mounted) return;
     final name = _nameController.text.trim();
     final repo = ref.read(smsRuleRepositoryProvider);
     if (_isEditing) {
