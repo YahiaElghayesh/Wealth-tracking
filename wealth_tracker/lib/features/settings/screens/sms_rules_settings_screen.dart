@@ -59,6 +59,7 @@ const _tagColors = {
   'sender': Color(0x33AE3EC9),
   'currency': Color(0x33FA5252),
   'ignore': Color(0x33868E96),
+  'transactionValue': Color(0x33845EF7),
 };
 
 const _tagLabels = {
@@ -68,6 +69,7 @@ const _tagLabels = {
   'sender': 'Sender name',
   'currency': 'Currency',
   'ignore': 'Varies (date, time, ref #...)',
+  'transactionValue': 'Transaction amount (notification only)',
 };
 
 const _balanceRoles = [
@@ -80,8 +82,24 @@ const _ledgerRoles = [
   ('repayment', 'Repayment (they owe less)'),
 ];
 
-String _roleLabel(String operation, String? role) {
-  final options = operation == 'ledgerPayment' ? _ledgerRoles : _balanceRoles;
+/// [SmsRuleSegment.role] options for a 'transactionValue' tag -- purely
+/// which sign the balance-update notification shows next to it (see
+/// `sms_rule_engine.dart`'s `_signedValueText`), never fed into
+/// `_resolveNewValue`: this tag exists so a rule can say "the card was
+/// charged 978.00" in its notification even when the actual `value` tag
+/// it applies is something unrelated, like "Set to this" against the
+/// card's *available limit* rather than the charge amount itself.
+const _transactionValueRoles = [
+  ('add', '+ Increased balance'),
+  ('subtract', '− Decreased balance'),
+];
+
+String _roleLabel(String operation, String tag, String? role) {
+  final options = tag == 'transactionValue'
+      ? _transactionValueRoles
+      : operation == 'ledgerPayment'
+      ? _ledgerRoles
+      : _balanceRoles;
   return options.firstWhere((o) => o.$1 == role, orElse: () => ('', '')).$2;
 }
 
@@ -377,6 +395,11 @@ class _SmsRuleFormScreenState extends ConsumerState<SmsRuleFormScreen> {
     // 'ignore' is offered for every operation for the same reason, for
     // whatever else in the sample isn't any of the others but still
     // changes message to message -- a date, a time, a reference number.
+    // 'transactionValue' is balance-rule-only: a "Set to this" rule's own
+    // `value` tag is often something like the card's new available limit,
+    // not the amount actually charged/paid -- this lets the notification
+    // still say what the transaction itself was for, without feeding that
+    // number into the balance math at all.
     'creditCardBalance' || 'bankAccountBalance' => const [
       'cardNumber',
       'value',
@@ -384,6 +407,7 @@ class _SmsRuleFormScreenState extends ConsumerState<SmsRuleFormScreen> {
       'sender',
       'currency',
       'ignore',
+      'transactionValue',
     ],
     _ => const ['value', 'vendor', 'sender', 'currency', 'ignore'],
   };
@@ -760,7 +784,7 @@ class _SmsRuleFormScreenState extends ConsumerState<SmsRuleFormScreen> {
                     InputChip(
                       label: Text(
                         '${_tagLabels[tag.tag]}: "${_sampleController.text.substring(tag.start, tag.end)}"'
-                        '${tag.role == null ? '' : ' (${_roleLabel(_operation, tag.role)})'}',
+                        '${tag.role == null ? '' : ' (${_roleLabel(_operation, tag.tag, tag.role)})'}',
                       ),
                       onDeleted: () => setState(() => _tags.remove(tag)),
                     ),
@@ -829,14 +853,20 @@ class _TagPickerDialogState extends State<_TagPickerDialog> {
   @override
   void initState() {
     super.initState();
-    if (_tag == 'value') {
-      _role = widget.operation == 'ledgerPayment' ? 'charge' : 'set';
-    }
+    _role = _defaultRoleFor(_tag);
   }
+
+  String? _defaultRoleFor(String tag) => switch (tag) {
+    'value' => widget.operation == 'ledgerPayment' ? 'charge' : 'set',
+    'transactionValue' => 'subtract',
+    _ => null,
+  };
 
   @override
   Widget build(BuildContext context) {
-    final roleOptions = widget.operation == 'ledgerPayment'
+    final roleOptions = _tag == 'transactionValue'
+        ? _transactionValueRoles
+        : widget.operation == 'ledgerPayment'
         ? _ledgerRoles
         : _balanceRoles;
     return AlertDialog(
@@ -868,16 +898,12 @@ class _TagPickerDialogState extends State<_TagPickerDialog> {
                   selected: _tag == tag,
                   onSelected: (_) => setState(() {
                     _tag = tag;
-                    _role = _tag == 'value'
-                        ? (widget.operation == 'ledgerPayment'
-                              ? 'charge'
-                              : 'set')
-                        : null;
+                    _role = _defaultRoleFor(_tag);
                   }),
                 ),
             ],
           ),
-          if (_tag == 'value') ...[
+          if (_tag == 'value' || _tag == 'transactionValue') ...[
             const SizedBox(height: 16),
             const Text('What should it do?'),
             const SizedBox(height: 8),

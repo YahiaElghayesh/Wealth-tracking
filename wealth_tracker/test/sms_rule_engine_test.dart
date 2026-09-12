@@ -517,9 +517,60 @@ void main() {
 
         expect(outcome.applied, isTrue);
         expect(outcome.notificationTitle, isNotNull);
+        // A "set" match has no meaningful signed delta -- the matched value
+        // *is* the new balance, not an amount added/subtracted from it, so
+        // the notification shouldn't say that one number twice.
+        expect(
+          '85,891.16'.allMatches(outcome.notificationBody!).length,
+          1,
+        );
         final card = await db.select(db.creditCards).getSingle();
         expect(card.currentAvailableBalance, closeTo(85891.16, 0.001));
         expect(card.balanceUpdatedSource, 'sms');
+      },
+    );
+
+    test(
+      "creditCardBalance shows a 'transactionValue' tag's own signed amount "
+      "in the notification, separate from the 'set' value that's actually "
+      'applied',
+      () async {
+        final bankId = await insertBank('CIB');
+        await insertCard(
+          bank: 'CIB',
+          lastFourDigits: '4912',
+          currentAvailableBalance: 1000,
+        );
+        final rule = SmsRule(
+          id: 'r1',
+          bankId: bankId,
+          operation: 'creditCardBalance',
+          sampleText: '',
+          segmentsJson: '[]',
+          targetCounterpartyId: null,
+          name: null,
+          currency: null,
+          notifyOnMatch: true,
+          matchMode: 'strict',
+          enabled: true,
+          createdAt: DateTime(2026),
+          profileId: null,
+        );
+        const match = SmsRuleMatch(
+          cardNumber: '4912',
+          value: 85891.16,
+          valueRole: 'set',
+          transactionValue: 250.50,
+          transactionValueRole: 'subtract',
+        );
+
+        final outcome = await applySmsRule(db, rule, match);
+
+        expect(outcome.applied, isTrue);
+        expect(outcome.notificationBody, contains('-250.50'));
+        expect(outcome.notificationBody, contains('85,891.16'));
+        final card = await db.select(db.creditCards).getSingle();
+        expect(card.currentAvailableBalance, closeTo(85891.16, 0.001));
       },
     );
 
