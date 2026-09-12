@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/theme/app_colors.dart';
@@ -43,6 +44,41 @@ class _SmsTestScreenState extends ConsumerState<SmsTestScreen> {
   void dispose() {
     _controller.dispose();
     super.dispose();
+  }
+
+  /// Explicit buttons alongside the system long-press menu -- some
+  /// devices/keyboards don't reliably show a "Paste" option over this
+  /// field, so these are a guaranteed-to-work fallback for it.
+  Future<void> _paste() async {
+    final data = await Clipboard.getData(Clipboard.kTextPlain);
+    final text = data?.text;
+    if (text == null || text.isEmpty) return;
+    final oldText = _controller.text;
+    final selection = _controller.selection;
+    final start = selection.isValid
+        ? selection.start.clamp(0, oldText.length)
+        : oldText.length;
+    final end = selection.isValid
+        ? selection.end.clamp(0, oldText.length)
+        : oldText.length;
+    _controller.value = TextEditingValue(
+      text: oldText.replaceRange(start, end, text),
+      selection: TextSelection.collapsed(offset: start + text.length),
+    );
+  }
+
+  Future<void> _copy() async {
+    final text = _controller.text;
+    if (text.isEmpty) return;
+    final selection = _controller.selection;
+    final toCopy = selection.isValid && !selection.isCollapsed
+        ? text.substring(selection.start, selection.end)
+        : text;
+    await Clipboard.setData(ClipboardData(text: toCopy));
+    if (!mounted) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Copied')));
   }
 
   Future<void> _runTest() async {
@@ -104,7 +140,23 @@ class _SmsTestScreenState extends ConsumerState<SmsTestScreen> {
                 border: OutlineInputBorder(),
               ),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 4),
+            Row(
+              children: [
+                TextButton.icon(
+                  onPressed: _paste,
+                  icon: const Icon(Icons.content_paste, size: 18),
+                  label: const Text('Paste'),
+                ),
+                const SizedBox(width: 8),
+                TextButton.icon(
+                  onPressed: _controller.text.isEmpty ? null : _copy,
+                  icon: const Icon(Icons.content_copy, size: 18),
+                  label: const Text('Copy'),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
             FilledButton.icon(
               icon: _running
                   ? const SizedBox(

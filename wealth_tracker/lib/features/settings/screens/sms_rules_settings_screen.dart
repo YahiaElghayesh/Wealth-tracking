@@ -1,5 +1,6 @@
 import 'package:drift/drift.dart' show Value;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/models/currency.dart';
@@ -427,6 +428,42 @@ class _SmsRuleFormScreenState extends ConsumerState<SmsRuleFormScreen> {
     super.dispose();
   }
 
+  /// Inserts the clipboard's text at the current cursor position (replacing
+  /// the selection, if any) -- an explicit button doing exactly what the
+  /// system long-press "Paste" would, for a device/keyboard where that
+  /// menu doesn't reliably show up over this field.
+  Future<void> _pasteSample() async {
+    final data = await Clipboard.getData(Clipboard.kTextPlain);
+    final text = data?.text;
+    if (text == null || text.isEmpty) return;
+    final oldText = _sampleController.text;
+    final selection = _sampleController.selection;
+    final start = selection.isValid
+        ? selection.start.clamp(0, oldText.length)
+        : oldText.length;
+    final end = selection.isValid
+        ? selection.end.clamp(0, oldText.length)
+        : oldText.length;
+    _sampleController.value = TextEditingValue(
+      text: oldText.replaceRange(start, end, text),
+      selection: TextSelection.collapsed(offset: start + text.length),
+    );
+  }
+
+  Future<void> _copySample() async {
+    final text = _sampleController.text;
+    if (text.isEmpty) return;
+    final selection = _sampleController.selection;
+    final toCopy = selection.isValid && !selection.isCollapsed
+        ? text.substring(selection.start, selection.end)
+        : text;
+    await Clipboard.setData(ClipboardData(text: toCopy));
+    if (!mounted) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Copied')));
+  }
+
   List<String> get _availableTags => switch (_operation) {
     // Vendor/sender/currency aren't used by a balance update itself (only
     // cardNumber/value are), but they're still offered here so a merchant
@@ -811,7 +848,28 @@ class _SmsRuleFormScreenState extends ConsumerState<SmsRuleFormScreen> {
                 border: OutlineInputBorder(),
               ),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 4),
+            // Explicit buttons alongside the system long-press menu -- some
+            // devices/keyboards don't reliably show a "Paste" option over
+            // this field, so this is a guaranteed-to-work fallback for it.
+            Row(
+              children: [
+                TextButton.icon(
+                  onPressed: _pasteSample,
+                  icon: const Icon(Icons.content_paste, size: 18),
+                  label: const Text('Paste'),
+                ),
+                const SizedBox(width: 8),
+                TextButton.icon(
+                  onPressed: _sampleController.text.isEmpty
+                      ? null
+                      : _copySample,
+                  icon: const Icon(Icons.content_copy, size: 18),
+                  label: const Text('Copy'),
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
             OutlinedButton.icon(
               icon: const Icon(Icons.label_outline),
               label: const Text('Tag selection'),
