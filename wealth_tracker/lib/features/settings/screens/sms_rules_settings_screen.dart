@@ -11,6 +11,7 @@ import '../../../data/sms/sms_rule_engine.dart';
 import '../../ledger/providers/ledger_providers.dart';
 import '../providers/sms_rule_providers.dart';
 import 'banks_settings_screen.dart';
+import 'sms_test_screen.dart';
 
 /// The Unicode "first strong character" rule -- the same one browsers and
 /// the phone's own SMS app use to pick a paragraph's base direction when
@@ -118,6 +119,13 @@ class SmsRulesSettingsScreen extends ConsumerWidget {
       appBar: AppBar(
         title: const Text('SMS Rules'),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.science_outlined),
+            tooltip: 'Test an SMS',
+            onPressed: () => Navigator.of(
+              context,
+            ).push(MaterialPageRoute(builder: (_) => const SmsTestScreen())),
+          ),
           IconButton(
             icon: const Icon(Icons.account_balance_outlined),
             tooltip: 'Manage banks',

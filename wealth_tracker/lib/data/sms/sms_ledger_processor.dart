@@ -66,6 +66,31 @@ Future<List<_RuleMatch>> _matchAllRules(AppDatabase db, String body) async {
   return matches;
 }
 
+/// One rule that matched, alongside what it extracted -- [_RuleMatch]'s
+/// own public counterpart, for a caller outside this file (the SMS Rules
+/// "Test an SMS" screen) that needs to show *which* rules matched and
+/// *what* they captured, without reaching into this file's own dedupe/
+/// apply bookkeeping.
+class MatchedSmsRule {
+  const MatchedSmsRule(this.rule, this.match);
+  final SmsRule rule;
+  final SmsRuleMatch match;
+}
+
+/// Public wrapper around [_matchAllRules] -- read-only, no dedupe/apply
+/// side effects of its own (unlike [commitSmsAutoDetect], which a caller
+/// wanting the real thing should call separately). Exists purely so the
+/// "Test an SMS" screen can show which rule(s) actually matched a pasted
+/// message and what each one extracted, since [commitSmsAutoDetect] itself
+/// only ever returns `void`.
+Future<List<MatchedSmsRule>> previewSmsRuleMatches(
+  AppDatabase db,
+  String body,
+) async {
+  final matches = await _matchAllRules(db, body);
+  return [for (final m in matches) MatchedSmsRule(m.rule, m.match)];
+}
+
 /// Applies every matched credit-card/bank-account balance rule -- the
 /// "keep the tracked number current" half of a match, independent of
 /// whichever ledger-payment rule(s) may also have matched the same SMS.
