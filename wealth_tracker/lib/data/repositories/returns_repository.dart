@@ -45,6 +45,10 @@ class ReturnsRepository {
         );
   }
 
+  Future<void> updateReturn(Return returnItem) {
+    return _db.update(_db.returns).replace(returnItem);
+  }
+
   /// Marks a pending return received -- this alone is what moves it from
   /// the pending list into history (see [watchAll]'s own doc comment).
   Future<void> markReceived(String id) {

@@ -39,6 +39,35 @@ void main() {
       expect(result.unconvertedCount, 0);
     });
 
+    test(
+      'nets to an exact zero when same-currency entries truly settle, not '
+      'a tiny floating-point residual from converting through a rate '
+      'that cancels itself out',
+      () {
+        // Mirrors a real reported case: entries that sum to exactly zero
+        // by hand still landed a hair off zero, because every entry --
+        // even ones already in the settlement currency -- was multiplied
+        // then divided by that currency's own (imprecise, non-terminating
+        // binary) rate, which floating-point arithmetic doesn't always
+        // undo exactly. That showed "You owe 0.00" instead of "Settled up".
+        final txns = [
+          _txn(date: DateTime(2026, 9, 9), amount: -30000, category: 'Other'),
+          _txn(
+            date: DateTime(2026, 9, 7),
+            amount: -2197,
+            category: 'Repayment',
+          ),
+          _txn(date: DateTime(2026, 9, 6), amount: 30000, category: 'Other'),
+          _txn(date: DateTime(2026, 9, 1), amount: 1197, category: 'Other'),
+          _txn(date: DateTime(2026, 9, 1), amount: 1000, category: 'Other'),
+        ];
+
+        final result = runningBalance(txns, _prices);
+
+        expect(result.amount, 0.0);
+      },
+    );
+
     test('converts a USD entry into the EGP settlement total', () {
       final txns = [
         _txn(date: DateTime(2026, 1, 5), amount: 100, category: 'Groceries'),
@@ -186,5 +215,21 @@ void main() {
         expect(totals.containsKey('Repayment'), isFalse);
       },
     );
+  });
+
+  group('isEffectivelySettled', () {
+    test('true for exactly zero', () {
+      expect(isEffectivelySettled(0), isTrue);
+    });
+
+    test('true for a sub-half-cent residual either side of zero', () {
+      expect(isEffectivelySettled(0.001), isTrue);
+      expect(isEffectivelySettled(-0.001), isTrue);
+    });
+
+    test('false for a real, displayable balance', () {
+      expect(isEffectivelySettled(0.01), isFalse);
+      expect(isEffectivelySettled(-5), isFalse);
+    });
   });
 }

@@ -11,11 +11,33 @@ double? convertToSettlement(
   Map<String, double> pricesUsdPerUnit, {
   String settlementCurrency = defaultCurrency,
 }) {
+  // Same currency in and out returns the exact amount, not a
+  // mathematically-equivalent `amount * rate / rate` -- floating-point
+  // multiplication and division aren't exact inverses of each other, so
+  // that round-trip can (and does) leave a tiny non-zero residual behind
+  // even when the real-world answer is precisely unchanged. Summed across
+  // a ledger's entries, a residual like that is exactly what turned an
+  // honestly-settled 0.00 balance into a e-13-off `balance == 0` miss --
+  // "You owe 0.00" instead of "Settled up". This also happens to make a
+  // same-currency conversion a free lookup instead of two float ops, but
+  // that's incidental; the precision is the actual reason.
+  if (currency == settlementCurrency) return amount;
   final rate = pricesUsdPerUnit[currency];
   final settlementRate = pricesUsdPerUnit[settlementCurrency];
   if (rate == null || settlementRate == null) return null;
   return amount * rate / settlementRate;
 }
+
+/// Whether a running balance is close enough to zero to call "Settled up"
+/// rather than a signed amount rounded to display as "0.00" -- a mixed-
+/// currency balance can still net to a tiny non-zero residual through
+/// perfectly legitimate FX-rate rounding (unlike the exact-same-currency
+/// case [convertToSettlement] itself now shortcuts around), and comparing
+/// a running total to exact zero would call that "You owe 0.00" instead.
+/// Anything under half a cent is exactly what would already round to
+/// "0.00" if shown as a number, so treating it as settled changes nothing
+/// a user could actually see either way.
+bool isEffectivelySettled(double balance) => balance.abs() < 0.005;
 
 /// Aggregate total in [settlementCurrency], plus how many entries couldn't
 /// be converted (missing FX rate) and were excluded rather than

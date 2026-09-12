@@ -113,6 +113,8 @@ class CounterpartyDetailScreen extends ConsumerWidget {
                       Text(
                         hideValues
                             ? '••••••'
+                            : isEffectivelySettled(balance)
+                            ? (counterparty.isTab ? 'All even' : 'Nothing owed')
                             : counterparty.isTab
                             ? (balance >= 0
                                   ? "You've paid more"
@@ -126,7 +128,7 @@ class CounterpartyDetailScreen extends ConsumerWidget {
                         ),
                       ),
                       const SizedBox(height: 6),
-                      balance == 0
+                      isEffectivelySettled(balance)
                           ? Text(
                               'Settled up',
                               style: theme.textTheme.headlineSmall,

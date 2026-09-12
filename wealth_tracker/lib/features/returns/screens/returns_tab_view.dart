@@ -9,22 +9,38 @@ import '../../../core/widgets/money_text.dart';
 import '../../../data/db/database.dart';
 import '../providers/returns_providers.dart';
 
-/// The Returns tab's own "+" form -- a top-level function (not a method on
-/// [ReturnsTabView]) so `LedgerHomeScreen`'s single shared FAB can open it
-/// directly, the same way it already calls into this file's sibling
-/// `_addCounterparty`/`_editCounterparty` for the other two tabs.
-Future<void> showAddReturnDialog(BuildContext context, WidgetRef ref) async {
-  final vendorController = TextEditingController();
-  final amountController = TextEditingController();
-  var currency = defaultCurrency;
-  var returnDate = DateTime.now();
-  final formKey = GlobalKey<FormState>();
+String _formatValue(double value) {
+  return value == value.roundToDouble()
+      ? value.toInt().toString()
+      : value.toString();
+}
 
-  final save = await showDialog<bool>(
+/// The Returns tab's own add/edit form -- a top-level function (not a
+/// method on [ReturnsTabView]) so `LedgerHomeScreen`'s single shared FAB
+/// can open it directly, the same way it already calls into this file's
+/// sibling `_addCounterparty`/`_editCounterparty` for the other two tabs.
+/// [existing] switches this from "Add" to "Edit" (with its own Delete
+/// action) -- same dialog either way, just pre-filled and writing back to
+/// that row instead of inserting a new one.
+Future<void> showReturnFormDialog(
+  BuildContext context,
+  WidgetRef ref, {
+  Return? existing,
+}) async {
+  final vendorController = TextEditingController(text: existing?.vendor ?? '');
+  final amountController = TextEditingController(
+    text: existing == null ? '' : _formatValue(existing.amount),
+  );
+  var currency = existing?.currency ?? defaultCurrency;
+  var returnDate = existing?.returnDate ?? DateTime.now();
+  final formKey = GlobalKey<FormState>();
+  final isEditing = existing != null;
+
+  final result = await showDialog<bool>(
     context: context,
     builder: (context) => StatefulBuilder(
       builder: (context, setDialogState) => AlertDialog(
-        title: const Text('Add return'),
+        title: Text(isEditing ? 'Edit return' : 'Add return'),
         content: Form(
           key: formKey,
           child: SingleChildScrollView(
@@ -33,7 +49,7 @@ Future<void> showAddReturnDialog(BuildContext context, WidgetRef ref) async {
               children: [
                 TextFormField(
                   controller: vendorController,
-                  autofocus: true,
+                  autofocus: !isEditing,
                   textCapitalization: TextCapitalization.sentences,
                   decoration: const InputDecoration(
                     labelText: 'Vendor',
@@ -100,6 +116,14 @@ Future<void> showAddReturnDialog(BuildContext context, WidgetRef ref) async {
           ),
         ),
         actions: [
+          if (isEditing)
+            TextButton(
+              onPressed: () => Navigator.pop(context, null),
+              style: TextButton.styleFrom(
+                foregroundColor: Theme.of(context).colorScheme.error,
+              ),
+              child: const Text('Delete'),
+            ),
           TextButton(
             onPressed: () => Navigator.pop(context, false),
             child: const Text('Cancel'),
@@ -109,22 +133,37 @@ Future<void> showAddReturnDialog(BuildContext context, WidgetRef ref) async {
               if (!formKey.currentState!.validate()) return;
               Navigator.pop(context, true);
             },
-            child: const Text('Add'),
+            child: Text(isEditing ? 'Save' : 'Add'),
           ),
         ],
       ),
     ),
   );
 
-  if (save == true) {
-    await ref
-        .read(returnsRepositoryProvider)
-        .addReturn(
+  final repo = ref.read(returnsRepositoryProvider);
+  if (result == true) {
+    if (existing == null) {
+      await repo.addReturn(
+        vendor: vendorController.text.trim(),
+        amount: double.parse(amountController.text.trim()),
+        currency: currency,
+        returnDate: returnDate,
+      );
+    } else {
+      await repo.updateReturn(
+        existing.copyWith(
           vendor: vendorController.text.trim(),
           amount: double.parse(amountController.text.trim()),
           currency: currency,
           returnDate: returnDate,
-        );
+        ),
+      );
+    }
+  } else if (result == null && existing != null) {
+    // The Delete action pops `null` rather than posting straight away, so
+    // the dialog is already closed before this runs -- same shape as
+    // every other delete-from-an-edit-form flow in the app.
+    await repo.deleteReturn(existing.id);
   }
   vendorController.dispose();
   amountController.dispose();
@@ -188,40 +227,90 @@ class _ReturnCard extends ConsumerWidget {
 
   final Return item;
 
+  Future<bool> _confirmDelete(BuildContext context, WidgetRef ref) async {
+    final confirmed =
+        await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Delete return?'),
+            content: Text('This removes "${item.vendor}" for good.'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Cancel'),
+              ),
+              FilledButton(
+                style: FilledButton.styleFrom(
+                  backgroundColor: Theme.of(context).colorScheme.error,
+                ),
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text('Delete'),
+              ),
+            ],
+          ),
+        ) ??
+        false;
+    if (confirmed) {
+      await ref.read(returnsRepositoryProvider).deleteReturn(item.id);
+    }
+    return confirmed;
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
+    return Dismissible(
+      key: ValueKey(item.id),
+      direction: DismissDirection.endToStart,
+      confirmDismiss: (_) => _confirmDelete(context, ref),
+      background: Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.errorContainer,
+          borderRadius: BorderRadius.circular(16),
+        ),
+        alignment: Alignment.centerRight,
+        padding: const EdgeInsets.symmetric(horizontal: 20),
+        child: const Icon(Icons.delete),
+      ),
+      child: Card(
+        margin: const EdgeInsets.only(bottom: 12),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: () => showReturnFormDialog(context, ref, existing: item),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Expanded(
-                  child: Text(
-                    item.vendor,
-                    style: Theme.of(context).textTheme.titleMedium,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        item.vendor,
+                        style: Theme.of(context).textTheme.titleMedium,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    MoneyText(formatMoney(item.amount, item.currency)),
+                  ],
                 ),
-                MoneyText(formatMoney(item.amount, item.currency)),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    _DaysAgoChip(returnDate: item.returnDate),
+                    const Spacer(),
+                    FilledButton.tonal(
+                      onPressed: () => ref
+                          .read(returnsRepositoryProvider)
+                          .markReceived(item.id),
+                      child: const Text('Received'),
+                    ),
+                  ],
+                ),
               ],
             ),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                Expanded(child: _DaysAgoChip(returnDate: item.returnDate)),
-                FilledButton.tonal(
-                  onPressed: () =>
-                      ref.read(returnsRepositoryProvider).markReceived(item.id),
-                  child: const Text('Received'),
-                ),
-              ],
-            ),
-          ],
+          ),
         ),
       ),
     );

@@ -204,7 +204,7 @@ class _LedgerHomeScreenState extends ConsumerState<LedgerHomeScreen>
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () => onReturnsTab
-            ? showAddReturnDialog(context, ref)
+            ? showReturnFormDialog(context, ref)
             : _addCounterparty(
                 context,
                 ref,
@@ -608,7 +608,7 @@ class _CounterpartyTile extends ConsumerWidget {
                     padding: const EdgeInsets.only(left: 52),
                     child: balance == null
                         ? const Text('Loading…')
-                        : balance == 0
+                        : isEffectivelySettled(balance)
                         ? const Text('Settled up')
                         : Row(
                             children: [
