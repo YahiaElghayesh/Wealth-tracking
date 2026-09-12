@@ -567,8 +567,8 @@ void main() {
         final outcome = await applySmsRule(db, rule, match);
 
         expect(outcome.applied, isTrue);
-        expect(outcome.notificationBody, contains('-250.50'));
-        expect(outcome.notificationBody, contains('85,891.16'));
+        expect(outcome.notificationBody, contains('-EGP 250.50'));
+        expect(outcome.notificationBody, contains('EGP 85,891.16'));
         final card = await db.select(db.creditCards).getSingle();
         expect(card.currentAvailableBalance, closeTo(85891.16, 0.001));
       },

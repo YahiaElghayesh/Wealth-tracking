@@ -24,11 +24,15 @@ void main() {
 
   group('formatMoney', () {
     test('a whole number has no trailing .00', () {
-      expect(formatMoney(99, 'SAR'), '99 SAR');
+      expect(formatMoney(99, 'SAR'), 'SAR 99');
     });
 
     test('a fractional value still shows its decimals', () {
-      expect(formatMoney(84.44, 'SAR'), '84.44 SAR');
+      expect(formatMoney(84.44, 'SAR'), 'SAR 84.44');
+    });
+
+    test('a negative value puts the sign before the currency code', () {
+      expect(formatMoney(-84.44, 'SAR'), '-SAR 84.44');
     });
   });
 

@@ -29,13 +29,16 @@ String formatUsdWhole(double value) => _usdFormatWhole.format(value);
 
 String formatEgpWhole(double value) => _egpFormatWhole.format(value);
 
-/// Formats [value] with its ISO currency code (e.g. "1,234.56 SAR") — used
+/// Formats [value] with its ISO currency code (e.g. "SAR 1,234.56") — used
 /// wherever the currency isn't fixed to USD/EGP, since intl's locale-based
 /// symbols for SAR/AED/TRY aren't reliably unambiguous. Same ".00"
-/// suppression as [formatUsd]/[formatEgp] for a value with no fraction.
+/// suppression as [formatUsd]/[formatEgp] for a value with no fraction, and
+/// the same sign-then-code-then-amount order [formatUsd]/[formatEgp] get
+/// for free from [NumberFormat.currency] (e.g. "-SAR 1,234.56").
 String formatMoney(double value, String currencyCode) {
   final formatter = _isWhole(value) ? _plainNumberWhole : _plainNumber;
-  return '${formatter.format(value)} $currencyCode';
+  final sign = value < 0 ? '-' : '';
+  return '$sign$currencyCode ${formatter.format(value.abs())}';
 }
 
 /// Whole-number form for an arbitrary currency code -- [formatEgpWhole]/
@@ -51,7 +54,8 @@ String formatCurrencyWhole(double value, String currencyCode) {
     case 'USD':
       return formatUsdWhole(value);
     default:
-      return '${value.round()} $currencyCode';
+      final sign = value < 0 ? '-' : '';
+      return '$sign$currencyCode ${value.abs().round()}';
   }
 }
 

@@ -137,7 +137,7 @@ Future<void> _syncReminders(List<RecurringPayment> payments) async {
       paymentId: payment.id,
       name: payment.name,
       amountLabel:
-          '${_formatReminderAmount(payment.amount)} ${payment.currency}',
+          '${payment.currency} ${_formatReminderAmount(payment.amount)}',
       dueAt: DateTime(dueDate.year, dueDate.month, dueDate.day),
     );
   }
