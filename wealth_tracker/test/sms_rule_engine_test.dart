@@ -400,6 +400,72 @@ void main() {
         isNull,
       );
     });
+
+    test(
+      "a 'transactionCurrency' tag is captured independently of 'currency' "
+      '-- an international-transaction SMS naming a foreign currency for '
+      "the charge itself, while the card's own available limit stays in "
+      'its native currency with no currency tag on it at all',
+      () {
+        const sample =
+            'Your credit card ending with#4912 was charged for USD 22.80 '
+            'at ANTHROPIC CLAU on 06/09/26. Available limit is EGP '
+            '47041.09.';
+        final segments = [
+          const SmsRuleSegment.literal('Your credit card ending with#'),
+          const SmsRuleSegment.placeholder(text: '4912', tag: 'cardNumber'),
+          const SmsRuleSegment.literal(' was charged for '),
+          const SmsRuleSegment.placeholder(
+            text: 'USD',
+            tag: 'transactionCurrency',
+          ),
+          const SmsRuleSegment.literal(' '),
+          const SmsRuleSegment.placeholder(
+            text: '22.80',
+            tag: 'transactionValue',
+            role: 'subtract',
+          ),
+          const SmsRuleSegment.literal(' at '),
+          const SmsRuleSegment.placeholder(
+            text: 'ANTHROPIC CLAU',
+            tag: 'vendor',
+          ),
+          const SmsRuleSegment.literal(
+            ' on 06/09/26. Available limit is EGP ',
+          ),
+          const SmsRuleSegment.placeholder(
+            text: '47041.09',
+            tag: 'value',
+            role: 'set',
+          ),
+          const SmsRuleSegment.literal('.'),
+        ];
+        final rule = SmsRule(
+          id: 'r1',
+          bankId: 'b1',
+          operation: 'creditCardBalance',
+          sampleText: sample,
+          segmentsJson: encodeSmsRuleSegments(segments),
+          targetCounterpartyId: null,
+          name: null,
+          currency: null,
+          notifyOnMatch: false,
+          matchMode: 'strict',
+          enabled: true,
+          createdAt: DateTime(2026),
+          profileId: null,
+        );
+
+        final match = matchSmsRule(rule, sample);
+
+        expect(match, isNotNull);
+        expect(match!.cardNumber, '4912');
+        expect(match.transactionCurrency, 'USD');
+        expect(match.transactionValue, closeTo(22.80, 0.001));
+        expect(match.currency, isNull);
+        expect(match.value, closeTo(47041.09, 0.001));
+      },
+    );
   });
 
   group('applySmsRule', () {
@@ -571,6 +637,56 @@ void main() {
         expect(outcome.notificationBody, contains('EGP 85,891.16'));
         final card = await db.select(db.creditCards).getSingle();
         expect(card.currentAvailableBalance, closeTo(85891.16, 0.001));
+      },
+    );
+
+    test(
+      "a 'transactionCurrency' tag shows the transaction in its own "
+      "currency, independent of the card's own currency the balance is "
+      'tracked (and shown) in',
+      () async {
+        final bankId = await insertBank('CIB');
+        await insertCard(
+          bank: 'CIB',
+          lastFourDigits: '4912',
+          currentAvailableBalance: 1000,
+          currency: 'EGP',
+        );
+        final rule = SmsRule(
+          id: 'r1',
+          bankId: bankId,
+          operation: 'creditCardBalance',
+          sampleText: '',
+          segmentsJson: '[]',
+          targetCounterpartyId: null,
+          name: null,
+          currency: null,
+          notifyOnMatch: true,
+          matchMode: 'strict',
+          enabled: true,
+          createdAt: DateTime(2026),
+          profileId: null,
+        );
+        const match = SmsRuleMatch(
+          cardNumber: '4912',
+          value: 47041.09,
+          valueRole: 'set',
+          transactionValue: 22.80,
+          transactionValueRole: 'subtract',
+          transactionCurrency: 'USD',
+        );
+
+        final outcome = await applySmsRule(db, rule, match);
+
+        expect(outcome.applied, isTrue);
+        // The transaction itself shows in USD, unconverted -- not silently
+        // relabeled (or converted) into the card's own EGP.
+        expect(outcome.notificationBody, contains('-USD 22.80'));
+        // But the balance itself is set to exactly the untouched EGP figure
+        // -- no currency tag was marked on `value`, so it's applied as-is.
+        expect(outcome.notificationBody, contains('EGP 47,041.09'));
+        final card = await db.select(db.creditCards).getSingle();
+        expect(card.currentAvailableBalance, closeTo(47041.09, 0.001));
       },
     );
 

@@ -61,6 +61,7 @@ const _tagColors = {
   'currency': Color(0x33FA5252),
   'ignore': Color(0x33868E96),
   'transactionValue': Color(0x33845EF7),
+  'transactionCurrency': Color(0x33E64980),
 };
 
 const _tagLabels = {
@@ -71,6 +72,7 @@ const _tagLabels = {
   'currency': 'Currency',
   'ignore': 'Varies (date, time, ref #...)',
   'transactionValue': 'Transaction amount (notification only)',
+  'transactionCurrency': "Transaction amount's own currency",
 };
 
 const _balanceRoles = [
@@ -407,7 +409,10 @@ class _SmsRuleFormScreenState extends ConsumerState<SmsRuleFormScreen> {
     // `value` tag is often something like the card's new available limit,
     // not the amount actually charged/paid -- this lets the notification
     // still say what the transaction itself was for, without feeding that
-    // number into the balance math at all.
+    // number into the balance math at all. 'transactionCurrency' is the
+    // same idea applied to currency: only needed when the transaction
+    // itself was in a different currency than the balance figure `value`/
+    // `currency` describe (e.g. an EGP card charged for a USD purchase).
     'creditCardBalance' || 'bankAccountBalance' => const [
       'cardNumber',
       'value',
@@ -416,6 +421,7 @@ class _SmsRuleFormScreenState extends ConsumerState<SmsRuleFormScreen> {
       'currency',
       'ignore',
       'transactionValue',
+      'transactionCurrency',
     ],
     _ => const ['value', 'vendor', 'sender', 'currency', 'ignore'],
   };

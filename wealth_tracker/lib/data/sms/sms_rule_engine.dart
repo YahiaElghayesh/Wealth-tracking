@@ -115,6 +115,7 @@ String _placeholderPattern(SmsRuleSegment segment, bool isLast) {
     case 'transactionValue':
       return r'([\d,]+(?:\.\d+)?)';
     case 'currency':
+    case 'transactionCurrency':
       return '([A-Za-z\u0600-\u06FF\$€₺]{1,12})';
     default: // vendor, sender, ignore
       return isLast ? r'(.+)' : r'(.+?)';
@@ -206,6 +207,7 @@ class SmsRuleMatch {
     this.currency,
     this.transactionValue,
     this.transactionValueRole,
+    this.transactionCurrency,
   });
 
   final String? cardNumber;
@@ -233,6 +235,16 @@ class SmsRuleMatch {
   /// with).
   final double? transactionValue;
   final String? transactionValueRole;
+
+  /// Resolved from a `transactionCurrency` placeholder -- a second,
+  /// independent currency capture just for [transactionValue], for a
+  /// message where the transaction itself was in a different currency than
+  /// the balance figure [value]/[currency] describe (e.g. an EGP card
+  /// charged for a USD purchase, which still reports its EGP available
+  /// limit in the same text). Falls back to [currency] when the rule
+  /// didn't mark a separate one -- same single-currency behavior as
+  /// before this tag existed.
+  final String? transactionCurrency;
 }
 
 /// Tries [rule]'s compiled pattern against [rawBody] (normalized first,
@@ -257,6 +269,7 @@ SmsRuleMatch? matchSmsRule(SmsRule rule, String rawBody) {
   String? currency;
   double? transactionValue;
   String? transactionValueRole;
+  String? transactionCurrency;
   var groupIndex = 1;
   for (final segment in segments) {
     if (!segment.isPlaceholder) continue;
@@ -276,10 +289,10 @@ SmsRuleMatch? matchSmsRule(SmsRule rule, String rawBody) {
       case 'currency':
         currency = _resolveCurrencyToken(captured);
       case 'transactionValue':
-        transactionValue = double.tryParse(
-          captured.replaceAll(',', '').trim(),
-        );
+        transactionValue = double.tryParse(captured.replaceAll(',', '').trim());
         transactionValueRole = segment.role;
+      case 'transactionCurrency':
+        transactionCurrency = _resolveCurrencyToken(captured);
     }
   }
   return SmsRuleMatch(
@@ -291,6 +304,7 @@ SmsRuleMatch? matchSmsRule(SmsRule rule, String rawBody) {
     currency: currency,
     transactionValue: transactionValue,
     transactionValueRole: transactionValueRole,
+    transactionCurrency: transactionCurrency,
   );
 }
 
@@ -365,16 +379,21 @@ String _signedValueText(double value, String? role, String currency) {
 }
 
 /// A balance-update notification's body -- shared by [_applyCreditCardBalance]
-/// and [_applyBankAccountBalance]. [transactionValue] (already converted to
-/// [currency], if present) takes priority when the rule tagged one: it's
-/// what the notification shows signed, regardless of what [matchedValue]/
-/// [valueRole] actually did to the balance (see `transactionValue`'s own
-/// doc comment on [SmsRuleSegment] for why those two can be unrelated
-/// numbers). Without one, a 'set' role shows just the new balance rather
-/// than repeating that exact same number as if it were also a signed
-/// delta -- what [matchedValue] holds *is* the new balance for a 'set',
-/// not an amount that was added or subtracted, so showing
-/// "45,623.09 — now 45,623.09" said nothing twice for no reason.
+/// and [_applyBankAccountBalance]. [transactionValue] (shown in
+/// [transactionValueCurrency] -- whatever the rule's own `transactionCurrency`
+/// tag captured, or its `currency` tag if there's no separate one, never
+/// converted -- see `transactionValue`'s own doc comment on [SmsRuleSegment]
+/// for why it's display-only) takes priority when the rule tagged one: it's
+/// what the notification shows signed, regardless of what [matchedValue]/[valueRole]
+/// actually did to the balance, and regardless of what currency the balance
+/// itself is tracked in -- a card billed in EGP can still be charged in USD,
+/// and the notification should say so rather than silently relabeling (or
+/// converting) that amount into the card's own currency. Without one, a
+/// 'set' role shows just the new balance rather than repeating that exact
+/// same number as if it were also a signed delta -- what [matchedValue]
+/// holds *is* the new balance for a 'set', not an amount that was added or
+/// subtracted, so showing "45,623.09 — now 45,623.09" said nothing twice
+/// for no reason.
 String _balanceUpdateNotificationBody({
   required String entityName,
   required double newBalance,
@@ -383,10 +402,11 @@ String _balanceUpdateNotificationBody({
   required String? valueRole,
   required double? transactionValue,
   required String? transactionValueRole,
+  required String transactionValueCurrency,
 }) {
   final nowText = '$entityName is now ${formatMoney(newBalance, currency)}.';
   if (transactionValue != null) {
-    return '${_signedValueText(transactionValue, transactionValueRole, currency)} — $nowText';
+    return '${_signedValueText(transactionValue, transactionValueRole, transactionValueCurrency)} — $nowText';
   }
   if (valueRole == 'set') return nowText;
   return '${_signedValueText(matchedValue, valueRole, currency)} — $nowText';
@@ -472,15 +492,6 @@ Future<SmsRuleApplyOutcome> _applyCreditCardBalance(
         ),
       );
 
-  final transactionValue = match.transactionValue == null
-      ? null
-      : await _resolveMatchedValue(
-          db,
-          match.transactionValue!,
-          match.currency,
-          card.currency,
-        );
-
   return SmsRuleApplyOutcome(
     applied: true,
     notificationTitle: '${card.name} balance updated',
@@ -490,8 +501,10 @@ Future<SmsRuleApplyOutcome> _applyCreditCardBalance(
       currency: card.currency,
       matchedValue: convertedValue,
       valueRole: match.valueRole,
-      transactionValue: transactionValue,
+      transactionValue: match.transactionValue,
       transactionValueRole: match.transactionValueRole,
+      transactionValueCurrency:
+          match.transactionCurrency ?? match.currency ?? card.currency,
     ),
   );
 }
@@ -540,15 +553,6 @@ Future<SmsRuleApplyOutcome> _applyBankAccountBalance(
         ),
       );
 
-  final transactionValue = match.transactionValue == null
-      ? null
-      : await _resolveMatchedValue(
-          db,
-          match.transactionValue!,
-          match.currency,
-          account.currency,
-        );
-
   return SmsRuleApplyOutcome(
     applied: true,
     notificationTitle: '${account.name} balance updated',
@@ -558,8 +562,10 @@ Future<SmsRuleApplyOutcome> _applyBankAccountBalance(
       currency: account.currency,
       matchedValue: convertedValue,
       valueRole: match.valueRole,
-      transactionValue: transactionValue,
+      transactionValue: match.transactionValue,
       transactionValueRole: match.transactionValueRole,
+      transactionValueCurrency:
+          match.transactionCurrency ?? match.currency ?? account.currency,
     ),
   );
 }

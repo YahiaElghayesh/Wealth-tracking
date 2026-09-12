@@ -173,6 +173,8 @@ class _MatchCard extends StatelessWidget {
         'Transaction amount: ${match.transactionValue}'
             '${match.transactionValueRole == null ? '' : ' (${match.transactionValueRole})'}',
       if (match.currency != null) 'Currency: ${match.currency}',
+      if (match.transactionCurrency != null)
+        'Transaction currency: ${match.transactionCurrency}',
       if (match.vendor != null) 'Vendor: "${match.vendor}"',
       if (match.sender != null) 'Sender: "${match.sender}"',
     ];
