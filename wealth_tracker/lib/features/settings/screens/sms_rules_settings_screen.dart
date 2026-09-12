@@ -327,6 +327,16 @@ class _SmsRuleFormScreenState extends ConsumerState<SmsRuleFormScreen> {
   String _matchMode = 'strict';
   final List<_TaggedSpan> _tags = [];
 
+  /// The sample text as of the last time [_tags]' start/end offsets were
+  /// known to line up with it -- compared against on every keystroke in
+  /// [_onSampleTextChanged] to catch the moment they stop lining up. Any
+  /// edit to the text once a tag already exists shifts everything after
+  /// the edit point, silently pointing every later tag at the wrong
+  /// characters (or, if the edit shortened the text, past the end of it
+  /// entirely -- a `RangeError` the moment anything tries to slice a
+  /// stale tag out of the now-shorter string).
+  String _lastKnownSampleText = '';
+
   bool get _isEditing => widget.existing != null;
 
   @override
@@ -358,6 +368,7 @@ class _SmsRuleFormScreenState extends ConsumerState<SmsRuleFormScreen> {
         cursor += len;
       }
     }
+    _lastKnownSampleText = _sampleController.text;
     _sampleController.addListener(_onSampleTextChanged);
   }
 
@@ -374,7 +385,12 @@ class _SmsRuleFormScreenState extends ConsumerState<SmsRuleFormScreen> {
   /// [initState], and stays valid only as long as the text they index into
   /// never changes again -- rewriting it out from under an existing tag
   /// (a loaded rule, or one just tagged this session) would silently
-  /// desync every offset after that point.
+  /// desync every offset after that point, misslicing every tag after the
+  /// edit point (or throwing a `RangeError` outright once a tag's `end`
+  /// no longer fits inside the shortened text). Once a tag exists, any
+  /// further edit to the sample just clears every tag instead of letting
+  /// that happen silently, forcing a clean retag against text that's
+  /// actually still in sync with them.
   void _onSampleTextChanged() {
     if (_tags.isEmpty) {
       final normalized = normalizeSmsBody(_sampleController.text);
@@ -385,6 +401,21 @@ class _SmsRuleFormScreenState extends ConsumerState<SmsRuleFormScreen> {
         );
         return; // The assignment above re-enters this listener to finish.
       }
+      _lastKnownSampleText = _sampleController.text;
+      setState(() {});
+      return;
+    }
+    if (_sampleController.text != _lastKnownSampleText) {
+      _lastKnownSampleText = _sampleController.text;
+      _tags.clear();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            "The sample text changed, so every tag's position was reset "
+            '-- please retag.',
+          ),
+        ),
+      );
     }
     setState(() {});
   }
@@ -912,109 +943,131 @@ class _TagPickerDialogState extends State<_TagPickerDialog> {
         : _balanceRoles;
     return AlertDialog(
       title: const Text('Tag this portion'),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Directional, not just the ambient (LTR) dialog default: a
-          // selection dragged across an Arabic/English or Arabic/digit
-          // boundary is exactly the case bidi text makes hardest to select
-          // precisely (see _detectSampleDirection's own doc comment), so
-          // this preview -- showing back exactly the substring that was
-          // captured -- needs to render it the same way the sample field
-          // itself did, not silently reorder it into something that looks
-          // "close enough" and hides an off-by-a-few-characters selection.
-          // The +/- controls below exist because that drag can still land
-          // on the wrong characters even so -- letting the boundary be
-          // nudged one character at a time means a bad drag is fixable
-          // instead of silently producing a rule that can never match.
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: colors.surface2,
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: colors.border),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Directional, not just the ambient (LTR) dialog default: a
+            // selection dragged across an Arabic/English or Arabic/digit
+            // boundary is exactly the case bidi text makes hardest to select
+            // precisely (see _detectSampleDirection's own doc comment), so
+            // this preview -- showing back exactly the substring that was
+            // captured -- needs to render it the same way the sample field
+            // itself did, not silently reorder it into something that looks
+            // "close enough" and hides an off-by-a-few-characters selection.
+            // The +/- controls below exist because that drag can still land
+            // on the wrong characters even so -- letting the boundary be
+            // nudged one character at a time means a bad drag is fixable
+            // instead of silently producing a rule that can never match.
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: colors.surface2,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: colors.border),
+              ),
+              child: Text(
+                _selectedText,
+                textDirection: _detectSampleDirection(_selectedText),
+                style: const TextStyle(fontWeight: FontWeight.w700),
+              ),
             ),
-            child: Text(
-              _selectedText,
-              textDirection: _detectSampleDirection(_selectedText),
-              style: const TextStyle(fontWeight: FontWeight.w700),
-            ),
-          ),
-          const SizedBox(height: 8),
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text('Start', style: Theme.of(context).textTheme.labelSmall),
-              IconButton(
-                icon: const Icon(Icons.chevron_left),
-                tooltip: 'Include one more character',
-                onPressed: _start > widget.minStart
-                    ? () => setState(() => _start--)
-                    : null,
-              ),
-              IconButton(
-                icon: const Icon(Icons.chevron_right),
-                tooltip: 'Exclude the first character',
-                onPressed: _start < _end - 1
-                    ? () => setState(() => _start++)
-                    : null,
-              ),
-              const SizedBox(width: 12),
-              Text('End', style: Theme.of(context).textTheme.labelSmall),
-              IconButton(
-                icon: const Icon(Icons.chevron_left),
-                tooltip: 'Exclude the last character',
-                onPressed: _end > _start + 1
-                    ? () => setState(() => _end--)
-                    : null,
-              ),
-              IconButton(
-                icon: const Icon(Icons.chevron_right),
-                tooltip: 'Include one more character',
-                onPressed: _end < widget.maxEnd
-                    ? () => setState(() => _end++)
-                    : null,
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          const Text('What is this?'),
-          const SizedBox(height: 8),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              for (final tag in widget.availableTags)
-                ChoiceChip(
-                  label: Text(_tagLabels[tag]!),
-                  selected: _tag == tag,
-                  onSelected: (_) => setState(() {
-                    _tag = tag;
-                    _role = _defaultRoleFor(_tag);
-                  }),
+            const SizedBox(height: 8),
+            Wrap(
+              crossAxisAlignment: WrapCrossAlignment.center,
+              spacing: 0,
+              runSpacing: 4,
+              children: [
+                Text('Start', style: Theme.of(context).textTheme.labelSmall),
+                IconButton(
+                  iconSize: 20,
+                  visualDensity: VisualDensity.compact,
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                  icon: const Icon(Icons.chevron_left),
+                  tooltip: 'Include one more character',
+                  onPressed: _start > widget.minStart
+                      ? () => setState(() => _start--)
+                      : null,
                 ),
-            ],
-          ),
-          if (_tag == 'value' || _tag == 'transactionValue') ...[
-            const SizedBox(height: 16),
-            const Text('What should it do?'),
+                const SizedBox(width: 4),
+                IconButton(
+                  iconSize: 20,
+                  visualDensity: VisualDensity.compact,
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                  icon: const Icon(Icons.chevron_right),
+                  tooltip: 'Exclude the first character',
+                  onPressed: _start < _end - 1
+                      ? () => setState(() => _start++)
+                      : null,
+                ),
+                const SizedBox(width: 16),
+                Text('End', style: Theme.of(context).textTheme.labelSmall),
+                IconButton(
+                  iconSize: 20,
+                  visualDensity: VisualDensity.compact,
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                  icon: const Icon(Icons.chevron_left),
+                  tooltip: 'Exclude the last character',
+                  onPressed: _end > _start + 1
+                      ? () => setState(() => _end--)
+                      : null,
+                ),
+                const SizedBox(width: 4),
+                IconButton(
+                  iconSize: 20,
+                  visualDensity: VisualDensity.compact,
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                  icon: const Icon(Icons.chevron_right),
+                  tooltip: 'Include one more character',
+                  onPressed: _end < widget.maxEnd
+                      ? () => setState(() => _end++)
+                      : null,
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            const Text('What is this?'),
             const SizedBox(height: 8),
             Wrap(
               spacing: 8,
               runSpacing: 8,
               children: [
-                for (final option in roleOptions)
+                for (final tag in widget.availableTags)
                   ChoiceChip(
-                    label: Text(option.$2),
-                    selected: _role == option.$1,
-                    onSelected: (_) => setState(() => _role = option.$1),
+                    label: Text(_tagLabels[tag]!),
+                    selected: _tag == tag,
+                    onSelected: (_) => setState(() {
+                      _tag = tag;
+                      _role = _defaultRoleFor(_tag);
+                    }),
                   ),
               ],
             ),
+            if (_tag == 'value' || _tag == 'transactionValue') ...[
+              const SizedBox(height: 16),
+              const Text('What should it do?'),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  for (final option in roleOptions)
+                    ChoiceChip(
+                      label: Text(option.$2),
+                      selected: _role == option.$1,
+                      onSelected: (_) => setState(() => _role = option.$1),
+                    ),
+                ],
+              ),
+            ],
           ],
-        ],
+        ),
       ),
       actions: [
         TextButton(
