@@ -2,9 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/models/sms_rule_display.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../data/db/database.dart';
 import '../../../data/sms/sms_ledger_processor.dart';
+import '../../../data/sms/sms_rule_engine.dart' show decodeSmsRuleSegments;
 import '../../networth/providers/asset_providers.dart' show databaseProvider;
+import '../providers/sms_rule_providers.dart';
 
 const _operationLabels = {
   'creditCardBalance': 'Credit card balance',
@@ -112,6 +116,9 @@ class _SmsTestScreenState extends ConsumerState<SmsTestScreen> {
   Widget build(BuildContext context) {
     final colors = context.appColors;
     final matches = _lastMatches;
+    final rules = ref.watch(smsRulesStreamProvider).valueOrNull ?? const [];
+    final banks = ref.watch(banksStreamProvider).valueOrNull ?? const [];
+    final bankNames = {for (final b in banks) b.id: b.name};
 
     return Scaffold(
       appBar: AppBar(title: const Text('Test an SMS')),
@@ -172,7 +179,7 @@ class _SmsTestScreenState extends ConsumerState<SmsTestScreen> {
             ),
             if (matches != null) ...[
               const SizedBox(height: 20),
-              if (matches.isEmpty)
+              if (matches.isEmpty) ...[
                 Container(
                   width: double.infinity,
                   padding: const EdgeInsets.all(14),
@@ -185,8 +192,34 @@ class _SmsTestScreenState extends ConsumerState<SmsTestScreen> {
                     'No SMS Rule matched this message -- nothing was '
                     'applied.',
                   ),
-                )
-              else ...[
+                ),
+                if (rules.isNotEmpty) ...[
+                  const SizedBox(height: 20),
+                  Text(
+                    'What each rule requires',
+                    style: Theme.of(context).textTheme.labelLarge,
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Compare this against the message above, piece by '
+                    'piece -- highlighted portions are what a rule '
+                    "extracts; everything else has to appear exactly "
+                    "as shown (word-for-word in Strict mode, or just the "
+                    'couple of words next to each highlight in Flexible).',
+                    style: Theme.of(
+                      context,
+                    ).textTheme.bodySmall?.copyWith(color: colors.textDim),
+                  ),
+                  const SizedBox(height: 8),
+                  for (final rule in rules) ...[
+                    _RuleRequirementCard(
+                      rule: rule,
+                      bankName: bankNames[rule.bankId],
+                    ),
+                    const SizedBox(height: 10),
+                  ],
+                ],
+              ] else ...[
                 Text(
                   '${matches.length} rule${matches.length == 1 ? '' : 's'} '
                   'matched and ${matches.length == 1 ? 'was' : 'were'} '
@@ -202,6 +235,86 @@ class _SmsTestScreenState extends ConsumerState<SmsTestScreen> {
             ],
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// Shows exactly what one rule requires, tag by tag -- the same
+/// highlighted rendering the rule editor itself uses (see
+/// `sms_rule_display.dart`), so a rule that quietly can't match anymore
+/// (a stale/off tag boundary, a mismatched literal) can be spotted by eye
+/// directly against the real message above, without anyone needing to
+/// describe or screenshot it -- rendering loses nothing here, since this
+/// reads the rule's own saved segments straight from the database.
+class _RuleRequirementCard extends StatelessWidget {
+  const _RuleRequirementCard({required this.rule, required this.bankName});
+
+  final SmsRule rule;
+  final String? bankName;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.appColors;
+    final segments = decodeSmsRuleSegments(rule.segmentsJson);
+    final title = (rule.name?.trim().isNotEmpty ?? false)
+        ? rule.name!
+        : _operationLabels[rule.operation] ?? rule.operation;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: colors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  title,
+                  style: Theme.of(context).textTheme.titleSmall,
+                ),
+              ),
+              if (!rule.enabled)
+                Text(
+                  'Disabled',
+                  style: Theme.of(
+                    context,
+                  ).textTheme.labelSmall?.copyWith(color: colors.bad),
+                ),
+            ],
+          ),
+          Text(
+            '${bankName ?? 'Unknown bank'} · '
+            '${_operationLabels[rule.operation] ?? rule.operation} · '
+            '${rule.matchMode == 'flexible' ? 'Flexible' : 'Strict'}',
+            style: Theme.of(
+              context,
+            ).textTheme.labelSmall?.copyWith(color: colors.textDim),
+          ),
+          const SizedBox(height: 8),
+          Text.rich(
+            TextSpan(
+              children: [
+                for (final segment in segments)
+                  segment.isPlaceholder
+                      ? TextSpan(
+                          text: segment.text,
+                          style: TextStyle(
+                            backgroundColor: smsTagColors[segment.tag],
+                            fontWeight: FontWeight.w700,
+                          ),
+                        )
+                      : TextSpan(text: segment.text),
+              ],
+            ),
+            textDirection: detectSampleDirection(rule.sampleText),
+          ),
+        ],
       ),
     );
   }

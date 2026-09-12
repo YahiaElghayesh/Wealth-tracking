@@ -4,6 +4,7 @@ import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/models/currency.dart';
+import '../../../core/models/sms_rule_display.dart';
 import '../../../core/models/sms_rule_segment.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/currency_picker_field.dart';
@@ -14,36 +15,6 @@ import '../providers/sms_rule_providers.dart';
 import 'banks_settings_screen.dart';
 import 'sms_test_screen.dart';
 
-/// The Unicode "first strong character" rule -- the same one browsers and
-/// the phone's own SMS app use to pick a paragraph's base direction when
-/// none is set explicitly. Needed because this screen's ambient
-/// `Directionality` is LTR (an English-language settings screen), which
-/// would otherwise misalign and visually reorder an Arabic-dominant real
-/// bank SMS compared to how it renders in the SMS app itself -- making it
-/// hard to tell what a drag-select is actually about to capture, especially
-/// for a Latin/English substring (a vendor name, an amount) sitting inside
-/// the Arabic. Scans for the first character that is strongly one
-/// direction or the other; a message with no such character (pure digits/
-/// punctuation) falls back to LTR.
-TextDirection _detectSampleDirection(String text) {
-  for (final rune in text.runes) {
-    final isRtl =
-        (rune >= 0x0590 && rune <= 0x05FF) || // Hebrew
-        (rune >= 0x0600 && rune <= 0x06FF) || // Arabic
-        (rune >= 0x0750 && rune <= 0x077F) || // Arabic Supplement
-        (rune >= 0x08A0 && rune <= 0x08FF) || // Arabic Extended-A
-        (rune >= 0xFB50 && rune <= 0xFDFF) || // Arabic Presentation Forms-A
-        (rune >= 0xFE70 && rune <= 0xFEFF); // Arabic Presentation Forms-B
-    if (isRtl) return TextDirection.rtl;
-    final isLtrLetter =
-        (rune >= 0x0041 && rune <= 0x005A) || // A-Z
-        (rune >= 0x0061 && rune <= 0x007A) || // a-z
-        (rune >= 0x00C0 && rune <= 0x02AF); // Latin-1 Supplement / Extended
-    if (isLtrLetter) return TextDirection.ltr;
-  }
-  return TextDirection.ltr;
-}
-
 const _operations = [
   ('creditCardBalance', 'Credit card balance'),
   ('bankAccountBalance', 'Bank account balance'),
@@ -53,28 +24,6 @@ const _operations = [
 String _operationLabel(String operation) => _operations
     .firstWhere((o) => o.$1 == operation, orElse: () => (operation, operation))
     .$2;
-
-const _tagColors = {
-  'cardNumber': Color(0x334C6EF5),
-  'value': Color(0x3312B886),
-  'vendor': Color(0x33F59F00),
-  'sender': Color(0x33AE3EC9),
-  'currency': Color(0x33FA5252),
-  'ignore': Color(0x33868E96),
-  'transactionValue': Color(0x33845EF7),
-  'transactionCurrency': Color(0x33E64980),
-};
-
-const _tagLabels = {
-  'cardNumber': 'Card/account number',
-  'value': 'Value',
-  'vendor': 'Vendor name',
-  'sender': 'Sender name',
-  'currency': 'Currency',
-  'ignore': 'Varies (date, time, ref #...)',
-  'transactionValue': 'Transaction amount (notification only)',
-  'transactionCurrency': "Transaction amount's own currency",
-};
 
 const _balanceRoles = [
   ('set', 'Set to this'),
@@ -721,7 +670,7 @@ class _SmsRuleFormScreenState extends ConsumerState<SmsRuleFormScreen> {
         TextSpan(
           text: text.substring(tag.start, tag.end),
           style: TextStyle(
-            backgroundColor: _tagColors[tag.tag],
+            backgroundColor: smsTagColors[tag.tag],
             fontWeight: FontWeight.w700,
           ),
         ),
@@ -740,7 +689,7 @@ class _SmsRuleFormScreenState extends ConsumerState<SmsRuleFormScreen> {
     final counterparties =
         ref.watch(counterpartiesStreamProvider).valueOrNull ?? const [];
     final colors = context.appColors;
-    final sampleDirection = _detectSampleDirection(_sampleController.text);
+    final sampleDirection = detectSampleDirection(_sampleController.text);
 
     return Scaffold(
       appBar: AppBar(
@@ -900,7 +849,7 @@ class _SmsRuleFormScreenState extends ConsumerState<SmsRuleFormScreen> {
                   for (final tag in _tags)
                     InputChip(
                       label: Text(
-                        '${_tagLabels[tag.tag]}: "${_sampleController.text.substring(tag.start, tag.end)}"'
+                        '${smsTagLabels[tag.tag]}: "${_sampleController.text.substring(tag.start, tag.end)}"'
                         '${tag.role == null ? '' : ' (${_roleLabel(_operation, tag.tag, tag.role)})'}',
                       ),
                       onDeleted: () => setState(() => _tags.remove(tag)),
@@ -1009,7 +958,7 @@ class _TagPickerDialogState extends State<_TagPickerDialog> {
             // Directional, not just the ambient (LTR) dialog default: a
             // selection dragged across an Arabic/English or Arabic/digit
             // boundary is exactly the case bidi text makes hardest to select
-            // precisely (see _detectSampleDirection's own doc comment), so
+            // precisely (see detectSampleDirection's own doc comment), so
             // this preview -- showing back exactly the substring that was
             // captured -- needs to render it the same way the sample field
             // itself did, not silently reorder it into something that looks
@@ -1028,7 +977,7 @@ class _TagPickerDialogState extends State<_TagPickerDialog> {
               ),
               child: Text(
                 _selectedText,
-                textDirection: _detectSampleDirection(_selectedText),
+                textDirection: detectSampleDirection(_selectedText),
                 style: const TextStyle(fontWeight: FontWeight.w700),
               ),
             ),
@@ -1098,7 +1047,7 @@ class _TagPickerDialogState extends State<_TagPickerDialog> {
               children: [
                 for (final tag in widget.availableTags)
                   ChoiceChip(
-                    label: Text(_tagLabels[tag]!),
+                    label: Text(smsTagLabels[tag]!),
                     selected: _tag == tag,
                     onSelected: (_) => setState(() {
                       _tag = tag;
