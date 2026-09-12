@@ -444,13 +444,27 @@ class _SmsRuleFormScreenState extends ConsumerState<SmsRuleFormScreen> {
       return;
     }
 
-    final result = await showDialog<(String, String?)>(
+    // How far the boundary can be nudged in [_TagPickerDialog] without
+    // running into a neighboring tag -- the nearest existing tag's end to
+    // the left, and the nearest existing tag's start to the right (or the
+    // text's own edges, with nothing tagged that way yet).
+    var minStart = 0;
+    for (final t in _tags) {
+      if (t.end <= selection.start && t.end > minStart) minStart = t.end;
+    }
+    var maxEnd = _sampleController.text.length;
+    for (final t in _tags) {
+      if (t.start >= selection.end && t.start < maxEnd) maxEnd = t.start;
+    }
+
+    final result = await showDialog<(String, String?, int, int)>(
       context: context,
       builder: (context) => _TagPickerDialog(
-        selectedText: _sampleController.text.substring(
-          selection.start,
-          selection.end,
-        ),
+        fullText: _sampleController.text,
+        initialStart: selection.start,
+        initialEnd: selection.end,
+        minStart: minStart,
+        maxEnd: maxEnd,
         availableTags: _availableTags,
         operation: _operation,
       ),
@@ -459,8 +473,8 @@ class _SmsRuleFormScreenState extends ConsumerState<SmsRuleFormScreen> {
     setState(() {
       _tags.add(
         _TaggedSpan(
-          start: selection.start,
-          end: selection.end,
+          start: result.$3,
+          end: result.$4,
           tag: result.$1,
           role: result.$2,
         ),
@@ -847,12 +861,20 @@ class _SmsRuleFormScreenState extends ConsumerState<SmsRuleFormScreen> {
 
 class _TagPickerDialog extends StatefulWidget {
   const _TagPickerDialog({
-    required this.selectedText,
+    required this.fullText,
+    required this.initialStart,
+    required this.initialEnd,
+    required this.minStart,
+    required this.maxEnd,
     required this.availableTags,
     required this.operation,
   });
 
-  final String selectedText;
+  final String fullText;
+  final int initialStart;
+  final int initialEnd;
+  final int minStart;
+  final int maxEnd;
   final List<String> availableTags;
   final String operation;
 
@@ -863,6 +885,8 @@ class _TagPickerDialog extends StatefulWidget {
 class _TagPickerDialogState extends State<_TagPickerDialog> {
   late String _tag = widget.availableTags.first;
   String? _role;
+  late int _start = widget.initialStart;
+  late int _end = widget.initialEnd;
 
   @override
   void initState() {
@@ -876,30 +900,86 @@ class _TagPickerDialogState extends State<_TagPickerDialog> {
     _ => null,
   };
 
+  String get _selectedText => widget.fullText.substring(_start, _end);
+
   @override
   Widget build(BuildContext context) {
+    final colors = context.appColors;
     final roleOptions = _tag == 'transactionValue'
         ? _transactionValueRoles
         : widget.operation == 'ledgerPayment'
         ? _ledgerRoles
         : _balanceRoles;
     return AlertDialog(
-      // Directional, not just the ambient (LTR) dialog default: a
-      // selection dragged across an Arabic/English or Arabic/digit
-      // boundary is exactly the case bidi text makes hardest to select
-      // precisely (see _detectSampleDirection's own doc comment), so this
-      // confirmation -- showing back exactly the substring that was
-      // captured -- needs to render it the same way the sample field
-      // itself did, not silently reorder it into something that looks
-      // "close enough" and hides an off-by-a-few-characters selection.
-      title: Text(
-        'Tag "${widget.selectedText}"',
-        textDirection: _detectSampleDirection(widget.selectedText),
-      ),
+      title: const Text('Tag this portion'),
       content: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Directional, not just the ambient (LTR) dialog default: a
+          // selection dragged across an Arabic/English or Arabic/digit
+          // boundary is exactly the case bidi text makes hardest to select
+          // precisely (see _detectSampleDirection's own doc comment), so
+          // this preview -- showing back exactly the substring that was
+          // captured -- needs to render it the same way the sample field
+          // itself did, not silently reorder it into something that looks
+          // "close enough" and hides an off-by-a-few-characters selection.
+          // The +/- controls below exist because that drag can still land
+          // on the wrong characters even so -- letting the boundary be
+          // nudged one character at a time means a bad drag is fixable
+          // instead of silently producing a rule that can never match.
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: colors.surface2,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: colors.border),
+            ),
+            child: Text(
+              _selectedText,
+              textDirection: _detectSampleDirection(_selectedText),
+              style: const TextStyle(fontWeight: FontWeight.w700),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text('Start', style: Theme.of(context).textTheme.labelSmall),
+              IconButton(
+                icon: const Icon(Icons.chevron_left),
+                tooltip: 'Include one more character',
+                onPressed: _start > widget.minStart
+                    ? () => setState(() => _start--)
+                    : null,
+              ),
+              IconButton(
+                icon: const Icon(Icons.chevron_right),
+                tooltip: 'Exclude the first character',
+                onPressed: _start < _end - 1
+                    ? () => setState(() => _start++)
+                    : null,
+              ),
+              const SizedBox(width: 12),
+              Text('End', style: Theme.of(context).textTheme.labelSmall),
+              IconButton(
+                icon: const Icon(Icons.chevron_left),
+                tooltip: 'Exclude the last character',
+                onPressed: _end > _start + 1
+                    ? () => setState(() => _end--)
+                    : null,
+              ),
+              IconButton(
+                icon: const Icon(Icons.chevron_right),
+                tooltip: 'Include one more character',
+                onPressed: _end < widget.maxEnd
+                    ? () => setState(() => _end++)
+                    : null,
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
           const Text('What is this?'),
           const SizedBox(height: 8),
           Wrap(
@@ -942,7 +1022,7 @@ class _TagPickerDialogState extends State<_TagPickerDialog> {
           child: const Text('Cancel'),
         ),
         FilledButton(
-          onPressed: () => Navigator.pop(context, (_tag, _role)),
+          onPressed: () => Navigator.pop(context, (_tag, _role, _start, _end)),
           child: const Text('Tag'),
         ),
       ],
