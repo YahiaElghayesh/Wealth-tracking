@@ -159,10 +159,19 @@ String? _resolveCurrencyToken(String raw) {
 /// literal text and numbered capture groups for each placeholder, in the
 /// same order they appear in [segments]. [flexible] selects which literal
 /// escaper is used ([_escapeLiteral] for 'strict' mode, [_escapeLiteralFlexible]
-/// for 'flexible') -- see [SmsRule.matchMode].
+/// for 'flexible') -- see [SmsRule.matchMode]. [lastSegmentIsRuleEnd]
+/// exists only for [findSmsRuleMismatch]'s incremental prefix checks: a
+/// vendor/sender/`ignore` placeholder becomes a greedy, unbounded capture
+/// specifically when it's the very last segment of the *whole* rule
+/// (nothing follows it to stop at) -- pass `false` when [segments] is
+/// actually just a leading prefix of a longer rule, so that placeholder
+/// still stops where it always would once the rest of the rule is
+/// considered, rather than swallowing the remainder of the message and
+/// reporting a false "ran out of text" mismatch past it.
 RegExp compileSmsRulePattern(
   List<SmsRuleSegment> segments, {
   bool flexible = false,
+  bool lastSegmentIsRuleEnd = true,
 }) {
   final buffer = StringBuffer();
   for (var i = 0; i < segments.length; i++) {
@@ -174,7 +183,8 @@ RegExp compileSmsRulePattern(
             : _escapeLiteral(segment.text),
       );
     } else {
-      buffer.write(_placeholderPattern(segment, i == segments.length - 1));
+      final isLast = lastSegmentIsRuleEnd && i == segments.length - 1;
+      buffer.write(_placeholderPattern(segment, isLast));
     }
   }
   return RegExp(buffer.toString(), caseSensitive: false, dotAll: true);
@@ -294,6 +304,7 @@ SmsRuleMismatch? findSmsRuleMismatch(SmsRule rule, String rawBody) {
     final prefixPattern = compileSmsRulePattern(
       segments.sublist(0, count),
       flexible: flexible,
+      lastSegmentIsRuleEnd: count == segments.length,
     );
     // No `^` here -- [RegExp.matchAsPrefix] already only tries a match
     // that begins exactly at [start] on its own; a literal `^` in the

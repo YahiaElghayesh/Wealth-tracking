@@ -523,6 +523,62 @@ void main() {
       expect(mismatch!.matchedThroughIndex, -1);
       expect(mismatch.expected, contains('Your credit card ending with#'));
     });
+
+    test(
+      "a vendor/sender/'ignore' tag followed by more literal text doesn't "
+      'greedily swallow the rest of the message when only checked as part '
+      'of a prefix -- regression test for a bug in this very function: '
+      "compiling segments.sublist(0, count) let that tag's own pattern "
+      "think IT was the rule's last segment (nothing after it in the "
+      'sublist), making it consume everything to the end of the message '
+      "and falsely reporting the next (real) literal's mismatch as "
+      '"your message has nothing left" instead of what it actually has.',
+      () {
+        final ignoreRule = SmsRule(
+          id: 'r2',
+          bankId: 'b1',
+          operation: 'creditCardBalance',
+          sampleText: 'Card #4912 from SomeVendor. Thanks for shopping.',
+          segmentsJson: encodeSmsRuleSegments([
+            const SmsRuleSegment.literal('Card #'),
+            const SmsRuleSegment.placeholder(text: '4912', tag: 'cardNumber'),
+            const SmsRuleSegment.literal(' from '),
+            const SmsRuleSegment.placeholder(
+              text: 'SomeVendor',
+              tag: 'ignore',
+            ),
+            const SmsRuleSegment.literal('. Thanks for shopping.'),
+          ]),
+          targetCounterpartyId: null,
+          name: null,
+          currency: null,
+          notifyOnMatch: false,
+          matchMode: 'strict',
+          enabled: true,
+          createdAt: DateTime(2026),
+          profileId: null,
+        );
+        const divergent =
+            'Card #4912 from SomeVendor. Totally different ending here.';
+
+        final mismatch = findSmsRuleMismatch(ignoreRule, divergent);
+
+        expect(mismatch, isNotNull);
+        // Matched through the 'ignore' tag (index 3); the mismatch is the
+        // trailing literal that comes after it, not a false "ran out of
+        // text" from the tag having swallowed the whole rest of the
+        // message.
+        expect(mismatch!.matchedThroughIndex, 3);
+        expect(mismatch.expected, contains('Thanks for shopping.'));
+        // Starts mid-word ("omeVendor...") since the now-non-greedy
+        // `ignore` tag matched the minimum one character in this
+        // isolated prefix check -- the point of this assertion is just
+        // that real, non-empty text past it shows up at all, not that
+        // the window starts at a clean boundary.
+        expect(mismatch.actualNearby, isNotEmpty);
+        expect(mismatch.actualNearby, contains('Totally diffe'));
+      },
+    );
   });
 
   group('applySmsRule', () {
