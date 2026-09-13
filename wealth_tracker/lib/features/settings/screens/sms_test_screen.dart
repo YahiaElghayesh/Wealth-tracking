@@ -6,7 +6,8 @@ import '../../../core/models/sms_rule_display.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../data/db/database.dart';
 import '../../../data/sms/sms_ledger_processor.dart';
-import '../../../data/sms/sms_rule_engine.dart' show decodeSmsRuleSegments;
+import '../../../data/sms/sms_rule_engine.dart'
+    show decodeSmsRuleSegments, findSmsRuleMismatch;
 import '../../networth/providers/asset_providers.dart' show databaseProvider;
 import '../providers/sms_rule_providers.dart';
 
@@ -37,6 +38,7 @@ class _SmsTestScreenState extends ConsumerState<SmsTestScreen> {
   final _controller = TextEditingController();
   bool _running = false;
   List<MatchedSmsRule>? _lastMatches;
+  String _lastTestedBody = '';
 
   @override
   void initState() {
@@ -109,6 +111,7 @@ class _SmsTestScreenState extends ConsumerState<SmsTestScreen> {
     setState(() {
       _running = false;
       _lastMatches = matches;
+      _lastTestedBody = body;
     });
   }
 
@@ -221,6 +224,7 @@ class _SmsTestScreenState extends ConsumerState<SmsTestScreen> {
                     _RuleRequirementCard(
                       rule: rule,
                       bankName: bankNames[rule.bankId],
+                      testedBody: _lastTestedBody,
                     ),
                     const SizedBox(height: 10),
                   ],
@@ -254,15 +258,21 @@ class _SmsTestScreenState extends ConsumerState<SmsTestScreen> {
 /// describe or screenshot it -- rendering loses nothing here, since this
 /// reads the rule's own saved segments straight from the database.
 class _RuleRequirementCard extends StatelessWidget {
-  const _RuleRequirementCard({required this.rule, required this.bankName});
+  const _RuleRequirementCard({
+    required this.rule,
+    required this.bankName,
+    required this.testedBody,
+  });
 
   final SmsRule rule;
   final String? bankName;
+  final String testedBody;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.appColors;
     final segments = decodeSmsRuleSegments(rule.segmentsJson);
+    final mismatch = findSmsRuleMismatch(rule, testedBody);
     final title = (rule.name?.trim().isNotEmpty ?? false)
         ? rule.name!
         : _operationLabels[rule.operation] ?? rule.operation;
@@ -320,6 +330,43 @@ class _RuleRequirementCard extends StatelessWidget {
             ),
             textDirection: detectSampleDirection(rule.sampleText),
           ),
+          if (mismatch != null) ...[
+            const SizedBox(height: 10),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: colors.bad.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: colors.bad.withValues(alpha: 0.4)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    mismatch.matchedThroughIndex < 0
+                        ? "Doesn't even match this rule's very first part "
+                              '(expects ${mismatch.expected}).'
+                        : 'Matches up through part '
+                              '${mismatch.matchedThroughIndex + 1} of '
+                              '${mismatch.totalSegments}, then expects '
+                              '${mismatch.expected} next.',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: colors.bad,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Your message actually continues with: '
+                    '"${mismatch.actualNearby}"',
+                    textDirection: detectSampleDirection(mismatch.actualNearby),
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                ],
+              ),
+            ),
+          ],
         ],
       ),
     );

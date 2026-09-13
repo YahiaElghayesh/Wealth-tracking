@@ -247,6 +247,92 @@ class SmsRuleMatch {
   final String? transactionCurrency;
 }
 
+/// Where a non-matching rule's pattern actually stops agreeing with a real
+/// message -- since a full match/no-match answer alone gives no way to
+/// tell "off by one character near the end" from "completely unrelated
+/// rule" without manually diffing the rule's requirements against the
+/// message by eye, which is exactly what a subtly wrong character (one
+/// that renders identically either way) defeats. `matchedThroughIndex`
+/// is the index of the last segment (in [SmsRule.segmentsJson] order)
+/// that could still be satisfied by some position in the message,
+/// starting from -1 if not even the very first segment could; `expected`
+/// is that next unsatisfied segment's own text (a literal's exact
+/// wording, or `<tag name>` for a placeholder); `actualNearby` is a
+/// short window of the real message starting at the point every earlier
+/// segment left off, for a side-by-side comparison against [expected].
+class SmsRuleMismatch {
+  const SmsRuleMismatch({
+    required this.matchedThroughIndex,
+    required this.totalSegments,
+    required this.expected,
+    required this.actualNearby,
+  });
+
+  final int matchedThroughIndex;
+  final int totalSegments;
+  final String expected;
+  final String actualNearby;
+}
+
+const _mismatchContextChars = 24;
+
+/// Finds the furthest a non-matching [rule] could get into [rawBody]
+/// before its own requirements stopped being satisfiable -- see
+/// [SmsRuleMismatch]. Only meaningful to call after [matchSmsRule] has
+/// already returned null for the same rule/body; returns null itself if
+/// the rule has no segments to check, or (surprisingly) it turns out to
+/// match after all.
+SmsRuleMismatch? findSmsRuleMismatch(SmsRule rule, String rawBody) {
+  final segments = decodeSmsRuleSegments(rule.segmentsJson);
+  if (segments.isEmpty) return null;
+  final flexible = rule.matchMode == 'flexible';
+  final body = normalizeSmsBody(rawBody);
+
+  var matchedThroughIndex = -1;
+  var matchedEnd = 0;
+  for (var count = 1; count <= segments.length; count++) {
+    final prefixPattern = compileSmsRulePattern(
+      segments.sublist(0, count),
+      flexible: flexible,
+    );
+    // No `^` here -- [RegExp.matchAsPrefix] already only tries a match
+    // that begins exactly at [start] on its own; a literal `^` in the
+    // pattern would anchor to the absolute start of [body] instead (index
+    // 0) and never succeed for any other [start].
+    final atStart = RegExp(
+      '(?:${prefixPattern.pattern})',
+      caseSensitive: false,
+      dotAll: true,
+    );
+    Match? found;
+    for (var start = 0; start <= body.length; start++) {
+      final m = atStart.matchAsPrefix(body, start);
+      if (m != null) {
+        found = m;
+        break;
+      }
+    }
+    if (found == null) break;
+    matchedThroughIndex = count - 1;
+    matchedEnd = found.end;
+  }
+  if (matchedThroughIndex == segments.length - 1) return null;
+
+  final nextSegment = segments[matchedThroughIndex + 1];
+  final expected = nextSegment.isPlaceholder
+      ? '<${nextSegment.tag}>'
+      : '"${nextSegment.text}"';
+  final windowEnd = (matchedEnd + _mismatchContextChars).clamp(0, body.length);
+  final actualNearby = body.substring(matchedEnd, windowEnd);
+
+  return SmsRuleMismatch(
+    matchedThroughIndex: matchedThroughIndex,
+    totalSegments: segments.length,
+    expected: expected,
+    actualNearby: actualNearby,
+  );
+}
+
 /// Tries [rule]'s compiled pattern against [rawBody] (normalized first,
 /// same as the sample it was built from), returning the extracted,
 /// tagged portions on a match or `null` otherwise.

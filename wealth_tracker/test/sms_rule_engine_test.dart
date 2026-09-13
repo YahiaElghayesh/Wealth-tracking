@@ -468,6 +468,63 @@ void main() {
     );
   });
 
+  group('findSmsRuleMismatch', () {
+    final rule = SmsRule(
+      id: 'r1',
+      bankId: 'b1',
+      operation: 'creditCardBalance',
+      sampleText: _cardBalanceSample,
+      segmentsJson: encodeSmsRuleSegments(_cardBalanceSegments()),
+      targetCounterpartyId: null,
+      name: null,
+      currency: null,
+      notifyOnMatch: false,
+      matchMode: 'strict',
+      enabled: true,
+      createdAt: DateTime(2026),
+      profileId: null,
+    );
+
+    test('returns null for a rule that actually matches', () {
+      expect(findSmsRuleMismatch(rule, _cardBalanceSample), isNull);
+    });
+
+    test(
+      'pinpoints the first segment that stops matching, and shows what '
+      'the real text has there instead',
+      () {
+        const divergent =
+            'Your credit card ending with#4912 was charged for something '
+            'else entirely, a completely different message from here on.';
+
+        final mismatch = findSmsRuleMismatch(rule, divergent);
+
+        expect(mismatch, isNotNull);
+        // Segment 0 is the leading literal, segment 1 is the cardNumber
+        // placeholder -- both are satisfied ("...ending with#4912"), so
+        // the mismatch should be pinned on segment 2, the next literal.
+        expect(mismatch!.matchedThroughIndex, 1);
+        expect(mismatch.totalSegments, _cardBalanceSegments().length);
+        expect(
+          mismatch.expected,
+          '" was charged for EGP 958.54 at Breadfast on 27/08/26. '
+          'Card available limit is EGP "',
+        );
+        expect(mismatch.actualNearby, contains('was charged for'));
+      },
+    );
+
+    test('flags even the very first segment when nothing matches at all', () {
+      const unrelated = 'Your OTP is 123456, do not share it with anyone.';
+
+      final mismatch = findSmsRuleMismatch(rule, unrelated);
+
+      expect(mismatch, isNotNull);
+      expect(mismatch!.matchedThroughIndex, -1);
+      expect(mismatch.expected, contains('Your credit card ending with#'));
+    });
+  });
+
   group('applySmsRule', () {
     late AppDatabase db;
 
