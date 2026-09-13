@@ -468,7 +468,7 @@ void main() {
     );
   });
 
-  group('findSmsRuleMismatch', () {
+  group('findUnsatisfiedRequirements', () {
     final rule = SmsRule(
       id: 'r1',
       bankId: 'b1',
@@ -485,54 +485,51 @@ void main() {
       profileId: null,
     );
 
-    test('returns null for a rule that actually matches', () {
-      expect(findSmsRuleMismatch(rule, _cardBalanceSample), isNull);
+    test('returns empty for a rule that actually matches', () {
+      expect(findUnsatisfiedRequirements(rule, _cardBalanceSample), isEmpty);
     });
 
     test(
-      'pinpoints the first segment that stops matching, and shows what '
-      'the real text has there instead',
+      "reports a strict rule's literal text that doesn't appear anywhere "
+      'in the message, independent of where any tag happens to land',
       () {
         const divergent =
             'Your credit card ending with#4912 was charged for something '
             'else entirely, a completely different message from here on.';
 
-        final mismatch = findSmsRuleMismatch(rule, divergent);
+        final unsatisfied = findUnsatisfiedRequirements(rule, divergent);
 
-        expect(mismatch, isNotNull);
-        // Segment 0 is the leading literal, segment 1 is the cardNumber
-        // placeholder -- both are satisfied ("...ending with#4912"), so
-        // the mismatch should be pinned on segment 2, the next literal.
-        expect(mismatch!.matchedThroughIndex, 1);
-        expect(mismatch.totalSegments, _cardBalanceSegments().length);
+        expect(unsatisfied, hasLength(1));
         expect(
-          mismatch.expected,
+          unsatisfied.single.description,
           '" was charged for EGP 958.54 at Breadfast on 27/08/26. '
           'Card available limit is EGP "',
         );
-        expect(mismatch.actualNearby, contains('was charged for'));
       },
     );
 
-    test('flags even the very first segment when nothing matches at all', () {
+    test('reports every unmet literal when nothing matches at all', () {
       const unrelated = 'Your OTP is 123456, do not share it with anyone.';
 
-      final mismatch = findSmsRuleMismatch(rule, unrelated);
+      final unsatisfied = findUnsatisfiedRequirements(rule, unrelated);
 
-      expect(mismatch, isNotNull);
-      expect(mismatch!.matchedThroughIndex, -1);
-      expect(mismatch.expected, contains('Your credit card ending with#'));
+      expect(unsatisfied, hasLength(2));
+      expect(
+        unsatisfied[0].description,
+        contains('Your credit card ending with#'),
+      );
+      expect(unsatisfied[1].description, contains('.'));
     });
 
     test(
-      "a vendor/sender/'ignore' tag followed by more literal text doesn't "
-      'greedily swallow the rest of the message when only checked as part '
-      'of a prefix -- regression test for a bug in this very function: '
-      "compiling segments.sublist(0, count) let that tag's own pattern "
-      "think IT was the rule's last segment (nothing after it in the "
-      'sublist), making it consume everything to the end of the message '
-      "and falsely reporting the next (real) literal's mismatch as "
-      '"your message has nothing left" instead of what it actually has.',
+      "a vendor/sender/'ignore' tag correctly covering its portion of the "
+      "message doesn't get blamed for a mismatch that's actually in the "
+      'literal text after it -- regression coverage for the previous '
+      'approach (walking the pattern incrementally), which could blame a '
+      'correctly-placed free-form tag for a completely unrelated literal '
+      "mismatch further along, since that tag's own greedy/non-greedy "
+      'behavior is not well-defined when only part of the pattern is '
+      'checked in isolation.',
       () {
         final ignoreRule = SmsRule(
           id: 'r2',
@@ -561,22 +558,59 @@ void main() {
         const divergent =
             'Card #4912 from SomeVendor. Totally different ending here.';
 
-        final mismatch = findSmsRuleMismatch(ignoreRule, divergent);
+        final unsatisfied = findUnsatisfiedRequirements(ignoreRule, divergent);
 
-        expect(mismatch, isNotNull);
-        // Matched through the 'ignore' tag (index 3); the mismatch is the
-        // trailing literal that comes after it, not a false "ran out of
-        // text" from the tag having swallowed the whole rest of the
-        // message.
-        expect(mismatch!.matchedThroughIndex, 3);
-        expect(mismatch.expected, contains('Thanks for shopping.'));
-        // Starts mid-word ("omeVendor...") since the now-non-greedy
-        // `ignore` tag matched the minimum one character in this
-        // isolated prefix check -- the point of this assertion is just
-        // that real, non-empty text past it shows up at all, not that
-        // the window starts at a clean boundary.
-        expect(mismatch.actualNearby, isNotEmpty);
-        expect(mismatch.actualNearby, contains('Totally diffe'));
+        expect(unsatisfied, hasLength(1));
+        expect(
+          unsatisfied.single.description,
+          contains('Thanks for shopping.'),
+        );
+      },
+    );
+
+    test(
+      "a flexible rule's long literal is checked as its two anchor "
+      'phrases, not the full raw wording -- only an anchor actually '
+      'missing is reported, and one present anywhere is not, even far '
+      'from where the wildcarded middle would normally sit',
+      () {
+        final flexibleRule = SmsRule(
+          id: 'r3',
+          bankId: 'b1',
+          operation: 'creditCardBalance',
+          sampleText:
+              'Card #4912 from SomeVendor. Please note this charge is '
+              'final and cannot be reversed once processed today.',
+          segmentsJson: encodeSmsRuleSegments([
+            const SmsRuleSegment.literal('Card #'),
+            const SmsRuleSegment.placeholder(text: '4912', tag: 'cardNumber'),
+            const SmsRuleSegment.literal(
+              ' from SomeVendor. Please note this charge is final and '
+              'cannot be reversed once processed today.',
+            ),
+          ]),
+          targetCounterpartyId: null,
+          name: null,
+          currency: null,
+          notifyOnMatch: false,
+          matchMode: 'flexible',
+          enabled: true,
+          createdAt: DateTime(2026),
+          profileId: null,
+        );
+        // Keeps the head anchor ("from SomeVendor") but replaces the tail
+        // anchor ("processed today.") with something else entirely --
+        // only the tail should be reported as unsatisfied.
+        const divergent = 'Card #4912 from SomeVendor. Something unrelated.';
+
+        final unsatisfied = findUnsatisfiedRequirements(
+          flexibleRule,
+          divergent,
+        );
+
+        expect(unsatisfied, hasLength(1));
+        expect(unsatisfied.single.description, contains('processed today.'));
+        expect(unsatisfied.single.description, isNot(contains('SomeVendor')));
       },
     );
   });

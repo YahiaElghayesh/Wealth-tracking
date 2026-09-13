@@ -7,7 +7,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../../data/db/database.dart';
 import '../../../data/sms/sms_ledger_processor.dart';
 import '../../../data/sms/sms_rule_engine.dart'
-    show decodeSmsRuleSegments, findSmsRuleMismatch;
+    show decodeSmsRuleSegments, findUnsatisfiedRequirements;
 import '../../networth/providers/asset_providers.dart' show databaseProvider;
 import '../providers/sms_rule_providers.dart';
 
@@ -272,7 +272,7 @@ class _RuleRequirementCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = context.appColors;
     final segments = decodeSmsRuleSegments(rule.segmentsJson);
-    final mismatch = findSmsRuleMismatch(rule, testedBody);
+    final unsatisfied = findUnsatisfiedRequirements(rule, testedBody);
     final title = (rule.name?.trim().isNotEmpty ?? false)
         ? rule.name!
         : _operationLabels[rule.operation] ?? rule.operation;
@@ -330,7 +330,7 @@ class _RuleRequirementCard extends StatelessWidget {
             ),
             textDirection: detectSampleDirection(rule.sampleText),
           ),
-          if (mismatch != null) ...[
+          if (unsatisfied.isNotEmpty) ...[
             const SizedBox(height: 10),
             Container(
               width: double.infinity,
@@ -344,25 +344,21 @@ class _RuleRequirementCard extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    mismatch.matchedThroughIndex < 0
-                        ? "Doesn't even match this rule's very first part "
-                              '(expects ${mismatch.expected}).'
-                        : 'Matches up through part '
-                              '${mismatch.matchedThroughIndex + 1} of '
-                              '${mismatch.totalSegments}, then expects '
-                              '${mismatch.expected} next.',
+                    "This text doesn't appear anywhere in your message:",
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
                       color: colors.bad,
                       fontWeight: FontWeight.w700,
                     ),
                   ),
                   const SizedBox(height: 4),
-                  Text(
-                    'Your message actually continues with: '
-                    '"${mismatch.actualNearby}"',
-                    textDirection: detectSampleDirection(mismatch.actualNearby),
-                    style: Theme.of(context).textTheme.bodySmall,
-                  ),
+                  for (final requirement in unsatisfied)
+                    Text(
+                      requirement.description,
+                      textDirection: detectSampleDirection(
+                        requirement.description,
+                      ),
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
                 ],
               ),
             ),

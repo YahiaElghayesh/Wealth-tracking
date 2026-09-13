@@ -159,19 +159,10 @@ String? _resolveCurrencyToken(String raw) {
 /// literal text and numbered capture groups for each placeholder, in the
 /// same order they appear in [segments]. [flexible] selects which literal
 /// escaper is used ([_escapeLiteral] for 'strict' mode, [_escapeLiteralFlexible]
-/// for 'flexible') -- see [SmsRule.matchMode]. [lastSegmentIsRuleEnd]
-/// exists only for [findSmsRuleMismatch]'s incremental prefix checks: a
-/// vendor/sender/`ignore` placeholder becomes a greedy, unbounded capture
-/// specifically when it's the very last segment of the *whole* rule
-/// (nothing follows it to stop at) -- pass `false` when [segments] is
-/// actually just a leading prefix of a longer rule, so that placeholder
-/// still stops where it always would once the rest of the rule is
-/// considered, rather than swallowing the remainder of the message and
-/// reporting a false "ran out of text" mismatch past it.
+/// for 'flexible') -- see [SmsRule.matchMode].
 RegExp compileSmsRulePattern(
   List<SmsRuleSegment> segments, {
   bool flexible = false,
-  bool lastSegmentIsRuleEnd = true,
 }) {
   final buffer = StringBuffer();
   for (var i = 0; i < segments.length; i++) {
@@ -183,8 +174,7 @@ RegExp compileSmsRulePattern(
             : _escapeLiteral(segment.text),
       );
     } else {
-      final isLast = lastSegmentIsRuleEnd && i == segments.length - 1;
-      buffer.write(_placeholderPattern(segment, isLast));
+      buffer.write(_placeholderPattern(segment, i == segments.length - 1));
     }
   }
   return RegExp(buffer.toString(), caseSensitive: false, dotAll: true);
@@ -257,91 +247,87 @@ class SmsRuleMatch {
   final String? transactionCurrency;
 }
 
-/// Where a non-matching rule's pattern actually stops agreeing with a real
-/// message -- since a full match/no-match answer alone gives no way to
-/// tell "off by one character near the end" from "completely unrelated
-/// rule" without manually diffing the rule's requirements against the
-/// message by eye, which is exactly what a subtly wrong character (one
-/// that renders identically either way) defeats. `matchedThroughIndex`
-/// is the index of the last segment (in [SmsRule.segmentsJson] order)
-/// that could still be satisfied by some position in the message,
-/// starting from -1 if not even the very first segment could; `expected`
-/// is that next unsatisfied segment's own text (a literal's exact
-/// wording, or `<tag name>` for a placeholder); `actualNearby` is a
-/// short window of the real message starting at the point every earlier
-/// segment left off, for a side-by-side comparison against [expected].
-class SmsRuleMismatch {
-  const SmsRuleMismatch({
-    required this.matchedThroughIndex,
-    required this.totalSegments,
-    required this.expected,
-    required this.actualNearby,
-  });
-
-  final int matchedThroughIndex;
-  final int totalSegments;
-  final String expected;
-  final String actualNearby;
+/// One literal requirement of a rule that doesn't appear anywhere in a
+/// real message at all -- see [findUnsatisfiedRequirements].
+class UnsatisfiedRequirement {
+  const UnsatisfiedRequirement(this.description);
+  final String description;
 }
 
-const _mismatchContextChars = 24;
-
-/// Finds the furthest a non-matching [rule] could get into [rawBody]
-/// before its own requirements stopped being satisfiable -- see
-/// [SmsRuleMismatch]. Only meaningful to call after [matchSmsRule] has
-/// already returned null for the same rule/body; returns null itself if
-/// the rule has no segments to check, or (surprisingly) it turns out to
-/// match after all.
-SmsRuleMismatch? findSmsRuleMismatch(SmsRule rule, String rawBody) {
+/// Every literal requirement of [rule] that doesn't appear anywhere in
+/// [rawBody] -- each checked independently, on its own, against the
+/// whole message. This replaces an earlier approach that tried to walk
+/// [rule]'s combined pattern incrementally to find "the first segment
+/// that stops matching": that depended on where a free-form vendor/
+/// sender/`ignore` tag's own backtracking happened to land while only
+/// part of the pattern was being tested, which turned out to produce a
+/// misleading answer -- flagging a real, correctly-tagged portion as the
+/// problem, past which its own greedy/non-greedy behavior isn't even
+/// well-defined in isolation. Checking each requirement completely on
+/// its own sidesteps that: nothing here depends on any other
+/// requirement's match, or on the free-form tags at all, so a wrongly
+/// blamed tag boundary is no longer possible.
+///
+/// A 'flexible' rule's long literal is checked as its two anchor phrases
+/// separately, matching what [compileSmsRulePattern] actually requires
+/// of it (see [_escapeLiteralFlexible]) rather than the full raw
+/// wording -- flexible mode never actually requires the whole sentence,
+/// only those two anchors, so reporting the whole thing as unsatisfied
+/// would overstate what's really missing. The trade-off against a real
+/// match attempt: this can't confirm the requirements that *do* appear
+/// are in the right order or place relative to each other, only that
+/// each one exists in the message somewhere at all. Only meaningful to
+/// call after [matchSmsRule] has already returned null for the same
+/// rule/body.
+List<UnsatisfiedRequirement> findUnsatisfiedRequirements(
+  SmsRule rule,
+  String rawBody,
+) {
   final segments = decodeSmsRuleSegments(rule.segmentsJson);
-  if (segments.isEmpty) return null;
   final flexible = rule.matchMode == 'flexible';
   final body = normalizeSmsBody(rawBody);
+  final results = <UnsatisfiedRequirement>[];
 
-  var matchedThroughIndex = -1;
-  var matchedEnd = 0;
-  for (var count = 1; count <= segments.length; count++) {
-    final prefixPattern = compileSmsRulePattern(
-      segments.sublist(0, count),
-      flexible: flexible,
-      lastSegmentIsRuleEnd: count == segments.length,
-    );
-    // No `^` here -- [RegExp.matchAsPrefix] already only tries a match
-    // that begins exactly at [start] on its own; a literal `^` in the
-    // pattern would anchor to the absolute start of [body] instead (index
-    // 0) and never succeed for any other [start].
-    final atStart = RegExp(
-      '(?:${prefixPattern.pattern})',
+  bool appears(String requirement) {
+    if (requirement.trim().isEmpty) return true;
+    final pattern = RegExp(
+      _escapeLiteral(requirement),
       caseSensitive: false,
       dotAll: true,
     );
-    Match? found;
-    for (var start = 0; start <= body.length; start++) {
-      final m = atStart.matchAsPrefix(body, start);
-      if (m != null) {
-        found = m;
-        break;
-      }
-    }
-    if (found == null) break;
-    matchedThroughIndex = count - 1;
-    matchedEnd = found.end;
+    return pattern.hasMatch(body);
   }
-  if (matchedThroughIndex == segments.length - 1) return null;
 
-  final nextSegment = segments[matchedThroughIndex + 1];
-  final expected = nextSegment.isPlaceholder
-      ? '<${nextSegment.tag}>'
-      : '"${nextSegment.text}"';
-  final windowEnd = (matchedEnd + _mismatchContextChars).clamp(0, body.length);
-  final actualNearby = body.substring(matchedEnd, windowEnd);
-
-  return SmsRuleMismatch(
-    matchedThroughIndex: matchedThroughIndex,
-    totalSegments: segments.length,
-    expected: expected,
-    actualNearby: actualNearby,
-  );
+  for (final segment in segments) {
+    if (segment.isPlaceholder) continue;
+    final text = segment.text;
+    if (text.trim().isEmpty) continue;
+    if (!flexible) {
+      if (!appears(text)) results.add(UnsatisfiedRequirement('"$text"'));
+      continue;
+    }
+    final core = RegExp(
+      r'^\s*(.*?)\s*$',
+      dotAll: true,
+    ).firstMatch(text)!.group(1)!;
+    if (core.isEmpty) continue;
+    final words = core.split(RegExp(r'\s+'));
+    if (words.length <= _flexibleEdgeWords * 2) {
+      if (!appears(text)) results.add(UnsatisfiedRequirement('"$text"'));
+      continue;
+    }
+    final head = words.take(_flexibleEdgeWords).join(' ');
+    final tail = words.skip(words.length - _flexibleEdgeWords).join(' ');
+    if (!appears(head)) {
+      results.add(
+        UnsatisfiedRequirement('"$head" (near the start of one part)'),
+      );
+    }
+    if (!appears(tail)) {
+      results.add(UnsatisfiedRequirement('"$tail" (near the end of one part)'));
+    }
+  }
+  return results;
 }
 
 /// Tries [rule]'s compiled pattern against [rawBody] (normalized first,
