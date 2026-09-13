@@ -8999,6 +8999,18 @@ class $SmsRulesTable extends SmsRules with TableInfo<$SmsRulesTable, SmsRule> {
           'REFERENCES counterparties (id)',
         ),
       );
+  static const VerificationMeta _vendorTargetsJsonMeta = const VerificationMeta(
+    'vendorTargetsJson',
+  );
+  @override
+  late final GeneratedColumn<String> vendorTargetsJson =
+      GeneratedColumn<String>(
+        'vendor_targets_json',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
   static const VerificationMeta _currencyMeta = const VerificationMeta(
     'currency',
   );
@@ -9112,6 +9124,7 @@ class $SmsRulesTable extends SmsRules with TableInfo<$SmsRulesTable, SmsRule> {
     sampleText,
     segmentsJson,
     targetCounterpartyId,
+    vendorTargetsJson,
     currency,
     notifyOnMatch,
     autoAddCharges,
@@ -9185,6 +9198,15 @@ class $SmsRulesTable extends SmsRules with TableInfo<$SmsRulesTable, SmsRule> {
         targetCounterpartyId.isAcceptableOrUnknown(
           data['target_counterparty_id']!,
           _targetCounterpartyIdMeta,
+        ),
+      );
+    }
+    if (data.containsKey('vendor_targets_json')) {
+      context.handle(
+        _vendorTargetsJsonMeta,
+        vendorTargetsJson.isAcceptableOrUnknown(
+          data['vendor_targets_json']!,
+          _vendorTargetsJsonMeta,
         ),
       );
     }
@@ -9281,6 +9303,10 @@ class $SmsRulesTable extends SmsRules with TableInfo<$SmsRulesTable, SmsRule> {
         DriftSqlType.string,
         data['${effectivePrefix}target_counterparty_id'],
       ),
+      vendorTargetsJson: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}vendor_targets_json'],
+      ),
       currency: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}currency'],
@@ -9346,11 +9372,25 @@ class SmsRule extends DataClass implements Insertable<SmsRule> {
   /// value, vendor, sender) it extracts.
   final String segmentsJson;
 
-  /// Only meaningful for a 'ledgerPayment' rule -- which ledger a match
-  /// adds its entry to. An SMS never names one of the user's own ledgers,
-  /// so this is picked once, at rule-creation time, the same way a Vendor
-  /// Rule already worked.
+  /// Only meaningful for a 'ledgerPayment' rule -- which ledger a
+  /// 'repayment' match always nets against (a repayment never names a
+  /// vendor the way a charge does, so there's nothing else to route it
+  /// by), and which ledger a 'charge' match falls back to when its
+  /// matched `vendor` text isn't one of [vendorTargetsJson]'s mappings.
+  /// Optional for a charge-tagged rule specifically: leaving this unset,
+  /// with no matching vendor mapping either, is exactly how a charge asks
+  /// (via the review notification/screen) whether to add it at all, and
+  /// to which ledger -- see `resolveLedgerTarget`, sms_rule_engine.dart.
   final String? targetCounterpartyId;
+
+  /// Only meaningful for a 'ledgerPayment' rule's 'charge' matches --
+  /// JSON-encoded list of `{vendor, counterpartyId}` pairs (see
+  /// `VendorLedgerTarget`, sms_rule_engine.dart) mapping a matched
+  /// `vendor` tag's text (case-insensitively) to a specific ledger, so
+  /// one rule covering many vendors' worth of an identically-shaped bank
+  /// SMS can route each to its own ledger instead of needing a separate,
+  /// otherwise-identical rule per vendor.
+  final String? vendorTargetsJson;
 
   /// For a 'ledgerPayment' rule, the currency its ledger entries default to
   /// when the message itself doesn't carry a recognized `currency` tag
@@ -9401,6 +9441,7 @@ class SmsRule extends DataClass implements Insertable<SmsRule> {
     required this.sampleText,
     required this.segmentsJson,
     this.targetCounterpartyId,
+    this.vendorTargetsJson,
     this.currency,
     required this.notifyOnMatch,
     required this.autoAddCharges,
@@ -9423,6 +9464,9 @@ class SmsRule extends DataClass implements Insertable<SmsRule> {
     map['segments_json'] = Variable<String>(segmentsJson);
     if (!nullToAbsent || targetCounterpartyId != null) {
       map['target_counterparty_id'] = Variable<String>(targetCounterpartyId);
+    }
+    if (!nullToAbsent || vendorTargetsJson != null) {
+      map['vendor_targets_json'] = Variable<String>(vendorTargetsJson);
     }
     if (!nullToAbsent || currency != null) {
       map['currency'] = Variable<String>(currency);
@@ -9452,6 +9496,9 @@ class SmsRule extends DataClass implements Insertable<SmsRule> {
       targetCounterpartyId: targetCounterpartyId == null && nullToAbsent
           ? const Value.absent()
           : Value(targetCounterpartyId),
+      vendorTargetsJson: vendorTargetsJson == null && nullToAbsent
+          ? const Value.absent()
+          : Value(vendorTargetsJson),
       currency: currency == null && nullToAbsent
           ? const Value.absent()
           : Value(currency),
@@ -9484,6 +9531,9 @@ class SmsRule extends DataClass implements Insertable<SmsRule> {
       targetCounterpartyId: serializer.fromJson<String?>(
         json['targetCounterpartyId'],
       ),
+      vendorTargetsJson: serializer.fromJson<String?>(
+        json['vendorTargetsJson'],
+      ),
       currency: serializer.fromJson<String?>(json['currency']),
       notifyOnMatch: serializer.fromJson<bool>(json['notifyOnMatch']),
       autoAddCharges: serializer.fromJson<bool>(json['autoAddCharges']),
@@ -9505,6 +9555,7 @@ class SmsRule extends DataClass implements Insertable<SmsRule> {
       'sampleText': serializer.toJson<String>(sampleText),
       'segmentsJson': serializer.toJson<String>(segmentsJson),
       'targetCounterpartyId': serializer.toJson<String?>(targetCounterpartyId),
+      'vendorTargetsJson': serializer.toJson<String?>(vendorTargetsJson),
       'currency': serializer.toJson<String?>(currency),
       'notifyOnMatch': serializer.toJson<bool>(notifyOnMatch),
       'autoAddCharges': serializer.toJson<bool>(autoAddCharges),
@@ -9524,6 +9575,7 @@ class SmsRule extends DataClass implements Insertable<SmsRule> {
     String? sampleText,
     String? segmentsJson,
     Value<String?> targetCounterpartyId = const Value.absent(),
+    Value<String?> vendorTargetsJson = const Value.absent(),
     Value<String?> currency = const Value.absent(),
     bool? notifyOnMatch,
     bool? autoAddCharges,
@@ -9542,6 +9594,9 @@ class SmsRule extends DataClass implements Insertable<SmsRule> {
     targetCounterpartyId: targetCounterpartyId.present
         ? targetCounterpartyId.value
         : this.targetCounterpartyId,
+    vendorTargetsJson: vendorTargetsJson.present
+        ? vendorTargetsJson.value
+        : this.vendorTargetsJson,
     currency: currency.present ? currency.value : this.currency,
     notifyOnMatch: notifyOnMatch ?? this.notifyOnMatch,
     autoAddCharges: autoAddCharges ?? this.autoAddCharges,
@@ -9566,6 +9621,9 @@ class SmsRule extends DataClass implements Insertable<SmsRule> {
       targetCounterpartyId: data.targetCounterpartyId.present
           ? data.targetCounterpartyId.value
           : this.targetCounterpartyId,
+      vendorTargetsJson: data.vendorTargetsJson.present
+          ? data.vendorTargetsJson.value
+          : this.vendorTargetsJson,
       currency: data.currency.present ? data.currency.value : this.currency,
       notifyOnMatch: data.notifyOnMatch.present
           ? data.notifyOnMatch.value
@@ -9591,6 +9649,7 @@ class SmsRule extends DataClass implements Insertable<SmsRule> {
           ..write('sampleText: $sampleText, ')
           ..write('segmentsJson: $segmentsJson, ')
           ..write('targetCounterpartyId: $targetCounterpartyId, ')
+          ..write('vendorTargetsJson: $vendorTargetsJson, ')
           ..write('currency: $currency, ')
           ..write('notifyOnMatch: $notifyOnMatch, ')
           ..write('autoAddCharges: $autoAddCharges, ')
@@ -9612,6 +9671,7 @@ class SmsRule extends DataClass implements Insertable<SmsRule> {
     sampleText,
     segmentsJson,
     targetCounterpartyId,
+    vendorTargetsJson,
     currency,
     notifyOnMatch,
     autoAddCharges,
@@ -9632,6 +9692,7 @@ class SmsRule extends DataClass implements Insertable<SmsRule> {
           other.sampleText == this.sampleText &&
           other.segmentsJson == this.segmentsJson &&
           other.targetCounterpartyId == this.targetCounterpartyId &&
+          other.vendorTargetsJson == this.vendorTargetsJson &&
           other.currency == this.currency &&
           other.notifyOnMatch == this.notifyOnMatch &&
           other.autoAddCharges == this.autoAddCharges &&
@@ -9650,6 +9711,7 @@ class SmsRulesCompanion extends UpdateCompanion<SmsRule> {
   final Value<String> sampleText;
   final Value<String> segmentsJson;
   final Value<String?> targetCounterpartyId;
+  final Value<String?> vendorTargetsJson;
   final Value<String?> currency;
   final Value<bool> notifyOnMatch;
   final Value<bool> autoAddCharges;
@@ -9667,6 +9729,7 @@ class SmsRulesCompanion extends UpdateCompanion<SmsRule> {
     this.sampleText = const Value.absent(),
     this.segmentsJson = const Value.absent(),
     this.targetCounterpartyId = const Value.absent(),
+    this.vendorTargetsJson = const Value.absent(),
     this.currency = const Value.absent(),
     this.notifyOnMatch = const Value.absent(),
     this.autoAddCharges = const Value.absent(),
@@ -9685,6 +9748,7 @@ class SmsRulesCompanion extends UpdateCompanion<SmsRule> {
     required String sampleText,
     required String segmentsJson,
     this.targetCounterpartyId = const Value.absent(),
+    this.vendorTargetsJson = const Value.absent(),
     this.currency = const Value.absent(),
     this.notifyOnMatch = const Value.absent(),
     this.autoAddCharges = const Value.absent(),
@@ -9708,6 +9772,7 @@ class SmsRulesCompanion extends UpdateCompanion<SmsRule> {
     Expression<String>? sampleText,
     Expression<String>? segmentsJson,
     Expression<String>? targetCounterpartyId,
+    Expression<String>? vendorTargetsJson,
     Expression<String>? currency,
     Expression<bool>? notifyOnMatch,
     Expression<bool>? autoAddCharges,
@@ -9727,6 +9792,7 @@ class SmsRulesCompanion extends UpdateCompanion<SmsRule> {
       if (segmentsJson != null) 'segments_json': segmentsJson,
       if (targetCounterpartyId != null)
         'target_counterparty_id': targetCounterpartyId,
+      if (vendorTargetsJson != null) 'vendor_targets_json': vendorTargetsJson,
       if (currency != null) 'currency': currency,
       if (notifyOnMatch != null) 'notify_on_match': notifyOnMatch,
       if (autoAddCharges != null) 'auto_add_charges': autoAddCharges,
@@ -9747,6 +9813,7 @@ class SmsRulesCompanion extends UpdateCompanion<SmsRule> {
     Value<String>? sampleText,
     Value<String>? segmentsJson,
     Value<String?>? targetCounterpartyId,
+    Value<String?>? vendorTargetsJson,
     Value<String?>? currency,
     Value<bool>? notifyOnMatch,
     Value<bool>? autoAddCharges,
@@ -9765,6 +9832,7 @@ class SmsRulesCompanion extends UpdateCompanion<SmsRule> {
       sampleText: sampleText ?? this.sampleText,
       segmentsJson: segmentsJson ?? this.segmentsJson,
       targetCounterpartyId: targetCounterpartyId ?? this.targetCounterpartyId,
+      vendorTargetsJson: vendorTargetsJson ?? this.vendorTargetsJson,
       currency: currency ?? this.currency,
       notifyOnMatch: notifyOnMatch ?? this.notifyOnMatch,
       autoAddCharges: autoAddCharges ?? this.autoAddCharges,
@@ -9802,6 +9870,9 @@ class SmsRulesCompanion extends UpdateCompanion<SmsRule> {
       map['target_counterparty_id'] = Variable<String>(
         targetCounterpartyId.value,
       );
+    }
+    if (vendorTargetsJson.present) {
+      map['vendor_targets_json'] = Variable<String>(vendorTargetsJson.value);
     }
     if (currency.present) {
       map['currency'] = Variable<String>(currency.value);
@@ -9843,6 +9914,7 @@ class SmsRulesCompanion extends UpdateCompanion<SmsRule> {
           ..write('sampleText: $sampleText, ')
           ..write('segmentsJson: $segmentsJson, ')
           ..write('targetCounterpartyId: $targetCounterpartyId, ')
+          ..write('vendorTargetsJson: $vendorTargetsJson, ')
           ..write('currency: $currency, ')
           ..write('notifyOnMatch: $notifyOnMatch, ')
           ..write('autoAddCharges: $autoAddCharges, ')
@@ -18739,6 +18811,7 @@ typedef $$SmsRulesTableCreateCompanionBuilder =
       required String sampleText,
       required String segmentsJson,
       Value<String?> targetCounterpartyId,
+      Value<String?> vendorTargetsJson,
       Value<String?> currency,
       Value<bool> notifyOnMatch,
       Value<bool> autoAddCharges,
@@ -18758,6 +18831,7 @@ typedef $$SmsRulesTableUpdateCompanionBuilder =
       Value<String> sampleText,
       Value<String> segmentsJson,
       Value<String?> targetCounterpartyId,
+      Value<String?> vendorTargetsJson,
       Value<String?> currency,
       Value<bool> notifyOnMatch,
       Value<bool> autoAddCharges,
@@ -18859,6 +18933,11 @@ class $$SmsRulesTableFilterComposer
 
   ColumnFilters<String> get segmentsJson => $composableBuilder(
     column: $table.segmentsJson,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get vendorTargetsJson => $composableBuilder(
+    column: $table.vendorTargetsJson,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -19001,6 +19080,11 @@ class $$SmsRulesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get vendorTargetsJson => $composableBuilder(
+    column: $table.vendorTargetsJson,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get currency => $composableBuilder(
     column: $table.currency,
     builder: (column) => ColumnOrderings(column),
@@ -19131,6 +19215,11 @@ class $$SmsRulesTableAnnotationComposer
 
   GeneratedColumn<String> get segmentsJson => $composableBuilder(
     column: $table.segmentsJson,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get vendorTargetsJson => $composableBuilder(
+    column: $table.vendorTargetsJson,
     builder: (column) => column,
   );
 
@@ -19268,6 +19357,7 @@ class $$SmsRulesTableTableManager
                 Value<String> sampleText = const Value.absent(),
                 Value<String> segmentsJson = const Value.absent(),
                 Value<String?> targetCounterpartyId = const Value.absent(),
+                Value<String?> vendorTargetsJson = const Value.absent(),
                 Value<String?> currency = const Value.absent(),
                 Value<bool> notifyOnMatch = const Value.absent(),
                 Value<bool> autoAddCharges = const Value.absent(),
@@ -19285,6 +19375,7 @@ class $$SmsRulesTableTableManager
                 sampleText: sampleText,
                 segmentsJson: segmentsJson,
                 targetCounterpartyId: targetCounterpartyId,
+                vendorTargetsJson: vendorTargetsJson,
                 currency: currency,
                 notifyOnMatch: notifyOnMatch,
                 autoAddCharges: autoAddCharges,
@@ -19304,6 +19395,7 @@ class $$SmsRulesTableTableManager
                 required String sampleText,
                 required String segmentsJson,
                 Value<String?> targetCounterpartyId = const Value.absent(),
+                Value<String?> vendorTargetsJson = const Value.absent(),
                 Value<String?> currency = const Value.absent(),
                 Value<bool> notifyOnMatch = const Value.absent(),
                 Value<bool> autoAddCharges = const Value.absent(),
@@ -19321,6 +19413,7 @@ class $$SmsRulesTableTableManager
                 sampleText: sampleText,
                 segmentsJson: segmentsJson,
                 targetCounterpartyId: targetCounterpartyId,
+                vendorTargetsJson: vendorTargetsJson,
                 currency: currency,
                 notifyOnMatch: notifyOnMatch,
                 autoAddCharges: autoAddCharges,

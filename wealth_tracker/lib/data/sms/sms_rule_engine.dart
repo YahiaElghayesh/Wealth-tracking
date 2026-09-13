@@ -685,12 +685,70 @@ Future<SmsRuleApplyOutcome> _applyBankAccountBalance(
   );
 }
 
+/// One entry of a 'ledgerPayment' rule's [SmsRule.vendorTargetsJson] --
+/// [vendor] is compared case-insensitively against a real match's `vendor`
+/// tag text by [resolveLedgerTarget].
+class VendorLedgerTarget {
+  const VendorLedgerTarget({required this.vendor, required this.counterpartyId});
+
+  final String vendor;
+  final String counterpartyId;
+
+  Map<String, dynamic> toJson() => {'vendor': vendor, 'counterpartyId': counterpartyId};
+
+  factory VendorLedgerTarget.fromJson(Map<String, dynamic> json) => VendorLedgerTarget(
+    vendor: json['vendor'] as String,
+    counterpartyId: json['counterpartyId'] as String,
+  );
+}
+
+List<VendorLedgerTarget> decodeVendorTargets(String? json) {
+  if (json == null) return const [];
+  final decoded = jsonDecode(json) as List;
+  return decoded
+      .map((e) => VendorLedgerTarget.fromJson(e as Map<String, dynamic>))
+      .toList();
+}
+
+/// Null (not an empty string) once the list is empty, matching how "no
+/// per-vendor routing configured" has always been represented.
+String? encodeVendorTargets(List<VendorLedgerTarget> targets) {
+  if (targets.isEmpty) return null;
+  return jsonEncode(targets.map((t) => t.toJson()).toList());
+}
+
+/// Which ledger a 'ledgerPayment' rule's *charge* match should go to --
+/// [vendor]'s own [VendorLedgerTarget] mapping first (case-insensitively,
+/// so "Amazon" and "amazon" are the same vendor), [rule]'s own
+/// [SmsRule.targetCounterpartyId] otherwise, or null when neither resolves
+/// anything -- which is exactly the "ask which ledger" case: with nothing
+/// to auto-apply to, the match becomes reviewable instead
+/// (sms_ledger_processor.dart's own `reviewable` handling), the same as
+/// though this rule had no configured target at all. A 'repayment' match
+/// never consults this -- see [SmsRule.targetCounterpartyId]'s own doc
+/// comment for why a repayment always nets against one fixed ledger
+/// regardless of any vendor text.
+String? resolveLedgerTarget(SmsRule rule, String? vendor) {
+  final trimmedVendor = vendor?.trim();
+  if (trimmedVendor != null && trimmedVendor.isNotEmpty) {
+    for (final target in decodeVendorTargets(rule.vendorTargetsJson)) {
+      if (target.vendor.trim().toLowerCase() == trimmedVendor.toLowerCase()) {
+        return target.counterpartyId;
+      }
+    }
+  }
+  return rule.targetCounterpartyId;
+}
+
 Future<SmsRuleApplyOutcome> _applyLedgerPayment(
   AppDatabase db,
   SmsRule rule,
   SmsRuleMatch match,
 ) async {
-  final targetId = rule.targetCounterpartyId;
+  final isRepayment = match.valueRole == 'repayment';
+  final targetId = isRepayment
+      ? rule.targetCounterpartyId
+      : resolveLedgerTarget(rule, match.vendor);
   final value = match.value;
   if (targetId == null || value == null) return _noop;
 
@@ -699,7 +757,6 @@ Future<SmsRuleApplyOutcome> _applyLedgerPayment(
   )..where((c) => c.id.equals(targetId))).getSingleOrNull();
   if (counterparty == null) return _noop;
 
-  final isRepayment = match.valueRole == 'repayment';
   final signedAmount = isRepayment ? -value : value;
   final vendor = match.vendor?.trim();
   final category =

@@ -147,10 +147,11 @@ void main() {
 
   Future<void> insertLedgerPaymentRule(
     String bankId,
-    String counterpartyId, {
+    String? counterpartyId, {
     List<SmsRuleSegment>? segments,
     String? sampleText,
     bool autoAddCharges = false,
+    String? vendorTargetsJson,
   }) {
     return db
         .into(db.smsRules)
@@ -164,6 +165,7 @@ void main() {
             targetCounterpartyId: Value(counterpartyId),
             currency: const Value('EGP'),
             autoAddCharges: Value(autoAddCharges),
+            vendorTargetsJson: Value(vendorTargetsJson),
             createdAt: DateTime(2026),
             profileId: const Value('test-profile'),
           ),
@@ -408,6 +410,55 @@ void main() {
         );
         expect(addedAgain, isFalse);
         expect(await db.select(db.ledgerTransactions).get(), hasLength(1));
+      },
+    );
+
+    test(
+      'a charge from a rule with autoAddCharges on and a vendor mapping is '
+      "added to that vendor's own ledger, not the rule's fallback",
+      () async {
+        final bankId = await insertBank();
+        final fallbackId = await insertCounterparty('Fallback');
+        final breadfastId = await insertCounterparty('Breadfast ledger');
+        await insertLedgerPaymentRule(
+          bankId,
+          fallbackId,
+          autoAddCharges: true,
+          vendorTargetsJson: encodeVendorTargets([
+            VendorLedgerTarget(vendor: 'Breadfast', counterpartyId: breadfastId),
+          ]),
+        );
+
+        await commitSmsAutoDetect(db, body: _chargeSms, timestampMillis: 1000);
+
+        final entry = await db.select(db.ledgerTransactions).getSingle();
+        expect(entry.counterpartyId, breadfastId);
+      },
+    );
+
+    test(
+      'a charge with autoAddCharges on but no vendor mapping and no '
+      "fallback ledger is left reviewable instead of silently dropped",
+      () async {
+        final bankId = await insertBank();
+        await insertLedgerPaymentRule(bankId, null, autoAddCharges: true);
+
+        await commitSmsAutoDetect(db, body: _chargeSms, timestampMillis: 1000);
+
+        expect(await db.select(db.ledgerTransactions).get(), isEmpty);
+        // Still reviewable -- a later Quick add can't resolve a ledger
+        // either (there's still nothing to auto-apply to), but confirming
+        // the SMS was left pending, not marked fully settled, is the
+        // actual behavior under test here: only SmsReviewScreen (asking
+        // the user which ledger) can actually finish this one.
+        final addedAgain = await commitSmsQuickAdd(
+          db,
+          body: _chargeSms,
+          timestampMillis: 1000,
+          profileId: 'test-profile',
+        );
+        expect(addedAgain, isFalse);
+        expect(await db.select(db.ledgerTransactions).get(), isEmpty);
       },
     );
 

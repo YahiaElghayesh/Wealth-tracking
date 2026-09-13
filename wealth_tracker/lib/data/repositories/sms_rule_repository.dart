@@ -37,6 +37,7 @@ class SmsRuleRepository {
     String? name,
     bool autoAddCharges = false,
     String? category,
+    String? vendorTargetsJson,
   }) {
     return _db
         .into(_db.smsRules)
@@ -54,6 +55,7 @@ class SmsRuleRepository {
             matchMode: Value(matchMode),
             autoAddCharges: Value(autoAddCharges),
             category: Value(category),
+            vendorTargetsJson: Value(vendorTargetsJson),
             createdAt: DateTime.now(),
             profileId: Value(profileId),
           ),

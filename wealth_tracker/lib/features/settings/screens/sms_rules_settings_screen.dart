@@ -246,6 +246,17 @@ class _TaggedSpan {
   String? role;
 }
 
+/// One editable row of a 'ledgerPayment' rule's vendor -> ledger mapping
+/// (see `VendorLedgerTarget`, sms_rule_engine.dart) -- a plain mutable
+/// holder rather than an immutable model, so a text field's controller and
+/// a dropdown's selection can each be edited in place across rebuilds
+/// without rebuilding the whole list.
+class _VendorTargetRow {
+  _VendorTargetRow({required this.vendorController, this.counterpartyId});
+  final TextEditingController vendorController;
+  String? counterpartyId;
+}
+
 /// Add or edit one SMS Rule -- pick a bank and an operation, paste a real
 /// sample SMS, then mark and tag the portions that vary from one real
 /// message to the next (a card/account number, a value, a vendor/sender
@@ -277,6 +288,7 @@ class _SmsRuleFormScreenState extends ConsumerState<SmsRuleFormScreen> {
   String _matchMode = 'strict';
   bool _autoAddCharges = false;
   String? _category;
+  final List<_VendorTargetRow> _vendorTargets = [];
   final List<_TaggedSpan> _tags = [];
 
   /// The sample text as of the last time [_tags]' start/end offsets were
@@ -306,6 +318,14 @@ class _SmsRuleFormScreenState extends ConsumerState<SmsRuleFormScreen> {
       _matchMode = existing.matchMode;
       _autoAddCharges = existing.autoAddCharges;
       _category = existing.category;
+      for (final target in decodeVendorTargets(existing.vendorTargetsJson)) {
+        _vendorTargets.add(
+          _VendorTargetRow(
+            vendorController: TextEditingController(text: target.vendor),
+            counterpartyId: target.counterpartyId,
+          ),
+        );
+      }
       var cursor = 0;
       for (final segment in decodeSmsRuleSegments(existing.segmentsJson)) {
         final len = segment.text.length;
@@ -378,6 +398,9 @@ class _SmsRuleFormScreenState extends ConsumerState<SmsRuleFormScreen> {
   void dispose() {
     _sampleController.dispose();
     _nameController.dispose();
+    for (final row in _vendorTargets) {
+      row.vendorController.dispose();
+    }
     super.dispose();
   }
 
@@ -591,9 +614,10 @@ class _SmsRuleFormScreenState extends ConsumerState<SmsRuleFormScreen> {
     if (_bankId == null) return 'Pick a bank';
     if (_sampleController.text.trim().isEmpty) return 'Paste a sample SMS';
     if (_operation == 'ledgerPayment') {
-      if (_targetCounterpartyId == null) {
-        return 'Pick which ledger this adds to';
-      }
+      // No required ledger here anymore -- leaving both the fallback
+      // ledger and every vendor mapping unset is a valid rule on its own:
+      // every charge it matches simply asks (via the review notification)
+      // which ledger to add it to, every time.
       if (!_tags.any((t) => t.tag == 'value')) {
         return 'Mark the payment amount as a Value';
       }
@@ -620,6 +644,19 @@ class _SmsRuleFormScreenState extends ConsumerState<SmsRuleFormScreen> {
     if (!await _confirmUntaggedNumbers(segments)) return;
     if (!mounted) return;
     final name = _nameController.text.trim();
+    final vendorTargetsJson = _operation == 'ledgerPayment'
+        ? encodeVendorTargets(
+            [
+              for (final row in _vendorTargets)
+                if (row.vendorController.text.trim().isNotEmpty &&
+                    row.counterpartyId != null)
+                  VendorLedgerTarget(
+                    vendor: row.vendorController.text.trim(),
+                    counterpartyId: row.counterpartyId!,
+                  ),
+            ],
+          )
+        : null;
     final repo = ref.read(smsRuleRepositoryProvider);
     if (_isEditing) {
       await repo.updateRule(
@@ -639,6 +676,7 @@ class _SmsRuleFormScreenState extends ConsumerState<SmsRuleFormScreen> {
           category: Value(
             _operation == 'ledgerPayment' ? _category : null,
           ),
+          vendorTargetsJson: Value(vendorTargetsJson),
         ),
       );
     } else {
@@ -656,6 +694,7 @@ class _SmsRuleFormScreenState extends ConsumerState<SmsRuleFormScreen> {
         matchMode: _matchMode,
         autoAddCharges: _operation == 'ledgerPayment' && _autoAddCharges,
         category: _operation == 'ledgerPayment' ? _category : null,
+        vendorTargetsJson: vendorTargetsJson,
       );
     }
     if (mounted) Navigator.of(context).pop();
@@ -778,21 +817,107 @@ class _SmsRuleFormScreenState extends ConsumerState<SmsRuleFormScreen> {
             ),
             if (_operation == 'ledgerPayment') ...[
               const SizedBox(height: 16),
-              DropdownButtonFormField<String>(
+              DropdownButtonFormField<String?>(
                 isExpanded: true,
                 initialValue:
                     counterparties.any((c) => c.id == _targetCounterpartyId)
                     ? _targetCounterpartyId
                     : null,
                 decoration: const InputDecoration(
-                  labelText: 'Adds to which ledger',
+                  labelText: 'Fallback ledger (optional)',
+                  helperText:
+                      'Used for a repayment, and for a charge whose vendor matches none of the mappings below. '
+                      'Leave as "Always ask" to be asked which ledger every time instead.',
                 ),
-                items: counterparties
-                    .map(
-                      (c) => DropdownMenuItem(value: c.id, child: Text(c.name)),
-                    )
-                    .toList(),
+                items: [
+                  const DropdownMenuItem(
+                    value: null,
+                    child: Text('Always ask'),
+                  ),
+                  ...counterparties.map(
+                    (c) => DropdownMenuItem(value: c.id, child: Text(c.name)),
+                  ),
+                ],
                 onChanged: (v) => setState(() => _targetCounterpartyId = v),
+              ),
+              const SizedBox(height: 12),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  'Vendor → ledger (optional)',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ),
+              const Text(
+                'Route a charge to a specific ledger by its matched vendor name -- lets one rule cover many vendors instead of one rule per vendor.',
+                style: TextStyle(fontSize: 12),
+              ),
+              for (final (i, row) in _vendorTargets.indexed)
+                Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: TextFormField(
+                          controller: row.vendorController,
+                          decoration: const InputDecoration(
+                            labelText: 'Vendor',
+                            hintText: 'e.g. Amazon',
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: DropdownButtonFormField<String>(
+                          isExpanded: true,
+                          initialValue:
+                              counterparties.any(
+                                (c) => c.id == row.counterpartyId,
+                              )
+                              ? row.counterpartyId
+                              : null,
+                          decoration: const InputDecoration(
+                            labelText: 'Ledger',
+                          ),
+                          items: counterparties
+                              .map(
+                                (c) => DropdownMenuItem(
+                                  value: c.id,
+                                  child: Text(c.name),
+                                ),
+                              )
+                              .toList(),
+                          onChanged: (v) =>
+                              setState(() => row.counterpartyId = v),
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.remove_circle_outline),
+                        tooltip: 'Remove',
+                        onPressed: () => setState(() {
+                          _vendorTargets.removeAt(i).vendorController.dispose();
+                        }),
+                      ),
+                    ],
+                  ),
+                ),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: TextButton.icon(
+                  icon: const Icon(Icons.add),
+                  label: const Text('Add vendor mapping'),
+                  onPressed: () => setState(() {
+                    _vendorTargets.add(
+                      _VendorTargetRow(
+                        vendorController: TextEditingController(),
+                        counterpartyId: null,
+                      ),
+                    );
+                  }),
+                ),
               ),
               const SizedBox(height: 12),
               CurrencyPickerField(

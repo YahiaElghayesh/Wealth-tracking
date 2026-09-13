@@ -637,12 +637,26 @@ class SmsRules extends Table {
   /// value, vendor, sender) it extracts.
   TextColumn get segmentsJson => text()();
 
-  /// Only meaningful for a 'ledgerPayment' rule -- which ledger a match
-  /// adds its entry to. An SMS never names one of the user's own ledgers,
-  /// so this is picked once, at rule-creation time, the same way a Vendor
-  /// Rule already worked.
+  /// Only meaningful for a 'ledgerPayment' rule -- which ledger a
+  /// 'repayment' match always nets against (a repayment never names a
+  /// vendor the way a charge does, so there's nothing else to route it
+  /// by), and which ledger a 'charge' match falls back to when its
+  /// matched `vendor` text isn't one of [vendorTargetsJson]'s mappings.
+  /// Optional for a charge-tagged rule specifically: leaving this unset,
+  /// with no matching vendor mapping either, is exactly how a charge asks
+  /// (via the review notification/screen) whether to add it at all, and
+  /// to which ledger -- see `resolveLedgerTarget`, sms_rule_engine.dart.
   TextColumn get targetCounterpartyId =>
       text().nullable().references(Counterparties, #id)();
+
+  /// Only meaningful for a 'ledgerPayment' rule's 'charge' matches --
+  /// JSON-encoded list of `{vendor, counterpartyId}` pairs (see
+  /// `VendorLedgerTarget`, sms_rule_engine.dart) mapping a matched
+  /// `vendor` tag's text (case-insensitively) to a specific ledger, so
+  /// one rule covering many vendors' worth of an identically-shaped bank
+  /// SMS can route each to its own ledger instead of needing a separate,
+  /// otherwise-identical rule per vendor.
+  TextColumn get vendorTargetsJson => text().nullable()();
 
   /// For a 'ledgerPayment' rule, the currency its ledger entries default to
   /// when the message itself doesn't carry a recognized `currency` tag

@@ -1078,6 +1078,161 @@ void main() {
     });
 
     test(
+      'ledgerPayment routes a charge to the vendor-mapped ledger over the '
+      "rule's own fallback ledger, case-insensitively",
+      () async {
+        final bankId = await insertBank('CIB');
+        final fallbackId = await insertCounterparty('Fallback');
+        final amazonId = await insertCounterparty('Amazon ledger');
+        final rule = SmsRule(
+          id: 'r1',
+          bankId: bankId,
+          operation: 'ledgerPayment',
+          sampleText: '',
+          segmentsJson: '[]',
+          targetCounterpartyId: fallbackId,
+          name: null,
+          currency: 'EGP',
+          notifyOnMatch: false,
+          matchMode: 'strict',
+          enabled: true,
+          autoAddCharges: false,
+          vendorTargetsJson: encodeVendorTargets([
+            VendorLedgerTarget(vendor: 'Amazon', counterpartyId: amazonId),
+          ]),
+          createdAt: DateTime(2026),
+          profileId: null,
+        );
+        const match = SmsRuleMatch(
+          value: 100,
+          valueRole: 'charge',
+          vendor: 'amazon', // different case than the mapping's "Amazon"
+        );
+
+        final outcome = await applySmsRule(db, rule, match);
+
+        expect(outcome.applied, isTrue);
+        final entry = await db.select(db.ledgerTransactions).getSingle();
+        expect(entry.counterpartyId, amazonId);
+      },
+    );
+
+    test(
+      "ledgerPayment falls back to the rule's own ledger when the matched "
+      "vendor isn't in the vendor mapping",
+      () async {
+        final bankId = await insertBank('CIB');
+        final fallbackId = await insertCounterparty('Fallback');
+        final amazonId = await insertCounterparty('Amazon ledger');
+        final rule = SmsRule(
+          id: 'r1',
+          bankId: bankId,
+          operation: 'ledgerPayment',
+          sampleText: '',
+          segmentsJson: '[]',
+          targetCounterpartyId: fallbackId,
+          name: null,
+          currency: 'EGP',
+          notifyOnMatch: false,
+          matchMode: 'strict',
+          enabled: true,
+          autoAddCharges: false,
+          vendorTargetsJson: encodeVendorTargets([
+            VendorLedgerTarget(vendor: 'Amazon', counterpartyId: amazonId),
+          ]),
+          createdAt: DateTime(2026),
+          profileId: null,
+        );
+        const match = SmsRuleMatch(
+          value: 100,
+          valueRole: 'charge',
+          vendor: 'Uber',
+        );
+
+        final outcome = await applySmsRule(db, rule, match);
+
+        expect(outcome.applied, isTrue);
+        final entry = await db.select(db.ledgerTransactions).getSingle();
+        expect(entry.counterpartyId, fallbackId);
+      },
+    );
+
+    test(
+      'ledgerPayment applies nothing for a charge whose vendor matches no '
+      "mapping and whose rule has no fallback ledger either -- there's "
+      'nothing to auto-apply to, which is what leaves it reviewable',
+      () async {
+        final bankId = await insertBank('CIB');
+        final rule = SmsRule(
+          id: 'r1',
+          bankId: bankId,
+          operation: 'ledgerPayment',
+          sampleText: '',
+          segmentsJson: '[]',
+          targetCounterpartyId: null,
+          name: null,
+          currency: 'EGP',
+          notifyOnMatch: false,
+          matchMode: 'strict',
+          enabled: true,
+          autoAddCharges: true,
+          createdAt: DateTime(2026),
+          profileId: null,
+        );
+        const match = SmsRuleMatch(
+          value: 100,
+          valueRole: 'charge',
+          vendor: 'Uber',
+        );
+
+        final outcome = await applySmsRule(db, rule, match);
+
+        expect(outcome.applied, isFalse);
+        expect(await db.select(db.ledgerTransactions).get(), isEmpty);
+      },
+    );
+
+    test(
+      "ledgerPayment always uses the rule's own fallback ledger for a "
+      'repayment, ignoring any vendor mapping',
+      () async {
+        final bankId = await insertBank('CIB');
+        final fallbackId = await insertCounterparty('Fallback');
+        final amazonId = await insertCounterparty('Amazon ledger');
+        final rule = SmsRule(
+          id: 'r1',
+          bankId: bankId,
+          operation: 'ledgerPayment',
+          sampleText: '',
+          segmentsJson: '[]',
+          targetCounterpartyId: fallbackId,
+          name: null,
+          currency: 'EGP',
+          notifyOnMatch: false,
+          matchMode: 'strict',
+          enabled: true,
+          autoAddCharges: false,
+          vendorTargetsJson: encodeVendorTargets([
+            VendorLedgerTarget(vendor: 'Amazon', counterpartyId: amazonId),
+          ]),
+          createdAt: DateTime(2026),
+          profileId: null,
+        );
+        const match = SmsRuleMatch(
+          value: 100,
+          valueRole: 'repayment',
+          vendor: 'Amazon',
+        );
+
+        final outcome = await applySmsRule(db, rule, match);
+
+        expect(outcome.applied, isTrue);
+        final entry = await db.select(db.ledgerTransactions).getSingle();
+        expect(entry.counterpartyId, fallbackId);
+      },
+    );
+
+    test(
       'ledgerPayment "repayment" role records a negative (netting) amount',
       () async {
         final bankId = await insertBank('CIB');

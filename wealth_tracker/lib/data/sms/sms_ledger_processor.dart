@@ -208,7 +208,11 @@ Future<void> processIncomingSms(
   _RuleMatch? reviewable;
   for (final m in matches) {
     if (m.rule.operation != 'ledgerPayment') continue;
-    if (m.match.valueRole == 'repayment' || m.rule.autoAddCharges) {
+    final isRepayment = m.match.valueRole == 'repayment';
+    final resolvedTarget = isRepayment
+        ? m.rule.targetCounterpartyId
+        : resolveLedgerTarget(m.rule, m.match.vendor);
+    if (isRepayment || (m.rule.autoAddCharges && resolvedTarget != null)) {
       final outcome = await applySmsRule(db, m.rule, m.match);
       if (outcome.applied &&
           m.rule.notifyOnMatch &&
@@ -239,8 +243,14 @@ Future<void> processIncomingSms(
     currency: match.currency ?? rule.currency ?? defaultCurrency,
     occurredAt: DateTime.now(),
     dedupeId: dedupeId,
-    counterpartyId: rule.targetCounterpartyId,
-    category: (match.vendor?.trim().isNotEmpty ?? false) ? match.vendor : null,
+    // Null when the matched vendor has no configured mapping and the
+    // rule has no fallback ledger either -- SmsReviewScreen already
+    // handles a null counterpartyId by asking the user to pick one from
+    // scratch, exactly the "ask which ledger" this is meant to trigger.
+    counterpartyId: resolveLedgerTarget(rule, match.vendor),
+    category:
+        rule.category ??
+        ((match.vendor?.trim().isNotEmpty ?? false) ? match.vendor : null),
   );
 
   final navigator = await _awaitNavigator();
@@ -354,7 +364,11 @@ Future<void> commitSmsAutoDetect(
   _RuleMatch? reviewable;
   for (final m in matches) {
     if (m.rule.operation != 'ledgerPayment') continue;
-    if (m.match.valueRole == 'repayment' || m.rule.autoAddCharges) {
+    final isRepayment = m.match.valueRole == 'repayment';
+    final resolvedTarget = isRepayment
+        ? m.rule.targetCounterpartyId
+        : resolveLedgerTarget(m.rule, m.match.vendor);
+    if (isRepayment || (m.rule.autoAddCharges && resolvedTarget != null)) {
       final outcome = await applySmsRule(db, m.rule, m.match);
       if (outcome.applied &&
           m.rule.notifyOnMatch &&
@@ -382,7 +396,7 @@ Future<void> commitSmsAutoDetect(
   final value = reviewable.match.value;
   final currency =
       reviewable.match.currency ?? reviewable.rule.currency ?? defaultCurrency;
-  final targetId = reviewable.rule.targetCounterpartyId;
+  final targetId = resolveLedgerTarget(reviewable.rule, reviewable.match.vendor);
   final targetName = targetId == null
       ? null
       : (await (db.select(
