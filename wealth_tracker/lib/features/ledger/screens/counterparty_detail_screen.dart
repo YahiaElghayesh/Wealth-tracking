@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
 
 import '../../../core/format/money_formatter.dart';
 import '../../../core/models/currency.dart';
@@ -27,6 +28,32 @@ String _emojiFor(
 ) {
   if (!isAddition) return '↩︎';
   return categoryIcons[category] ?? fallbackCategoryEmoji;
+}
+
+/// A month/year divider interspersed between [LedgerTransaction] rows in
+/// the flat list [_groupedRows] builds -- [transactions] arrives already
+/// sorted newest-first (`LedgerRepository.watchTransactions`'s own query),
+/// so a header only ever needs inserting the moment the running month
+/// changes, never a separate sort/group pass of its own.
+class _MonthHeader {
+  const _MonthHeader(this.label);
+  final String label;
+}
+
+final _monthYearFormat = DateFormat.yMMMM();
+
+List<Object> _groupedRows(List<LedgerTransaction> transactions) {
+  final rows = <Object>[];
+  String? lastLabel;
+  for (final t in transactions) {
+    final label = _monthYearFormat.format(t.date);
+    if (label != lastLabel) {
+      rows.add(_MonthHeader(label));
+      lastLabel = label;
+    }
+    rows.add(t);
+  }
+  return rows;
 }
 
 Future<bool> _confirmDeleteTransaction(BuildContext context) async {
@@ -159,11 +186,33 @@ class CounterpartyDetailScreen extends ConsumerWidget {
                     ? const Center(
                         child: Text('No entries yet. Tap + to add one.'),
                       )
-                    : ListView.builder(
-                        padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                        itemCount: transactions.length,
-                        itemBuilder: (context, i) {
-                          final t = transactions[i];
+                    : Builder(
+                        builder: (context) {
+                          final rows = _groupedRows(transactions);
+                          return ListView.builder(
+                            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                            itemCount: rows.length,
+                            itemBuilder: (context, i) {
+                              final row = rows[i];
+                              if (row is _MonthHeader) {
+                                return Padding(
+                                  padding: EdgeInsets.fromLTRB(
+                                    4,
+                                    i == 0 ? 0 : 20,
+                                    4,
+                                    8,
+                                  ),
+                                  child: Text(
+                                    row.label,
+                                    style: theme.textTheme.labelMedium
+                                        ?.copyWith(
+                                          color: colors.textDim,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                  ),
+                                );
+                              }
+                              final t = row as LedgerTransaction;
                           // A charge (you paid on their behalf) grows what
                           // they owe you -- shown "+" and in the bad/red
                           // tone, same convention as a bill growing; a
@@ -279,6 +328,8 @@ class CounterpartyDetailScreen extends ConsumerWidget {
                                 ),
                               ),
                             ),
+                              );
+                            },
                           );
                         },
                       ),
