@@ -142,6 +142,12 @@ class _SmsTestScreenState extends ConsumerState<SmsTestScreen> {
               controller: _controller,
               maxLines: 6,
               minLines: 3,
+              // Same directional rendering the rule cards below use ([_RuleRequirementCard],
+              // detectSampleDirection) -- without this, this box and those
+              // cards can word-wrap the very same underlying text
+              // differently, making a byte-identical message look
+              // different at a glance for no real reason.
+              textDirection: detectSampleDirection(_controller.text),
               decoration: const InputDecoration(
                 hintText: 'Paste the SMS text here',
                 border: OutlineInputBorder(),
