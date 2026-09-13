@@ -713,6 +713,17 @@ class _SmsRuleFormScreenState extends ConsumerState<SmsRuleFormScreen> {
       appBar: AppBar(
         title: Text(_isEditing ? 'Edit SMS rule' : 'Add SMS rule'),
         actions: [
+          if (_sampleController.text.trim().isNotEmpty)
+            IconButton(
+              icon: const Icon(Icons.science_outlined),
+              tooltip: 'Test this rule',
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) =>
+                      SmsTestScreen(initialBody: _sampleController.text),
+                ),
+              ),
+            ),
           if (_isEditing)
             IconButton(
               icon: const Icon(Icons.delete_outline),

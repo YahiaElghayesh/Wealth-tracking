@@ -28,7 +28,13 @@ const _operationLabels = {
 /// fresh timestamp each time, so nothing here is deduplicated against an
 /// earlier test run), which can double-apply an add/subtract role.
 class SmsTestScreen extends ConsumerStatefulWidget {
-  const SmsTestScreen({super.key});
+  const SmsTestScreen({super.key, this.initialBody});
+
+  /// Pre-fills the paste box -- set when reached from a specific rule's own
+  /// edit screen (its "Test" button) with that rule's saved sample text, so
+  /// checking whether a just-edited rule still matches doesn't also require
+  /// re-copying its sample over by hand.
+  final String? initialBody;
 
   @override
   ConsumerState<SmsTestScreen> createState() => _SmsTestScreenState();
@@ -43,6 +49,8 @@ class _SmsTestScreenState extends ConsumerState<SmsTestScreen> {
   @override
   void initState() {
     super.initState();
+    final initialBody = widget.initialBody;
+    if (initialBody != null) _controller.text = initialBody;
     _controller.addListener(() => setState(() {}));
   }
 
