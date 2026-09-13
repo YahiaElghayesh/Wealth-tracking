@@ -6,6 +6,7 @@ import 'package:uuid/uuid.dart';
 import '../../core/format/money_formatter.dart';
 import '../../core/models/currency.dart';
 import '../../core/models/sms_rule_segment.dart';
+import '../../core/models/supplementary_card_numbers.dart';
 import '../db/database.dart';
 import '../ledger/ledger_calculator.dart' show convertToSettlement;
 
@@ -556,13 +557,15 @@ Future<SmsRuleApplyOutcome> _applyCreditCardBalance(
   final cards = await db.select(db.creditCards).get();
   CreditCard? card;
   for (final c in cards) {
-    // A supplementary card number is checked here too, not treated as a
-    // card of its own -- it shares this card's limit and balance outright,
-    // so an SMS naming either number should update the very same row.
+    // Every supplementary card number is checked here too, not treated as
+    // a card of its own -- each shares this card's limit and balance
+    // outright, so an SMS naming any one of them should update the very
+    // same row.
     final matchesNumber =
         (c.lastFourDigits != null && cardNumber.endsWith(c.lastFourDigits!)) ||
-        (c.supplementaryLastFourDigits != null &&
-            cardNumber.endsWith(c.supplementaryLastFourDigits!));
+        decodeSupplementaryLastFour(
+          c.supplementaryLastFourDigits,
+        ).any(cardNumber.endsWith);
     if (!matchesNumber) continue;
     if (bankName != null && c.bank.toLowerCase() != bankName.toLowerCase()) {
       continue;
