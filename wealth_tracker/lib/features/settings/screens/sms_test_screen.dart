@@ -88,8 +88,18 @@ class _SmsTestScreenState extends ConsumerState<SmsTestScreen> {
   }
 
   Future<void> _runTest() async {
-    final body = _controller.text.trim();
-    if (body.isEmpty) return;
+    // Not `_controller.text.trim()` -- trimming here would run a
+    // different string through matching than a real SMS ever does.
+    // [commitSmsAutoDetect] and friends only ever use `.trim().isEmpty`
+    // as an emptiness check, never actually stripping the body they go
+    // on to match with, since a rule's own pattern can itself require
+    // leading/trailing whitespace (a literal segment ending in a space
+    // before the message's final period, say) that a genuine SMS still
+    // has. Trimming here meant a message that would have matched fine on
+    // arrival could silently fail only in this screen, for no reason
+    // visible in the pasted text itself.
+    final body = _controller.text;
+    if (body.trim().isEmpty) return;
     setState(() {
       _running = true;
       _lastMatches = null;
