@@ -23,6 +23,7 @@ class _BankSmsSettingsScreenState extends ConsumerState<BankSmsSettingsScreen>
     with WidgetsBindingObserver {
   bool _enabled = false;
   bool _requesting = false;
+  bool _silent = false;
 
   /// Null while still checking. Only meaningful when [_enabled] is true --
   /// covers anyone who turned this on before POST_NOTIFICATIONS was
@@ -49,6 +50,7 @@ class _BankSmsSettingsScreenState extends ConsumerState<BankSmsSettingsScreen>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _enabled = ref.read(settingsRepositoryProvider).smsCaptureEnabled;
+    _silent = ref.read(settingsRepositoryProvider).smsNotificationsSilent;
     if (_enabled) _checkNotificationPermission();
     _checkBackgroundRestriction();
   }
@@ -151,6 +153,11 @@ class _BankSmsSettingsScreenState extends ConsumerState<BankSmsSettingsScreen>
     }
   }
 
+  Future<void> _toggleSilent(bool silent) async {
+    await ref.read(settingsRepositoryProvider).setSmsNotificationsSilent(silent);
+    if (mounted) setState(() => _silent = silent);
+  }
+
   @override
   Widget build(BuildContext context) {
     final counterparties =
@@ -178,6 +185,19 @@ class _BankSmsSettingsScreenState extends ConsumerState<BankSmsSettingsScreen>
               ),
               value: _enabled,
               onChanged: _requesting ? null : _toggle,
+            ),
+          ),
+          const SizedBox(height: 10),
+          Container(
+            decoration: rowDecoration,
+            child: SwitchListTile(
+              secondary: _IconChip(Icons.notifications_off_outlined),
+              title: const Text('Silent notifications'),
+              subtitle: const Text(
+                'No sound or vibration for a detected charge/payment; off matches your phone\'s normal ringer',
+              ),
+              value: _silent,
+              onChanged: _toggleSilent,
             ),
           ),
           if (_enabled && _notificationsGranted == false) ...[

@@ -39,6 +39,12 @@ class SettingsRepository {
   static const _lastBiometricUnlockAtKey = 'last_biometric_unlock_at';
   static const _allowScreenshotsKey = 'allow_screenshots';
 
+  /// Not private, unlike the keys above -- read directly off
+  /// [SharedPreferences] by `sms_rule_notifications.dart`, which runs from
+  /// headless WorkManager isolates with no [SettingsRepository] instance
+  /// (no [SecureSettingsStore] to construct one there) of their own.
+  static const smsNotificationsSilentKey = 'sms_notifications_silent';
+
   /// Whether the app requires a successful fingerprint/Face ID (or device
   /// PIN/pattern, as local_auth's own fallback) check before showing any
   /// screen -- off by default so existing users aren't suddenly locked out
@@ -102,6 +108,24 @@ class SettingsRepository {
 
   Future<void> setAllowScreenshots(bool allowed) {
     return _prefs.setBool(_allowScreenshotsKey, allowed);
+  }
+
+  /// Whether every SMS-triggered notification (a balance update, a charge
+  /// that needs review) should skip sound/vibration and match the phone's
+  /// silent/vibrate/normal ringer state instead -- one collective switch
+  /// for both notification kinds rather than a per-SMS-Rule setting, since
+  /// that's how it was asked for. Off (sound/vibration on) by default,
+  /// matching this app's behavior before this became a choice. See
+  /// `sms_rule_notifications.dart` for why this needs two Android
+  /// notification channels per notification kind rather than one -- a
+  /// channel's sound/vibration is fixed the moment it's first created and
+  /// Android never lets it change after that, even if this setting later
+  /// flips.
+  bool get smsNotificationsSilent =>
+      _prefs.getBool(smsNotificationsSilentKey) ?? false;
+
+  Future<void> setSmsNotificationsSilent(bool silent) {
+    return _prefs.setBool(smsNotificationsSilentKey, silent);
   }
 
   /// How often the background price refresh runs -- also the effective

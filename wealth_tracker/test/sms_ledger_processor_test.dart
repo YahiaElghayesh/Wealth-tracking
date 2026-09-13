@@ -2,6 +2,7 @@ import 'package:drift/drift.dart' hide isNull, isNotNull;
 import 'package:drift/native.dart';
 import 'package:flutter_local_notifications_platform_interface/flutter_local_notifications_platform_interface.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
 
 import 'package:wealth_tracker/core/models/sms_rule_segment.dart';
@@ -42,6 +43,13 @@ const _repaymentSms = 'We received your payment of EGP 250.00. Thank you.';
 void main() {
   setUpAll(() {
     FlutterLocalNotificationsPlatform.instance = _NoopNotificationsPlatform();
+    // showSmsChargeReviewNotification/showSmsRuleNotification now also
+    // read the "silent notifications" preference off SharedPreferences
+    // directly (see sms_rule_notifications.dart's own doc comment on
+    // _notificationsSilent) -- SharedPreferences.getInstance() throws
+    // without this, since nothing else in this suite touches it.
+    TestWidgetsFlutterBinding.ensureInitialized();
+    SharedPreferences.setMockInitialValues({});
   });
 
   late AppDatabase db;
