@@ -48,13 +48,14 @@ Future<void> showSmsRuleNotification({
     settings: const InitializationSettings(android: androidSettings),
   );
   final silent = await _notificationsSilent();
+  // A unique id per call -- rather than one fixed id, which silently
+  // replaced an still-unread "balance updated" notification the moment
+  // another one arrived. Two balance updates in quick succession (a
+  // charge and its refund a minute apart, one from each of two cards)
+  // now both stay visible instead of one erasing the other.
+  final id = DateTime.now().millisecondsSinceEpoch & 0x7fffffff;
   await plugin.show(
-    // A unique id per call -- rather than one fixed id, which silently
-    // replaced an still-unread "balance updated" notification the moment
-    // another one arrived. Two balance updates in quick succession (a
-    // charge and its refund a minute apart, one from each of two cards)
-    // now both stay visible instead of one erasing the other.
-    id: DateTime.now().millisecondsSinceEpoch & 0x7fffffff,
+    id: id,
     title: title,
     body: body,
     notificationDetails: NotificationDetails(
@@ -66,6 +67,14 @@ Future<void> showSmsRuleNotification({
         priority: Priority.defaultPriority,
         playSound: !silent,
         enableVibration: !silent,
+        // Its own group of one, not left ungrouped -- Android auto-bundles
+        // several ungrouped notifications from the same app into a single
+        // collapsed "N notifications" stack (most visible on the lock
+        // screen, which is what got reported), but only for notifications
+        // that don't already belong to *some* group. Giving each one a
+        // group key unique to itself opts it out of that without actually
+        // grouping it with anything.
+        groupKey: 'sms_rule_$id',
       ),
     ),
   );
@@ -129,8 +138,9 @@ Future<void> showSmsChargeReviewNotification({
   final notificationBody = addedTo == null
       ? 'Tap to review, or Quick add to log it as-is.'
       : '$addedTo. Tap to review, or Quick add to log it as-is.';
+  final id = timestampMillis & 0x7fffffff; // masked to a positive 32-bit id
   await plugin.show(
-    id: timestampMillis & 0x7fffffff, // masked to a positive 32-bit id
+    id: id,
     title: 'Charge detected: $vendor',
     body: notificationBody,
     payload: jsonEncode(
@@ -145,6 +155,11 @@ Future<void> showSmsChargeReviewNotification({
         priority: Priority.high,
         playSound: !silent,
         enableVibration: !silent,
+        // See showSmsRuleNotification's own comment on groupKey -- same
+        // "its own group of one" fix for the same lock-screen stacking
+        // report, applied here too since this is the other notification
+        // kind this app posts.
+        groupKey: 'sms_review_$id',
         actions: const [
           AndroidNotificationAction(
             smsChargeReviewQuickAddActionId,
