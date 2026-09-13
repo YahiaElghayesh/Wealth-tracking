@@ -150,6 +150,7 @@ void main() {
     String counterpartyId, {
     List<SmsRuleSegment>? segments,
     String? sampleText,
+    bool autoAddCharges = false,
   }) {
     return db
         .into(db.smsRules)
@@ -162,6 +163,7 @@ void main() {
             segmentsJson: encodeSmsRuleSegments(segments ?? chargeSegments()),
             targetCounterpartyId: Value(counterpartyId),
             currency: const Value('EGP'),
+            autoAddCharges: Value(autoAddCharges),
             createdAt: DateTime(2026),
             profileId: const Value('test-profile'),
           ),
@@ -378,6 +380,34 @@ void main() {
         await commitSmsAutoDetect(db, body: _chargeSms, timestampMillis: 1000);
 
         expect(await db.select(db.ledgerTransactions).get(), isEmpty);
+      },
+    );
+
+    test(
+      'a charge from a rule with autoAddCharges on is added straight to the '
+      'ledger, no review notification or pending state at all',
+      () async {
+        final bankId = await insertBank();
+        final counterpartyId = await insertCounterparty('Dad');
+        await insertLedgerPaymentRule(
+          bankId,
+          counterpartyId,
+          autoAddCharges: true,
+        );
+
+        await commitSmsAutoDetect(db, body: _chargeSms, timestampMillis: 1000);
+
+        expect(await db.select(db.ledgerTransactions).get(), hasLength(1));
+        // Fully settled already -- a later Quick add for the same SMS finds
+        // nothing left to do, exactly like a repayment.
+        final addedAgain = await commitSmsQuickAdd(
+          db,
+          body: _chargeSms,
+          timestampMillis: 1000,
+          profileId: 'test-profile',
+        );
+        expect(addedAgain, isFalse);
+        expect(await db.select(db.ledgerTransactions).get(), hasLength(1));
       },
     );
 

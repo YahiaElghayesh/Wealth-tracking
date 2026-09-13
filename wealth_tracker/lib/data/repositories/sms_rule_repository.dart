@@ -35,6 +35,8 @@ class SmsRuleRepository {
     required bool notifyOnMatch,
     String matchMode = 'strict',
     String? name,
+    bool autoAddCharges = false,
+    String? category,
   }) {
     return _db
         .into(_db.smsRules)
@@ -50,6 +52,8 @@ class SmsRuleRepository {
             currency: Value(currency),
             notifyOnMatch: Value(notifyOnMatch),
             matchMode: Value(matchMode),
+            autoAddCharges: Value(autoAddCharges),
+            category: Value(category),
             createdAt: DateTime.now(),
             profileId: Value(profileId),
           ),

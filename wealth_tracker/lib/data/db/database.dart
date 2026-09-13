@@ -43,7 +43,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 35;
+  int get schemaVersion => 36;
 
   /// Public so `ProfileRepository.addProfile` can give a newly created
   /// profile the same starter categories a fresh install gets -- otherwise
@@ -459,6 +459,14 @@ class AppDatabase extends _$AppDatabase {
       if (from < 35) {
         await m.addColumn(bankAccounts, bankAccounts.balanceUpdatedAt);
         await m.addColumn(bankAccounts, bankAccounts.balanceUpdatedSource);
+      }
+      if (from < 36) {
+        // Auto-add vs. review-first for a 'ledgerPayment' rule's charge
+        // matches, and an explicit ledger category to override the
+        // matched vendor text -- every existing rule keeps behaving
+        // exactly as it already did (review first, category from vendor).
+        await m.addColumn(smsRules, smsRules.autoAddCharges);
+        await m.addColumn(smsRules, smsRules.category);
       }
     },
     // The "Breakfast" quick-pick category was a voice-transcription

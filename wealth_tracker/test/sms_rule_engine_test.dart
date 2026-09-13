@@ -91,6 +91,7 @@ void main() {
         notifyOnMatch: false,
         matchMode: 'strict',
         enabled: true,
+        autoAddCharges: false,
         createdAt: DateTime(2026),
         profileId: null,
       );
@@ -116,6 +117,7 @@ void main() {
         notifyOnMatch: false,
         matchMode: 'strict',
         enabled: true,
+        autoAddCharges: false,
         createdAt: DateTime(2026),
         profileId: null,
       );
@@ -143,6 +145,7 @@ void main() {
         notifyOnMatch: false,
         matchMode: 'strict',
         enabled: true,
+        autoAddCharges: false,
         createdAt: DateTime(2026),
         profileId: null,
       );
@@ -163,6 +166,7 @@ void main() {
         notifyOnMatch: false,
         matchMode: 'strict',
         enabled: true,
+        autoAddCharges: false,
         createdAt: DateTime(2026),
         profileId: null,
       );
@@ -194,6 +198,7 @@ void main() {
           notifyOnMatch: false,
           matchMode: 'strict',
           enabled: true,
+          autoAddCharges: false,
           createdAt: DateTime(2026),
           profileId: null,
         );
@@ -222,6 +227,7 @@ void main() {
         notifyOnMatch: false,
         matchMode: 'strict',
         enabled: true,
+        autoAddCharges: false,
         createdAt: DateTime(2026),
         profileId: null,
       );
@@ -251,6 +257,7 @@ void main() {
         notifyOnMatch: false,
         matchMode: 'strict',
         enabled: true,
+        autoAddCharges: false,
         createdAt: DateTime(2026),
         profileId: null,
       );
@@ -276,6 +283,7 @@ void main() {
         notifyOnMatch: false,
         matchMode: 'strict',
         enabled: true,
+        autoAddCharges: false,
         createdAt: DateTime(2026),
         profileId: null,
       );
@@ -306,6 +314,7 @@ void main() {
           notifyOnMatch: false,
           matchMode: 'strict',
           enabled: true,
+          autoAddCharges: false,
           createdAt: DateTime(2026),
           profileId: null,
         );
@@ -337,6 +346,7 @@ void main() {
           notifyOnMatch: false,
           matchMode: 'strict',
           enabled: true,
+          autoAddCharges: false,
           createdAt: DateTime(2026),
           profileId: null,
         );
@@ -363,6 +373,7 @@ void main() {
           notifyOnMatch: false,
           matchMode: 'flexible',
           enabled: true,
+          autoAddCharges: false,
           createdAt: DateTime(2026),
           profileId: null,
         );
@@ -391,6 +402,7 @@ void main() {
         notifyOnMatch: false,
         matchMode: 'flexible',
         enabled: true,
+        autoAddCharges: false,
         createdAt: DateTime(2026),
         profileId: null,
       );
@@ -452,6 +464,7 @@ void main() {
           notifyOnMatch: false,
           matchMode: 'strict',
           enabled: true,
+          autoAddCharges: false,
           createdAt: DateTime(2026),
           profileId: null,
         );
@@ -481,6 +494,7 @@ void main() {
       notifyOnMatch: false,
       matchMode: 'strict',
       enabled: true,
+      autoAddCharges: false,
       createdAt: DateTime(2026),
       profileId: null,
     );
@@ -552,6 +566,7 @@ void main() {
           notifyOnMatch: false,
           matchMode: 'strict',
           enabled: true,
+          autoAddCharges: false,
           createdAt: DateTime(2026),
           profileId: null,
         );
@@ -595,6 +610,7 @@ void main() {
           notifyOnMatch: false,
           matchMode: 'flexible',
           enabled: true,
+          autoAddCharges: false,
           createdAt: DateTime(2026),
           profileId: null,
         );
@@ -639,6 +655,7 @@ void main() {
           notifyOnMatch: false,
           matchMode: 'strict',
           enabled: true,
+          autoAddCharges: false,
           createdAt: DateTime(2026),
           profileId: null,
         );
@@ -757,6 +774,7 @@ void main() {
           notifyOnMatch: true,
           matchMode: 'strict',
           enabled: true,
+          autoAddCharges: false,
           createdAt: DateTime(2026),
           profileId: null,
         );
@@ -806,6 +824,7 @@ void main() {
           notifyOnMatch: true,
           matchMode: 'strict',
           enabled: true,
+          autoAddCharges: false,
           createdAt: DateTime(2026),
           profileId: null,
         );
@@ -851,6 +870,7 @@ void main() {
           notifyOnMatch: true,
           matchMode: 'strict',
           enabled: true,
+          autoAddCharges: false,
           createdAt: DateTime(2026),
           profileId: null,
         );
@@ -896,6 +916,7 @@ void main() {
         notifyOnMatch: false,
         matchMode: 'strict',
         enabled: true,
+        autoAddCharges: false,
         createdAt: DateTime(2026),
         profileId: null,
       );
@@ -929,6 +950,7 @@ void main() {
           notifyOnMatch: false,
           matchMode: 'strict',
           enabled: true,
+          autoAddCharges: false,
           createdAt: DateTime(2026),
           profileId: null,
         );
@@ -967,6 +989,7 @@ void main() {
           notifyOnMatch: false,
           matchMode: 'strict',
           enabled: true,
+          autoAddCharges: false,
           createdAt: DateTime(2026),
           profileId: null,
         );
@@ -1003,6 +1026,7 @@ void main() {
         notifyOnMatch: false,
         matchMode: 'strict',
         enabled: true,
+        autoAddCharges: false,
         createdAt: DateTime(2026),
         profileId: null,
       );
@@ -1033,6 +1057,7 @@ void main() {
         notifyOnMatch: true,
         matchMode: 'strict',
         enabled: true,
+        autoAddCharges: false,
         createdAt: DateTime(2026),
         profileId: null,
       );
@@ -1069,6 +1094,7 @@ void main() {
           notifyOnMatch: false,
           matchMode: 'strict',
           enabled: true,
+          autoAddCharges: false,
           createdAt: DateTime(2026),
           profileId: null,
         );
@@ -1099,6 +1125,7 @@ void main() {
           notifyOnMatch: false,
           matchMode: 'strict',
           enabled: true,
+          autoAddCharges: false,
           createdAt: DateTime(2026),
           profileId: null,
         );
@@ -1133,6 +1160,7 @@ void main() {
           notifyOnMatch: false,
           matchMode: 'strict',
           enabled: true,
+          autoAddCharges: false,
           createdAt: DateTime(2026),
           profileId: null,
         );
@@ -1163,6 +1191,7 @@ void main() {
         notifyOnMatch: false,
         matchMode: 'strict',
         enabled: true,
+        autoAddCharges: false,
         createdAt: DateTime(2026),
         profileId: null,
       );
@@ -1201,6 +1230,7 @@ void main() {
           notifyOnMatch: false,
           matchMode: 'strict',
           enabled: true,
+          autoAddCharges: false,
           createdAt: DateTime(2026),
           profileId: null,
         );
@@ -1249,6 +1279,7 @@ void main() {
           notifyOnMatch: true,
           matchMode: 'strict',
           enabled: true,
+          autoAddCharges: false,
           createdAt: DateTime(2026),
           profileId: null,
         );
@@ -1292,6 +1323,7 @@ void main() {
           notifyOnMatch: false,
           matchMode: 'strict',
           enabled: true,
+          autoAddCharges: false,
           createdAt: DateTime(2026),
           profileId: null,
         );
@@ -1331,6 +1363,7 @@ void main() {
           notifyOnMatch: false,
           matchMode: 'strict',
           enabled: true,
+          autoAddCharges: false,
           createdAt: DateTime(2026),
           profileId: null,
         );

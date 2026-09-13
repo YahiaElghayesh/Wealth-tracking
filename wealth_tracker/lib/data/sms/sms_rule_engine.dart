@@ -702,7 +702,9 @@ Future<SmsRuleApplyOutcome> _applyLedgerPayment(
   final isRepayment = match.valueRole == 'repayment';
   final signedAmount = isRepayment ? -value : value;
   final vendor = match.vendor?.trim();
-  final category = (vendor != null && vendor.isNotEmpty) ? vendor : 'Other';
+  final category =
+      rule.category ??
+      ((vendor != null && vendor.isNotEmpty) ? vendor : 'Other');
   final currency = match.currency ?? rule.currency ?? defaultCurrency;
 
   await db

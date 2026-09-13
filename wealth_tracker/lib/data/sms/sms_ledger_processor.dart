@@ -163,7 +163,10 @@ Future<void> _applyBalanceMatchesOnce(
 /// entry — pre-filled with that rule's ledger/category, editable before
 /// saving. A 'ledgerPayment' match tagged as a repayment has nothing to
 /// review (the ledger, sign, and amount are already fully determined) so
-/// it's applied directly instead, the same way the headless paths do.
+/// it's applied directly instead, the same way the headless paths do --
+/// and so does a charge match whose own rule has [SmsRule.autoAddCharges]
+/// on, skipping the review step entirely for a vendor the user has
+/// decided never needs a second look.
 Future<void> processIncomingSms(
   AppDatabase db, {
   required String body,
@@ -205,7 +208,7 @@ Future<void> processIncomingSms(
   _RuleMatch? reviewable;
   for (final m in matches) {
     if (m.rule.operation != 'ledgerPayment') continue;
-    if (m.match.valueRole == 'repayment') {
+    if (m.match.valueRole == 'repayment' || m.rule.autoAddCharges) {
       final outcome = await applySmsRule(db, m.rule, m.match);
       if (outcome.applied &&
           m.rule.notifyOnMatch &&
@@ -320,11 +323,13 @@ Future<bool> commitSmsQuickAdd(
 /// Applies every matched balance rule immediately (as [processIncomingSms]
 /// does), and a matched 'ledgerPayment' rule tagged 'repayment' directly
 /// too, both notifying only when that rule's own [SmsRule.notifyOnMatch]
-/// is on. A match tagged 'charge' needs the user's review before it
-/// becomes a ledger entry -- there's no Navigator in this headless
-/// isolate to push [SmsReviewScreen] onto, so it posts a notification
-/// instead (always, regardless of [SmsRule.notifyOnMatch], since a charge
-/// match is inherently something to act on, not just an FYI). Tapping
+/// is on -- a 'charge' match applies directly the same way when its own
+/// rule has [SmsRule.autoAddCharges] on. Otherwise a 'charge' match needs
+/// the user's review before it becomes a ledger entry -- there's no
+/// Navigator in this headless isolate to push [SmsReviewScreen] onto, so
+/// it posts a notification instead (always, regardless of
+/// [SmsRule.notifyOnMatch], since a charge match is inherently something
+/// to act on, not just an FYI). Tapping
 /// that notification re-runs [processIncomingSms] with the same body/
 /// timestamp once the app is open (see app.dart's notification-response
 /// handling), which re-matches and pushes the review screen for real;
@@ -349,7 +354,7 @@ Future<void> commitSmsAutoDetect(
   _RuleMatch? reviewable;
   for (final m in matches) {
     if (m.rule.operation != 'ledgerPayment') continue;
-    if (m.match.valueRole == 'repayment') {
+    if (m.match.valueRole == 'repayment' || m.rule.autoAddCharges) {
       final outcome = await applySmsRule(db, m.rule, m.match);
       if (outcome.applied &&
           m.rule.notifyOnMatch &&

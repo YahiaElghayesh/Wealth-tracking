@@ -275,6 +275,8 @@ class _SmsRuleFormScreenState extends ConsumerState<SmsRuleFormScreen> {
   String _currency = defaultCurrency;
   bool _notifyOnMatch = false;
   String _matchMode = 'strict';
+  bool _autoAddCharges = false;
+  String? _category;
   final List<_TaggedSpan> _tags = [];
 
   /// The sample text as of the last time [_tags]' start/end offsets were
@@ -302,6 +304,8 @@ class _SmsRuleFormScreenState extends ConsumerState<SmsRuleFormScreen> {
       _currency = existing.currency ?? defaultCurrency;
       _notifyOnMatch = existing.notifyOnMatch;
       _matchMode = existing.matchMode;
+      _autoAddCharges = existing.autoAddCharges;
+      _category = existing.category;
       var cursor = 0;
       for (final segment in decodeSmsRuleSegments(existing.segmentsJson)) {
         final len = segment.text.length;
@@ -631,6 +635,10 @@ class _SmsRuleFormScreenState extends ConsumerState<SmsRuleFormScreen> {
           currency: Value(_operation == 'ledgerPayment' ? _currency : null),
           notifyOnMatch: _notifyOnMatch,
           matchMode: _matchMode,
+          autoAddCharges: _operation == 'ledgerPayment' && _autoAddCharges,
+          category: Value(
+            _operation == 'ledgerPayment' ? _category : null,
+          ),
         ),
       );
     } else {
@@ -646,6 +654,8 @@ class _SmsRuleFormScreenState extends ConsumerState<SmsRuleFormScreen> {
         currency: _operation == 'ledgerPayment' ? _currency : null,
         notifyOnMatch: _notifyOnMatch,
         matchMode: _matchMode,
+        autoAddCharges: _operation == 'ledgerPayment' && _autoAddCharges,
+        category: _operation == 'ledgerPayment' ? _category : null,
       );
     }
     if (mounted) Navigator.of(context).pop();
@@ -688,6 +698,14 @@ class _SmsRuleFormScreenState extends ConsumerState<SmsRuleFormScreen> {
     final banks = ref.watch(banksStreamProvider).valueOrNull ?? const [];
     final counterparties =
         ref.watch(counterpartiesStreamProvider).valueOrNull ?? const [];
+    final categoryNames = [
+      ...ref
+              .watch(ledgerCategoriesStreamProvider)
+              .valueOrNull
+              ?.map((c) => c.name) ??
+          const <String>[],
+      'Other',
+    ];
     final colors = context.appColors;
     final sampleDirection = detectSampleDirection(_sampleController.text);
 
@@ -772,6 +790,34 @@ class _SmsRuleFormScreenState extends ConsumerState<SmsRuleFormScreen> {
                 helperText:
                     'Used unless a Currency tag is marked and recognized in the message itself.',
                 onChanged: (c) => setState(() => _currency = c),
+              ),
+              const SizedBox(height: 12),
+              DropdownButtonFormField<String?>(
+                isExpanded: true,
+                initialValue: categoryNames.contains(_category)
+                    ? _category
+                    : null,
+                decoration: const InputDecoration(labelText: 'Category'),
+                items: [
+                  const DropdownMenuItem(
+                    value: null,
+                    child: Text('Match the SMS\'s vendor name'),
+                  ),
+                  ...categoryNames.map(
+                    (c) => DropdownMenuItem(value: c, child: Text(c)),
+                  ),
+                ],
+                onChanged: (v) => setState(() => _category = v),
+              ),
+              const SizedBox(height: 4),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Add charges automatically'),
+                subtitle: const Text(
+                  'Off: a charge posts a notification to review or Quick add first. On: it\'s added straight to the ledger, no review. A repayment is always added straight away either way.',
+                ),
+                value: _autoAddCharges,
+                onChanged: (v) => setState(() => _autoAddCharges = v),
               ),
             ],
             const SizedBox(height: 20),

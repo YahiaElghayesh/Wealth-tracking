@@ -656,6 +656,22 @@ class SmsRules extends Table {
   BoolColumn get notifyOnMatch =>
       boolean().withDefault(const Constant(false))();
 
+  /// Only meaningful for a 'ledgerPayment' rule's 'charge' match -- normally
+  /// left for the user to confirm via a review notification (Quick add, or
+  /// tap to open the review screen). On, a match is committed straight to
+  /// the ledger the instant it arrives, the same way a 'repayment' match
+  /// already always was, with no review step at all. Off by default,
+  /// matching every rule's existing behavior before this became a choice.
+  BoolColumn get autoAddCharges =>
+      boolean().withDefault(const Constant(false))();
+
+  /// Only meaningful for a 'ledgerPayment' rule -- the ledger category a
+  /// match is filed under. Null (the default) keeps this rule's original
+  /// behavior: the matched `vendor` tag's text, or 'Other' without one.
+  /// Set explicitly when a bank SMS's vendor wording doesn't map onto this
+  /// app's own category taxonomy.
+  TextColumn get category => text().nullable()();
+
   /// 'strict' (default) requires every un-tagged part of the sample to
   /// appear in a real SMS essentially verbatim (whitespace aside) --
   /// 'flexible' keeps only a couple of words immediately next to each tag

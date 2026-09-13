@@ -9025,6 +9025,32 @@ class $SmsRulesTable extends SmsRules with TableInfo<$SmsRulesTable, SmsRule> {
     ),
     defaultValue: const Constant(false),
   );
+  static const VerificationMeta _autoAddChargesMeta = const VerificationMeta(
+    'autoAddCharges',
+  );
+  @override
+  late final GeneratedColumn<bool> autoAddCharges = GeneratedColumn<bool>(
+    'auto_add_charges',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("auto_add_charges" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  static const VerificationMeta _categoryMeta = const VerificationMeta(
+    'category',
+  );
+  @override
+  late final GeneratedColumn<String> category = GeneratedColumn<String>(
+    'category',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _matchModeMeta = const VerificationMeta(
     'matchMode',
   );
@@ -9088,6 +9114,8 @@ class $SmsRulesTable extends SmsRules with TableInfo<$SmsRulesTable, SmsRule> {
     targetCounterpartyId,
     currency,
     notifyOnMatch,
+    autoAddCharges,
+    category,
     matchMode,
     enabled,
     createdAt,
@@ -9175,6 +9203,21 @@ class $SmsRulesTable extends SmsRules with TableInfo<$SmsRulesTable, SmsRule> {
         ),
       );
     }
+    if (data.containsKey('auto_add_charges')) {
+      context.handle(
+        _autoAddChargesMeta,
+        autoAddCharges.isAcceptableOrUnknown(
+          data['auto_add_charges']!,
+          _autoAddChargesMeta,
+        ),
+      );
+    }
+    if (data.containsKey('category')) {
+      context.handle(
+        _categoryMeta,
+        category.isAcceptableOrUnknown(data['category']!, _categoryMeta),
+      );
+    }
     if (data.containsKey('match_mode')) {
       context.handle(
         _matchModeMeta,
@@ -9246,6 +9289,14 @@ class $SmsRulesTable extends SmsRules with TableInfo<$SmsRulesTable, SmsRule> {
         DriftSqlType.bool,
         data['${effectivePrefix}notify_on_match'],
       )!,
+      autoAddCharges: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}auto_add_charges'],
+      )!,
+      category: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}category'],
+      ),
       matchMode: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}match_mode'],
@@ -9312,6 +9363,21 @@ class SmsRule extends DataClass implements Insertable<SmsRule> {
   /// applies to a real incoming SMS.
   final bool notifyOnMatch;
 
+  /// Only meaningful for a 'ledgerPayment' rule's 'charge' match -- normally
+  /// left for the user to confirm via a review notification (Quick add, or
+  /// tap to open the review screen). On, a match is committed straight to
+  /// the ledger the instant it arrives, the same way a 'repayment' match
+  /// already always was, with no review step at all. Off by default,
+  /// matching every rule's existing behavior before this became a choice.
+  final bool autoAddCharges;
+
+  /// Only meaningful for a 'ledgerPayment' rule -- the ledger category a
+  /// match is filed under. Null (the default) keeps this rule's original
+  /// behavior: the matched `vendor` tag's text, or 'Other' without one.
+  /// Set explicitly when a bank SMS's vendor wording doesn't map onto this
+  /// app's own category taxonomy.
+  final String? category;
+
   /// 'strict' (default) requires every un-tagged part of the sample to
   /// appear in a real SMS essentially verbatim (whitespace aside) --
   /// 'flexible' keeps only a couple of words immediately next to each tag
@@ -9337,6 +9403,8 @@ class SmsRule extends DataClass implements Insertable<SmsRule> {
     this.targetCounterpartyId,
     this.currency,
     required this.notifyOnMatch,
+    required this.autoAddCharges,
+    this.category,
     required this.matchMode,
     required this.enabled,
     required this.createdAt,
@@ -9360,6 +9428,10 @@ class SmsRule extends DataClass implements Insertable<SmsRule> {
       map['currency'] = Variable<String>(currency);
     }
     map['notify_on_match'] = Variable<bool>(notifyOnMatch);
+    map['auto_add_charges'] = Variable<bool>(autoAddCharges);
+    if (!nullToAbsent || category != null) {
+      map['category'] = Variable<String>(category);
+    }
     map['match_mode'] = Variable<String>(matchMode);
     map['enabled'] = Variable<bool>(enabled);
     map['created_at'] = Variable<DateTime>(createdAt);
@@ -9384,6 +9456,10 @@ class SmsRule extends DataClass implements Insertable<SmsRule> {
           ? const Value.absent()
           : Value(currency),
       notifyOnMatch: Value(notifyOnMatch),
+      autoAddCharges: Value(autoAddCharges),
+      category: category == null && nullToAbsent
+          ? const Value.absent()
+          : Value(category),
       matchMode: Value(matchMode),
       enabled: Value(enabled),
       createdAt: Value(createdAt),
@@ -9410,6 +9486,8 @@ class SmsRule extends DataClass implements Insertable<SmsRule> {
       ),
       currency: serializer.fromJson<String?>(json['currency']),
       notifyOnMatch: serializer.fromJson<bool>(json['notifyOnMatch']),
+      autoAddCharges: serializer.fromJson<bool>(json['autoAddCharges']),
+      category: serializer.fromJson<String?>(json['category']),
       matchMode: serializer.fromJson<String>(json['matchMode']),
       enabled: serializer.fromJson<bool>(json['enabled']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
@@ -9429,6 +9507,8 @@ class SmsRule extends DataClass implements Insertable<SmsRule> {
       'targetCounterpartyId': serializer.toJson<String?>(targetCounterpartyId),
       'currency': serializer.toJson<String?>(currency),
       'notifyOnMatch': serializer.toJson<bool>(notifyOnMatch),
+      'autoAddCharges': serializer.toJson<bool>(autoAddCharges),
+      'category': serializer.toJson<String?>(category),
       'matchMode': serializer.toJson<String>(matchMode),
       'enabled': serializer.toJson<bool>(enabled),
       'createdAt': serializer.toJson<DateTime>(createdAt),
@@ -9446,6 +9526,8 @@ class SmsRule extends DataClass implements Insertable<SmsRule> {
     Value<String?> targetCounterpartyId = const Value.absent(),
     Value<String?> currency = const Value.absent(),
     bool? notifyOnMatch,
+    bool? autoAddCharges,
+    Value<String?> category = const Value.absent(),
     String? matchMode,
     bool? enabled,
     DateTime? createdAt,
@@ -9462,6 +9544,8 @@ class SmsRule extends DataClass implements Insertable<SmsRule> {
         : this.targetCounterpartyId,
     currency: currency.present ? currency.value : this.currency,
     notifyOnMatch: notifyOnMatch ?? this.notifyOnMatch,
+    autoAddCharges: autoAddCharges ?? this.autoAddCharges,
+    category: category.present ? category.value : this.category,
     matchMode: matchMode ?? this.matchMode,
     enabled: enabled ?? this.enabled,
     createdAt: createdAt ?? this.createdAt,
@@ -9486,6 +9570,10 @@ class SmsRule extends DataClass implements Insertable<SmsRule> {
       notifyOnMatch: data.notifyOnMatch.present
           ? data.notifyOnMatch.value
           : this.notifyOnMatch,
+      autoAddCharges: data.autoAddCharges.present
+          ? data.autoAddCharges.value
+          : this.autoAddCharges,
+      category: data.category.present ? data.category.value : this.category,
       matchMode: data.matchMode.present ? data.matchMode.value : this.matchMode,
       enabled: data.enabled.present ? data.enabled.value : this.enabled,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
@@ -9505,6 +9593,8 @@ class SmsRule extends DataClass implements Insertable<SmsRule> {
           ..write('targetCounterpartyId: $targetCounterpartyId, ')
           ..write('currency: $currency, ')
           ..write('notifyOnMatch: $notifyOnMatch, ')
+          ..write('autoAddCharges: $autoAddCharges, ')
+          ..write('category: $category, ')
           ..write('matchMode: $matchMode, ')
           ..write('enabled: $enabled, ')
           ..write('createdAt: $createdAt, ')
@@ -9524,6 +9614,8 @@ class SmsRule extends DataClass implements Insertable<SmsRule> {
     targetCounterpartyId,
     currency,
     notifyOnMatch,
+    autoAddCharges,
+    category,
     matchMode,
     enabled,
     createdAt,
@@ -9542,6 +9634,8 @@ class SmsRule extends DataClass implements Insertable<SmsRule> {
           other.targetCounterpartyId == this.targetCounterpartyId &&
           other.currency == this.currency &&
           other.notifyOnMatch == this.notifyOnMatch &&
+          other.autoAddCharges == this.autoAddCharges &&
+          other.category == this.category &&
           other.matchMode == this.matchMode &&
           other.enabled == this.enabled &&
           other.createdAt == this.createdAt &&
@@ -9558,6 +9652,8 @@ class SmsRulesCompanion extends UpdateCompanion<SmsRule> {
   final Value<String?> targetCounterpartyId;
   final Value<String?> currency;
   final Value<bool> notifyOnMatch;
+  final Value<bool> autoAddCharges;
+  final Value<String?> category;
   final Value<String> matchMode;
   final Value<bool> enabled;
   final Value<DateTime> createdAt;
@@ -9573,6 +9669,8 @@ class SmsRulesCompanion extends UpdateCompanion<SmsRule> {
     this.targetCounterpartyId = const Value.absent(),
     this.currency = const Value.absent(),
     this.notifyOnMatch = const Value.absent(),
+    this.autoAddCharges = const Value.absent(),
+    this.category = const Value.absent(),
     this.matchMode = const Value.absent(),
     this.enabled = const Value.absent(),
     this.createdAt = const Value.absent(),
@@ -9589,6 +9687,8 @@ class SmsRulesCompanion extends UpdateCompanion<SmsRule> {
     this.targetCounterpartyId = const Value.absent(),
     this.currency = const Value.absent(),
     this.notifyOnMatch = const Value.absent(),
+    this.autoAddCharges = const Value.absent(),
+    this.category = const Value.absent(),
     this.matchMode = const Value.absent(),
     this.enabled = const Value.absent(),
     required DateTime createdAt,
@@ -9610,6 +9710,8 @@ class SmsRulesCompanion extends UpdateCompanion<SmsRule> {
     Expression<String>? targetCounterpartyId,
     Expression<String>? currency,
     Expression<bool>? notifyOnMatch,
+    Expression<bool>? autoAddCharges,
+    Expression<String>? category,
     Expression<String>? matchMode,
     Expression<bool>? enabled,
     Expression<DateTime>? createdAt,
@@ -9627,6 +9729,8 @@ class SmsRulesCompanion extends UpdateCompanion<SmsRule> {
         'target_counterparty_id': targetCounterpartyId,
       if (currency != null) 'currency': currency,
       if (notifyOnMatch != null) 'notify_on_match': notifyOnMatch,
+      if (autoAddCharges != null) 'auto_add_charges': autoAddCharges,
+      if (category != null) 'category': category,
       if (matchMode != null) 'match_mode': matchMode,
       if (enabled != null) 'enabled': enabled,
       if (createdAt != null) 'created_at': createdAt,
@@ -9645,6 +9749,8 @@ class SmsRulesCompanion extends UpdateCompanion<SmsRule> {
     Value<String?>? targetCounterpartyId,
     Value<String?>? currency,
     Value<bool>? notifyOnMatch,
+    Value<bool>? autoAddCharges,
+    Value<String?>? category,
     Value<String>? matchMode,
     Value<bool>? enabled,
     Value<DateTime>? createdAt,
@@ -9661,6 +9767,8 @@ class SmsRulesCompanion extends UpdateCompanion<SmsRule> {
       targetCounterpartyId: targetCounterpartyId ?? this.targetCounterpartyId,
       currency: currency ?? this.currency,
       notifyOnMatch: notifyOnMatch ?? this.notifyOnMatch,
+      autoAddCharges: autoAddCharges ?? this.autoAddCharges,
+      category: category ?? this.category,
       matchMode: matchMode ?? this.matchMode,
       enabled: enabled ?? this.enabled,
       createdAt: createdAt ?? this.createdAt,
@@ -9701,6 +9809,12 @@ class SmsRulesCompanion extends UpdateCompanion<SmsRule> {
     if (notifyOnMatch.present) {
       map['notify_on_match'] = Variable<bool>(notifyOnMatch.value);
     }
+    if (autoAddCharges.present) {
+      map['auto_add_charges'] = Variable<bool>(autoAddCharges.value);
+    }
+    if (category.present) {
+      map['category'] = Variable<String>(category.value);
+    }
     if (matchMode.present) {
       map['match_mode'] = Variable<String>(matchMode.value);
     }
@@ -9731,6 +9845,8 @@ class SmsRulesCompanion extends UpdateCompanion<SmsRule> {
           ..write('targetCounterpartyId: $targetCounterpartyId, ')
           ..write('currency: $currency, ')
           ..write('notifyOnMatch: $notifyOnMatch, ')
+          ..write('autoAddCharges: $autoAddCharges, ')
+          ..write('category: $category, ')
           ..write('matchMode: $matchMode, ')
           ..write('enabled: $enabled, ')
           ..write('createdAt: $createdAt, ')
@@ -18625,6 +18741,8 @@ typedef $$SmsRulesTableCreateCompanionBuilder =
       Value<String?> targetCounterpartyId,
       Value<String?> currency,
       Value<bool> notifyOnMatch,
+      Value<bool> autoAddCharges,
+      Value<String?> category,
       Value<String> matchMode,
       Value<bool> enabled,
       required DateTime createdAt,
@@ -18642,6 +18760,8 @@ typedef $$SmsRulesTableUpdateCompanionBuilder =
       Value<String?> targetCounterpartyId,
       Value<String?> currency,
       Value<bool> notifyOnMatch,
+      Value<bool> autoAddCharges,
+      Value<String?> category,
       Value<String> matchMode,
       Value<bool> enabled,
       Value<DateTime> createdAt,
@@ -18749,6 +18869,16 @@ class $$SmsRulesTableFilterComposer
 
   ColumnFilters<bool> get notifyOnMatch => $composableBuilder(
     column: $table.notifyOnMatch,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get autoAddCharges => $composableBuilder(
+    column: $table.autoAddCharges,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get category => $composableBuilder(
+    column: $table.category,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -18881,6 +19011,16 @@ class $$SmsRulesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<bool> get autoAddCharges => $composableBuilder(
+    column: $table.autoAddCharges,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get category => $composableBuilder(
+    column: $table.category,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get matchMode => $composableBuilder(
     column: $table.matchMode,
     builder: (column) => ColumnOrderings(column),
@@ -19002,6 +19142,14 @@ class $$SmsRulesTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<bool> get autoAddCharges => $composableBuilder(
+    column: $table.autoAddCharges,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get category =>
+      $composableBuilder(column: $table.category, builder: (column) => column);
+
   GeneratedColumn<String> get matchMode =>
       $composableBuilder(column: $table.matchMode, builder: (column) => column);
 
@@ -19122,6 +19270,8 @@ class $$SmsRulesTableTableManager
                 Value<String?> targetCounterpartyId = const Value.absent(),
                 Value<String?> currency = const Value.absent(),
                 Value<bool> notifyOnMatch = const Value.absent(),
+                Value<bool> autoAddCharges = const Value.absent(),
+                Value<String?> category = const Value.absent(),
                 Value<String> matchMode = const Value.absent(),
                 Value<bool> enabled = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
@@ -19137,6 +19287,8 @@ class $$SmsRulesTableTableManager
                 targetCounterpartyId: targetCounterpartyId,
                 currency: currency,
                 notifyOnMatch: notifyOnMatch,
+                autoAddCharges: autoAddCharges,
+                category: category,
                 matchMode: matchMode,
                 enabled: enabled,
                 createdAt: createdAt,
@@ -19154,6 +19306,8 @@ class $$SmsRulesTableTableManager
                 Value<String?> targetCounterpartyId = const Value.absent(),
                 Value<String?> currency = const Value.absent(),
                 Value<bool> notifyOnMatch = const Value.absent(),
+                Value<bool> autoAddCharges = const Value.absent(),
+                Value<String?> category = const Value.absent(),
                 Value<String> matchMode = const Value.absent(),
                 Value<bool> enabled = const Value.absent(),
                 required DateTime createdAt,
@@ -19169,6 +19323,8 @@ class $$SmsRulesTableTableManager
                 targetCounterpartyId: targetCounterpartyId,
                 currency: currency,
                 notifyOnMatch: notifyOnMatch,
+                autoAddCharges: autoAddCharges,
+                category: category,
                 matchMode: matchMode,
                 enabled: enabled,
                 createdAt: createdAt,
