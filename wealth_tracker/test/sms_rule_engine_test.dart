@@ -613,6 +613,46 @@ void main() {
         expect(unsatisfied.single.description, isNot(contains('SomeVendor')));
       },
     );
+
+    test(
+      'reports a requirement that only appears earlier in the message '
+      "than the rule's other requirements allow, as out of order -- not "
+      'as flatly missing -- since checking every requirement anywhere in '
+      "the message independently can't tell those two cases apart, and "
+      "they call for different fixes (the text isn't there at all, vs. "
+      "the message just doesn't say things in the order this rule "
+      'assumes)',
+      () {
+        final orderRule = SmsRule(
+          id: 'r4',
+          bankId: 'b1',
+          operation: 'creditCardBalance',
+          sampleText: 'AAA123BBB',
+          segmentsJson: encodeSmsRuleSegments([
+            const SmsRuleSegment.literal('AAA'),
+            const SmsRuleSegment.placeholder(text: '123', tag: 'ignore'),
+            const SmsRuleSegment.literal('BBB'),
+          ]),
+          targetCounterpartyId: null,
+          name: null,
+          currency: null,
+          notifyOnMatch: false,
+          matchMode: 'strict',
+          enabled: true,
+          createdAt: DateTime(2026),
+          profileId: null,
+        );
+        // Both "AAA" and "BBB" are present, but in the wrong relative
+        // order -- "BBB" only appears before "AAA", never after it.
+        const reversed = 'BBB456AAA';
+
+        final unsatisfied = findUnsatisfiedRequirements(orderRule, reversed);
+
+        expect(unsatisfied, hasLength(1));
+        expect(unsatisfied.single.description, contains('"BBB"'));
+        expect(unsatisfied.single.description, contains('out of order'));
+      },
+    );
   });
 
   group('applySmsRule', () {

@@ -247,38 +247,44 @@ class SmsRuleMatch {
   final String? transactionCurrency;
 }
 
-/// One literal requirement of a rule that doesn't appear anywhere in a
-/// real message at all -- see [findUnsatisfiedRequirements].
+/// One literal requirement of a rule that either doesn't appear in a real
+/// message at all, or only appears earlier than it's allowed to (out of
+/// order relative to an earlier requirement that already claimed that
+/// part of the message) -- see [findUnsatisfiedRequirements].
 class UnsatisfiedRequirement {
   const UnsatisfiedRequirement(this.description);
   final String description;
 }
 
-/// Every literal requirement of [rule] that doesn't appear anywhere in
-/// [rawBody] -- each checked independently, on its own, against the
-/// whole message. This replaces an earlier approach that tried to walk
-/// [rule]'s combined pattern incrementally to find "the first segment
-/// that stops matching": that depended on where a free-form vendor/
-/// sender/`ignore` tag's own backtracking happened to land while only
-/// part of the pattern was being tested, which turned out to produce a
-/// misleading answer -- flagging a real, correctly-tagged portion as the
-/// problem, past which its own greedy/non-greedy behavior isn't even
-/// well-defined in isolation. Checking each requirement completely on
-/// its own sidesteps that: nothing here depends on any other
-/// requirement's match, or on the free-form tags at all, so a wrongly
-/// blamed tag boundary is no longer possible.
+/// Every literal requirement of [rule] that [rawBody] doesn't actually
+/// satisfy, checked in the same left-to-right order the rule itself
+/// requires them in -- each search starts from wherever the previous
+/// requirement's match ended, so a requirement that only exists
+/// *earlier* in the message than that (out of the order the rule needs)
+/// is caught too, not just one that's missing outright. Anything between
+/// two requirements -- a card/account number, a value, a vendor name, or
+/// an `ignore`-tagged portion -- is treated as an unconstrained gap here,
+/// since checking a placeholder's own character class against a specific
+/// position would reintroduce exactly the kind of position-dependent,
+/// hard-to-reason-about check this function exists to avoid.
+///
+/// This replaces an earlier approach that tried to walk [rule]'s combined
+/// pattern incrementally to find "the first segment that stops matching":
+/// that depended on where a free-form vendor/sender/`ignore` tag's own
+/// backtracking happened to land while only part of the pattern was
+/// being tested, which turned out to produce a misleading answer --
+/// flagging a real, correctly-tagged portion as the problem, past which
+/// its own greedy/non-greedy behavior isn't even well-defined in
+/// isolation. Checking each requirement's own position, independent of
+/// any tag's capture behavior, sidesteps that.
 ///
 /// A 'flexible' rule's long literal is checked as its two anchor phrases
 /// separately, matching what [compileSmsRulePattern] actually requires
 /// of it (see [_escapeLiteralFlexible]) rather than the full raw
 /// wording -- flexible mode never actually requires the whole sentence,
 /// only those two anchors, so reporting the whole thing as unsatisfied
-/// would overstate what's really missing. The trade-off against a real
-/// match attempt: this can't confirm the requirements that *do* appear
-/// are in the right order or place relative to each other, only that
-/// each one exists in the message somewhere at all. Only meaningful to
-/// call after [matchSmsRule] has already returned null for the same
-/// rule/body.
+/// would overstate what's really missing. Only meaningful to call after
+/// [matchSmsRule] has already returned null for the same rule/body.
 List<UnsatisfiedRequirement> findUnsatisfiedRequirements(
   SmsRule rule,
   String rawBody,
@@ -287,15 +293,33 @@ List<UnsatisfiedRequirement> findUnsatisfiedRequirements(
   final flexible = rule.matchMode == 'flexible';
   final body = normalizeSmsBody(rawBody);
   final results = <UnsatisfiedRequirement>[];
+  var cursor = 0;
 
-  bool appears(String requirement) {
-    if (requirement.trim().isEmpty) return true;
+  void check(String requirement, String description) {
+    if (requirement.trim().isEmpty) return;
     final pattern = RegExp(
       _escapeLiteral(requirement),
       caseSensitive: false,
       dotAll: true,
     );
-    return pattern.hasMatch(body);
+    RegExpMatch? match;
+    for (final m in pattern.allMatches(body, cursor)) {
+      match = m;
+      break;
+    }
+    if (match != null) {
+      cursor = match.end;
+      return;
+    }
+    final existsEarlier = pattern.hasMatch(body);
+    results.add(
+      UnsatisfiedRequirement(
+        existsEarlier
+            ? '$description -- appears, but earlier in the message than '
+                  "this rule's other requirements allow (out of order)"
+            : description,
+      ),
+    );
   }
 
   for (final segment in segments) {
@@ -303,7 +327,7 @@ List<UnsatisfiedRequirement> findUnsatisfiedRequirements(
     final text = segment.text;
     if (text.trim().isEmpty) continue;
     if (!flexible) {
-      if (!appears(text)) results.add(UnsatisfiedRequirement('"$text"'));
+      check(text, '"$text"');
       continue;
     }
     final core = RegExp(
@@ -313,19 +337,13 @@ List<UnsatisfiedRequirement> findUnsatisfiedRequirements(
     if (core.isEmpty) continue;
     final words = core.split(RegExp(r'\s+'));
     if (words.length <= _flexibleEdgeWords * 2) {
-      if (!appears(text)) results.add(UnsatisfiedRequirement('"$text"'));
+      check(text, '"$text"');
       continue;
     }
     final head = words.take(_flexibleEdgeWords).join(' ');
     final tail = words.skip(words.length - _flexibleEdgeWords).join(' ');
-    if (!appears(head)) {
-      results.add(
-        UnsatisfiedRequirement('"$head" (near the start of one part)'),
-      );
-    }
-    if (!appears(tail)) {
-      results.add(UnsatisfiedRequirement('"$tail" (near the end of one part)'));
-    }
+    check(head, '"$head" (near the start of one part)');
+    check(tail, '"$tail" (near the end of one part)');
   }
   return results;
 }
