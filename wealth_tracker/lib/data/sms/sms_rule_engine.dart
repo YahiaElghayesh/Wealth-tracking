@@ -481,26 +481,35 @@ String _signedValueText(double value, String? role, String currency) {
 }
 
 /// A balance-update notification's body -- shared by [_applyCreditCardBalance]
-/// and [_applyBankAccountBalance]. [transactionValue] (shown in
-/// [transactionValueCurrency] -- whatever the rule's own `transactionCurrency`
-/// tag captured, or its `currency` tag if there's no separate one, never
-/// converted -- see `transactionValue`'s own doc comment on [SmsRuleSegment]
-/// for why it's display-only) takes priority when the rule tagged one: it's
-/// what the notification shows signed, regardless of what [matchedValue]/[valueRole]
-/// actually did to the balance, and regardless of what currency the balance
-/// itself is tracked in -- a card billed in EGP can still be charged in USD,
-/// and the notification should say so rather than silently relabeling (or
-/// converting) that amount into the card's own currency. Without one, a
-/// 'set' role shows just the new balance rather than repeating that exact
-/// same number as if it were also a signed delta -- what [matchedValue]
-/// holds *is* the new balance for a 'set', not an amount that was added or
-/// subtracted, so showing "45,623.09 — now 45,623.09" said nothing twice
-/// for no reason.
+/// and [_applyBankAccountBalance]. Shows a signed delta in whatever
+/// currency that delta actually reads in the real SMS -- [transactionValue]/
+/// [transactionValueCurrency] (the rule's own `transactionValue`/
+/// `transactionCurrency` tags, never converted -- see `transactionValue`'s
+/// own doc comment on [SmsRuleSegment]) when the rule tagged them, or
+/// [matchedValue]/[matchedValueCurrency] (the plain `value`/`currency` tags,
+/// also never converted) otherwise -- both are the number and currency the
+/// message itself states, before any FX conversion [_resolveMatchedValue]
+/// applied to get an actual balance delta out of it. A card billed in EGP
+/// can still be charged in USD, and the notification should say so rather
+/// than silently relabeling (or converting) that amount into the card's own
+/// currency -- which is also exactly why a separate `transactionValue` tag
+/// is only ever needed when the message's delta and its balance-affecting
+/// amount are two genuinely different numbers, not just to get the display
+/// currency right when there's only one number to tag in the first place.
+/// [currency] (always the entity's own tracked currency) is only for
+/// [newBalance]'s "now" text -- that figure only ever exists in the
+/// entity's own currency regardless of what currency the delta reads in.
+/// Without a delta to show at all, a 'set' role shows just the new balance
+/// rather than repeating that exact same number as if it were also a
+/// signed delta -- what [matchedValue] holds *is* the new balance for a
+/// 'set', not an amount that was added or subtracted, so showing
+/// "45,623.09 — now 45,623.09" said nothing twice for no reason.
 String _balanceUpdateNotificationBody({
   required String entityName,
   required double newBalance,
   required String currency,
   required double matchedValue,
+  required String matchedValueCurrency,
   required String? valueRole,
   required double? transactionValue,
   required String? transactionValueRole,
@@ -511,7 +520,7 @@ String _balanceUpdateNotificationBody({
     return '${_signedValueText(transactionValue, transactionValueRole, transactionValueCurrency)} — $nowText';
   }
   if (valueRole == 'set') return nowText;
-  return '${_signedValueText(matchedValue, valueRole, currency)} — $nowText';
+  return '${_signedValueText(matchedValue, valueRole, matchedValueCurrency)} — $nowText';
 }
 
 /// Converts [value] from [matchedCurrency] (what a `currency` tag actually
@@ -603,7 +612,8 @@ Future<SmsRuleApplyOutcome> _applyCreditCardBalance(
       entityName: card.name,
       newBalance: newBalance,
       currency: card.currency,
-      matchedValue: convertedValue,
+      matchedValue: value,
+      matchedValueCurrency: match.currency ?? card.currency,
       valueRole: match.valueRole,
       transactionValue: match.transactionValue,
       transactionValueRole: match.transactionValueRole,
@@ -664,7 +674,8 @@ Future<SmsRuleApplyOutcome> _applyBankAccountBalance(
       entityName: account.name,
       newBalance: newBalance,
       currency: account.currency,
-      matchedValue: convertedValue,
+      matchedValue: value,
+      matchedValueCurrency: match.currency ?? account.currency,
       valueRole: match.valueRole,
       transactionValue: match.transactionValue,
       transactionValueRole: match.transactionValueRole,

@@ -1220,6 +1220,57 @@ void main() {
     );
 
     test(
+      "a converted delta's notification shows the raw matched amount and "
+      "currency, not the converted one -- without this, a rule that only "
+      "tags 'value'/'currency' (there's no separate number in the message "
+      "to also tag as 'transactionValue'/'transactionCurrency') would show "
+      "the card's own converted currency in the notification with no "
+      "indication it was ever converted, silently disagreeing with what "
+      'the real SMS actually said',
+      () async {
+        final bankId = await insertBank('CIB');
+        await insertCard(
+          bank: 'CIB',
+          lastFourDigits: '4912',
+          currentAvailableBalance: 1000,
+          currency: 'EGP',
+        );
+        await insertRate('USD', 1.0);
+        await insertRate('EGP', 0.02); // 1 EGP = $0.02, i.e. $1 = 50 EGP
+        final rule = SmsRule(
+          id: 'r1',
+          bankId: bankId,
+          operation: 'creditCardBalance',
+          sampleText: '',
+          segmentsJson: '[]',
+          targetCounterpartyId: null,
+          name: null,
+          currency: null,
+          notifyOnMatch: true,
+          matchMode: 'strict',
+          enabled: true,
+          createdAt: DateTime(2026),
+          profileId: null,
+        );
+        const match = SmsRuleMatch(
+          cardNumber: '4912',
+          value: 100,
+          valueRole: 'add',
+          currency: 'USD',
+        );
+
+        final outcome = await applySmsRule(db, rule, match);
+
+        expect(outcome.applied, isTrue);
+        expect(outcome.notificationBody, contains('+USD 100'));
+        expect(outcome.notificationBody, isNot(contains('5,000')));
+        // The "now" balance is still reported in the card's own currency --
+        // only the signed delta uses the SMS's own currency.
+        expect(outcome.notificationBody, contains('EGP 6,000'));
+      },
+    );
+
+    test(
       'creditCardBalance applies the value as-is when the matched currency already matches the card\'s own',
       () async {
         final bankId = await insertBank('CIB');
