@@ -84,6 +84,21 @@ dev_dependencies:
   # real plugin registration).
   flutter_local_notifications_platform_interface: ^12.2.0
 
+# Money Hub patch: pub.dev's flutter_local_notifications 22.3.0 has a bug
+# in its Android ActionBroadcastReceiver -- the headless FlutterEngine it
+# spins up for a `showsUserInterface: false` notification action (this
+# app's "Quick add" button) is cached in a *static* field that's never
+# reset, so the first tap in the app's process lifetime works and every
+# tap after that, for the rest of that process's life, is a silent no-op.
+# third_party/flutter_local_notifications is that exact package version
+# vendored in-repo with a one-method fix (destroy and replace the stale
+# engine instead of refusing to touch it) -- see that file's own comment
+# on ActionBroadcastReceiver.startEngine. Nothing else about the package
+# is changed; drop this override if upstream ever ships the same fix.
+dependency_overrides:
+  flutter_local_notifications:
+    path: third_party/flutter_local_notifications
+
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
 
