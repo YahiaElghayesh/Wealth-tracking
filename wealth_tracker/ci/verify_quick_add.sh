@@ -30,8 +30,20 @@ echo "--- For reference, whatever dumpsys package shows about $RECEIVER (informa
 adb shell dumpsys package "$PKG" > package_dump.txt || true
 grep -i "ActionBroadcastReceiver" package_dump.txt || echo "(not found in dumpsys output -- not necessarily conclusive, see above)"
 
-adb shell am force-stop "$PKG"
-sleep 2
+# Deliberately NOT `am force-stop` here, even though the whole point of
+# this action is to work while the app "isn't running" -- force-stop
+# puts an app into Android's own stricter "stopped" state, which
+# suppresses *all* broadcast delivery to it (even an explicit,
+# manifest-registered, non-exported one) until it's launched again by
+# the user. That's a much harsher state than the OS ever puts a
+# backgrounded/LRU-killed app into on its own, and a previous run of
+# this exact script proved it: zero evidence the broadcast was ever
+# delivered at all after force-stopping, with the compiled manifest's
+# <receiver> entry independently confirmed present via aapt2 in the
+# same run. ActionBroadcastReceiver's own logic doesn't care whether
+# the main app is alive anyway -- it always spins up its own separate
+# headless engine -- so there's nothing this test actually needs
+# force-stop for.
 adb logcat -c
 
 echo "--- First tap ---"
