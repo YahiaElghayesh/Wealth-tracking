@@ -9973,16 +9973,27 @@ class $ReturnsTable extends Returns with TableInfo<$ReturnsTable, Return> {
     requiredDuringInsert: false,
     defaultValue: const Constant('EGP'),
   );
-  static const VerificationMeta _returnDateMeta = const VerificationMeta(
-    'returnDate',
+  static const VerificationMeta _requestedAtMeta = const VerificationMeta(
+    'requestedAt',
   );
   @override
-  late final GeneratedColumn<DateTime> returnDate = GeneratedColumn<DateTime>(
-    'return_date',
+  late final GeneratedColumn<DateTime> requestedAt = GeneratedColumn<DateTime>(
+    'requested_at',
     aliasedName,
-    false,
+    true,
     type: DriftSqlType.dateTime,
-    requiredDuringInsert: true,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _pickedUpAtMeta = const VerificationMeta(
+    'pickedUpAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> pickedUpAt = GeneratedColumn<DateTime>(
+    'picked_up_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
   );
   static const VerificationMeta _receivedAtMeta = const VerificationMeta(
     'receivedAt',
@@ -10026,7 +10037,8 @@ class $ReturnsTable extends Returns with TableInfo<$ReturnsTable, Return> {
     vendor,
     amount,
     currency,
-    returnDate,
+    requestedAt,
+    pickedUpAt,
     receivedAt,
     createdAt,
     profileId,
@@ -10070,13 +10082,23 @@ class $ReturnsTable extends Returns with TableInfo<$ReturnsTable, Return> {
         currency.isAcceptableOrUnknown(data['currency']!, _currencyMeta),
       );
     }
-    if (data.containsKey('return_date')) {
+    if (data.containsKey('requested_at')) {
       context.handle(
-        _returnDateMeta,
-        returnDate.isAcceptableOrUnknown(data['return_date']!, _returnDateMeta),
+        _requestedAtMeta,
+        requestedAt.isAcceptableOrUnknown(
+          data['requested_at']!,
+          _requestedAtMeta,
+        ),
       );
-    } else if (isInserting) {
-      context.missing(_returnDateMeta);
+    }
+    if (data.containsKey('picked_up_at')) {
+      context.handle(
+        _pickedUpAtMeta,
+        pickedUpAt.isAcceptableOrUnknown(
+          data['picked_up_at']!,
+          _pickedUpAtMeta,
+        ),
+      );
     }
     if (data.containsKey('received_at')) {
       context.handle(
@@ -10123,10 +10145,14 @@ class $ReturnsTable extends Returns with TableInfo<$ReturnsTable, Return> {
         DriftSqlType.string,
         data['${effectivePrefix}currency'],
       )!,
-      returnDate: attachedDatabase.typeMapping.read(
+      requestedAt: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
-        data['${effectivePrefix}return_date'],
-      )!,
+        data['${effectivePrefix}requested_at'],
+      ),
+      pickedUpAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}picked_up_at'],
+      ),
       receivedAt: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
         data['${effectivePrefix}received_at'],
@@ -10154,10 +10180,19 @@ class Return extends DataClass implements Insertable<Return> {
   final double amount;
   final String currency;
 
-  /// When the item was actually returned to the store -- what the "N days
-  /// ago" counter on the pending list counts from, not when this row was
-  /// created.
-  final DateTime returnDate;
+  /// When the return/refund was requested from the store -- optional, and
+  /// can be set, changed, or cleared at any time from the add/edit screen
+  /// rather than only up front. Replaces the old single required
+  /// `returnDate` (see schema 38's migration): every pre-existing row's
+  /// returnDate became its requestedAt, so nothing already being tracked
+  /// lost its "N days ago" count.
+  final DateTime? requestedAt;
+
+  /// When the item was actually picked up/collected for the return --
+  /// independent of, and exactly as optional as, [requestedAt]: a return
+  /// can be requested well before pickup is arranged, or the two can
+  /// happen the same day.
+  final DateTime? pickedUpAt;
 
   /// Null while still pending; set the moment "Received" is tapped, which
   /// is also what moves it from the pending list into history.
@@ -10169,7 +10204,8 @@ class Return extends DataClass implements Insertable<Return> {
     required this.vendor,
     required this.amount,
     required this.currency,
-    required this.returnDate,
+    this.requestedAt,
+    this.pickedUpAt,
     this.receivedAt,
     required this.createdAt,
     this.profileId,
@@ -10181,7 +10217,12 @@ class Return extends DataClass implements Insertable<Return> {
     map['vendor'] = Variable<String>(vendor);
     map['amount'] = Variable<double>(amount);
     map['currency'] = Variable<String>(currency);
-    map['return_date'] = Variable<DateTime>(returnDate);
+    if (!nullToAbsent || requestedAt != null) {
+      map['requested_at'] = Variable<DateTime>(requestedAt);
+    }
+    if (!nullToAbsent || pickedUpAt != null) {
+      map['picked_up_at'] = Variable<DateTime>(pickedUpAt);
+    }
     if (!nullToAbsent || receivedAt != null) {
       map['received_at'] = Variable<DateTime>(receivedAt);
     }
@@ -10198,7 +10239,12 @@ class Return extends DataClass implements Insertable<Return> {
       vendor: Value(vendor),
       amount: Value(amount),
       currency: Value(currency),
-      returnDate: Value(returnDate),
+      requestedAt: requestedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(requestedAt),
+      pickedUpAt: pickedUpAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(pickedUpAt),
       receivedAt: receivedAt == null && nullToAbsent
           ? const Value.absent()
           : Value(receivedAt),
@@ -10219,7 +10265,8 @@ class Return extends DataClass implements Insertable<Return> {
       vendor: serializer.fromJson<String>(json['vendor']),
       amount: serializer.fromJson<double>(json['amount']),
       currency: serializer.fromJson<String>(json['currency']),
-      returnDate: serializer.fromJson<DateTime>(json['returnDate']),
+      requestedAt: serializer.fromJson<DateTime?>(json['requestedAt']),
+      pickedUpAt: serializer.fromJson<DateTime?>(json['pickedUpAt']),
       receivedAt: serializer.fromJson<DateTime?>(json['receivedAt']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
       profileId: serializer.fromJson<String?>(json['profileId']),
@@ -10233,7 +10280,8 @@ class Return extends DataClass implements Insertable<Return> {
       'vendor': serializer.toJson<String>(vendor),
       'amount': serializer.toJson<double>(amount),
       'currency': serializer.toJson<String>(currency),
-      'returnDate': serializer.toJson<DateTime>(returnDate),
+      'requestedAt': serializer.toJson<DateTime?>(requestedAt),
+      'pickedUpAt': serializer.toJson<DateTime?>(pickedUpAt),
       'receivedAt': serializer.toJson<DateTime?>(receivedAt),
       'createdAt': serializer.toJson<DateTime>(createdAt),
       'profileId': serializer.toJson<String?>(profileId),
@@ -10245,7 +10293,8 @@ class Return extends DataClass implements Insertable<Return> {
     String? vendor,
     double? amount,
     String? currency,
-    DateTime? returnDate,
+    Value<DateTime?> requestedAt = const Value.absent(),
+    Value<DateTime?> pickedUpAt = const Value.absent(),
     Value<DateTime?> receivedAt = const Value.absent(),
     DateTime? createdAt,
     Value<String?> profileId = const Value.absent(),
@@ -10254,7 +10303,8 @@ class Return extends DataClass implements Insertable<Return> {
     vendor: vendor ?? this.vendor,
     amount: amount ?? this.amount,
     currency: currency ?? this.currency,
-    returnDate: returnDate ?? this.returnDate,
+    requestedAt: requestedAt.present ? requestedAt.value : this.requestedAt,
+    pickedUpAt: pickedUpAt.present ? pickedUpAt.value : this.pickedUpAt,
     receivedAt: receivedAt.present ? receivedAt.value : this.receivedAt,
     createdAt: createdAt ?? this.createdAt,
     profileId: profileId.present ? profileId.value : this.profileId,
@@ -10265,9 +10315,12 @@ class Return extends DataClass implements Insertable<Return> {
       vendor: data.vendor.present ? data.vendor.value : this.vendor,
       amount: data.amount.present ? data.amount.value : this.amount,
       currency: data.currency.present ? data.currency.value : this.currency,
-      returnDate: data.returnDate.present
-          ? data.returnDate.value
-          : this.returnDate,
+      requestedAt: data.requestedAt.present
+          ? data.requestedAt.value
+          : this.requestedAt,
+      pickedUpAt: data.pickedUpAt.present
+          ? data.pickedUpAt.value
+          : this.pickedUpAt,
       receivedAt: data.receivedAt.present
           ? data.receivedAt.value
           : this.receivedAt,
@@ -10283,7 +10336,8 @@ class Return extends DataClass implements Insertable<Return> {
           ..write('vendor: $vendor, ')
           ..write('amount: $amount, ')
           ..write('currency: $currency, ')
-          ..write('returnDate: $returnDate, ')
+          ..write('requestedAt: $requestedAt, ')
+          ..write('pickedUpAt: $pickedUpAt, ')
           ..write('receivedAt: $receivedAt, ')
           ..write('createdAt: $createdAt, ')
           ..write('profileId: $profileId')
@@ -10297,7 +10351,8 @@ class Return extends DataClass implements Insertable<Return> {
     vendor,
     amount,
     currency,
-    returnDate,
+    requestedAt,
+    pickedUpAt,
     receivedAt,
     createdAt,
     profileId,
@@ -10310,7 +10365,8 @@ class Return extends DataClass implements Insertable<Return> {
           other.vendor == this.vendor &&
           other.amount == this.amount &&
           other.currency == this.currency &&
-          other.returnDate == this.returnDate &&
+          other.requestedAt == this.requestedAt &&
+          other.pickedUpAt == this.pickedUpAt &&
           other.receivedAt == this.receivedAt &&
           other.createdAt == this.createdAt &&
           other.profileId == this.profileId);
@@ -10321,7 +10377,8 @@ class ReturnsCompanion extends UpdateCompanion<Return> {
   final Value<String> vendor;
   final Value<double> amount;
   final Value<String> currency;
-  final Value<DateTime> returnDate;
+  final Value<DateTime?> requestedAt;
+  final Value<DateTime?> pickedUpAt;
   final Value<DateTime?> receivedAt;
   final Value<DateTime> createdAt;
   final Value<String?> profileId;
@@ -10331,7 +10388,8 @@ class ReturnsCompanion extends UpdateCompanion<Return> {
     this.vendor = const Value.absent(),
     this.amount = const Value.absent(),
     this.currency = const Value.absent(),
-    this.returnDate = const Value.absent(),
+    this.requestedAt = const Value.absent(),
+    this.pickedUpAt = const Value.absent(),
     this.receivedAt = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.profileId = const Value.absent(),
@@ -10342,7 +10400,8 @@ class ReturnsCompanion extends UpdateCompanion<Return> {
     required String vendor,
     required double amount,
     this.currency = const Value.absent(),
-    required DateTime returnDate,
+    this.requestedAt = const Value.absent(),
+    this.pickedUpAt = const Value.absent(),
     this.receivedAt = const Value.absent(),
     required DateTime createdAt,
     this.profileId = const Value.absent(),
@@ -10350,14 +10409,14 @@ class ReturnsCompanion extends UpdateCompanion<Return> {
   }) : id = Value(id),
        vendor = Value(vendor),
        amount = Value(amount),
-       returnDate = Value(returnDate),
        createdAt = Value(createdAt);
   static Insertable<Return> custom({
     Expression<String>? id,
     Expression<String>? vendor,
     Expression<double>? amount,
     Expression<String>? currency,
-    Expression<DateTime>? returnDate,
+    Expression<DateTime>? requestedAt,
+    Expression<DateTime>? pickedUpAt,
     Expression<DateTime>? receivedAt,
     Expression<DateTime>? createdAt,
     Expression<String>? profileId,
@@ -10368,7 +10427,8 @@ class ReturnsCompanion extends UpdateCompanion<Return> {
       if (vendor != null) 'vendor': vendor,
       if (amount != null) 'amount': amount,
       if (currency != null) 'currency': currency,
-      if (returnDate != null) 'return_date': returnDate,
+      if (requestedAt != null) 'requested_at': requestedAt,
+      if (pickedUpAt != null) 'picked_up_at': pickedUpAt,
       if (receivedAt != null) 'received_at': receivedAt,
       if (createdAt != null) 'created_at': createdAt,
       if (profileId != null) 'profile_id': profileId,
@@ -10381,7 +10441,8 @@ class ReturnsCompanion extends UpdateCompanion<Return> {
     Value<String>? vendor,
     Value<double>? amount,
     Value<String>? currency,
-    Value<DateTime>? returnDate,
+    Value<DateTime?>? requestedAt,
+    Value<DateTime?>? pickedUpAt,
     Value<DateTime?>? receivedAt,
     Value<DateTime>? createdAt,
     Value<String?>? profileId,
@@ -10392,7 +10453,8 @@ class ReturnsCompanion extends UpdateCompanion<Return> {
       vendor: vendor ?? this.vendor,
       amount: amount ?? this.amount,
       currency: currency ?? this.currency,
-      returnDate: returnDate ?? this.returnDate,
+      requestedAt: requestedAt ?? this.requestedAt,
+      pickedUpAt: pickedUpAt ?? this.pickedUpAt,
       receivedAt: receivedAt ?? this.receivedAt,
       createdAt: createdAt ?? this.createdAt,
       profileId: profileId ?? this.profileId,
@@ -10415,8 +10477,11 @@ class ReturnsCompanion extends UpdateCompanion<Return> {
     if (currency.present) {
       map['currency'] = Variable<String>(currency.value);
     }
-    if (returnDate.present) {
-      map['return_date'] = Variable<DateTime>(returnDate.value);
+    if (requestedAt.present) {
+      map['requested_at'] = Variable<DateTime>(requestedAt.value);
+    }
+    if (pickedUpAt.present) {
+      map['picked_up_at'] = Variable<DateTime>(pickedUpAt.value);
     }
     if (receivedAt.present) {
       map['received_at'] = Variable<DateTime>(receivedAt.value);
@@ -10440,7 +10505,8 @@ class ReturnsCompanion extends UpdateCompanion<Return> {
           ..write('vendor: $vendor, ')
           ..write('amount: $amount, ')
           ..write('currency: $currency, ')
-          ..write('returnDate: $returnDate, ')
+          ..write('requestedAt: $requestedAt, ')
+          ..write('pickedUpAt: $pickedUpAt, ')
           ..write('receivedAt: $receivedAt, ')
           ..write('createdAt: $createdAt, ')
           ..write('profileId: $profileId, ')
@@ -19532,7 +19598,8 @@ typedef $$ReturnsTableCreateCompanionBuilder =
       required String vendor,
       required double amount,
       Value<String> currency,
-      required DateTime returnDate,
+      Value<DateTime?> requestedAt,
+      Value<DateTime?> pickedUpAt,
       Value<DateTime?> receivedAt,
       required DateTime createdAt,
       Value<String?> profileId,
@@ -19544,7 +19611,8 @@ typedef $$ReturnsTableUpdateCompanionBuilder =
       Value<String> vendor,
       Value<double> amount,
       Value<String> currency,
-      Value<DateTime> returnDate,
+      Value<DateTime?> requestedAt,
+      Value<DateTime?> pickedUpAt,
       Value<DateTime?> receivedAt,
       Value<DateTime> createdAt,
       Value<String?> profileId,
@@ -19602,8 +19670,13 @@ class $$ReturnsTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
-  ColumnFilters<DateTime> get returnDate => $composableBuilder(
-    column: $table.returnDate,
+  ColumnFilters<DateTime> get requestedAt => $composableBuilder(
+    column: $table.requestedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get pickedUpAt => $composableBuilder(
+    column: $table.pickedUpAt,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -19670,8 +19743,13 @@ class $$ReturnsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
-  ColumnOrderings<DateTime> get returnDate => $composableBuilder(
-    column: $table.returnDate,
+  ColumnOrderings<DateTime> get requestedAt => $composableBuilder(
+    column: $table.requestedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get pickedUpAt => $composableBuilder(
+    column: $table.pickedUpAt,
     builder: (column) => ColumnOrderings(column),
   );
 
@@ -19730,8 +19808,13 @@ class $$ReturnsTableAnnotationComposer
   GeneratedColumn<String> get currency =>
       $composableBuilder(column: $table.currency, builder: (column) => column);
 
-  GeneratedColumn<DateTime> get returnDate => $composableBuilder(
-    column: $table.returnDate,
+  GeneratedColumn<DateTime> get requestedAt => $composableBuilder(
+    column: $table.requestedAt,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get pickedUpAt => $composableBuilder(
+    column: $table.pickedUpAt,
     builder: (column) => column,
   );
 
@@ -19799,7 +19882,8 @@ class $$ReturnsTableTableManager
                 Value<String> vendor = const Value.absent(),
                 Value<double> amount = const Value.absent(),
                 Value<String> currency = const Value.absent(),
-                Value<DateTime> returnDate = const Value.absent(),
+                Value<DateTime?> requestedAt = const Value.absent(),
+                Value<DateTime?> pickedUpAt = const Value.absent(),
                 Value<DateTime?> receivedAt = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<String?> profileId = const Value.absent(),
@@ -19809,7 +19893,8 @@ class $$ReturnsTableTableManager
                 vendor: vendor,
                 amount: amount,
                 currency: currency,
-                returnDate: returnDate,
+                requestedAt: requestedAt,
+                pickedUpAt: pickedUpAt,
                 receivedAt: receivedAt,
                 createdAt: createdAt,
                 profileId: profileId,
@@ -19821,7 +19906,8 @@ class $$ReturnsTableTableManager
                 required String vendor,
                 required double amount,
                 Value<String> currency = const Value.absent(),
-                required DateTime returnDate,
+                Value<DateTime?> requestedAt = const Value.absent(),
+                Value<DateTime?> pickedUpAt = const Value.absent(),
                 Value<DateTime?> receivedAt = const Value.absent(),
                 required DateTime createdAt,
                 Value<String?> profileId = const Value.absent(),
@@ -19831,7 +19917,8 @@ class $$ReturnsTableTableManager
                 vendor: vendor,
                 amount: amount,
                 currency: currency,
-                returnDate: returnDate,
+                requestedAt: requestedAt,
+                pickedUpAt: pickedUpAt,
                 receivedAt: receivedAt,
                 createdAt: createdAt,
                 profileId: profileId,
