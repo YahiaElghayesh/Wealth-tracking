@@ -135,6 +135,22 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # The Flutter build's own SDK/Gradle downloads plus the emulator's
+      # system-image download together don't fit in this runner's default
+      # free space -- confirmed by an actual run dying mid-emulator-setup
+      # with "No space left on device" after the APK had already built
+      # fine on its own. None of this preinstalled tooling is used by this
+      # job; freeing it is the standard fix for GitHub-hosted runners
+      # running out of disk. Deliberately does NOT touch /usr/local/lib
+      # /android -- that's the real Android SDK this job needs.
+      - name: Free disk space (unused preinstalled toolchains)
+        run: |
+          sudo rm -rf /usr/share/dotnet /opt/ghc /opt/hostedtoolcache/CodeQL \
+            /usr/local/share/boost /usr/local/lib/android/sdk/ndk \
+            /opt/hostedtoolcache/go /opt/hostedtoolcache/PyPy || true
+          sudo docker image prune -af || true
+          df -h /
+
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -151,17 +167,31 @@ jobs:
 
       - run: flutter build apk --debug --build-number=${{ github.run_number }}
 
+      # The build itself downloads its own build-tools/CMake/etc. -- freed
+      # again here since the emulator's system-image download is what
+      # actually ran this runner out of space, right after a build that
+      # looked completely unrelated succeeded.
+      - name: Free Gradle/Android build caches before the emulator download
+        run: |
+          rm -rf ~/.gradle/caches ~/.gradle/wrapper || true
+          df -h /
+
       - name: Enable KVM for the emulator
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
 
+      # `default` (plain AOSP, no Google Play Services) rather than
+      # `google_apis` -- this test only ever fires a raw system broadcast
+      # at a manifest-registered receiver, nothing here touches Play
+      # Services, and the AOSP image is meaningfully smaller/faster, which
+      # matters directly for the disk space this job already ran out of.
       - name: Boot an emulator and fire two Quick Add taps at the real APK
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 33
-          target: google_apis
+          target: default
           arch: x86_64
           profile: pixel_5
           disable-animations: true
