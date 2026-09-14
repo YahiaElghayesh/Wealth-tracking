@@ -154,21 +154,21 @@
         </receiver>
 
         <!-- flutter_local_notifications' own receiver for a
-             `showsUserInterface: false` notification action -- this app's
+             `showsUserInterface: false` notification action — this app's
              SMS charge-review notification's "Quick add" button
              (smsChargeReviewQuickAddActionId, sms_rule_notifications.dart).
              The plugin builds a PendingIntent targeting this exact class
              (FlutterLocalNotificationsPlugin.java's showNotification, the
              `actionIntent = new Intent(context, ActionBroadcastReceiver
-             .class)` branch) but -- unlike every other plugin's Android
-             component -- does NOT declare it in its own manifest; the
+             .class)` branch) but, unlike every other plugin's Android
+             component, does NOT declare it in its own manifest; the
              plugin's own README says the *app* must add this receiver
              itself. Without it, Android has no registered component to
              dispatch that PendingIntent's broadcast to at all: tapping the
              action was never silently failing after the first tap (see the
              now-superseded fix in third_party/flutter_local_notifications'
              own ActionBroadcastReceiver.java for that real but *unreached*
-             bug) -- it was never being delivered in the first place, on
+             bug) — it was never being delivered in the first place, on
              any tap, ever. Exported false: this is only ever invoked by a
              PendingIntent this same app created for itself. -->
         <receiver
