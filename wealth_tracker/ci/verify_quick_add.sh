@@ -73,7 +73,16 @@ sleep 20
 echo "--- Second tap -- this is exactly what the engine-caching bug broke: the first tap worked, every one after silently did nothing ---"
 adb shell am broadcast -a "$RECEIVER.ACTION_TAPPED" -n "$PKG/$RECEIVER" \
   --ei notificationId 556 --es actionId quick_add --ez cancelNotification true --es payload test
-sleep 20
+# A previous run's logcat showed the second engine genuinely spinning up
+# (a fresh "Using the Impeller rendering backend" line, on a new thread --
+# proof the destroy-and-recreate patch itself is working, since the old
+# buggy early-return would never have created a second engine at all) but
+# never reaching the Dart callback within 20s. This emulator's own
+# software GL renderer is visibly strained throughout every run ("bad
+# color buffer handle" errors) -- 60s here specifically to tell apart
+# "still finishing, just slow on this constrained CI hardware" from "the
+# bug is genuinely back", before concluding either way.
+sleep 60
 
 adb logcat -d > logcat.txt
 echo "--- full logcat around ActionBroadcastReceiver/Flutter/crashes, unconditionally (not just on failure) ---"
