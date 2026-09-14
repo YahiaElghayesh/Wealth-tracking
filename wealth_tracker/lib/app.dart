@@ -48,6 +48,17 @@ import 'features/settings/providers/settings_providers.dart';
 /// action fired from a live isolate -- there is no ProviderScope here.
 @pragma('vm:entry-point')
 void notificationTapBackground(NotificationResponse response) {
+  // Deliberately a permanent, unconditional log line, not a temporary
+  // debug leftover -- this headless isolate has no UI and no other way to
+  // observe from `adb logcat` whether a background notification-action
+  // tap reached Dart at all, which is exactly the "nothing happens" shape
+  // every bug in this path has taken (a broadcast that never got
+  // delivered, or one that did but the callback handle it needed wasn't
+  // registered) -- see the manifest's own `ActionBroadcastReceiver`
+  // <receiver> entry for the actual bug this most recently was.
+  debugPrint(
+    'notificationTapBackground: actionId=${response.actionId} id=${response.id}',
+  );
   if (response.actionId != smsChargeReviewQuickAddActionId) return;
   unawaited(_commitQuickAddFromBackground(response));
 }
@@ -72,12 +83,13 @@ Future<void> _commitQuickAddFromBackground(
     final prefs = await SharedPreferences.getInstance();
     final secureSettings = await SecureSettingsStore.load(prefs);
     final profileId = SettingsRepository(prefs, secureSettings).activeProfileId;
-    await commitSmsQuickAdd(
+    final added = await commitSmsQuickAdd(
       db,
       body: body,
       timestampMillis: timestampMillis,
       profileId: profileId,
     );
+    debugPrint('notificationTapBackground: commitSmsQuickAdd added=$added');
   } finally {
     await db.close();
   }

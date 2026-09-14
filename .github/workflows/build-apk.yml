@@ -107,3 +107,109 @@ jobs:
             --title "Build ${{ github.run_number }}" \
             --notes "Automated debug build from commit ${{ github.sha }}." \
             --latest
+
+  # Actually installs the built APK on a real (emulated) Android device and
+  # fires the exact system broadcast a tap on the SMS charge-review
+  # notification's "Quick add" action sends -- twice in a row -- rather than
+  # inferring from reading source whether that path still works. Two real
+  # bugs have lived in this exact path and neither was obvious from a
+  # source read alone: the app's own manifest never declared
+  # flutter_local_notifications' ActionBroadcastReceiver at all (so the
+  # broadcast that action's PendingIntent sends had no registered component
+  # to reach -- see AndroidManifest.xml's own comment on that <receiver>),
+  # and separately, that receiver's stock implementation caches the
+  # headless FlutterEngine it spins up in a field it never resets, so only
+  # the *first* tap in the process's life ever got through (see
+  # third_party/flutter_local_notifications' own patched ActionBroadcast
+  # Receiver.java). This job is what actually proves both are fixed, not
+  # just that the code compiles. Self-contained (its own checkout/build)
+  # rather than reusing the `build` job's APK via actions/upload-artifact,
+  # since that step is already known to fail outright when this account's
+  # separate artifact-storage quota is exhausted -- a real APK to install
+  # is the one thing this job cannot proceed without.
+  verify-quick-add:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: wealth_tracker
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.44.9"
+          channel: stable
+
+      - run: flutter pub get
+
+      - run: dart run build_runner build --delete-conflicting-outputs
+
+      - run: flutter build apk --debug --build-number=${{ github.run_number }}
+
+      - name: Enable KVM for the emulator
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Boot an emulator and fire two Quick Add taps at the real APK
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 33
+          target: google_apis
+          arch: x86_64
+          profile: pixel_5
+          disable-animations: true
+          script: |
+            set -e
+            PKG=com.yahiaelghayesh.wealth_tracker
+            RECEIVER=com.dexterous.flutterlocalnotifications.ActionBroadcastReceiver
+
+            adb install -r wealth_tracker/build/app/outputs/flutter-apk/app-debug.apk
+
+            echo "--- Launching the app once, so it registers the background notification-response callback handle ---"
+            adb shell am start -n "$PKG/.MainActivity"
+            sleep 15
+
+            echo "--- Confirming $RECEIVER is actually a registered component (this is exactly what the missing <receiver> manifest entry broke) ---"
+            adb shell dumpsys package "$PKG" > package_dump.txt
+            if ! grep -q "$RECEIVER" package_dump.txt; then
+              echo "FAIL: $RECEIVER is not a registered component for $PKG -- the manifest fix did not take effect."
+              exit 1
+            fi
+            echo "OK: $RECEIVER is registered."
+
+            adb shell am force-stop "$PKG"
+            sleep 2
+            adb logcat -c
+
+            echo "--- First tap ---"
+            adb shell am broadcast -a "$RECEIVER.ACTION_TAPPED" -n "$PKG/$RECEIVER" \
+              --ei notificationId 555 --es actionId quick_add --ez cancelNotification true --es payload test
+            sleep 10
+
+            echo "--- Second tap -- this is exactly what the engine-caching bug broke: the first tap worked, every one after silently did nothing ---"
+            adb shell am broadcast -a "$RECEIVER.ACTION_TAPPED" -n "$PKG/$RECEIVER" \
+              --ei notificationId 556 --es actionId quick_add --ez cancelNotification true --es payload test
+            sleep 10
+
+            adb logcat -d > logcat.txt
+            echo "--- matching logcat lines ---"
+            grep -i "notificationTapBackground\|Engine is already initialised\|Callback information could not be retrieved" logcat.txt || true
+
+            COUNT=$(grep -c "notificationTapBackground: actionId=quick_add" logcat.txt || true)
+            echo "notificationTapBackground invocation count: $COUNT (expected 2)"
+            if [ "$COUNT" -lt 2 ]; then
+              echo "FAIL: Quick Add's native broadcast never reached the Dart callback both times -- the button does not work."
+              exit 1
+            fi
+            if grep -q "Engine is already initialised" logcat.txt; then
+              echo "FAIL: the engine-caching bug is back -- a tap after the first one is being silently dropped."
+              exit 1
+            fi
+            echo "PASS: both Quick Add taps reached notificationTapBackground."
