@@ -110,23 +110,37 @@ jobs:
 
   # Actually installs the built APK on a real (emulated) Android device and
   # fires the exact system broadcast a tap on the SMS charge-review
-  # notification's "Quick add" action sends -- twice in a row -- rather than
-  # inferring from reading source whether that path still works. Two real
-  # bugs have lived in this exact path and neither was obvious from a
-  # source read alone: the app's own manifest never declared
-  # flutter_local_notifications' ActionBroadcastReceiver at all (so the
-  # broadcast that action's PendingIntent sends had no registered component
-  # to reach -- see AndroidManifest.xml's own comment on that <receiver>),
-  # and separately, that receiver's stock implementation caches the
-  # headless FlutterEngine it spins up in a field it never resets, so only
-  # the *first* tap in the process's life ever got through (see
-  # third_party/flutter_local_notifications' own patched ActionBroadcast
-  # Receiver.java). This job is what actually proves both are fixed, not
-  # just that the code compiles. Self-contained (its own checkout/build)
-  # rather than reusing the `build` job's APK via actions/upload-artifact,
-  # since that step is already known to fail outright when this account's
-  # separate artifact-storage quota is exhausted -- a real APK to install
-  # is the one thing this job cannot proceed without.
+  # notification's "Quick add" action sends -- twice in a row, with a real
+  # JSON payload against a real, seeded SMS Rule -- rather than inferring
+  # from reading source whether that path still works. Three real bugs
+  # have lived in this exact path and none were obvious from a source read
+  # alone:
+  #   1. The app's own manifest never declared flutter_local_notifications'
+  #      ActionBroadcastReceiver at all, so the broadcast that action's
+  #      PendingIntent sends had no registered component to reach at all
+  #      (see AndroidManifest.xml's own comment on that <receiver>).
+  #   2. That receiver's stock implementation caches the headless
+  #      FlutterEngine it spins up in a field it never resets, so only the
+  #      *first* tap in the process's life ever got through (see
+  #      third_party/flutter_local_notifications' own patched
+  #      ActionBroadcastReceiver.java).
+  #   3. Its own static ActionEventSink kept a stale EventSink from the
+  #      *previous* (by then destroyed) engine, so a second tap's data was
+  #      fired into a dead channel instead of the cache the next engine's
+  #      listener would flush -- same file, same patch.
+  # An earlier version of this job only ever sent a fake, non-JSON payload
+  # ("test") specifically to dodge needing a matching rule -- which meant
+  # it only ever proved the broadcast reaches Dart, not that Quick Add's
+  # own effect (a ledger entry) ever actually happens. It passed while the
+  # button still didn't really work. This version seeds one real matching
+  # SmsRule (see "Build the seed database..." below) and checks the
+  # on-device database for the ledger entries Quick Add is supposed to
+  # create, not just a debug log line. Self-contained (its own
+  # checkout/build) rather than reusing the `build` job's APK via
+  # actions/upload-artifact, since that step is already known to fail
+  # outright when this account's separate artifact-storage quota is
+  # exhausted -- a real APK to install is the one thing this job cannot
+  # proceed without.
   verify-quick-add:
     runs-on: ubuntu-latest
     defaults:
@@ -166,6 +180,20 @@ jobs:
       - run: dart run build_runner build --delete-conflicting-outputs
 
       - run: flutter build apk --debug --build-number=${{ github.run_number }}
+
+      # A real Quick Add tap only does anything (a ledger entry) when a
+      # saved SMS Rule matches the tapped notification's original SMS
+      # text -- a fresh install/emulator has none. Built via a real
+      # `flutter test` (AppDatabase.forTesting against a real file, not
+      # in-memory) rather than hand-written SQL, so the seeded rows go
+      # through the app's own schema/migration/JSON-encoding code instead
+      # of something that could quietly drift out of sync with it. See
+      # this file's own doc comment for why an earlier version of this
+      # job never caught Quick Add still not working for real.
+      - name: Build the seed database Quick Add's real effect is checked against
+        run: flutter test ci/build_seed_db_test.dart
+        env:
+          SEED_DB_OUTPUT: build/seed.sqlite
 
       # Ground truth, before ever touching an emulator: does the actual
       # compiled manifest inside the APK that's about to be installed

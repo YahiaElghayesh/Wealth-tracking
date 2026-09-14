@@ -2,8 +2,12 @@
 # Run inside the verify-quick-add CI job, against a real (emulated) Android
 # device with the actual debug APK installed -- proves the SMS charge-review
 # notification's "Quick add" action still reaches Dart, twice in a row,
-# instead of inferring it from a source read. See build-apk.yml's own
-# comment on this job for the two real bugs this exists to catch.
+# *and* that it actually produces the ledger entries it's supposed to.
+# See build-apk.yml's own comment on this job for the bugs this exists to
+# catch, including the one an earlier version of this exact test missed:
+# a fake, non-JSON payload proved the broadcast reaches Dart but never
+# exercised _commitQuickAddFromBackground's own database/prefs/secure-
+# storage setup at all, so it passed while Quick Add still didn't work.
 #
 # A dedicated script file, not an inline `script:` block in the workflow --
 # reactivecircus/android-emulator-runner runs each line of an inline script
@@ -14,11 +18,23 @@ set -euo pipefail
 
 PKG=com.yahiaelghayesh.wealth_tracker
 RECEIVER=com.dexterous.flutterlocalnotifications.ActionBroadcastReceiver
-# Relative to the repo root -- this script is invoked from there (the
+# Both relative to the repo root -- this script is invoked from there (the
 # emulator-runner action's `script:` doesn't inherit the workflow job's
 # own `defaults.run.working-directory: wealth_tracker`), not from inside
 # wealth_tracker/ itself.
 APK=wealth_tracker/build/app/outputs/flutter-apk/app-debug.apk
+SEED_DB=wealth_tracker/build/seed.sqlite
+
+# Must match ci/build_seed_db_test.dart's own chargeSms constant exactly --
+# a shell script can't import a Dart one, so keep the two in sync by hand.
+CHARGE_SMS='Card #4912 charged EGP 958.54 at Breadfast. Available limit EGP 85891.16.'
+PAYLOAD_1="{\"body\":\"$CHARGE_SMS\",\"timestampMillis\":1000000}"
+# A *different* timestamp, not just a different notification id -- reusing
+# the same body+timestamp for both taps would hit commitSmsQuickAdd's own
+# dedupe check (dedupeId = timestamp:body.hashCode) and the second tap
+# would correctly report added=false despite everything working, which
+# would look identical to the real bug this test exists to catch.
+PAYLOAD_2="{\"body\":\"$CHARGE_SMS\",\"timestampMillis\":2000000}"
 
 # A real notification action's PendingIntent is fired by a system-
 # privileged process (NotificationManagerService/SystemUI), not by an
@@ -26,77 +42,83 @@ APK=wealth_tracker/build/app/outputs/flutter-apk/app-debug.apk
 # (correctly; it's only ever meant to be reached that way). Sending the
 # same broadcast from plain `adb shell` (UID shell, not system) may be
 # getting silently blocked by that same exported check in a way the real
-# tap never would be, which a previous run's total silence (not even the
-# plugin's own "Callback information could not be retrieved" warning,
-# which would appear if onReceive ran at all) is consistent with. `adb
-# root` is available on this userdebug emulator image specifically to
-# rule that out -- root bypasses the check entirely, same as system would.
+# tap never would be. `adb root` (available on this userdebug emulator
+# image) bypasses the check entirely, same as system would -- also what
+# lets this script push/pull files under the app's own data directory
+# below without needing `run-as`.
 adb root
 adb wait-for-device
 
 adb install -r "$APK"
 
-echo "--- Launching the app once, so it registers the background notification-response callback handle ---"
+echo "--- Launching the app once, so it registers the background notification-response callback handle, and so path_provider/drift create the app's real sqlite file ---"
 adb shell am start -n "$PKG/$PKG.MainActivity"
 sleep 15
 
-echo "--- For reference, whatever dumpsys package shows about $RECEIVER (informational only -- the real pass/fail check is the broadcast below, since dumpsys' own output format for a receiver with no intent-filter has proven unreliable to grep) ---"
-adb shell dumpsys package "$PKG" > package_dump.txt || true
-grep -i "ActionBroadcastReceiver" package_dump.txt || echo "(not found in dumpsys output -- not necessarily conclusive, see above)"
+echo "--- Locating the app's real sqlite file on-device (its exact directory is a path_provider implementation detail, not something to hard-code) ---"
+DB_PATH=$(adb shell "find /data/data/$PKG -name 'wealth_tracker.sqlite' 2>/dev/null" | tr -d '\r')
+if [ -z "$DB_PATH" ]; then
+  echo "FAIL: wealth_tracker.sqlite not found anywhere under /data/data/$PKG after the app's first launch."
+  exit 1
+fi
+echo "Found: $DB_PATH"
 
-# Deliberately NOT `am force-stop` here, even though the whole point of
-# this action is to work while the app "isn't running" -- force-stop
-# puts an app into Android's own stricter "stopped" state, which
-# suppresses *all* broadcast delivery to it (even an explicit,
-# manifest-registered, non-exported one) until it's launched again by
-# the user. That's a much harsher state than the OS ever puts a
-# backgrounded/LRU-killed app into on its own, and a previous run of
-# this exact script proved it: zero evidence the broadcast was ever
-# delivered at all after force-stopping, with the compiled manifest's
-# <receiver> entry independently confirmed present via aapt2 in the
-# same run. ActionBroadcastReceiver's own logic doesn't care whether
-# the main app is alive anyway -- it always spins up its own separate
-# headless engine -- so there's nothing this test actually needs
-# force-stop for.
+echo "--- Recording the app's own uid:gid on that file, before touching anything -- pushed as root, the replacement would otherwise land owned by root:root, which the app's own (unprivileged) process can't open ---"
+OWNER=$(adb shell "stat -c '%u:%g' '$DB_PATH'" | tr -d '\r')
+echo "App owns its database as: $OWNER"
+
+echo "--- Stopping the app so its own database connection is fully closed before this test overwrites the file under it ---"
+adb shell am force-stop "$PKG"
+# Also remove any WAL/shm sidecars from that first launch -- overwriting
+# just the main file while a stale -wal exists from the *old* (empty)
+# database would let sqlite replay old-file WAL frames on top of the
+# newly-pushed one.
+adb shell "rm -f '$DB_PATH-wal' '$DB_PATH-shm'"
+
+echo "--- Pushing a database seeded with one real SmsRule that matches CHARGE_SMS, so a real Quick Add tap has something to actually commit ---"
+adb push "$SEED_DB" "$DB_PATH"
+adb shell "chown $OWNER '$DB_PATH'"
+
+# force-stop puts an app into Android's own stricter "stopped" state,
+# which suppresses *all* broadcast delivery to it (even an explicit,
+# manifest-registered, non-exported one) until it's launched again --
+# exactly like the user opening it. Without this, every broadcast below
+# would silently go nowhere for a reason that has nothing to do with
+# Quick Add itself.
+adb shell am start -n "$PKG/$PKG.MainActivity"
+sleep 15
+
 adb logcat -c
 
-echo "--- First tap ---"
+echo "--- First tap (real JSON payload, real charge SMS text, timestamp 1000000) ---"
 adb shell am broadcast -a "$RECEIVER.ACTION_TAPPED" -n "$PKG/$RECEIVER" \
-  --ei notificationId 555 --es actionId quick_add --ez cancelNotification true --es payload test
+  --ei notificationId 555 --es actionId quick_add --ez cancelNotification true --es payload "$PAYLOAD_1"
 # A previous run's own timestamps showed real, if slow, engine startup
 # (this CI emulator is software-rendered and visibly sluggish -- "bad
-# color buffer handle" GPU warnings throughout) -- 20s rather than 10 to
-# rule out the second engine simply not having finished starting yet by
-# the time logcat is read, rather than the actual caching bug being back.
+# color buffer handle" GPU warnings throughout), and this tap now does
+# real work (AppDatabase, SharedPreferences, SecureSettingsStore, a real
+# ledger insert) beyond just reaching the callback -- 20s to give all of
+# that room to finish, not just the callback dispatch itself.
 sleep 20
 
-echo "--- Second tap -- this is exactly what the engine-caching bug broke: the first tap worked, every one after silently did nothing ---"
+echo "--- Second tap (same body, different timestamp -- second engine + dedupe both have to behave correctly) ---"
 adb shell am broadcast -a "$RECEIVER.ACTION_TAPPED" -n "$PKG/$RECEIVER" \
-  --ei notificationId 556 --es actionId quick_add --ez cancelNotification true --es payload test
-# A previous run's logcat showed the second engine genuinely spinning up
-# (a fresh "Using the Impeller rendering backend" line, on a new thread --
-# proof the destroy-and-recreate patch itself is working, since the old
-# buggy early-return would never have created a second engine at all) but
-# never reaching the Dart callback within 20s. This emulator's own
-# software GL renderer is visibly strained throughout every run ("bad
-# color buffer handle" errors) -- 60s here specifically to tell apart
-# "still finishing, just slow on this constrained CI hardware" from "the
-# bug is genuinely back", before concluding either way.
-sleep 60
+  --ei notificationId 556 --es actionId quick_add --ez cancelNotification true --es payload "$PAYLOAD_2"
+sleep 20
 
 echo "--- process status for $PKG right after the second tap (is it even still alive?) ---"
 adb shell "ps -A | grep wealth_tracker" || echo "(no matching process -- it's not running at all)"
 
 adb logcat -d > logcat.txt
-echo "--- entire logcat, unconditionally (not just a filtered grep -- a previous run's filtered grep showed total silence on every tag after the second engine's own startup line, with no crash/ANR caught by that narrow filter, so this run prints everything to find what actually happens to it) ---"
+echo "--- entire logcat, unconditionally (not just a filtered grep) ---"
 cat logcat.txt
 
 echo "--- matching logcat lines (for quick scanning above the full dump) ---"
-grep -i "notificationTapBackground\|Engine is already initialised\|Callback information could not be retrieved\|ActionBroadcastReceiver\|AndroidRuntime\|FATAL EXCEPTION\|Killed\|lowmemorykiller\|ANR in" logcat.txt || true
+grep -i "notificationTapBackground\|Engine is already initialised\|Callback information could not be retrieved\|ActionBroadcastReceiver\|AndroidRuntime\|FATAL EXCEPTION\|Unhandled exception\|Killed\|lowmemorykiller\|ANR in" logcat.txt || true
 
-COUNT=$(grep -c "notificationTapBackground: actionId=quick_add" logcat.txt || true)
-echo "notificationTapBackground invocation count: $COUNT (expected 2)"
-if [ "$COUNT" -lt 2 ]; then
+TAP_COUNT=$(grep -c "notificationTapBackground: actionId=quick_add" logcat.txt || true)
+echo "notificationTapBackground invocation count: $TAP_COUNT (expected 2)"
+if [ "$TAP_COUNT" -lt 2 ]; then
   echo "FAIL: Quick Add's native broadcast never reached the Dart callback both times -- the button does not work."
   exit 1
 fi
@@ -104,4 +126,45 @@ if grep -q "Engine is already initialised" logcat.txt; then
   echo "FAIL: the engine-caching bug is back -- a tap after the first one is being silently dropped."
   exit 1
 fi
-echo "PASS: both Quick Add taps reached notificationTapBackground."
+
+ADDED_COUNT=$(grep -c "notificationTapBackground: commitSmsQuickAdd added=true" logcat.txt || true)
+echo "commitSmsQuickAdd added=true count: $ADDED_COUNT (expected 2)"
+if [ "$ADDED_COUNT" -lt 2 ]; then
+  echo "FAIL: the broadcast reached Dart, but commitSmsQuickAdd never reported success both times -- Quick Add's own effect (a ledger entry) isn't happening, even though the plumbing that delivers the tap works. This is exactly the gap a fake non-JSON payload used to hide."
+  exit 1
+fi
+
+echo "--- Pulling the on-device database (plus any WAL sidecar) to check the *actual* effect, not just a log line ---"
+adb pull "$DB_PATH" pulled.sqlite
+adb pull "$DB_PATH-wal" pulled.sqlite-wal 2>/dev/null || true
+adb pull "$DB_PATH-shm" pulled.sqlite-shm 2>/dev/null || true
+
+python3 - <<'PYEOF'
+import sqlite3, sys
+conn = sqlite3.connect("pulled.sqlite")
+cur = conn.cursor()
+cur.execute(
+    "SELECT counterparty_id, amount, currency, category, source "
+    "FROM ledger_transactions WHERE counterparty_id = 'ci-seed-counterparty' "
+    "ORDER BY date"
+)
+rows = cur.fetchall()
+print(f"--- ledger_transactions rows for the seeded counterparty: {len(rows)} (expected 2) ---")
+for row in rows:
+    print("  ", row)
+if len(rows) < 2:
+    print("FAIL: Quick Add reported success in its own log line, but the on-device "
+          "database doesn't actually contain both ledger entries.")
+    sys.exit(1)
+for row in rows:
+    counterparty_id, amount, currency, category, source = row
+    if counterparty_id != "ci-seed-counterparty" or currency != "EGP" or category != "Breadfast" or source != "sms":
+        print(f"FAIL: a ledger row exists but doesn't match what commitSmsQuickAdd should have written: {row}")
+        sys.exit(1)
+    if abs(amount - 85891.16) > 0.001:
+        print(f"FAIL: ledger row amount {amount} doesn't match the seeded rule's expected 85891.16")
+        sys.exit(1)
+print("PASS: both ledger entries exist on-device with the expected data.")
+PYEOF
+
+echo "PASS: both Quick Add taps reached notificationTapBackground and each actually committed a ledger entry."
