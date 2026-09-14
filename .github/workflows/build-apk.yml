@@ -167,6 +167,25 @@ jobs:
 
       - run: flutter build apk --debug --build-number=${{ github.run_number }}
 
+      # Ground truth, before ever touching an emulator: does the actual
+      # compiled manifest inside the APK that's about to be installed
+      # really contain the ActionBroadcastReceiver <receiver> entry? A
+      # previous run's on-device broadcast test found no evidence the
+      # Dart callback ever ran for either tap, and dumpsys package on the
+      # device didn't show the receiver either -- this settles whether
+      # that's a real manifest problem or just dumpsys/adb not showing
+      # something that's actually there, using the same aapt2 the "build"
+      # job's own manifest-sanity step already relies on.
+      - name: Dump the compiled manifest's receivers (ground truth)
+        run: |
+          BUILD_TOOLS=$(ls -d "$ANDROID_HOME"/build-tools/*/ | sort -V | tail -1)
+          APK=build/app/outputs/flutter-apk/app-debug.apk
+          "$BUILD_TOOLS/aapt2" dump xmltree "$APK" --file AndroidManifest.xml > manifest_dump.txt
+          echo "--- every <receiver> entry in the compiled manifest ---"
+          grep -B2 -A6 "receiver" manifest_dump.txt || echo "NO <receiver> ELEMENTS FOUND AT ALL"
+          echo "--- specifically looking for ActionBroadcastReceiver ---"
+          grep -B8 "ActionBroadcastReceiver" manifest_dump.txt || echo "ActionBroadcastReceiver NOT FOUND in the compiled manifest"
+
       # The build itself downloads its own build-tools/CMake/etc. -- freed
       # again here since the emulator's system-image download is what
       # actually ran this runner out of space, right after a build that
