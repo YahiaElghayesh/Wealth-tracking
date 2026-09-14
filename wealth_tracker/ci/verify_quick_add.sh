@@ -1,0 +1,65 @@
+#!/usr/bin/env bash
+# Run inside the verify-quick-add CI job, against a real (emulated) Android
+# device with the actual debug APK installed -- proves the SMS charge-review
+# notification's "Quick add" action still reaches Dart, twice in a row,
+# instead of inferring it from a source read. See build-apk.yml's own
+# comment on this job for the two real bugs this exists to catch.
+#
+# A dedicated script file, not an inline `script:` block in the workflow --
+# reactivecircus/android-emulator-runner runs each line of an inline script
+# as its own independent shell invocation, so a variable assigned on one
+# line (or a multi-line `if`) doesn't survive to the next one. A real
+# script file, with `bash` doing the parsing exactly once, has none of that.
+set -euo pipefail
+
+PKG=com.yahiaelghayesh.wealth_tracker
+RECEIVER=com.dexterous.flutterlocalnotifications.ActionBroadcastReceiver
+# Relative to the repo root -- this script is invoked from there (the
+# emulator-runner action's `script:` doesn't inherit the workflow job's
+# own `defaults.run.working-directory: wealth_tracker`), not from inside
+# wealth_tracker/ itself.
+APK=wealth_tracker/build/app/outputs/flutter-apk/app-debug.apk
+
+adb install -r "$APK"
+
+echo "--- Launching the app once, so it registers the background notification-response callback handle ---"
+adb shell am start -n "$PKG/$PKG.MainActivity"
+sleep 15
+
+echo "--- Confirming $RECEIVER is actually a registered component (this is exactly what the missing <receiver> manifest entry broke) ---"
+adb shell dumpsys package "$PKG" > package_dump.txt
+if ! grep -q "$RECEIVER" package_dump.txt; then
+  echo "FAIL: $RECEIVER is not a registered component for $PKG -- the manifest fix did not take effect."
+  exit 1
+fi
+echo "OK: $RECEIVER is registered."
+
+adb shell am force-stop "$PKG"
+sleep 2
+adb logcat -c
+
+echo "--- First tap ---"
+adb shell am broadcast -a "$RECEIVER.ACTION_TAPPED" -n "$PKG/$RECEIVER" \
+  --ei notificationId 555 --es actionId quick_add --ez cancelNotification true --es payload test
+sleep 10
+
+echo "--- Second tap -- this is exactly what the engine-caching bug broke: the first tap worked, every one after silently did nothing ---"
+adb shell am broadcast -a "$RECEIVER.ACTION_TAPPED" -n "$PKG/$RECEIVER" \
+  --ei notificationId 556 --es actionId quick_add --ez cancelNotification true --es payload test
+sleep 10
+
+adb logcat -d > logcat.txt
+echo "--- matching logcat lines ---"
+grep -i "notificationTapBackground\|Engine is already initialised\|Callback information could not be retrieved" logcat.txt || true
+
+COUNT=$(grep -c "notificationTapBackground: actionId=quick_add" logcat.txt || true)
+echo "notificationTapBackground invocation count: $COUNT (expected 2)"
+if [ "$COUNT" -lt 2 ]; then
+  echo "FAIL: Quick Add's native broadcast never reached the Dart callback both times -- the button does not work."
+  exit 1
+fi
+if grep -q "Engine is already initialised" logcat.txt; then
+  echo "FAIL: the engine-caching bug is back -- a tap after the first one is being silently dropped."
+  exit 1
+fi
+echo "PASS: both Quick Add taps reached notificationTapBackground."
