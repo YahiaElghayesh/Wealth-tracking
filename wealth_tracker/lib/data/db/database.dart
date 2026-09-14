@@ -526,20 +526,38 @@ QueryExecutor _openConnection() {
   return driftDatabase(
     name: 'wealth_tracker',
     native: DriftNativeOptions(
-      // The foreground app and a background WorkManager isolate (bank-SMS
-      // auto-update, the periodic price refresh, ...) can now both hold
-      // this database open at the same time. SQLite's default rollback-
-      // journal mode needs an exclusive lock for any write, which two
-      // genuinely separate connections collide on easily -- this is what
-      // was producing "database is locked" errors. WAL lets readers and
-      // writers coexist instead; busy_timeout makes an actual writer-vs-
-      // writer collision (WAL still only allows one at a time) wait and
-      // retry briefly rather than fail immediately.
+      // The foreground app, a background WorkManager isolate (bank-SMS
+      // auto-update, the periodic price refresh, ...), and
+      // ActionBroadcastReceiver's own headless FlutterEngine (Quick Add,
+      // sms_rule_notifications.dart) can now all hold this database open
+      // at the same time. SQLite's default rollback-journal mode needs an
+      // exclusive lock for any write, which two genuinely separate
+      // connections collide on easily -- this is what was producing
+      // "database is locked" errors. WAL lets readers and writers coexist
+      // instead; busy_timeout makes an actual writer-vs-writer collision
+      // (WAL still only allows one at a time) wait and retry briefly
+      // rather than fail immediately.
       setup: (db) {
         db.execute('PRAGMA journal_mode=WAL;');
         db.execute('PRAGMA busy_timeout=5000;');
       },
-      shareAcrossIsolates: true,
+      // Deliberately NOT shareAcrossIsolates: true. That option makes
+      // every isolate discover and RPC into one shared connection hosted
+      // by whichever isolate opened the database first (via
+      // IsolateNameServer + a spawned Isolate), instead of each isolate
+      // opening its own -- and that discovery/connect handshake is what
+      // silently hung forever for a real Quick Add tap: proven on a real
+      // device via the verify-quick-add CI job, whose logcat showed
+      // ActionBroadcastReceiver's headless engine reach
+      // notificationTapBackground fine but then never print anything
+      // else at all -- no crash, no timeout, nothing -- while the main
+      // app's own engine (which had opened the database first, right
+      // before the tap) was still alive. WAL + busy_timeout above is
+      // already a complete, independent answer to concurrent access: it's
+      // the standard way multiple separate SQLite connections (even
+      // across separate OS processes, let alone isolates in one) share
+      // one file safely. Nothing here needs the isolates to share a
+      // single connection on top of that.
     ),
   );
 }
