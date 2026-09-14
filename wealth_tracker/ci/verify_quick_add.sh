@@ -20,6 +20,20 @@ RECEIVER=com.dexterous.flutterlocalnotifications.ActionBroadcastReceiver
 # wealth_tracker/ itself.
 APK=wealth_tracker/build/app/outputs/flutter-apk/app-debug.apk
 
+# A real notification action's PendingIntent is fired by a system-
+# privileged process (NotificationManagerService/SystemUI), not by an
+# arbitrary shell process -- and this receiver is exported="false"
+# (correctly; it's only ever meant to be reached that way). Sending the
+# same broadcast from plain `adb shell` (UID shell, not system) may be
+# getting silently blocked by that same exported check in a way the real
+# tap never would be, which a previous run's total silence (not even the
+# plugin's own "Callback information could not be retrieved" warning,
+# which would appear if onReceive ran at all) is consistent with. `adb
+# root` is available on this userdebug emulator image specifically to
+# rule that out -- root bypasses the check entirely, same as system would.
+adb root
+adb wait-for-device
+
 adb install -r "$APK"
 
 echo "--- Launching the app once, so it registers the background notification-response callback handle ---"
