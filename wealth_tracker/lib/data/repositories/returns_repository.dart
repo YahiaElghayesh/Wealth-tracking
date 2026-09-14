@@ -17,10 +17,14 @@ class ReturnsRepository {
   /// Returns tab and its History screen both watch this and split it
   /// client-side by [Return.receivedAt], the same way Statistics filters
   /// [counterpartiesStreamProvider] instead of keeping a separate stream.
+  /// Ordered by [Return.createdAt] (the only date column that's never
+  /// null) -- both providers that actually feed the UI re-sort by
+  /// whichever of [Return.requestedAt]/[Return.receivedAt] is meaningful
+  /// for their list, so this is just a stable base order.
   Stream<List<Return>> watchAll() {
     return (_db.select(_db.returns)
           ..where((t) => t.profileId.equals(profileId))
-          ..orderBy([(t) => OrderingTerm.desc(t.returnDate)]))
+          ..orderBy([(t) => OrderingTerm.desc(t.createdAt)]))
         .watch();
   }
 
@@ -28,7 +32,8 @@ class ReturnsRepository {
     required String vendor,
     required double amount,
     required String currency,
-    required DateTime returnDate,
+    DateTime? requestedAt,
+    DateTime? pickedUpAt,
   }) {
     return _db
         .into(_db.returns)
@@ -38,7 +43,8 @@ class ReturnsRepository {
             vendor: vendor,
             amount: amount,
             currency: Value(currency),
-            returnDate: returnDate,
+            requestedAt: Value(requestedAt),
+            pickedUpAt: Value(pickedUpAt),
             createdAt: DateTime.now(),
             profileId: Value(profileId),
           ),

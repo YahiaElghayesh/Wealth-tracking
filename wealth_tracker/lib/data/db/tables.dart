@@ -720,10 +720,19 @@ class Returns extends Table {
   RealColumn get amount => real()();
   TextColumn get currency => text().withDefault(const Constant('EGP'))();
 
-  /// When the item was actually returned to the store -- what the "N days
-  /// ago" counter on the pending list counts from, not when this row was
-  /// created.
-  DateTimeColumn get returnDate => dateTime()();
+  /// When the return/refund was requested from the store -- optional, and
+  /// can be set, changed, or cleared at any time from the add/edit screen
+  /// rather than only up front. Replaces the old single required
+  /// `returnDate` (see schema 38's migration): every pre-existing row's
+  /// returnDate became its requestedAt, so nothing already being tracked
+  /// lost its "N days ago" count.
+  DateTimeColumn get requestedAt => dateTime().nullable()();
+
+  /// When the item was actually picked up/collected for the return --
+  /// independent of, and exactly as optional as, [requestedAt]: a return
+  /// can be requested well before pickup is arranged, or the two can
+  /// happen the same day.
+  DateTimeColumn get pickedUpAt => dateTime().nullable()();
 
   /// Null while still pending; set the moment "Received" is tapped, which
   /// is also what moves it from the pending list into history.

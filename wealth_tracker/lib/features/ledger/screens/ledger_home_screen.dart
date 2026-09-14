@@ -204,7 +204,7 @@ class _LedgerHomeScreenState extends ConsumerState<LedgerHomeScreen>
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () => onReturnsTab
-            ? showReturnFormDialog(context, ref)
+            ? openAddEditReturnScreen(context)
             : _addCounterparty(
                 context,
                 ref,

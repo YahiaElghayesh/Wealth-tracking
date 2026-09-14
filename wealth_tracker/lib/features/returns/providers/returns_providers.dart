@@ -18,15 +18,20 @@ final returnsStreamProvider = StreamProvider<List<Return>>((ref) {
 });
 
 /// [returnsStreamProvider] filtered to what's still pending -- everything
-/// with no [Return.receivedAt] yet, oldest return first (the one waiting
-/// longest is the one most worth following up on).
+/// with no [Return.receivedAt] yet, oldest first (the one waiting longest
+/// is the one most worth following up on). "Oldest" falls back to
+/// [Return.createdAt] when [Return.requestedAt] isn't set -- both are
+/// optional now, but createdAt never is.
 final pendingReturnsProvider = Provider<AsyncValue<List<Return>>>((ref) {
   return ref
       .watch(returnsStreamProvider)
       .whenData(
         (list) =>
-            list.where((r) => r.receivedAt == null).toList()
-              ..sort((a, b) => a.returnDate.compareTo(b.returnDate)),
+            list.where((r) => r.receivedAt == null).toList()..sort(
+              (a, b) => (a.requestedAt ?? a.createdAt).compareTo(
+                b.requestedAt ?? b.createdAt,
+              ),
+            ),
       );
 });
 

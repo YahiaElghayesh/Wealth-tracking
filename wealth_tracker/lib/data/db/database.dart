@@ -43,7 +43,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 37;
+  int get schemaVersion => 38;
 
   /// Public so `ProfileRepository.addProfile` can give a newly created
   /// profile the same starter categories a fresh install gets -- otherwise
@@ -473,6 +473,29 @@ class AppDatabase extends _$AppDatabase {
         // matches -- every existing rule has none yet, so every charge
         // keeps falling back to targetCounterpartyId exactly as before.
         await m.addColumn(smsRules, smsRules.vendorTargetsJson);
+      }
+      if (from < 38) {
+        // Returns: two independent optional dates (request, pickup)
+        // replacing the old single required returnDate -- a real column
+        // change (returnDate's NOT NULL has to go), not just an addColumn,
+        // so this rebuilds the table via alterTable rather than a plain
+        // addColumn. `returnDate` is referenced by its raw SQL name here
+        // (not returns.returnDate) since it no longer exists on the Dart
+        // table at all as of this change. Every existing row's returnDate
+        // carries over as its new requestedAt -- the closest equivalent of
+        // what that column used to mean -- and pickedUpAt starts unset for
+        // all of them, since there's no way to know it after the fact.
+        await m.alterTable(
+          TableMigration(
+            returns,
+            columnTransformer: {
+              returns.requestedAt: const CustomExpression<DateTime>(
+                'return_date',
+              ),
+            },
+            newColumns: [returns.pickedUpAt],
+          ),
+        );
       }
     },
     // The "Breakfast" quick-pick category was a voice-transcription

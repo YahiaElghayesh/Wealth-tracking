@@ -1,3 +1,4 @@
+import 'package:drift/drift.dart' show Value;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -15,163 +16,37 @@ String _formatValue(double value) {
       : value.toString();
 }
 
-/// The Returns tab's own add/edit form -- a top-level function (not a
-/// method on [ReturnsTabView]) so `LedgerHomeScreen`'s single shared FAB
-/// can open it directly, the same way it already calls into this file's
-/// sibling `_addCounterparty`/`_editCounterparty` for the other two tabs.
-/// [existing] switches this from "Add" to "Edit" (with its own Delete
-/// action) -- same dialog either way, just pre-filled and writing back to
-/// that row instead of inserting a new one.
-Future<void> showReturnFormDialog(
-  BuildContext context,
-  WidgetRef ref, {
-  Return? existing,
-}) async {
-  final vendorController = TextEditingController(text: existing?.vendor ?? '');
-  final amountController = TextEditingController(
-    text: existing == null ? '' : _formatValue(existing.amount),
-  );
-  var currency = existing?.currency ?? defaultCurrency;
-  var returnDate = existing?.returnDate ?? DateTime.now();
-  final formKey = GlobalKey<FormState>();
-  final isEditing = existing != null;
+String _formatDate(DateTime d) {
+  return '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+}
 
-  final result = await showDialog<bool>(
-    context: context,
-    builder: (context) => StatefulBuilder(
-      builder: (context, setDialogState) => AlertDialog(
-        title: Text(isEditing ? 'Edit return' : 'Add return'),
-        content: Form(
-          key: formKey,
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextFormField(
-                  controller: vendorController,
-                  autofocus: !isEditing,
-                  textCapitalization: TextCapitalization.sentences,
-                  decoration: const InputDecoration(
-                    labelText: 'Vendor',
-                    hintText: 'e.g. Amazon',
-                  ),
-                  validator: (v) =>
-                      (v == null || v.trim().isEmpty) ? 'Required' : null,
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      flex: 2,
-                      child: TextFormField(
-                        controller: amountController,
-                        decoration: const InputDecoration(
-                          labelText: 'Return amount',
-                        ),
-                        keyboardType: const TextInputType.numberWithOptions(
-                          decimal: true,
-                        ),
-                        validator: (v) {
-                          if (v == null || v.trim().isEmpty) return 'Required';
-                          if (double.tryParse(v.trim()) == null) {
-                            return 'Enter a number';
-                          }
-                          return null;
-                        },
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: CurrencyPickerField(
-                        value: currency,
-                        labelText: 'Currency',
-                        onChanged: (c) => setDialogState(() => currency = c),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: const Text('Returned on'),
-                  subtitle: Text(
-                    '${returnDate.day}/${returnDate.month}/${returnDate.year}',
-                  ),
-                  trailing: const Icon(Icons.calendar_today_outlined),
-                  onTap: () async {
-                    final picked = await showDatePicker(
-                      context: context,
-                      initialDate: returnDate,
-                      firstDate: DateTime(2000),
-                      lastDate: DateTime.now(),
-                    );
-                    if (picked != null) {
-                      setDialogState(() => returnDate = picked);
-                    }
-                  },
-                ),
-              ],
-            ),
-          ),
-        ),
-        actions: [
-          if (isEditing)
-            TextButton(
-              onPressed: () => Navigator.pop(context, null),
-              style: TextButton.styleFrom(
-                foregroundColor: Theme.of(context).colorScheme.error,
-              ),
-              child: const Text('Delete'),
-            ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () {
-              if (!formKey.currentState!.validate()) return;
-              Navigator.pop(context, true);
-            },
-            child: Text(isEditing ? 'Save' : 'Add'),
-          ),
-        ],
-      ),
-    ),
-  );
-
-  final repo = ref.read(returnsRepositoryProvider);
-  if (result == true) {
-    if (existing == null) {
-      await repo.addReturn(
-        vendor: vendorController.text.trim(),
-        amount: double.parse(amountController.text.trim()),
-        currency: currency,
-        returnDate: returnDate,
-      );
-    } else {
-      await repo.updateReturn(
-        existing.copyWith(
-          vendor: vendorController.text.trim(),
-          amount: double.parse(amountController.text.trim()),
-          currency: currency,
-          returnDate: returnDate,
-        ),
-      );
-    }
-  } else if (result == null && existing != null) {
-    // The Delete action pops `null` rather than posting straight away, so
-    // the dialog is already closed before this runs -- same shape as
-    // every other delete-from-an-edit-form flow in the app.
-    await repo.deleteReturn(existing.id);
-  }
-  vendorController.dispose();
-  amountController.dispose();
+/// Pushes the Returns tab's own add/edit screen -- a top-level function
+/// (not a method on [ReturnsTabView]) so `LedgerHomeScreen`'s single shared
+/// FAB can open it directly, the same way it already calls into this
+/// file's sibling `_addCounterparty` for the other two tabs. [existing]
+/// switches this from "Add" to "Edit" (with its own Delete action) -- same
+/// screen either way, just pre-filled and writing back to that row instead
+/// of inserting a new one.
+///
+/// A real pushed screen, not a `showDialog` `AlertDialog` -- this used to
+/// open its date pickers from inside an already-open dialog (the only
+/// place in the app that did), which crashed with a framework
+/// `_dependents.isEmpty` assertion when the outer dialog was dismissed via
+/// the system back button while that nested picker route was involved.
+/// Every other "Add X" form in this app (add_transaction_screen.dart,
+/// add_edit_asset_screen.dart, ...) is already a pushed screen with its
+/// own `showDatePicker` calls straight off its own context, never nested
+/// inside another dialog -- matching that removes the nesting outright
+/// instead of chasing the exact framework interaction that triggered it.
+Future<void> openAddEditReturnScreen(BuildContext context, {Return? existing}) {
+  return Navigator.of(
+    context,
+  ).push(MaterialPageRoute(builder: (_) => AddEditReturnScreen(existing: existing)));
 }
 
 /// Whole calendar days between [from] and today -- never negative, so a
-/// return dated "today" (or, oddly, in the future) still reads as day 0
-/// rather than a confusing negative count.
+/// date of "today" (or, oddly, in the future) still reads as day 0 rather
+/// than a confusing negative count.
 int _daysSince(DateTime from) {
   final today = DateTime.now();
   final days = DateTime(
@@ -192,7 +67,7 @@ String _daysAgoLabel(DateTime from) {
 
 /// A week with no movement on a return is worth flagging -- past this many
 /// days, [_DaysAgoChip] switches from "still fresh" to "worth following up
-/// on" styling.
+/// on" styling. Applies the same way to either of a return's two dates.
 const _returnOverdueAfterDays = 7;
 
 class ReturnsTabView extends ConsumerWidget {
@@ -258,6 +133,7 @@ class _ReturnCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final hasAnyDate = item.requestedAt != null || item.pickedUpAt != null;
     return Dismissible(
       key: ValueKey(item.id),
       direction: DismissDirection.endToStart,
@@ -276,7 +152,7 @@ class _ReturnCard extends ConsumerWidget {
         margin: const EdgeInsets.only(bottom: 12),
         clipBehavior: Clip.antiAlias,
         child: InkWell(
-          onTap: () => showReturnFormDialog(context, ref, existing: item),
+          onTap: () => openAddEditReturnScreen(context, existing: item),
           child: Padding(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
             child: Column(
@@ -295,18 +171,27 @@ class _ReturnCard extends ConsumerWidget {
                     MoneyText(formatMoney(item.amount, item.currency)),
                   ],
                 ),
+                if (hasAnyDate) ...[
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      if (item.requestedAt != null)
+                        _DaysAgoChip(label: 'Requested', date: item.requestedAt!),
+                      if (item.pickedUpAt != null)
+                        _DaysAgoChip(label: 'Picked up', date: item.pickedUpAt!),
+                    ],
+                  ),
+                ],
                 const SizedBox(height: 8),
-                Row(
-                  children: [
-                    _DaysAgoChip(returnDate: item.returnDate),
-                    const Spacer(),
-                    FilledButton.tonal(
-                      onPressed: () => ref
-                          .read(returnsRepositoryProvider)
-                          .markReceived(item.id),
-                      child: const Text('Received'),
-                    ),
-                  ],
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: FilledButton.tonal(
+                    onPressed: () =>
+                        ref.read(returnsRepositoryProvider).markReceived(item.id),
+                    child: const Text('Received'),
+                  ),
                 ),
               ],
             ),
@@ -317,19 +202,20 @@ class _ReturnCard extends ConsumerWidget {
   }
 }
 
-/// A colored pill for how long ago a return happened -- green while it's
-/// still fresh, switching to the app's "bad" red-orange past
-/// [_returnOverdueAfterDays] to flag it as worth following up on. Matches
-/// the mockup shown when Returns' placement was being decided.
+/// A colored pill for how long ago one of a return's dates happened --
+/// green while it's still fresh, switching to the app's "bad" red-orange
+/// past [_returnOverdueAfterDays] to flag it as worth following up on.
+/// [label] ("Requested"/"Picked up") says which of the two dates this is.
 class _DaysAgoChip extends StatelessWidget {
-  const _DaysAgoChip({required this.returnDate});
+  const _DaysAgoChip({required this.label, required this.date});
 
-  final DateTime returnDate;
+  final String label;
+  final DateTime date;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.appColors;
-    final days = _daysSince(returnDate);
+    final days = _daysSince(date);
     final overdue = days > _returnOverdueAfterDays;
     final color = overdue ? colors.bad : colors.good;
     return Container(
@@ -348,13 +234,265 @@ class _DaysAgoChip extends StatelessWidget {
           ),
           const SizedBox(width: 5),
           Text(
-            'Returned ${_daysAgoLabel(returnDate)}',
+            '$label ${_daysAgoLabel(date)}',
             style: Theme.of(context).textTheme.labelSmall?.copyWith(
               color: color,
               fontWeight: FontWeight.w700,
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// The Returns tab's add/edit form, pushed by [openAddEditReturnScreen].
+/// [Return.requestedAt] and [Return.pickedUpAt] are both optional and
+/// independent -- either can be set, changed, or cleared back to unset at
+/// any time, not just when the return is first added.
+class AddEditReturnScreen extends ConsumerStatefulWidget {
+  const AddEditReturnScreen({super.key, this.existing});
+
+  final Return? existing;
+
+  @override
+  ConsumerState<AddEditReturnScreen> createState() =>
+      _AddEditReturnScreenState();
+}
+
+class _AddEditReturnScreenState extends ConsumerState<AddEditReturnScreen> {
+  final _formKey = GlobalKey<FormState>();
+  late final TextEditingController _vendorController;
+  late final TextEditingController _amountController;
+  late String _currency;
+  DateTime? _requestedAt;
+  DateTime? _pickedUpAt;
+
+  bool get _isEditing => widget.existing != null;
+
+  @override
+  void initState() {
+    super.initState();
+    final existing = widget.existing;
+    _vendorController = TextEditingController(text: existing?.vendor ?? '');
+    _amountController = TextEditingController(
+      text: existing == null ? '' : _formatValue(existing.amount),
+    );
+    _currency = existing?.currency ?? defaultCurrency;
+    _requestedAt = existing?.requestedAt;
+    _pickedUpAt = existing?.pickedUpAt;
+  }
+
+  @override
+  void dispose() {
+    _vendorController.dispose();
+    _amountController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _pickRequestedAt() async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _requestedAt ?? DateTime.now(),
+      firstDate: DateTime(2000),
+      lastDate: DateTime.now(),
+    );
+    if (picked != null) setState(() => _requestedAt = picked);
+  }
+
+  Future<void> _pickPickedUpAt() async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _pickedUpAt ?? DateTime.now(),
+      firstDate: DateTime(2000),
+      lastDate: DateTime.now(),
+    );
+    if (picked != null) setState(() => _pickedUpAt = picked);
+  }
+
+  Future<void> _save() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    final vendor = _vendorController.text.trim();
+    final amount = double.parse(_amountController.text.trim());
+    final repo = ref.read(returnsRepositoryProvider);
+    final existing = widget.existing;
+    if (existing == null) {
+      await repo.addReturn(
+        vendor: vendor,
+        amount: amount,
+        currency: _currency,
+        requestedAt: _requestedAt,
+        pickedUpAt: _pickedUpAt,
+      );
+    } else {
+      await repo.updateReturn(
+        existing.copyWith(
+          vendor: vendor,
+          amount: amount,
+          currency: _currency,
+          requestedAt: Value(_requestedAt),
+          pickedUpAt: Value(_pickedUpAt),
+        ),
+      );
+    }
+    if (mounted) Navigator.of(context).pop();
+  }
+
+  Future<void> _delete() async {
+    final confirmed =
+        await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Delete return?'),
+            content: Text('This removes "${widget.existing!.vendor}" for good.'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Cancel'),
+              ),
+              FilledButton(
+                style: FilledButton.styleFrom(
+                  backgroundColor: Theme.of(context).colorScheme.error,
+                ),
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text('Delete'),
+              ),
+            ],
+          ),
+        ) ??
+        false;
+    if (!confirmed) return;
+
+    await ref.read(returnsRepositoryProvider).deleteReturn(widget.existing!.id);
+    if (mounted) Navigator.of(context).pop();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(_isEditing ? 'Edit return' : 'Add return'),
+        actions: [
+          if (_isEditing)
+            IconButton(
+              icon: const Icon(Icons.delete_outline),
+              tooltip: 'Delete',
+              onPressed: _delete,
+            ),
+        ],
+      ),
+      body: Form(
+        key: _formKey,
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+          children: [
+            TextFormField(
+              controller: _vendorController,
+              autofocus: !_isEditing,
+              textCapitalization: TextCapitalization.sentences,
+              decoration: const InputDecoration(
+                labelText: 'Vendor',
+                hintText: 'e.g. Amazon',
+              ),
+              validator: (v) =>
+                  (v == null || v.trim().isEmpty) ? 'Required' : null,
+            ),
+            const SizedBox(height: 16),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  flex: 2,
+                  child: TextFormField(
+                    controller: _amountController,
+                    decoration: const InputDecoration(labelText: 'Return amount'),
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                    validator: (v) {
+                      if (v == null || v.trim().isEmpty) return 'Required';
+                      if (double.tryParse(v.trim()) == null) {
+                        return 'Enter a number';
+                      }
+                      return null;
+                    },
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: CurrencyPickerField(
+                    value: _currency,
+                    labelText: 'Currency',
+                    onChanged: (c) => setState(() => _currency = c),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            _OptionalDateField(
+              label: 'Return requested',
+              date: _requestedAt,
+              onTap: _pickRequestedAt,
+              onClear: () => setState(() => _requestedAt = null),
+            ),
+            const SizedBox(height: 16),
+            _OptionalDateField(
+              label: 'Picked up',
+              date: _pickedUpAt,
+              onTap: _pickPickedUpAt,
+              onClear: () => setState(() => _pickedUpAt = null),
+            ),
+          ],
+        ),
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: _save,
+        icon: const Icon(Icons.check),
+        label: Text(_isEditing ? 'Save' : 'Add'),
+      ),
+    );
+  }
+}
+
+/// One of [AddEditReturnScreen]'s two independent optional date rows --
+/// tap to set/change, a trailing clear button (shown only once set) to go
+/// back to unset. Matches add_edit_asset_screen.dart's own optional
+/// purchase-date field.
+class _OptionalDateField extends StatelessWidget {
+  const _OptionalDateField({
+    required this.label,
+    required this.date,
+    required this.onTap,
+    required this.onClear,
+  });
+
+  final String label;
+  final DateTime? date;
+  final VoidCallback onTap;
+  final VoidCallback onClear;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      child: InputDecorator(
+        decoration: InputDecoration(labelText: '$label (optional)'),
+        child: Row(
+          children: [
+            const Icon(Icons.calendar_today, size: 16),
+            const SizedBox(width: 10),
+            Text(date == null ? 'Not set' : _formatDate(date!)),
+            if (date != null) ...[
+              const Spacer(),
+              IconButton(
+                icon: const Icon(Icons.close, size: 18),
+                tooltip: 'Clear',
+                onPressed: onClear,
+              ),
+            ],
+          ],
+        ),
       ),
     );
   }
