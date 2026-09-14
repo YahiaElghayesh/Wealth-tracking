@@ -84,12 +84,15 @@ adb shell am broadcast -a "$RECEIVER.ACTION_TAPPED" -n "$PKG/$RECEIVER" \
 # bug is genuinely back", before concluding either way.
 sleep 60
 
-adb logcat -d > logcat.txt
-echo "--- full logcat around ActionBroadcastReceiver/Flutter/crashes, unconditionally (not just on failure) ---"
-grep -i "ActionBroadcastReceiver\|flutter\|AndroidRuntime\|FATAL EXCEPTION" logcat.txt || echo "(nothing matched at all)"
+echo "--- process status for $PKG right after the second tap (is it even still alive?) ---"
+adb shell "ps -A | grep wealth_tracker" || echo "(no matching process -- it's not running at all)"
 
-echo "--- matching logcat lines ---"
-grep -i "notificationTapBackground\|Engine is already initialised\|Callback information could not be retrieved" logcat.txt || true
+adb logcat -d > logcat.txt
+echo "--- entire logcat, unconditionally (not just a filtered grep -- a previous run's filtered grep showed total silence on every tag after the second engine's own startup line, with no crash/ANR caught by that narrow filter, so this run prints everything to find what actually happens to it) ---"
+cat logcat.txt
+
+echo "--- matching logcat lines (for quick scanning above the full dump) ---"
+grep -i "notificationTapBackground\|Engine is already initialised\|Callback information could not be retrieved\|ActionBroadcastReceiver\|AndroidRuntime\|FATAL EXCEPTION\|Killed\|lowmemorykiller\|ANR in" logcat.txt || true
 
 COUNT=$(grep -c "notificationTapBackground: actionId=quick_add" logcat.txt || true)
 echo "notificationTapBackground invocation count: $COUNT (expected 2)"
