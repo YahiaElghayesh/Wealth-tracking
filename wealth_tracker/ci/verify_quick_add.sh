@@ -63,14 +63,22 @@ adb logcat -c
 echo "--- First tap ---"
 adb shell am broadcast -a "$RECEIVER.ACTION_TAPPED" -n "$PKG/$RECEIVER" \
   --ei notificationId 555 --es actionId quick_add --ez cancelNotification true --es payload test
-sleep 10
+# A previous run's own timestamps showed real, if slow, engine startup
+# (this CI emulator is software-rendered and visibly sluggish -- "bad
+# color buffer handle" GPU warnings throughout) -- 20s rather than 10 to
+# rule out the second engine simply not having finished starting yet by
+# the time logcat is read, rather than the actual caching bug being back.
+sleep 20
 
 echo "--- Second tap -- this is exactly what the engine-caching bug broke: the first tap worked, every one after silently did nothing ---"
 adb shell am broadcast -a "$RECEIVER.ACTION_TAPPED" -n "$PKG/$RECEIVER" \
   --ei notificationId 556 --es actionId quick_add --ez cancelNotification true --es payload test
-sleep 10
+sleep 20
 
 adb logcat -d > logcat.txt
+echo "--- full logcat around ActionBroadcastReceiver/Flutter/crashes, unconditionally (not just on failure) ---"
+grep -i "ActionBroadcastReceiver\|flutter\|AndroidRuntime\|FATAL EXCEPTION" logcat.txt || echo "(nothing matched at all)"
+
 echo "--- matching logcat lines ---"
 grep -i "notificationTapBackground\|Engine is already initialised\|Callback information could not be retrieved" logcat.txt || true
 
