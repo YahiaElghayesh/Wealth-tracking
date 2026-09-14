@@ -81,6 +81,33 @@ public class ActionBroadcastReceiver extends BroadcastReceiver {
       }
     }
 
+    // Money Hub patch, part 2: destroy any leftover engine from a
+    // previous tap *before* queuing this tap's item into actionEventSink,
+    // not after. actionEventSink.eventSink is a raw platform-channel
+    // EventSink bound to whichever engine last called back's
+    // EventChannel#receiveBroadcastStream -- destroying an engine never
+    // invokes that stream's onCancel (destroy() tears the whole engine
+    // down at once, it doesn't gracefully notify each channel), so that
+    // field is left pointing at a dead, disconnected sink. If item#2 is
+    // added while it's still set, addItem() below takes the "sink != null"
+    // branch and fires straight into that dead sink -- never into `cache`
+    // -- so when the *new* engine's callbackDispatcher() finishes its own
+    // getCallbackHandle round-trip and calls .listen() a moment later,
+    // there's nothing left in `cache` to replay. The new engine ends up
+    // fully alive, with a real, correctly-attached stream listener, that
+    // never receives the very item this tap was for: no crash, no
+    // timeout, just a second engine sitting there forever waiting on data
+    // that already went into the void. Resetting eventSink to null here,
+    // before addItem() runs, routes this tap's item into `cache` instead,
+    // where the new engine's own onListen() picks it up once it attaches.
+    if (engine != null) {
+      engine.destroy();
+      engine = null;
+      if (actionEventSink != null) {
+        actionEventSink.eventSink = null;
+      }
+    }
+
     if (actionEventSink == null) {
       actionEventSink = new ActionEventSink();
     }
@@ -90,20 +117,6 @@ public class ActionBroadcastReceiver extends BroadcastReceiver {
   }
 
   private void startEngine(Context context) {
-    // Money Hub patch: upstream returned early here once `engine` was
-    // non-null and never set it back to null anywhere in this class, so
-    // the *first* action tap in the app's process lifetime worked and
-    // every tap after that -- for any notification, not just the one
-    // that created it -- silently did nothing ("Engine is already
-    // initialised", logged but otherwise invisible). Destroying any
-    // leftover instance and always starting a fresh one instead means
-    // a second, third, or hundredth tap keeps working exactly like the
-    // first.
-    if (engine != null) {
-      engine.destroy();
-      engine = null;
-    }
-
     FlutterInjector injector = FlutterInjector.instance();
     FlutterLoader loader = injector.flutterLoader();
 
