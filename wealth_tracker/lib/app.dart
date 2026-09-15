@@ -67,16 +67,29 @@ Future<void> _commitQuickAddFromBackground(
   NotificationResponse response,
 ) async {
   final payload = response.payload;
+  // Permanent -- every step from here on used to fail completely
+  // silently (a null payload, a jsonDecode that throws, or a decoded map
+  // missing a key all just `return`ed with nothing printed anywhere),
+  // which is exactly why a real, valid payload's failure was previously
+  // indistinguishable in logcat from the earlier engine/plumbing bugs
+  // this file's other breadcrumbs were added to catch.
+  debugPrint('notificationTapBackground: payload=$payload');
   if (payload == null) return;
   Map<String, dynamic> decoded;
   try {
     decoded = jsonDecode(payload) as Map<String, dynamic>;
-  } catch (_) {
+  } catch (e) {
+    debugPrint('notificationTapBackground: jsonDecode failed: $e');
     return;
   }
   final body = decoded['body'] as String?;
   final timestampMillis = decoded['timestampMillis'] as int?;
-  if (body == null || timestampMillis == null) return;
+  if (body == null || timestampMillis == null) {
+    debugPrint(
+      'notificationTapBackground: missing body/timestampMillis in $decoded',
+    );
+    return;
+  }
 
   // Permanent, unconditional breadcrumbs, same reasoning as
   // notificationTapBackground's own -- this whole function has, at

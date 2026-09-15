@@ -90,9 +90,32 @@ sleep 15
 
 adb logcat -c
 
+# A pushed script file, not `adb shell am broadcast ... --es payload
+# "$PAYLOAD"` directly -- the payload is real JSON containing spaces, '#',
+# and embedded double quotes, and passing that through two layers of
+# shell re-parsing (this script's own bash, then whatever adb shell does
+# to marshal multiple arguments to the device's sh) is exactly the kind
+# of thing that can silently truncate or mangle a value at a space or
+# quote boundary, with no error anywhere -- the app would just see
+# whatever fragment survived, fail to decode it as JSON, and (by design,
+# see app.dart's own now-instrumented jsonDecode catch block) return
+# having printed nothing at all, indistinguishable from every earlier
+# engine-plumbing bug this test also had to rule out. A script file
+# pushed to the device and run with `sh` there is parsed exactly once,
+# by exactly one shell, with the payload single-quoted (safe: the JSON
+# itself never contains a single quote) -- same reasoning as this whole
+# script being a real file instead of an inline `script:` block.
+tap() {
+  local id="$1" payload="$2" script="$3"
+  cat > "$script" <<EOF
+am broadcast -a "$RECEIVER.ACTION_TAPPED" -n "$PKG/$RECEIVER" --ei notificationId $id --es actionId quick_add --ez cancelNotification true --es payload '$payload'
+EOF
+  adb push "$script" "/data/local/tmp/$script"
+  adb shell sh "/data/local/tmp/$script"
+}
+
 echo "--- First tap (real JSON payload, real charge SMS text, timestamp 1000000) ---"
-adb shell am broadcast -a "$RECEIVER.ACTION_TAPPED" -n "$PKG/$RECEIVER" \
-  --ei notificationId 555 --es actionId quick_add --ez cancelNotification true --es payload "$PAYLOAD_1"
+tap 555 "$PAYLOAD_1" tap1.sh
 # A previous run's own timestamps showed real, if slow, engine startup
 # (this CI emulator is software-rendered and visibly sluggish -- "bad
 # color buffer handle" GPU warnings throughout), and this tap now does
@@ -102,8 +125,7 @@ adb shell am broadcast -a "$RECEIVER.ACTION_TAPPED" -n "$PKG/$RECEIVER" \
 sleep 20
 
 echo "--- Second tap (same body, different timestamp -- second engine + dedupe both have to behave correctly) ---"
-adb shell am broadcast -a "$RECEIVER.ACTION_TAPPED" -n "$PKG/$RECEIVER" \
-  --ei notificationId 556 --es actionId quick_add --ez cancelNotification true --es payload "$PAYLOAD_2"
+tap 556 "$PAYLOAD_2" tap2.sh
 sleep 20
 
 echo "--- process status for $PKG right after the second tap (is it even still alive?) ---"
