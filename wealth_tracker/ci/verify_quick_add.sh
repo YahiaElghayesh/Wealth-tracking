@@ -114,7 +114,7 @@ echo "--- entire logcat, unconditionally (not just a filtered grep) ---"
 cat logcat.txt
 
 echo "--- matching logcat lines (for quick scanning above the full dump) ---"
-grep -i "notificationTapBackground\|Engine is already initialised\|Callback information could not be retrieved\|ActionBroadcastReceiver\|AndroidRuntime\|FATAL EXCEPTION\|Unhandled exception\|Killed\|lowmemorykiller\|ANR in" logcat.txt || true
+grep -i "notificationTapBackground\|Engine is already initialised\|Callback information could not be retrieved\|ActionBroadcastReceiver\|AndroidRuntime\|FATAL EXCEPTION\|Unhandled exception\|threw:\|Killed\|lowmemorykiller\|ANR in" logcat.txt || true
 
 TAP_COUNT=$(grep -c "notificationTapBackground: actionId=quick_add" logcat.txt || true)
 echo "notificationTapBackground invocation count: $TAP_COUNT (expected 2)"

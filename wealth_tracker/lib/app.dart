@@ -78,11 +78,22 @@ Future<void> _commitQuickAddFromBackground(
   final timestampMillis = decoded['timestampMillis'] as int?;
   if (body == null || timestampMillis == null) return;
 
+  // Permanent, unconditional breadcrumbs, same reasoning as
+  // notificationTapBackground's own -- this whole function has, at
+  // various points, silently hung or thrown with zero trace anywhere
+  // else visible from a headless isolate, and a single "did it finish"
+  // log line wasn't enough to tell which step that was ever happening
+  // in. Each one is genuinely one await away from the one before it.
+  debugPrint('notificationTapBackground: opening AppDatabase');
   final db = AppDatabase();
   try {
+    debugPrint('notificationTapBackground: reading SharedPreferences');
     final prefs = await SharedPreferences.getInstance();
+    debugPrint('notificationTapBackground: loading SecureSettingsStore');
     final secureSettings = await SecureSettingsStore.load(prefs);
+    debugPrint('notificationTapBackground: resolving activeProfileId');
     final profileId = SettingsRepository(prefs, secureSettings).activeProfileId;
+    debugPrint('notificationTapBackground: calling commitSmsQuickAdd');
     final added = await commitSmsQuickAdd(
       db,
       body: body,
@@ -90,7 +101,10 @@ Future<void> _commitQuickAddFromBackground(
       profileId: profileId,
     );
     debugPrint('notificationTapBackground: commitSmsQuickAdd added=$added');
+  } catch (e, st) {
+    debugPrint('notificationTapBackground: _commitQuickAddFromBackground threw: $e\n$st');
   } finally {
+    debugPrint('notificationTapBackground: closing AppDatabase');
     await db.close();
   }
 }
