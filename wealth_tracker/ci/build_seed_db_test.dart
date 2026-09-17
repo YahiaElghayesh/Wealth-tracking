@@ -57,6 +57,32 @@ List<SmsRuleSegment> _chargeSegments() => [
   const SmsRuleSegment.literal('.'),
 ];
 
+/// A *different* charge, matched by a rule with no target counterparty and
+/// no vendor mapping -- resolveLedgerTarget's own "ask which ledger" case.
+/// This is the exact real-world scenario reported as broken (Quick Add
+/// "does nothing" for a charge it can't resolve) that the seeded [chargeSms]
+/// rule above can never exercise, since it always resolves to
+/// ci-seed-counterparty. verify_quick_add.sh's own Part 3 fires Quick Add
+/// against this SMS, then taps the notification it reposts, to prove the
+/// whole "ask which ledger" round trip for real, not just that a
+/// *resolvable* charge still works.
+const unresolvableChargeSms =
+    'Card #7777 charged EGP 120.00 at Uber. Available limit EGP 40000.00.';
+
+List<SmsRuleSegment> _unresolvableChargeSegments() => [
+  const SmsRuleSegment.literal('Card #'),
+  const SmsRuleSegment.placeholder(text: '7777', tag: 'cardNumber'),
+  const SmsRuleSegment.literal(' charged EGP 120.00 at '),
+  const SmsRuleSegment.placeholder(text: 'Uber', tag: 'vendor'),
+  const SmsRuleSegment.literal('. Available limit EGP '),
+  const SmsRuleSegment.placeholder(
+    text: '40000.00',
+    tag: 'value',
+    role: 'set',
+  ),
+  const SmsRuleSegment.literal('.'),
+];
+
 void main() {
   test('build seed database for verify_quick_add.sh', () async {
     final outputPath = Platform.environment['SEED_DB_OUTPUT'];
@@ -103,6 +129,23 @@ void main() {
             sampleText: chargeSms,
             segmentsJson: encodeSmsRuleSegments(_chargeSegments()),
             targetCounterpartyId: const Value(counterpartyId),
+            currency: const Value('EGP'),
+            createdAt: DateTime(2026),
+            profileId: const Value(defaultProfileId),
+          ),
+        );
+
+    // No targetCounterpartyId, no vendorTargetsJson -- deliberately
+    // unresolvable, see unresolvableChargeSms's own doc comment above.
+    await db
+        .into(db.smsRules)
+        .insert(
+          SmsRulesCompanion.insert(
+            id: 'ci-seed-unresolvable-rule',
+            bankId: bankId,
+            operation: 'ledgerPayment',
+            sampleText: unresolvableChargeSms,
+            segmentsJson: encodeSmsRuleSegments(_unresolvableChargeSegments()),
             currency: const Value('EGP'),
             createdAt: DateTime(2026),
             profileId: const Value(defaultProfileId),

@@ -1,15 +1,26 @@
 #!/usr/bin/env bash
 # Run inside the verify-quick-add CI job, against a real (emulated) Android
-# device with the actual debug APK installed. Two scenarios, both against
+# device with the actual debug APK installed. Three scenarios, all against
 # the SMS charge-review notification real code paths can only be proven
 # against a real device:
-#   Part 1: the "Quick add" action, twice in a row, with a real JSON
-#     payload against a real, seeded SMS Rule -- checks the on-device
-#     database actually gets the ledger entries it's supposed to, not just
-#     a debug log line.
+#   Part 1: the "Quick add" action, twice in a row, against a charge that
+#     *resolves* to a known ledger -- checks the on-device database
+#     actually gets the ledger entries it's supposed to, not just a debug
+#     log line.
 #   Part 2: a plain tap on the notification's body after a genuinely cold
-#     start -- checks that SmsReviewScreen actually opens on-screen, not
-#     just that a log line claims it was pushed.
+#     start, for that same resolvable charge -- checks that SmsReviewScreen
+#     actually opens on-screen, not just that a log line claims it was
+#     pushed.
+#   Part 3: Quick Add against a charge that CANNOT resolve a ledger --
+#     resolveLedgerTarget's own "ask which ledger" case, and the actual
+#     real-world scenario this whole notification exists for. Parts 1/2
+#     only ever exercise a resolvable charge, which is a materially
+#     different code path (commitSmsQuickAdd applies it directly and never
+#     touches its own `needsLedgerSelection` fallback at all) -- passing
+#     there proves nothing about whether Quick Add correctly reposts a
+#     review notification for an unresolvable one, or whether tapping that
+#     repost actually opens a working "which ledger?" picker. This checks
+#     both, end to end, on-screen.
 # See build-apk.yml's own comment on this job for the bugs each part
 # exists to catch, including the one an earlier version of Part 1 missed:
 # a fake, non-JSON payload proved the broadcast reaches Dart but never
@@ -254,3 +265,92 @@ if ! grep -q "Confirm payment" window_dump.xml; then
 fi
 
 echo "PASS: a cold-started tap on the notification body opened SmsReviewScreen for real, on-screen."
+
+# --- Part 3: Quick Add against a charge resolveLedgerTarget can't resolve
+# -- must match ci/build_seed_db_test.dart's own unresolvableChargeSms
+# constant exactly.
+UNRESOLVABLE_SMS='Card #7777 charged EGP 120.00 at Uber. Available limit EGP 40000.00.'
+UNRESOLVABLE_TIMESTAMP=4000000
+UNRESOLVABLE_PAYLOAD="{\"body\":\"$UNRESOLVABLE_SMS\",\"timestampMillis\":$UNRESOLVABLE_TIMESTAMP}"
+
+echo "--- Relaunching the app (Part 2 left it force-stopped) before firing Quick Add again ---"
+adb shell am start -n "$PKG/$PKG.MainActivity"
+sleep 15
+adb logcat -c
+
+echo "--- Quick Add on a charge with no resolvable ledger (no target, no vendor mapping) ---"
+tap 777 "$UNRESOLVABLE_PAYLOAD" tap3.sh
+sleep 20
+
+adb logcat -d > unresolvable_logcat.txt
+echo "--- entire logcat for the unresolvable-charge Quick Add tap ---"
+cat unresolvable_logcat.txt
+
+grep -q "notificationTapBackground: actionId=quick_add id=777" unresolvable_logcat.txt || {
+  echo "FAIL: the Quick Add broadcast for the unresolvable charge never reached notificationTapBackground."
+  exit 1
+}
+grep -q "commitSmsQuickAdd: could not resolve a ledger, reposting review notification" unresolvable_logcat.txt || {
+  echo "FAIL: commitSmsQuickAdd never even recognized this as an unresolvable charge -- it should have hit its needsLedgerSelection fallback."
+  exit 1
+}
+grep -q "commitSmsQuickAdd: review notification reposted" unresolvable_logcat.txt || {
+  echo "FAIL: commitSmsQuickAdd recognized the charge as unresolvable but never actually reposted a review notification -- this is the real Quick Add 'does nothing' report."
+  exit 1
+}
+grep -q "notificationTapBackground: commitSmsQuickAdd added=false" unresolvable_logcat.txt || {
+  echo "FAIL: expected commitSmsQuickAdd to report added=false for an unresolvable charge (it should never silently add one)."
+  exit 1
+}
+
+echo "--- Force-stopping again for a cold start before tapping the reposted notification's body ---"
+adb shell am force-stop "$PKG"
+adb logcat -c
+
+# showSmsChargeReviewNotification's own id is `timestampMillis & 0x7fffffff`
+# -- 4000000 is already well under 2^31, so it's unchanged here. Same
+# body+timestampMillis payload commitSmsQuickAdd's fallback reposted with.
+cat > body_tap_unresolvable.sh <<EOF
+am start -n "$PKG/$PKG.MainActivity" -a "SELECT_NOTIFICATION" --ei notificationId $UNRESOLVABLE_TIMESTAMP --es payload '$UNRESOLVABLE_PAYLOAD'
+EOF
+adb push body_tap_unresolvable.sh /data/local/tmp/body_tap_unresolvable.sh
+echo "--- Tapping the reposted (no Quick Add button) notification's body on a cold app ---"
+adb shell sh /data/local/tmp/body_tap_unresolvable.sh
+sleep 25
+
+adb logcat -d > unresolvable_body_tap_logcat.txt
+echo "--- entire logcat for tapping the unresolvable charge's reposted notification ---"
+cat unresolvable_body_tap_logcat.txt
+
+grep -q "_onNotificationResponse: actionId=null id=$UNRESOLVABLE_TIMESTAMP" unresolvable_body_tap_logcat.txt || {
+  echo "FAIL: tapping the reposted notification's body never reached _onNotificationResponse."
+  exit 1
+}
+grep -q "processIncomingSms: reviewable match found, awaiting navigator" unresolvable_body_tap_logcat.txt || {
+  echo "FAIL: processIncomingSms didn't find the unresolvable charge reviewable a second time."
+  exit 1
+}
+if grep -q "processIncomingSms: navigator never became available" unresolvable_body_tap_logcat.txt; then
+  echo "FAIL: lost the cold-start Navigator race for the unresolvable charge's own review screen."
+  exit 1
+fi
+grep -q "processIncomingSms: navigator ready, pushing SmsReviewScreen" unresolvable_body_tap_logcat.txt || {
+  echo "FAIL: never reached the point of pushing SmsReviewScreen for the unresolvable charge."
+  exit 1
+}
+
+echo "--- Confirming the actual 'which ledger?' picker is on screen, not just a log line ---"
+adb shell uiautomator dump /sdcard/window_dump_unresolvable.xml
+adb pull /sdcard/window_dump_unresolvable.xml window_dump_unresolvable.xml
+if ! grep -q "Confirm payment" window_dump_unresolvable.xml; then
+  echo "FAIL: SmsReviewScreen never actually opened for the unresolvable charge."
+  cat window_dump_unresolvable.xml
+  exit 1
+fi
+if ! grep -q "Add to which ledger?" window_dump_unresolvable.xml; then
+  echo "FAIL: SmsReviewScreen opened, but its ledger-picker prompt ('Add to which ledger?') isn't on screen -- exactly what was reported as missing."
+  cat window_dump_unresolvable.xml
+  exit 1
+fi
+
+echo "PASS: Quick Add on an unresolvable charge reposted a notification, and tapping it opened a real, on-screen 'which ledger?' picker."

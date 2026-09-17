@@ -369,6 +369,9 @@ Future<bool> commitSmsQuickAdd(
   if (ledgerApplied) {
     await _markProcessed(db, dedupeId);
   } else if (needsLedgerSelection != null) {
+    debugPrint(
+      'commitSmsQuickAdd: could not resolve a ledger, reposting review notification',
+    );
     final vendor =
         (needsLedgerSelection.match.vendor?.trim().isNotEmpty ?? false)
         ? needsLedgerSelection.match.vendor!
@@ -390,6 +393,7 @@ Future<bool> commitSmsQuickAdd(
       // showSmsChargeReviewNotification's own doc comment on this param).
       includeQuickAddAction: false,
     );
+    debugPrint('commitSmsQuickAdd: review notification reposted');
   }
   return ledgerApplied;
 }

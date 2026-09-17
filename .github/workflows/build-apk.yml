@@ -38,10 +38,13 @@ jobs:
       # --build-number becomes the APK's versionCode -- the in-app "Check
       # for updates" feature (Settings > App updates) compares its own
       # installed versionCode against this same run number read back from
-      # the public app-releases repo below, so it has to be injected here,
-      # not left to whatever pubspec.yaml's build number says (that isn't
-      # bumped on every commit). No token needs baking in any more -- see
-      # the "Publish GitHub Release" step below for why.
+      # the public app-releases repo, so it has to be injected here, not
+      # left to whatever pubspec.yaml's build number says (that isn't
+      # bumped on every commit). This build is only ever used to prove the
+      # APK compiles and installs cleanly -- the `publish` job (gated on
+      # this job and verify-quick-add both succeeding) rebuilds with the
+      # same --build-number itself rather than reusing this one, so this
+      # job carries no publishing credential of its own.
       - run: |
           flutter build apk --debug \
             --build-number=${{ github.run_number }}
@@ -75,38 +78,6 @@ jobs:
           name: wealth-tracker-debug-apk
           path: wealth_tracker/build/app/outputs/flutter-apk/app-debug.apk
           retention-days: 3
-
-      # Gives the in-app updater a stable, permanent place to check/download
-      # from -- unlike the artifact above (requires a GitHub login, expires
-      # in 30 days), a Release asset is addressable by a fixed URL for as
-      # long as the release exists, which is what the app polls.
-      #
-      # Published to a separate, *public* repo (YahiaElghayesh/app-releases)
-      # rather than this one -- this repo stays private, but a public
-      # release's assets are plain, unauthenticated HTTPS URLs, so the
-      # installed app never needs to carry a GitHub credential of its own
-      # to check for or download an update (see app_update_service.dart's
-      # own doc comment). The default `github.token` only has permissions
-      # within *this* repo, not app-releases, so publishing there needs its
-      # own credential: RELEASES_REPO_TOKEN, a fine-grained PAT scoped to
-      # app-releases with Contents: Read and write (see README).
-      - name: Publish GitHub Release
-        env:
-          GH_TOKEN: ${{ secrets.RELEASES_REPO_TOKEN }}
-        run: |
-          cp build/app/outputs/flutter-apk/app-debug.apk wealth-tracker-debug.apk
-          # A plain-text checksum asset alongside the APK -- lets the
-          # in-app updater verify what it downloaded actually matches what
-          # CI built and published, rather than trusting the download
-          # transport alone. `awk` strips the filename sha256sum prints
-          # after the hash, since the app only wants the hex digest itself.
-          sha256sum wealth-tracker-debug.apk | awk '{print $1}' > wealth-tracker-debug.apk.sha256
-          gh release create "build-${{ github.run_number }}" \
-            wealth-tracker-debug.apk wealth-tracker-debug.apk.sha256 \
-            --repo "YahiaElghayesh/app-releases" \
-            --title "Build ${{ github.run_number }}" \
-            --notes "Automated debug build from commit ${{ github.sha }}." \
-            --latest
 
   # Actually installs the built APK on a real (emulated) Android device and
   # fires the exact system broadcast a tap on the SMS charge-review
@@ -265,3 +236,83 @@ jobs:
           # split across invocations hit "syntax error: unexpected end of
           # file"). `bash <file>` parses the whole thing exactly once.
           script: bash wealth_tracker/ci/verify_quick_add.sh
+
+  # Publishes the release the in-app updater and any manual download
+  # actually use -- gated on *both* `build` (the APK genuinely compiles)
+  # and `verify-quick-add` (Quick Add and the notification's body tap are
+  # proven working against a real device) succeeding first. GitHub Actions
+  # only runs a job once every job named in `needs` has succeeded, and
+  # skips it outright the moment either one fails or is cancelled -- this
+  # is the one thing standing between "the emulator test caught a real
+  # Quick Add regression" and that same broken build still reaching the
+  # in-app updater regardless, which two separate, un-gated jobs publishing
+  # in parallel used to allow. Never weaken this to `if: always()` or an
+  # explicit success-of-one-job check -- the whole point is that a genuine
+  # verify-quick-add failure must make a release impossible, not just
+  # logged.
+  #
+  # Rebuilds the APK itself rather than downloading `build`'s own
+  # artifact -- same reasoning as `verify-quick-add`'s own self-contained
+  # checkout/build (see that job's comment): the artifact upload is
+  # already known to fail outright when this account's separate
+  # artifact-storage quota is exhausted, and that's a completely
+  # orthogonal failure mode with nothing to do with whether the app itself
+  # is fit to publish.
+  publish:
+    needs: [build, verify-quick-add]
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: wealth_tracker
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.44.9"
+          channel: stable
+
+      - run: flutter pub get
+
+      - run: dart run build_runner build --delete-conflicting-outputs
+
+      - run: |
+          flutter build apk --debug \
+            --build-number=${{ github.run_number }}
+
+      # Gives the in-app updater a stable, permanent place to check/download
+      # from -- unlike a workflow artifact (requires a GitHub login, expires
+      # in days), a Release asset is addressable by a fixed URL for as
+      # long as the release exists, which is what the app polls.
+      #
+      # Published to a separate, *public* repo (YahiaElghayesh/app-releases)
+      # rather than this one -- this repo stays private, but a public
+      # release's assets are plain, unauthenticated HTTPS URLs, so the
+      # installed app never needs to carry a GitHub credential of its own
+      # to check for or download an update (see app_update_service.dart's
+      # own doc comment). The default `github.token` only has permissions
+      # within *this* repo, not app-releases, so publishing there needs its
+      # own credential: RELEASES_REPO_TOKEN, a fine-grained PAT scoped to
+      # app-releases with Contents: Read and write (see README).
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.RELEASES_REPO_TOKEN }}
+        run: |
+          cp build/app/outputs/flutter-apk/app-debug.apk wealth-tracker-debug.apk
+          # A plain-text checksum asset alongside the APK -- lets the
+          # in-app updater verify what it downloaded actually matches what
+          # CI built and published, rather than trusting the download
+          # transport alone. `awk` strips the filename sha256sum prints
+          # after the hash, since the app only wants the hex digest itself.
+          sha256sum wealth-tracker-debug.apk | awk '{print $1}' > wealth-tracker-debug.apk.sha256
+          gh release create "build-${{ github.run_number }}" \
+            wealth-tracker-debug.apk wealth-tracker-debug.apk.sha256 \
+            --repo "YahiaElghayesh/app-releases" \
+            --title "Build ${{ github.run_number }}" \
+            --notes "Automated debug build from commit ${{ github.sha }}." \
+            --latest
