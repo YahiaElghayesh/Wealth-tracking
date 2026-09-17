@@ -63,14 +63,41 @@ class DriveSyncService {
   }
 
   Future<DateTime> _localModifiedAt(AppDatabase db) async {
-    final assets = await db.select(db.assets).get();
-    final transactions = await db.select(db.ledgerTransactions).get();
     var latest = DateTime.fromMillisecondsSinceEpoch(0);
-    for (final a in assets) {
-      if (a.updatedAt.isAfter(latest)) latest = a.updatedAt;
+    void bump(DateTime? t) {
+      if (t != null && t.isAfter(latest)) latest = t;
     }
-    for (final t in transactions) {
-      if (t.createdAt.isAfter(latest)) latest = t.createdAt;
+
+    for (final a in await db.select(db.assets).get()) {
+      bump(a.updatedAt);
+    }
+    for (final t in await db.select(db.ledgerTransactions).get()) {
+      bump(t.createdAt);
+    }
+    // Every other table that can change without touching an asset or a
+    // ledger transaction -- a credit card/bank balance updated from an SMS
+    // Rule, a manually-edited calculator input, a saved calculator
+    // snapshot, a recurring payment being marked paid or one firing into
+    // its own history -- needs to count too, or editing only one of these
+    // wouldn't register as "this device changed" and a later sync could
+    // silently discard it in favor of a stale remote copy.
+    for (final c in await db.select(db.creditCards).get()) {
+      bump(c.balanceUpdatedAt);
+    }
+    for (final b in await db.select(db.bankAccounts).get()) {
+      bump(b.balanceUpdatedAt);
+    }
+    for (final c in await db.select(db.calculatorInputs).get()) {
+      bump(c.updatedAt);
+    }
+    for (final s in await db.select(db.calculatorSnapshots).get()) {
+      bump(s.computedAt);
+    }
+    for (final r in await db.select(db.recurringPayments).get()) {
+      bump(r.lastPaidAt);
+    }
+    for (final r in await db.select(db.recurringPaymentHistory).get()) {
+      bump(r.recordedAt);
     }
     return latest;
   }
@@ -99,7 +126,11 @@ class DriveSyncService {
     required drive.File? existing,
     required DateTime modifiedAt,
   }) async {
-    final snapshot = await exportSnapshot(db, modifiedAt: modifiedAt);
+    final snapshot = await exportSnapshot(
+      db,
+      modifiedAt: modifiedAt,
+      settings: _settings,
+    );
     final bytes = utf8.encode(jsonEncode(snapshot));
     final media = drive.Media(Stream.value(bytes), bytes.length);
 
@@ -150,7 +181,7 @@ class DriveSyncService {
             remoteSnapshot: remoteJson,
           );
         case SyncAction.download:
-          await importSnapshot(db, remoteJson!);
+          await importSnapshot(db, remoteJson!, settings: _settings);
           await _settings.setLastSyncedAt(remoteModifiedAt!);
           return const DriveSyncResult(SyncOutcome.downloaded, message: 'Applied newer data from Google Drive.');
         case SyncAction.upload:
@@ -178,7 +209,7 @@ class DriveSyncService {
         await _uploadSnapshot(api, db, existing: existing, modifiedAt: now);
         return const DriveSyncResult(SyncOutcome.uploaded, message: 'Kept this device\'s data.');
       } else {
-        await importSnapshot(db, remoteSnapshot);
+        await importSnapshot(db, remoteSnapshot, settings: _settings);
         final remoteModifiedAt = snapshotModifiedAt(remoteSnapshot) ?? DateTime.now();
         await _settings.setLastSyncedAt(remoteModifiedAt);
         return const DriveSyncResult(SyncOutcome.downloaded, message: 'Kept Google Drive\'s data.');
