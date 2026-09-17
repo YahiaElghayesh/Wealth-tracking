@@ -353,6 +353,12 @@ Future<bool> commitSmsQuickAdd(
       timestampMillis: timestampMillis,
       vendor: vendor,
       amountText: value == null ? null : formatMoney(value, currency),
+      // Quick Add itself just failed to resolve a ledger for this exact
+      // SMS -- offering the same "Quick add" action on the notification
+      // this posts would only ever repeat that same failure, looping the
+      // notification away and back with nothing to show for it (see
+      // showSmsChargeReviewNotification's own doc comment on this param).
+      includeQuickAddAction: false,
     );
   }
   return ledgerApplied;

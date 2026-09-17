@@ -123,6 +123,16 @@ Future<void> showSmsChargeReviewNotification({
   required String vendor,
   String? amountText,
   String? targetName,
+  // `commitSmsQuickAdd` reposts this exact notification when its own
+  // Quick Add attempt just failed to resolve a ledger for this SMS --
+  // re-offering the same "Quick add" action there would tap into the
+  // identical, already-proven-unresolvable attempt every time, looking to
+  // the user like the button "does nothing" (disappears, then reappears,
+  // forever) rather than the dead end it actually is. `commitSmsAutoDetect`
+  // posting this for the first time doesn't have that guarantee -- a
+  // charge can land here just because a rule's `autoAddCharges` is off
+  // while its target still resolves fine -- so it keeps the action.
+  bool includeQuickAddAction = true,
 }) async {
   final plugin = FlutterLocalNotificationsPlugin();
   const androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');
@@ -135,9 +145,11 @@ Future<void> showSmsChargeReviewNotification({
       : (targetName == null
             ? '$amountText will be added'
             : '$amountText will be added to $targetName');
-  final notificationBody = addedTo == null
-      ? 'Tap to review, or Quick add to log it as-is.'
-      : '$addedTo. Tap to review, or Quick add to log it as-is.';
+  final notificationBody = !includeQuickAddAction
+      ? '${addedTo ?? 'A charge was detected'}. Tap to pick a ledger.'
+      : (addedTo == null
+            ? 'Tap to review, or Quick add to log it as-is.'
+            : '$addedTo. Tap to review, or Quick add to log it as-is.');
   final id = timestampMillis & 0x7fffffff; // masked to a positive 32-bit id
   await plugin.show(
     id: id,
@@ -160,12 +172,14 @@ Future<void> showSmsChargeReviewNotification({
         // report, applied here too since this is the other notification
         // kind this app posts.
         groupKey: 'sms_review_$id',
-        actions: const [
-          AndroidNotificationAction(
-            smsChargeReviewQuickAddActionId,
-            'Quick add',
-          ),
-        ],
+        actions: includeQuickAddAction
+            ? const [
+                AndroidNotificationAction(
+                  smsChargeReviewQuickAddActionId,
+                  'Quick add',
+                ),
+              ]
+            : const [],
       ),
     ),
   );

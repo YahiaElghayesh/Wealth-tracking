@@ -159,6 +159,22 @@ class _RootShellState extends ConsumerState<_RootShell>
     with WidgetsBindingObserver {
   int _index = 0;
   StreamSubscription<Uri?>? _widgetClickSubscription;
+  Timer? _liveDataRefreshTimer;
+
+  /// How often to re-query the ledger/calculator/recurring streams while
+  /// the app sits open. `didChangeAppLifecycleState`'s own resume-time
+  /// refresh (below) only fires on an actual pause->resume transition, but
+  /// SMS auto-detect runs in its own background engine/isolate regardless
+  /// of whether this app is foreground or backgrounded (see
+  /// database.dart's `_openConnection` for why its writes can't push into
+  /// this engine's already-open watch streams live) -- so a charge that
+  /// arrives and gets auto-applied while the user is already sitting on,
+  /// say, the Dashboard never triggers a pause/resume at all, and the
+  /// ledger they open next shows stale data until they background and
+  /// foreground the app themselves. Polling this cheaply and
+  /// unconditionally while the app is open covers that case too, not just
+  /// the backgrounded one.
+  static const _liveDataRefreshInterval = Duration(seconds: 5);
 
   static const _staleAfter = Duration(minutes: 30);
 
@@ -177,6 +193,10 @@ class _RootShellState extends ConsumerState<_RootShell>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _liveDataRefreshTimer = Timer.periodic(
+      _liveDataRefreshInterval,
+      (_) => _refreshLiveData(),
+    );
     _widgetClickSubscription = HomeWidget.widgetClicked.listen(
       (uri) => handleQuickAddLaunch(uri, ref),
     );
@@ -304,8 +324,19 @@ class _RootShellState extends ConsumerState<_RootShell>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _liveDataRefreshTimer?.cancel();
     _widgetClickSubscription?.cancel();
     super.dispose();
+  }
+
+  /// Re-queries (not re-fetches over any network) the streams a
+  /// background-engine SMS write could have changed underneath this
+  /// engine's own connection -- see [_liveDataRefreshInterval]'s own doc
+  /// comment for why this can't just rely on a live cross-isolate push.
+  void _refreshLiveData() {
+    ref.invalidate(calculatorRepositoryProvider);
+    ref.invalidate(ledgerRepositoryProvider);
+    ref.invalidate(recurringPaymentRepositoryProvider);
   }
 
   @override
@@ -332,23 +363,17 @@ class _RootShellState extends ConsumerState<_RootShell>
       ref.read(priceRefreshControllerProvider.notifier).refresh();
     }
 
-    // A background WorkManager isolate (an SMS Rule balance/ledger update,
-    // a recurring payment reminder's "Done" action, ...) may have written
-    // to the very same database file while this app sat backgrounded --
-    // sharing one drift connection across isolates (see database.dart's
-    // `shareAcrossIsolates`) is meant to push that isolate's writes back
-    // into this app's already-open watch streams live, but that bridge is
-    // exactly the kind of cross-isolate plumbing that's easy to get into a
-    // state where it silently stops delivering (the bank-account-balance-
-    // updated-but-still-shows-the-old-number report this fixed). Refetching
-    // these three repositories' streams on every resume is a cheap,
-    // unconditional correctness backstop regardless of why the live push
-    // didn't arrive -- each is a plain local-sqlite re-query, so any
-    // screen currently watching one of their derived streams sees at most
-    // a same-frame refresh, not a visible reload.
-    ref.invalidate(calculatorRepositoryProvider);
-    ref.invalidate(ledgerRepositoryProvider);
-    ref.invalidate(recurringPaymentRepositoryProvider);
+    // A background WorkManager isolate or ActionBroadcastReceiver's own
+    // headless engine (an SMS Rule balance/ledger update, a recurring
+    // payment reminder's "Done" action, Quick Add, ...) may have written to
+    // the very same database file while this app sat backgrounded -- each
+    // holds its own separate connection (see database.dart's
+    // `_openConnection` doc comment for why), so nothing pushes that write
+    // into this engine's already-open watch streams on its own. Resuming
+    // is the one moment guaranteed to matter most (the user is about to
+    // look at the screen right now), so refresh immediately here rather
+    // than waiting for `_liveDataRefreshTimer`'s own next tick.
+    _refreshLiveData();
   }
 
   /// Resets the nav stack/tab back to Dashboard after a long background --
