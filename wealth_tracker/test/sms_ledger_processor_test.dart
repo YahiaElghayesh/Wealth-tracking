@@ -581,4 +581,50 @@ void main() {
       },
     );
   });
+
+  group('processIncomingSms', () {
+    // No MaterialApp/Navigator is ever pumped in this test file, so
+    // navigatorKey.currentState is always null here -- exactly the "cold
+    // start, first frame isn't up yet" case processIncomingSms itself has
+    // to survive. This used to mark the SMS "processed" regardless and
+    // give up silently (the real bug behind "the notification opens the
+    // app but never shows a ledger picker"): a charge that could never be
+    // shown was nonetheless burned, with nothing left to retry it. This
+    // test runs the real, un-shortened `_awaitNavigator` wait, so it's
+    // slow (a few seconds) by design -- it's proving the timing behavior
+    // itself, not just the outcome.
+    test(
+      'a reviewable charge is still committable via commitSmsQuickAdd '
+      'afterward when no Navigator was available to show it',
+      () async {
+        final bankId = await insertBank();
+        final counterpartyId = await insertCounterparty('Dad');
+        await insertLedgerPaymentRule(bankId, counterpartyId);
+
+        await processIncomingSms(
+          db,
+          body: _chargeSms,
+          timestampMillis: 1000,
+          profileId: 'test-profile',
+        );
+
+        // If processIncomingSms had wrongly marked this dedupeId processed
+        // despite never actually showing a review screen for it (the bug),
+        // this would return false and add nothing -- the charge would be
+        // gone for good with no way to recover it, matching exactly what
+        // was reported from real use.
+        final added = await commitSmsQuickAdd(
+          db,
+          body: _chargeSms,
+          timestampMillis: 1000,
+          profileId: 'test-profile',
+        );
+
+        expect(added, isTrue);
+        final transactions = await db.select(db.ledgerTransactions).get();
+        expect(transactions, hasLength(1));
+      },
+      timeout: const Timeout(Duration(seconds: 20)),
+    );
+  });
 }

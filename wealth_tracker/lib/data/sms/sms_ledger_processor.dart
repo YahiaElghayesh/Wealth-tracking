@@ -200,7 +200,6 @@ Future<void> processIncomingSms(
     QuickActionExemption.release();
     return;
   }
-  await _markProcessed(db, dedupeId);
 
   final matches = await _matchAllRules(db, body);
   await _applyBalanceMatchesOnce(db, matches, dedupeId);
@@ -228,6 +227,10 @@ Future<void> processIncomingSms(
   }
 
   if (reviewable == null) {
+    // Fully settled (balance-only/repayment matches, or nothing at all) --
+    // nothing left for a later tap to do, so it's safe to mark this
+    // dedupeId settled for good now.
+    await _markProcessed(db, dedupeId);
     QuickActionExemption.release();
     return;
   }
@@ -255,9 +258,28 @@ Future<void> processIncomingSms(
 
   final navigator = await _awaitNavigator();
   if (navigator == null) {
+    // A cold start (the process was killed, this tap is what's relaunching
+    // it) can easily take longer than _awaitNavigator's own wait to get a
+    // first frame up -- previously this branch marked the SMS "processed"
+    // regardless and gave up silently, so a slow cold start meant the app
+    // just opened to whatever screen it last showed, with the charge gone
+    // for good and nothing left to tap. Reposting the review notification
+    // (the same fallback commitSmsQuickAdd/commitSmsAutoDetect already use
+    // for their own "can't act on this right now" cases) leaves an actual
+    // next step instead -- and *not* marking this dedupeId processed means
+    // a second tap on that notification gets a fresh, uncontested attempt.
+    await showSmsChargeReviewNotification(
+      body: body,
+      timestampMillis: timestampMillis,
+      vendor: vendor,
+      amountText: match.value == null
+          ? null
+          : formatMoney(match.value!, payload.currency),
+    );
     QuickActionExemption.release();
     return;
   }
+  await _markProcessed(db, dedupeId);
   navigator.push(
     MaterialPageRoute(
       builder: (_) =>
@@ -457,8 +479,19 @@ Future<void> commitSmsAutoDetect(
 /// runs (callers wait for the first frame), but polls briefly rather than
 /// giving up immediately, as a safety net against rarer timing races —
 /// same pattern used for widget-tap launches (`quick_add_launch.dart`).
+/// 50 attempts (5 seconds) rather than the 1 second `quick_add_launch.dart`'s
+/// own copy of this same pattern uses -- that one only ever fires while the
+/// app is already at least warming up (a pinned home-screen shortcut/widget
+/// tap), while this one is also the *first* thing to run after Android
+/// relaunches a fully killed process from a notification tap: a genuinely
+/// cold Flutter engine start (plugin registration, this widget tree's own
+/// `initState` work) can easily take longer than 1 second on a real,
+/// especially older or budget, device. [processIncomingSms] has a real
+/// fallback for a still-unready Navigator after this gives up (reposting
+/// the review notification), so erring long here just means a slow cold
+/// start still gets its chance before that fallback ever has to trigger.
 Future<NavigatorState?> _awaitNavigator() async {
-  for (var attempt = 0; attempt < 10; attempt++) {
+  for (var attempt = 0; attempt < 50; attempt++) {
     final navigator = navigatorKey.currentState;
     if (navigator != null) return navigator;
     await Future.delayed(const Duration(milliseconds: 100));

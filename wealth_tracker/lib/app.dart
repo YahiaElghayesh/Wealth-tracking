@@ -19,11 +19,7 @@ import 'data/notifications/sms_rule_notifications.dart';
 import 'data/repositories/settings_repository.dart';
 import 'data/sms/native_sms_channel.dart';
 import 'data/sms/sms_ledger_processor.dart';
-import 'features/calculator/providers/calculator_providers.dart'
-    show calculatorRepositoryProvider;
 import 'features/calculator/screens/calculator_screen.dart';
-import 'features/ledger/providers/ledger_providers.dart'
-    show ledgerRepositoryProvider;
 import 'features/ledger/providers/quick_add_launch.dart';
 import 'features/ledger/providers/widget_counterparties_sync.dart';
 import 'features/ledger/screens/ledger_home_screen.dart';
@@ -32,8 +28,6 @@ import 'features/networth/providers/asset_providers.dart' show databaseProvider;
 import 'features/networth/providers/home_widget_providers.dart';
 import 'features/networth/providers/pricing_providers.dart';
 import 'features/networth/screens/dashboard_screen.dart';
-import 'features/recurring/providers/recurring_payment_providers.dart'
-    show recurringPaymentRepositoryProvider;
 import 'features/recurring/screens/recurring_payments_screen.dart';
 import 'features/settings/providers/settings_providers.dart';
 
@@ -333,10 +327,30 @@ class _RootShellState extends ConsumerState<_RootShell>
   /// background-engine SMS write could have changed underneath this
   /// engine's own connection -- see [_liveDataRefreshInterval]'s own doc
   /// comment for why this can't just rely on a live cross-isolate push.
+  ///
+  /// Deliberately calls drift's own [GeneratedDatabase.markTablesUpdated]
+  /// directly rather than `ref.invalidate`-ing the repository providers:
+  /// invalidating a provider disposes its already-open `.watch()` streams
+  /// and opens brand new ones, which for anything rendered with
+  /// `AsyncValue.when` means a real (if brief) `loading` state -- every
+  /// screen reading one of these blanks out and redraws every single tick,
+  /// reported as the ledger screen "flashing" every few seconds.
+  /// `markTablesUpdated` instead tells drift's *existing* stream queries
+  /// "something touched these tables, re-run yourselves" -- the same
+  /// subscription just emits a fresh value, with nothing to ever show a
+  /// `loading` state for.
   void _refreshLiveData() {
-    ref.invalidate(calculatorRepositoryProvider);
-    ref.invalidate(ledgerRepositoryProvider);
-    ref.invalidate(recurringPaymentRepositoryProvider);
+    final db = ref.read(databaseProvider);
+    db.markTablesUpdated([
+      db.counterparties,
+      db.ledgerTransactions,
+      db.creditCards,
+      db.bankAccounts,
+      db.manualInputs,
+      db.expectedTransactions,
+      db.calculatorSnapshots,
+      db.recurringPayments,
+    ]);
   }
 
   @override
