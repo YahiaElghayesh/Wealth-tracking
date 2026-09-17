@@ -141,6 +141,22 @@ jobs:
   # outright when this account's separate artifact-storage quota is
   # exhausted -- a real APK to install is the one thing this job cannot
   # proceed without.
+  #
+  # A fourth real bug lived in the *other* half of this same notification:
+  # a plain tap on its body (not the Quick Add action) is supposed to open
+  # SmsReviewScreen so the user can pick a ledger, but processIncomingSms
+  # marked the SMS "processed" before it even knew whether a Navigator
+  # would show up in time to push that screen -- and on a genuinely cold
+  # start (the process killed, this tap relaunching it), it easily
+  # wouldn't within the 1 second it used to allow. Losing that race meant
+  # the charge was silently consumed with no screen ever shown and no way
+  # to retry -- reported as "it opens, sometimes to the last page, but
+  # never shows a picker". This job's script now also force-stops the app,
+  # fires the exact SELECT_NOTIFICATION Intent flutter_local_notifications
+  # itself sends for a body tap, and checks both logcat and a real
+  # uiautomator UI dump for SmsReviewScreen's "Confirm payment" AppBar
+  # title actually appearing on screen -- not just a log line claiming it
+  # was pushed.
   verify-quick-add:
     runs-on: ubuntu-latest
     defaults:
@@ -234,7 +250,7 @@ jobs:
       # at a manifest-registered receiver, nothing here touches Play
       # Services, and the AOSP image is meaningfully smaller/faster, which
       # matters directly for the disk space this job already ran out of.
-      - name: Boot an emulator and fire two Quick Add taps at the real APK
+      - name: Boot an emulator and verify both Quick Add and the notification's body tap
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 33

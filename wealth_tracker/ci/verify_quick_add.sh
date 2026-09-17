@@ -1,10 +1,17 @@
 #!/usr/bin/env bash
 # Run inside the verify-quick-add CI job, against a real (emulated) Android
-# device with the actual debug APK installed -- proves the SMS charge-review
-# notification's "Quick add" action still reaches Dart, twice in a row,
-# *and* that it actually produces the ledger entries it's supposed to.
-# See build-apk.yml's own comment on this job for the bugs this exists to
-# catch, including the one an earlier version of this exact test missed:
+# device with the actual debug APK installed. Two scenarios, both against
+# the SMS charge-review notification real code paths can only be proven
+# against a real device:
+#   Part 1: the "Quick add" action, twice in a row, with a real JSON
+#     payload against a real, seeded SMS Rule -- checks the on-device
+#     database actually gets the ledger entries it's supposed to, not just
+#     a debug log line.
+#   Part 2: a plain tap on the notification's body after a genuinely cold
+#     start -- checks that SmsReviewScreen actually opens on-screen, not
+#     just that a log line claims it was pushed.
+# See build-apk.yml's own comment on this job for the bugs each part
+# exists to catch, including the one an earlier version of Part 1 missed:
 # a fake, non-JSON payload proved the broadcast reaches Dart but never
 # exercised _commitQuickAddFromBackground's own database/prefs/secure-
 # storage setup at all, so it passed while Quick Add still didn't work.
@@ -190,3 +197,60 @@ print("PASS: both ledger entries exist on-device with the expected data.")
 PYEOF
 
 echo "PASS: both Quick Add taps reached notificationTapBackground and each actually committed a ledger entry."
+
+# --- Part 2: a plain tap on the notification's BODY (not the Quick Add
+# action), after a genuinely cold start -- the separate bug reported as
+# "it opens, sometimes to the last page, but never shows a picker".
+# flutter_local_notifications launches this exact Intent
+# (FlutterLocalNotificationsPlugin.java's own createNotification) when a
+# notification body is tapped: the app's own launch Intent, action
+# SELECT_NOTIFICATION, with `notificationId`/`payload` extras -- simulated
+# directly here rather than via ActionBroadcastReceiver (that receiver is
+# only ever used for an AndroidNotificationAction, never a plain body tap).
+echo "--- Force-stopping the app again for a genuinely cold start (the real scenario processIncomingSms's Navigator race was lost in) ---"
+adb shell am force-stop "$PKG"
+adb logcat -c
+
+BODY_TAP_PAYLOAD="{\"body\":\"$CHARGE_SMS\",\"timestampMillis\":3000000}"
+cat > body_tap.sh <<EOF
+am start -n "$PKG/$PKG.MainActivity" -a "SELECT_NOTIFICATION" --ei notificationId 999 --es payload '$BODY_TAP_PAYLOAD'
+EOF
+adb push body_tap.sh /data/local/tmp/body_tap.sh
+echo "--- Tapping the notification body on a cold (just force-stopped) app ---"
+adb shell sh /data/local/tmp/body_tap.sh
+# Generous: a genuinely cold Flutter engine start on this emulator (already
+# observed to be slow/software-rendered) plus up to 5s of processIncomingSms's
+# own _awaitNavigator wait plus the screen's own build.
+sleep 25
+
+adb logcat -d > body_tap_logcat.txt
+echo "--- entire logcat for the body-tap scenario ---"
+cat body_tap_logcat.txt
+
+grep -q "_onNotificationResponse: actionId=null id=999" body_tap_logcat.txt || {
+  echo "FAIL: the cold-start SELECT_NOTIFICATION intent never reached _onNotificationResponse at all."
+  exit 1
+}
+grep -q "processIncomingSms: reviewable match found, awaiting navigator" body_tap_logcat.txt || {
+  echo "FAIL: processIncomingSms didn't even find a reviewable match for the tapped charge."
+  exit 1
+}
+if grep -q "processIncomingSms: navigator never became available" body_tap_logcat.txt; then
+  echo "FAIL: processIncomingSms lost the cold-start Navigator race even with the widened wait -- the exact bug this is supposed to catch."
+  exit 1
+fi
+grep -q "processIncomingSms: navigator ready, pushing SmsReviewScreen" body_tap_logcat.txt || {
+  echo "FAIL: processIncomingSms never reached the point of actually pushing SmsReviewScreen."
+  exit 1
+}
+
+echo "--- Confirming the actual on-screen UI, not just the log line that claims to have pushed it ---"
+adb shell uiautomator dump /sdcard/window_dump.xml
+adb pull /sdcard/window_dump.xml window_dump.xml
+if ! grep -q "Confirm payment" window_dump.xml; then
+  echo "FAIL: SmsReviewScreen's own log line printed, but its AppBar title 'Confirm payment' never actually appeared on screen."
+  cat window_dump.xml
+  exit 1
+fi
+
+echo "PASS: a cold-started tap on the notification body opened SmsReviewScreen for real, on-screen."

@@ -195,8 +195,10 @@ Future<void> processIncomingSms(
   // screen's own claim has already landed.
   QuickActionExemption.claim();
 
+  debugPrint('processIncomingSms: called, timestampMillis=$timestampMillis');
   final dedupeId = '$timestampMillis:${body.hashCode}';
   if (await _alreadyProcessed(db, dedupeId)) {
+    debugPrint('processIncomingSms: already processed, dedupeId=$dedupeId');
     QuickActionExemption.release();
     return;
   }
@@ -227,6 +229,7 @@ Future<void> processIncomingSms(
   }
 
   if (reviewable == null) {
+    debugPrint('processIncomingSms: nothing reviewable, marking settled');
     // Fully settled (balance-only/repayment matches, or nothing at all) --
     // nothing left for a later tap to do, so it's safe to mark this
     // dedupeId settled for good now.
@@ -256,8 +259,12 @@ Future<void> processIncomingSms(
         ((match.vendor?.trim().isNotEmpty ?? false) ? match.vendor : null),
   );
 
+  debugPrint('processIncomingSms: reviewable match found, awaiting navigator');
   final navigator = await _awaitNavigator();
   if (navigator == null) {
+    debugPrint(
+      'processIncomingSms: navigator never became available, reposting review notification',
+    );
     // A cold start (the process was killed, this tap is what's relaunching
     // it) can easily take longer than _awaitNavigator's own wait to get a
     // first frame up -- previously this branch marked the SMS "processed"
@@ -279,6 +286,7 @@ Future<void> processIncomingSms(
     QuickActionExemption.release();
     return;
   }
+  debugPrint('processIncomingSms: navigator ready, pushing SmsReviewScreen');
   await _markProcessed(db, dedupeId);
   navigator.push(
     MaterialPageRoute(

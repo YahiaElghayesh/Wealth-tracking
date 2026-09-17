@@ -247,17 +247,27 @@ class _RootShellState extends ConsumerState<_RootShell>
   /// anything precomputed, the same "re-run the tested logic, don't thread
   /// a result through" choice [commitSmsAutoDetect] itself makes.
   void _onNotificationResponse(NotificationResponse response) {
+    debugPrint(
+      '_onNotificationResponse: actionId=${response.actionId} id=${response.id}',
+    );
     final payload = response.payload;
-    if (payload == null) return;
+    if (payload == null) {
+      debugPrint('_onNotificationResponse: payload is null');
+      return;
+    }
     Map<String, dynamic> decoded;
     try {
       decoded = jsonDecode(payload) as Map<String, dynamic>;
-    } catch (_) {
+    } catch (e) {
+      debugPrint('_onNotificationResponse: jsonDecode failed: $e');
       return;
     }
     final body = decoded['body'] as String?;
     final timestampMillis = decoded['timestampMillis'] as int?;
-    if (body == null || timestampMillis == null) return;
+    if (body == null || timestampMillis == null) {
+      debugPrint('_onNotificationResponse: body or timestampMillis missing');
+      return;
+    }
 
     if (response.actionId == smsChargeReviewQuickAddActionId) {
       unawaited(
