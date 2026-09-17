@@ -277,14 +277,23 @@ Future<void> processIncomingSms(
 /// Headless counterpart to [processIncomingSms] for the notification's
 /// "Quick add" action -- runs with no UI and no user confirmation, so it
 /// only ever commits a ledger entry when a matched 'ledgerPayment' rule
-/// already resolves the SMS to a specific ledger + category on its own;
-/// anything else (no match, or a balance-only rule) is silently left for
-/// the notification's normal tap (still [processIncomingSms], still
-/// available afterward since nothing here marks the SMS processed unless
-/// a ledger entry actually got added). Shares [processIncomingSms]'s
-/// dedupe key space so a charge added this way is not reviewable-and-
-/// addable again from a later tap on the same notification, and vice
-/// versa.
+/// already resolves the SMS to a specific ledger + category on its own.
+/// A matched *charge* that can't resolve one (no vendor mapping, no
+/// fallback ledger on the rule either -- exactly [resolveLedgerTarget]'s
+/// own "ask which ledger" case) used to be silently left for "the
+/// notification's normal tap" -- except flutter_local_notifications'
+/// own default cancels whichever notification an action was tapped on
+/// the instant it's tapped, Quick Add included (see
+/// AndroidNotificationAction.cancelNotification's default in the
+/// vendored plugin), so that notification is already gone by the time
+/// this runs. There is no "normal tap" left to fall back to. Posting a
+/// fresh review notification -- same call [commitSmsAutoDetect] already
+/// makes for the equivalent case, since a headless isolate has no
+/// Navigator to push [SmsReviewScreen] onto directly either -- is what
+/// actually gives the user something left to act on. Shares
+/// [processIncomingSms]'s dedupe key space so a charge added this way is
+/// not reviewable-and-addable again from a later tap on the same
+/// notification, and vice versa.
 ///
 /// Returns whether a ledger entry was actually added, purely so a caller
 /// (or a test) can tell "matched and added" apart from "nothing to do
@@ -305,10 +314,19 @@ Future<bool> commitSmsQuickAdd(
   await _applyBalanceMatchesOnce(db, matches, dedupeId);
 
   var ledgerApplied = false;
+  // First charge match that couldn't be applied -- a repayment never
+  // needs this (it always nets against one fixed ledger, never a
+  // per-vendor one -- see resolveLedgerTarget's own doc comment), and
+  // only the first one matters, matching the single `reviewable` tracked
+  // elsewhere in this file for the same underlying reason.
+  _RuleMatch? needsLedgerSelection;
   for (final m in matches) {
     if (m.rule.operation != 'ledgerPayment') continue;
     final outcome = await applySmsRule(db, m.rule, m.match);
-    if (!outcome.applied) continue;
+    if (!outcome.applied) {
+      if (m.match.valueRole != 'repayment') needsLedgerSelection ??= m;
+      continue;
+    }
     ledgerApplied = true;
     if (m.rule.notifyOnMatch && outcome.notificationTitle != null) {
       await showSmsRuleNotification(
@@ -318,7 +336,25 @@ Future<bool> commitSmsQuickAdd(
     }
   }
 
-  if (ledgerApplied) await _markProcessed(db, dedupeId);
+  if (ledgerApplied) {
+    await _markProcessed(db, dedupeId);
+  } else if (needsLedgerSelection != null) {
+    final vendor =
+        (needsLedgerSelection.match.vendor?.trim().isNotEmpty ?? false)
+        ? needsLedgerSelection.match.vendor!
+        : (needsLedgerSelection.match.sender ?? 'a bank text');
+    final value = needsLedgerSelection.match.value;
+    final currency =
+        needsLedgerSelection.match.currency ??
+        needsLedgerSelection.rule.currency ??
+        defaultCurrency;
+    await showSmsChargeReviewNotification(
+      body: body,
+      timestampMillis: timestampMillis,
+      vendor: vendor,
+      amountText: value == null ? null : formatMoney(value, currency),
+    );
+  }
   return ledgerApplied;
 }
 

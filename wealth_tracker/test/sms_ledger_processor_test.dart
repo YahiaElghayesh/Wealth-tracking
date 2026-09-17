@@ -227,6 +227,47 @@ void main() {
       expect(await db.select(db.ledgerTransactions).get(), isEmpty);
     });
 
+    test(
+      'a charge that matches but can\'t resolve a ledger posts a review '
+      'notification instead of silently doing nothing',
+      () async {
+        final bankId = await insertBank();
+        // No counterpartyId and no vendorTargetsJson -- exactly
+        // resolveLedgerTarget's own "ask which ledger" case. Quick Add's
+        // own notification action has already cancelled the tapped
+        // notification by the time this runs (flutter_local_notifications'
+        // own default), so there's nothing left for the user to act on
+        // unless this posts a fresh one -- this only asserts that
+        // commitSmsQuickAdd does so without throwing (a real platform
+        // channel isn't available under `flutter test`; see
+        // _NoopNotificationsPlatform's own doc comment) and, just as
+        // importantly, doesn't add anything or mark the SMS processed --
+        // it's still fully reviewable from that fresh notification.
+        await insertLedgerPaymentRule(bankId, null);
+
+        final added = await commitSmsQuickAdd(
+          db,
+          body: _chargeSms,
+          timestampMillis: 1000,
+          profileId: 'test-profile',
+        );
+
+        expect(added, isFalse);
+        expect(await db.select(db.ledgerTransactions).get(), isEmpty);
+
+        // Not marked processed -- a later tap (Quick Add again, or the
+        // fresh review notification this should have posted) still has
+        // something to do.
+        final againAdded = await commitSmsQuickAdd(
+          db,
+          body: _chargeSms,
+          timestampMillis: 1000,
+          profileId: 'test-profile',
+        );
+        expect(againAdded, isFalse);
+      },
+    );
+
     test('does nothing for unrelated text', () async {
       final bankId = await insertBank();
       final counterpartyId = await insertCounterparty('Dad');
