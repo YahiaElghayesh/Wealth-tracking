@@ -1,3 +1,6 @@
+import 'dart:io' show Platform;
+
+import 'package:device_info_plus/device_info_plus.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -45,6 +48,19 @@ class _BankSmsSettingsScreenState extends ConsumerState<BankSmsSettingsScreen>
   /// [_fixBackgroundRestriction] itself opens) at any time.
   bool? _unrestrictedBackground;
 
+  /// Huawei/Honor's own EMUI/MagicUI power management sits on top of, and
+  /// separately from, the standard Android "ignore battery optimizations"
+  /// exemption [_fixBackgroundRestriction] requests -- a device can report
+  /// that exemption as fully granted and still silently kill this app's
+  /// background SMS processing, unless the phone's own "Auto-launch"
+  /// (Settings > Apps > App launch) and "Protected apps" (Phone Manager /
+  /// Optimizer) toggles are *also* enabled for it. Android has no API to
+  /// query or request either of those -- they only exist in the
+  /// manufacturer's own settings UI -- so this can only ever be a written
+  /// pointer to go set them, not something this screen can check or fix
+  /// itself the way it does for the standard permissions above.
+  bool _isHuaweiOrHonor = false;
+
   @override
   void initState() {
     super.initState();
@@ -53,6 +69,20 @@ class _BankSmsSettingsScreenState extends ConsumerState<BankSmsSettingsScreen>
     _silent = ref.read(settingsRepositoryProvider).smsNotificationsSilent;
     if (_enabled) _checkNotificationPermission();
     _checkBackgroundRestriction();
+    _checkManufacturer();
+  }
+
+  Future<void> _checkManufacturer() async {
+    if (!Platform.isAndroid) return;
+    final info = await DeviceInfoPlugin().androidInfo;
+    final manufacturer = info.manufacturer.toLowerCase();
+    final brand = info.brand.toLowerCase();
+    final isHuaweiOrHonor =
+        manufacturer.contains('huawei') ||
+        manufacturer.contains('honor') ||
+        brand.contains('huawei') ||
+        brand.contains('honor');
+    if (mounted) setState(() => _isHuaweiOrHonor = isHuaweiOrHonor);
   }
 
   @override
@@ -264,6 +294,38 @@ class _BankSmsSettingsScreenState extends ConsumerState<BankSmsSettingsScreen>
                   TextButton(
                     onPressed: _fixBackgroundRestriction,
                     child: const Text('Fix'),
+                  ),
+                ],
+              ),
+            ),
+          ],
+          if (_enabled && _isHuaweiOrHonor) ...[
+            const SizedBox(height: 10),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: colors.bad.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: colors.bad.withValues(alpha: 0.3)),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(Icons.phone_android_outlined, color: colors.bad, size: 20),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      'Huawei/Honor phones have their own extra battery controls that the '
+                      '"Fix" above doesn\'t cover: open Settings > Apps > App launch > Money '
+                      'Hub and turn off "Manage automatically", then enable Auto-launch and '
+                      'Run in background -- and separately, add Money Hub to Protected apps '
+                      'in your Phone Manager / Optimizer app. Without both, this phone can '
+                      'still silently drop a bank text\'s processing even with the "Fix" '
+                      'above already applied.',
+                      style: Theme.of(
+                        context,
+                      ).textTheme.bodySmall?.copyWith(color: colors.bad),
+                    ),
                   ),
                 ],
               ),
