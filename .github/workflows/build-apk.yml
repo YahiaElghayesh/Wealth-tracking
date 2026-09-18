@@ -241,21 +241,28 @@ jobs:
   # about this job's outcome (pass, fail, or flake) can ever gate or block
   # a release either way.
   #
-  # Every scenario above has only ever run against API 33 (Android 13),
-  # while this app's own compileSdk/targetSdk (android/app/build.gradle)
-  # is 36 -- and background-broadcast/notification-action restrictions
-  # have tightened with nearly every Android release since 13. A real
-  # user reported Quick Add and the notification tap still doing nothing
-  # after API-33 CI proved the exact same code correct on-device three
-  # times over, and after ruling out both a stale build and OEM-specific
-  # background-kill settings (both already double-checked on their own
-  # device) -- the one remaining structural gap CI itself has never
-  # covered is simply "a newer Android version than 33 enforces something
-  # stricter here". This job re-runs the *identical* verify_quick_add.sh
-  # against API 35 (Android 15) to see whether the same three scenarios
-  # still hold, without needing anything further from that user or risking
-  # a release on the answer either way.
-  verify-quick-add-newer-android:
+  # verify-quick-add above has now passed three separate rounds against a
+  # real user's still-unfixed report, including once already against a
+  # newer Android version (API 35, since removed once that came back
+  # identical to API 33 -- ruling out Android-version differences too, on
+  # top of an already-ruled-out stale build and OEM background-kill
+  # settings). Every one of those rounds shared the same real gap: they
+  # all proved the *Dart code that runs after a tap* is correct by
+  # hand-constructing the underlying Android Intent/broadcast a real tap
+  # is supposed to send, and firing it directly -- never once verifying
+  # that a real incoming SMS actually produces a real, tappable
+  # notification, or that tapping the real rendered UI is what sends that
+  # Intent in the first place. A bug in how the notification/action itself
+  # gets constructed would pass every one of those tests and still fail
+  # for a real user, which is exactly the pattern that kept repeating.
+  #
+  # This job instead injects a real SMS into the emulator (`adb emu sms
+  # send`), waits for the real notification it produces, and taps the
+  # real on-screen "Quick add" button/notification body via a uiautomator-
+  # located `adb shell input tap` -- the same primitive a real finger tap
+  # resolves to. See ci/verify_quick_add_real_tap.sh's own top comment for
+  # the full three-part scenario breakdown.
+  verify-quick-add-real-tap:
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -303,19 +310,15 @@ jobs:
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
 
-      # google_apis rather than default -- x86_64 AOSP `default` images
-      # aren't reliably published at this API level, while google_apis
-      # images are; nothing in verify_quick_add.sh touches Play Services
-      # either way.
-      - name: Boot an Android 15 emulator and run the identical verify_quick_add.sh
+      - name: Boot an emulator, send real SMS, and tap the real notification UI
         uses: reactivecircus/android-emulator-runner@v2
         with:
-          api-level: 35
-          target: google_apis
+          api-level: 33
+          target: default
           arch: x86_64
           profile: pixel_5
           disable-animations: true
-          script: bash wealth_tracker/ci/verify_quick_add.sh
+          script: bash wealth_tracker/ci/verify_quick_add_real_tap.sh
 
   # Publishes the release the in-app updater and any manual download
   # actually use -- gated on *both* `build` (the APK genuinely compiles)
