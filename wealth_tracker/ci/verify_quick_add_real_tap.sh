@@ -354,8 +354,32 @@ grep -q "notificationTapBackground: commitSmsQuickAdd added=false" part3_logcat.
   exit 1
 }
 
-echo "--- Force-stopping again for a cold start before tapping the reposted notification's body ---"
-adb shell am force-stop "$PKG"
+echo "--- Killing the app's background process before tapping the reposted notification's body ---"
+# Deliberately `am kill`, not `am force-stop`, here. force-stop puts the app
+# into Android's "stopped" state, which -- as a documented side effect --
+# also cancels every notification the app currently has posted (the same
+# mechanism as an ACTION_PACKAGE_RESTARTED broadcast). The notification this
+# step needs to tap was already posted a moment ago by the previous Quick
+# Add step, so force-stopping here would guarantee it disappears with
+# nothing left to repost it, which is exactly what was observed the first
+# time this script used force-stop: the review notification vanished and
+# never came back, an artifact of this script's own method, not a real app
+# bug. `am kill` reproduces what actually happens to a backgrounded app on a
+# real phone (the OS reclaiming its process while idle) -- it kills the
+# process but leaves already-posted notifications and their PendingIntents
+# alone, which is the real scenario being tested: does tapping a
+# already-showing notification still work after the app's process is gone.
+adb shell am kill "$PKG"
+sleep 2
+# `am kill` only kills a package's *background* processes -- if this app
+# somehow still had a foreground component at that moment, the kill would
+# silently do nothing and the rest of this scenario would just be re-testing
+# a warm tap, not a cold one. Confirm the process is actually gone before
+# trusting what follows.
+if adb shell pidof "$PKG" >/dev/null 2>&1; then
+  echo "FAIL: 'adb shell am kill $PKG' did not actually kill the app's process -- it's still running, so this would not be testing a cold tap."
+  exit 1
+fi
 adb logcat -c
 sleep 3
 

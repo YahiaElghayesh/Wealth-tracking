@@ -262,6 +262,26 @@ jobs:
   # located `adb shell input tap` -- the same primitive a real finger tap
   # resolves to. See ci/verify_quick_add_real_tap.sh's own top comment for
   # the full three-part scenario breakdown.
+  #
+  # First real run of this job (after fixing two setup gaps: the fresh
+  # install had never been granted RECEIVE_SMS/POST_NOTIFICATIONS, and
+  # priceRefreshCallbackDispatcher was silently swallowing exceptions with
+  # zero logging) proved, with real SMS + real taps, both of the exact
+  # behaviors the user reported broken: Quick Add on a resolvable charge
+  # (twice in a row) committing a real ledger entry, and a real tap on a
+  # notification body after a genuine cold start opening SmsReviewScreen.
+  # Part 3 (Quick Add on an unresolvable charge) also proved for real that
+  # it correctly reports nothing added and reposts a review notification --
+  # but the run then force-stopped the app before tapping that *already-
+  # posted* notification, and force-stop cancels an app's own posted
+  # notifications as a documented side effect (the same mechanism as an
+  # ACTION_PACKAGE_RESTARTED broadcast), so the notification never
+  # reappeared and the tap step never had anything to tap. That was a flaw
+  # in this script, not the app -- fixed by using `adb shell am kill`
+  # instead (kills the background process the way the OS would while the
+  # app is idle, without cancelling its already-posted notifications),
+  # with an explicit pidof check that the process actually died so this
+  # can't silently degrade into re-testing a warm tap.
   verify-quick-add-real-tap:
     runs-on: ubuntu-latest
     defaults:
