@@ -9,6 +9,7 @@ import '../../../core/providers/core_providers.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../ledger/providers/ledger_providers.dart';
 import '../providers/settings_providers.dart';
+import 'debug_log_screen.dart';
 import 'sms_rules_settings_screen.dart';
 
 /// Enable/disable bank SMS detection and manage the vendor rules that
@@ -399,6 +400,22 @@ class _BankSmsSettingsScreenState extends ConsumerState<BankSmsSettingsScreen>
                 MaterialPageRoute(
                   builder: (_) => const SmsRulesSettingsScreen(),
                 ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          Container(
+            decoration: rowDecoration,
+            child: ListTile(
+              leading: _IconChip(Icons.bug_report_outlined),
+              title: const Text('Debug log'),
+              subtitle: const Text(
+                'What actually happened on this phone when a bank text arrived or '
+                'Quick add was tapped -- copyable, to send if something looks wrong',
+              ),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const DebugLogScreen()),
               ),
             ),
           ),

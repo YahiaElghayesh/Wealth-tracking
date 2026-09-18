@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'app.dart';
+import 'core/debug/debug_log.dart';
 import 'core/providers/core_providers.dart';
 import 'core/security/app_lock_exemption.dart';
 import 'core/security/secure_settings_store.dart';
@@ -17,6 +18,7 @@ import 'features/ledger/providers/quick_add_launch.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  AppDebugLog.install();
   final prefs = await SharedPreferences.getInstance();
   final secureSettings = await SecureSettingsStore.load(prefs);
 

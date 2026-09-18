@@ -8,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:home_widget/home_widget.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'core/debug/debug_log.dart';
 import 'core/navigation/app_navigator.dart';
 import 'core/security/app_lock_exemption.dart';
 import 'core/security/app_lock_gate.dart';
@@ -42,6 +43,12 @@ import 'features/settings/providers/settings_providers.dart';
 /// action fired from a live isolate -- there is no ProviderScope here.
 @pragma('vm:entry-point')
 void notificationTapBackground(NotificationResponse response) {
+  // A third, separate Dart isolate from both the foreground app and
+  // WorkManager's own (see AppDebugLog's own doc comment) -- this is the
+  // isolate ActionBroadcastReceiver spins up specifically for a tapped
+  // `showsUserInterface: false` action (this app's only one, "Quick add"),
+  // installed here so its breadcrumbs land in the same user-viewable log.
+  AppDebugLog.install();
   // Deliberately a permanent, unconditional log line, not a temporary
   // debug leftover -- this headless isolate has no UI and no other way to
   // observe from `adb logcat` whether a background notification-action

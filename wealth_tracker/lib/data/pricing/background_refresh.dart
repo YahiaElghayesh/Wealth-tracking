@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:workmanager/workmanager.dart';
 
+import '../../core/debug/debug_log.dart';
 import '../../core/security/secure_settings_store.dart';
 import '../db/database.dart';
 import '../net_worth/net_worth_calculator.dart';
@@ -46,6 +47,12 @@ const minPriceRefreshInterval = Duration(minutes: 15);
 /// instead of on a timer.
 @pragma('vm:entry-point')
 void priceRefreshCallbackDispatcher() {
+  // A genuinely separate Dart isolate from the foreground app -- installed
+  // here too (see AppDebugLog's own doc comment) so a Quick Add tap's
+  // commitSmsQuickAdd breadcrumbs, which run through this exact dispatcher,
+  // land in the same user-viewable log as everything else instead of only
+  // ever reaching a `adb logcat` no one watching this isolate can see.
+  AppDebugLog.install();
   Workmanager().executeTask((task, inputData) async {
     debugPrint('priceRefreshCallbackDispatcher: task=$task');
     try {
