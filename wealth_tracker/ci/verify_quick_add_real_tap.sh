@@ -138,37 +138,51 @@ sys.exit(1)
 PYEOF
 }
 
-# Expands the notification shade, dumps the UI, and taps the exact screen
-# coordinates of the node whose visible text is $1 -- failing loudly (full
-# dump printed) if it isn't found, rather than tapping the wrong thing.
+# Expands the notification shade, then polls (re-dumping the UI every 5s,
+# up to $2 seconds total -- default 90) for a node whose exact visible text
+# is $1, tapping it the moment it appears. A charge notification only
+# exists once SmsReceiver's WorkManager task has actually run
+# commitSmsAutoDetect end to end (a real, if expedited, background engine
+# spin-up plus WorkManager's own scheduling latency) -- a single fixed
+# sleep before one dump attempt was proven too short on a loaded CI
+# runner (the target notification simply didn't exist yet at the moment
+# checked, confirmed by the dump showing only Android's own stock
+# "new SMS message" notification instead). Polling for the actual
+# condition rather than guessing a delay removes that whole class of
+# flake. Fails loudly with the full last-seen dump if $2 elapses with no
+# match, so a genuine absence is still immediately diagnosable.
 tap_notification_text() {
-  local needle="$1" dump="dump_$(date +%s%N).xml"
-  adb shell cmd statusbar expand-notifications
-  sleep 2
-  dump_ui "$dump"
-  local coords
-  if ! coords=$(find_tap_coords "$dump" "$needle"); then
-    echo "FAIL: could not find on-screen node with exact text '$needle' to tap."
-    echo "--- full UI dump ---"
-    cat "$dump"
-    exit 1
-  fi
-  echo "Tapping '$needle' at coordinates: $coords"
-  adb shell input tap $coords
+  local needle="$1" timeout="${2:-90}" waited=0 dump
+  while [ "$waited" -lt "$timeout" ]; do
+    adb shell cmd statusbar expand-notifications
+    sleep 2
+    dump="dump_$(date +%s%N).xml"
+    dump_ui "$dump"
+    local coords
+    if coords=$(find_tap_coords "$dump" "$needle"); then
+      echo "Found '$needle' after ${waited}s -- tapping at coordinates: $coords"
+      adb shell input tap $coords
+      return 0
+    fi
+    sleep 5
+    waited=$((waited + 7))
+  done
+  echo "FAIL: could not find on-screen node with exact text '$needle' within ${timeout}s."
+  echo "--- last UI dump ---"
+  cat "$dump"
+  exit 1
 }
 
 # Injects a real SMS into the emulator -- the exact same
 # Telephony.Sms.Intents.SMS_RECEIVED_ACTION broadcast a real bank text
 # produces, triggering the app's real SmsReceiver -> WorkManager ->
 # commitSmsAutoDetect -> showSmsChargeReviewNotification chain end to end,
-# not a hand-constructed shortcut into the middle of it.
+# not a hand-constructed shortcut into the middle of it. Doesn't itself
+# wait for the resulting notification -- tap_notification_text's own poll
+# is what actually waits for that.
 send_real_sms() {
   local body="$1"
   adb emu sms send TestBank "$body"
-  # Generous: WorkManager scheduling + a real (if expedited) background
-  # engine spin-up, on an emulator already observed to be slow/
-  # software-rendered, before the notification actually posts.
-  sleep 20
 }
 
 # --- Part 1: Quick Add, twice in a row, on a charge that resolves -------
