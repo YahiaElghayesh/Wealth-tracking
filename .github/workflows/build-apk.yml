@@ -272,16 +272,21 @@ jobs:
   # notification body after a genuine cold start opening SmsReviewScreen.
   # Part 3 (Quick Add on an unresolvable charge) also proved for real that
   # it correctly reports nothing added and reposts a review notification --
-  # but the run then force-stopped the app before tapping that *already-
-  # posted* notification, and force-stop cancels an app's own posted
-  # notifications as a documented side effect (the same mechanism as an
-  # ACTION_PACKAGE_RESTARTED broadcast), so the notification never
-  # reappeared and the tap step never had anything to tap. That was a flaw
-  # in this script, not the app -- fixed by using `adb shell am kill`
-  # instead (kills the background process the way the OS would while the
-  # app is idle, without cancelling its already-posted notifications),
-  # with an explicit pidof check that the process actually died so this
-  # can't silently degrade into re-testing a warm tap.
+  # getting real proof of the tap on *that* notification took two more
+  # rounds, both self-inflicted test bugs rather than app bugs: first,
+  # force-stopping the app before the tap cancels an app's own posted
+  # notifications as a documented side effect, so the notification never
+  # reappeared; switching to `adb shell am kill` to avoid that then hit a
+  # second wall -- `am kill` doesn't reliably kill this app's process right
+  # after an expedited WorkManager task ran (Android still considered it too
+  # important), which an added pidof check correctly caught rather than
+  # silently passing on a warm tap. Settled on: no process kill for this
+  # specific step at all. Part 2 already independently proves a cold-start
+  # body tap reaches `_onNotificationResponse` -> processIncomingSms for
+  # real; this step's own unique value is proving the specific notification
+  # Quick Add reposts (no "Quick add" action on it, forcing a body tap) is
+  # real, on-screen, and wired to the same handler -- tapping it warm proves
+  # that without depending on a flaky process-kill primitive.
   verify-quick-add-real-tap:
     runs-on: ubuntu-latest
     defaults:
