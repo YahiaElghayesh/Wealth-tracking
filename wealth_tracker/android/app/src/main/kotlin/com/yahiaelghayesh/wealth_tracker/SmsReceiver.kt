@@ -3,6 +3,7 @@ package com.yahiaelghayesh.wealth_tracker
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.os.PowerManager
 import android.provider.Telephony
 import android.util.Log
 import androidx.work.OneTimeWorkRequestBuilder
@@ -39,6 +40,25 @@ class SmsReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         Log.d(TAG, "onReceive: action=${intent.action}")
         if (intent.action != Telephony.Sms.Intents.SMS_RECEIVED_ACTION) return
+
+        // A plain enqueue() only writes the work request to WorkManager's own
+        // database -- it does not itself keep the CPU awake, and this method
+        // returns almost immediately afterward. Between that return and
+        // WorkManager actually dispatching the job, there's a window where a
+        // sufficiently aggressive power manager (this exists in degrees on
+        // several OEM builds, on top of stock Android's own Doze) can let the
+        // device fall back asleep before the job gets real CPU time --
+        // "expedited" only raises how the job is scheduled once it runs, it
+        // doesn't force the device to stay awake long enough to *reach* that
+        // point. A short, self-expiring wake lock closes exactly that gap:
+        // held across the whole handoff, not released early, since there's no
+        // callback back from the headless Dart isolate to say when the real
+        // work (commitSmsAutoDetect) actually finished. The timeout is the
+        // only release mechanism by design -- bounded, so a crash or an
+        // unexpectedly slow run can't hold it forever.
+        val wakeLock = (context.getSystemService(Context.POWER_SERVICE) as PowerManager)
+            .newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "$TAG:smsProcessing")
+        wakeLock.acquire(WAKE_LOCK_TIMEOUT_MILLIS)
         val messages = Telephony.Sms.Intents.getMessagesFromIntent(intent)
         if (messages.isNullOrEmpty()) {
             Log.d(TAG, "onReceive: getMessagesFromIntent returned null/empty")
@@ -84,6 +104,12 @@ class SmsReceiver : BroadcastReceiver() {
 
     companion object {
         private const val TAG = "SmsReceiver"
+
+        // Long enough for WorkManager to actually dispatch and run the
+        // enqueued task under normal Doze/App-Standby conditions, even on a
+        // device that's been idle a while; short enough that holding it
+        // every single incoming SMS is not a meaningful battery cost.
+        private const val WAKE_LOCK_TIMEOUT_MILLIS = 60_000L
 
         // Must match smsAutoDetectTaskName in
         // lib/data/sms/sms_ledger_processor.dart, which
