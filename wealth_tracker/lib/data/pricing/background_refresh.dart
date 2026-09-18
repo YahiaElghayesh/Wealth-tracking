@@ -1,4 +1,5 @@
 import 'package:drift/drift.dart' show Value;
+import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:workmanager/workmanager.dart';
 
@@ -46,6 +47,7 @@ const minPriceRefreshInterval = Duration(minutes: 15);
 @pragma('vm:entry-point')
 void priceRefreshCallbackDispatcher() {
   Workmanager().executeTask((task, inputData) async {
+    debugPrint('priceRefreshCallbackDispatcher: task=$task');
     try {
       if (task == backgroundPriceRefreshTaskName) {
         await runBackgroundPriceRefresh();
@@ -57,10 +59,14 @@ void priceRefreshCallbackDispatcher() {
         await runRecurringPaymentMarkPaidTask(inputData ?? const {});
       }
       return true;
-    } catch (_) {
-      // Swallow — WorkManager would otherwise reschedule aggressively, and
-      // the next periodic run (or the next incoming SMS / app open) will
-      // just try again.
+    } catch (e, st) {
+      // Still returns true -- WorkManager would otherwise reschedule
+      // aggressively, and the next periodic run (or the next incoming SMS /
+      // app open) will just try again -- but silently discarding the
+      // exception itself (the previous behavior here) meant a real crash in
+      // any of these background tasks left literally no trace anywhere: no
+      // notification, no error, nothing to find even in a debug logcat.
+      debugPrint('priceRefreshCallbackDispatcher: task=$task threw: $e\n$st');
       return true;
     }
   });

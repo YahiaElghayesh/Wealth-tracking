@@ -427,12 +427,17 @@ Future<void> commitSmsAutoDetect(
   required String body,
   required int timestampMillis,
 }) async {
+  debugPrint('commitSmsAutoDetect: called, timestampMillis=$timestampMillis');
   if (body.trim().isEmpty) return;
 
   final dedupeId = '$timestampMillis:${body.hashCode}';
-  if (await _alreadyProcessed(db, dedupeId)) return;
+  if (await _alreadyProcessed(db, dedupeId)) {
+    debugPrint('commitSmsAutoDetect: already processed, dedupeId=$dedupeId');
+    return;
+  }
 
   final matches = await _matchAllRules(db, body);
+  debugPrint('commitSmsAutoDetect: ${matches.length} rule(s) matched');
   if (matches.isEmpty) return;
 
   await _applyBalanceMatchesOnce(db, matches, dedupeId);
@@ -460,12 +465,14 @@ Future<void> commitSmsAutoDetect(
   }
 
   if (reviewable == null) {
+    debugPrint('commitSmsAutoDetect: nothing reviewable, marking settled');
     // Fully settled already (balance-only and/or repayment matches, or no
     // ledgerPayment match at all) -- nothing left for a later tap to do.
     await _markProcessed(db, dedupeId);
     return;
   }
 
+  debugPrint('commitSmsAutoDetect: reviewable match found, posting review notification');
   final vendor = (reviewable.match.vendor?.trim().isNotEmpty ?? false)
       ? reviewable.match.vendor!
       : (reviewable.match.sender ?? 'a bank text');
@@ -485,6 +492,7 @@ Future<void> commitSmsAutoDetect(
     amountText: value == null ? null : formatMoney(value, currency),
     targetName: targetName,
   );
+  debugPrint('commitSmsAutoDetect: review notification posted');
 }
 
 /// [navigatorKey]'s Navigator is usually already mounted by the time this

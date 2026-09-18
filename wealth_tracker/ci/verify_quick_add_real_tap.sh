@@ -170,6 +170,8 @@ tap_notification_text() {
   echo "FAIL: could not find on-screen node with exact text '$needle' within ${timeout}s."
   echo "--- last UI dump ---"
   cat "$dump"
+  echo "--- full logcat up to this point (was previously never captured on this failure path) ---"
+  adb logcat -d
   exit 1
 }
 
