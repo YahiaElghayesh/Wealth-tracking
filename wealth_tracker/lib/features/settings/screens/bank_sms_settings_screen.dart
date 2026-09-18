@@ -316,12 +316,18 @@ class _BankSmsSettingsScreenState extends ConsumerState<BankSmsSettingsScreen>
                   Expanded(
                     child: Text(
                       'Huawei/Honor phones have their own extra battery controls that the '
-                      '"Fix" above doesn\'t cover: open Settings > Apps > App launch > Money '
-                      'Hub and turn off "Manage automatically", then enable Auto-launch and '
-                      'Run in background -- and separately, add Money Hub to Protected apps '
-                      'in your Phone Manager / Optimizer app. Without both, this phone can '
-                      'still silently drop a bank text\'s processing even with the "Fix" '
-                      'above already applied.',
+                      '"Fix" above doesn\'t cover -- all of these need to be set, not just one:\n'
+                      '• Settings > Apps > App launch (or Battery > Launch) > Money Hub: '
+                      'turn off "Manage automatically", enable Auto-launch and Run in '
+                      'background\n'
+                      '• Phone Manager / Optimizer > Protected apps: add Money Hub\n'
+                      '• Phone Manager > Settings (cog icon): turn off "Smart tune-up"\n'
+                      '• Settings > Apps > Money Hub > Battery: uncheck "Power-intensive '
+                      'prompt", check "Keep running after screen off"\n'
+                      'On some newer versions, a system component called PowerGenie can '
+                      'still kill background apps with no exceptions list at all -- if a bank '
+                      'text still doesn\'t get processed after all of the above, that\'s the '
+                      'likely cause, and there\'s no in-app fix for it.',
                       style: Theme.of(
                         context,
                       ).textTheme.bodySmall?.copyWith(color: colors.bad),
