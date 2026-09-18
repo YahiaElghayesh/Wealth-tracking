@@ -65,6 +65,19 @@ adb wait-for-device
 
 adb install -r "$APK"
 
+# SmsReceiver's own manifest entry only ever receives anything once the
+# user has actually granted RECEIVE_SMS (a dangerous/runtime permission,
+# normally granted by walking through Settings > Bank SMS detection in the
+# app itself) -- Android silently never delivers the protected
+# SMS_RECEIVED broadcast to an app that hasn't been granted it, receiver
+# registration notwithstanding. A fresh install has neither this nor
+# POST_NOTIFICATIONS granted, and no test UI here walks the real
+# permission-request flow -- `pm grant` is the standard way to pre-grant a
+# runtime permission from adb without needing to drive that UI.
+echo "--- Granting RECEIVE_SMS and POST_NOTIFICATIONS (dangerous/runtime permissions no test UI flow grants here) ---"
+adb shell pm grant "$PKG" android.permission.RECEIVE_SMS
+adb shell pm grant "$PKG" android.permission.POST_NOTIFICATIONS
+
 echo "--- Launching the app once, so it registers the background notification-response callback handle, and so path_provider/drift create the app's real sqlite file ---"
 adb shell am start -n "$PKG/$PKG.MainActivity"
 sleep 15

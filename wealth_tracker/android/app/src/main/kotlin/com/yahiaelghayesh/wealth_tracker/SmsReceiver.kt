@@ -4,6 +4,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.provider.Telephony
+import android.util.Log
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.OutOfQuotaPolicy
 import androidx.work.WorkManager
@@ -36,9 +37,13 @@ import dev.fluttercommunity.workmanager.buildTaskInputData
  */
 class SmsReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
+        Log.d(TAG, "onReceive: action=${intent.action}")
         if (intent.action != Telephony.Sms.Intents.SMS_RECEIVED_ACTION) return
         val messages = Telephony.Sms.Intents.getMessagesFromIntent(intent)
-        if (messages.isNullOrEmpty()) return
+        if (messages.isNullOrEmpty()) {
+            Log.d(TAG, "onReceive: getMessagesFromIntent returned null/empty")
+            return
+        }
 
         // A single logical SMS can arrive as multiple concatenated parts;
         // Android delivers them together in one broadcast.
@@ -73,10 +78,13 @@ class SmsReceiver : BroadcastReceiver() {
             .setInputData(inputData)
             .setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)
             .build()
+        Log.d(TAG, "onReceive: enqueuing WorkManager task, id=${request.id}")
         WorkManager.getInstance(context).enqueue(request)
     }
 
     companion object {
+        private const val TAG = "SmsReceiver"
+
         // Must match smsAutoDetectTaskName in
         // lib/data/sms/sms_ledger_processor.dart, which
         // priceRefreshCallbackDispatcher switches on.
