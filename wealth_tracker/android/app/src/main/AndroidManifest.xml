@@ -36,7 +36,7 @@
          RecurringPaymentReminderBootReceiver.kt. -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
     <!-- SmsReceiver.kt: a short, self-expiring CPU wake lock held across the
-         handoff to WorkManager. A normal (not runtime-prompted) permission --
+         handoff to WorkManager. A normal (not runtime-prompted) permission —
          see SmsReceiver.kt's own comment on why this exists. -->
     <uses-permission android:name="android.permission.WAKE_LOCK"/>
     <application
