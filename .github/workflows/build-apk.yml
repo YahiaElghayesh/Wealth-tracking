@@ -237,6 +237,86 @@ jobs:
           # file"). `bash <file>` parses the whole thing exactly once.
           script: bash wealth_tracker/ci/verify_quick_add.sh
 
+  # PURE DIAGNOSTIC -- deliberately NOT in `publish`'s `needs`, so nothing
+  # about this job's outcome (pass, fail, or flake) can ever gate or block
+  # a release either way.
+  #
+  # Every scenario above has only ever run against API 33 (Android 13),
+  # while this app's own compileSdk/targetSdk (android/app/build.gradle)
+  # is 36 -- and background-broadcast/notification-action restrictions
+  # have tightened with nearly every Android release since 13. A real
+  # user reported Quick Add and the notification tap still doing nothing
+  # after API-33 CI proved the exact same code correct on-device three
+  # times over, and after ruling out both a stale build and OEM-specific
+  # background-kill settings (both already double-checked on their own
+  # device) -- the one remaining structural gap CI itself has never
+  # covered is simply "a newer Android version than 33 enforces something
+  # stricter here". This job re-runs the *identical* verify_quick_add.sh
+  # against API 35 (Android 15) to see whether the same three scenarios
+  # still hold, without needing anything further from that user or risking
+  # a release on the answer either way.
+  verify-quick-add-newer-android:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: wealth_tracker
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Free disk space (unused preinstalled toolchains)
+        run: |
+          sudo rm -rf /usr/share/dotnet /opt/ghc /opt/hostedtoolcache/CodeQL \
+            /usr/local/share/boost /usr/local/lib/android/sdk/ndk \
+            /opt/hostedtoolcache/go /opt/hostedtoolcache/PyPy || true
+          sudo docker image prune -af || true
+          df -h /
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.44.9"
+          channel: stable
+
+      - run: flutter pub get
+
+      - run: dart run build_runner build --delete-conflicting-outputs
+
+      - run: flutter build apk --debug --build-number=${{ github.run_number }}
+
+      - name: Build the seed database Quick Add's real effect is checked against
+        run: flutter test ci/build_seed_db_test.dart
+        env:
+          SEED_DB_OUTPUT: build/seed.sqlite
+
+      - name: Free Gradle/Android build caches before the emulator download
+        run: |
+          rm -rf ~/.gradle/caches ~/.gradle/wrapper || true
+          df -h /
+
+      - name: Enable KVM for the emulator
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      # google_apis rather than default -- x86_64 AOSP `default` images
+      # aren't reliably published at this API level, while google_apis
+      # images are; nothing in verify_quick_add.sh touches Play Services
+      # either way.
+      - name: Boot an Android 15 emulator and run the identical verify_quick_add.sh
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          target: google_apis
+          arch: x86_64
+          profile: pixel_5
+          disable-animations: true
+          script: bash wealth_tracker/ci/verify_quick_add.sh
+
   # Publishes the release the in-app updater and any manual download
   # actually use -- gated on *both* `build` (the APK genuinely compiles)
   # and `verify-quick-add` (Quick Add and the notification's body tap are
