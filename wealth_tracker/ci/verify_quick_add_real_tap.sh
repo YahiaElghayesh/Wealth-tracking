@@ -195,10 +195,32 @@ send_real_sms() {
 
 echo "=== Part 1: a real notification tap on a resolvable charge, twice in a row (second one after a genuine cold start) ==="
 
+# Each tap's logcat is captured and checked right away, in its own file,
+# rather than accumulating both into one dump at the very end of Part 1 --
+# a real run showed why: force-stopping and relaunching the app between
+# the two taps generates enough log volume on this emulator that the
+# *first* tap's own lines had already rotated out of the buffer entirely
+# by the time a single end-of-Part-1 dump finally read it, well after the
+# second tap. That looked exactly like "the tap only worked once" (one
+# _onNotificationResponse line found instead of two) when the real cause
+# was this script losing its own evidence, not the app.
 echo "--- Sending real SMS #1 (app left warm/running from the launch above) ---"
 send_real_sms "$CHARGE_SMS"
 tap_notification_text "Charge detected: Breadfast"
 sleep 15
+
+adb logcat -d > part1a_logcat.txt
+echo "--- entire logcat for Part 1, tap 1 (warm) ---"
+cat part1a_logcat.txt
+
+grep -q "_onNotificationResponse: actionId=null" part1a_logcat.txt || {
+  echo "FAIL: the first (warm) real tap on the notification never reached _onNotificationResponse."
+  exit 1
+}
+if grep -q "commitSmsQuickAdd: could not resolve a ledger" part1a_logcat.txt; then
+  echo "FAIL: commitSmsQuickAdd treated a resolvable charge as unresolvable -- seeded rule/vendor mapping regressed."
+  exit 1
+fi
 
 echo "--- Force-stopping for a genuine cold start before the second tap ---"
 adb shell am force-stop "$PKG"
@@ -209,17 +231,15 @@ send_real_sms "$CHARGE_SMS"
 tap_notification_text "Charge detected: Breadfast"
 sleep 20
 
-adb logcat -d > part1_logcat.txt
-echo "--- entire logcat for Part 1 ---"
-cat part1_logcat.txt
+adb logcat -d > part1b_logcat.txt
+echo "--- entire logcat for Part 1, tap 2 (cold) ---"
+cat part1b_logcat.txt
 
-TAP_COUNT=$(grep -c "_onNotificationResponse: actionId=null" part1_logcat.txt || true)
-echo "_onNotificationResponse invocation count: $TAP_COUNT (expected 2)"
-if [ "$TAP_COUNT" -lt 2 ]; then
-  echo "FAIL: a real tap on the notification never reached _onNotificationResponse both times -- the tap does not work."
+grep -q "_onNotificationResponse: actionId=null" part1b_logcat.txt || {
+  echo "FAIL: the second (cold-start) real tap on the notification never reached _onNotificationResponse."
   exit 1
-fi
-if grep -q "commitSmsQuickAdd: could not resolve a ledger" part1_logcat.txt; then
+}
+if grep -q "commitSmsQuickAdd: could not resolve a ledger" part1b_logcat.txt; then
   echo "FAIL: commitSmsQuickAdd treated a resolvable charge as unresolvable -- seeded rule/vendor mapping regressed."
   exit 1
 fi

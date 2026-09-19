@@ -120,6 +120,12 @@ PAYLOAD_1="{\"body\":\"$CHARGE_SMS\",\"timestampMillis\":1000000}"
 # would look identical to the real bug this test exists to catch.
 PAYLOAD_2="{\"body\":\"$CHARGE_SMS\",\"timestampMillis\":2000000}"
 
+# Each tap's logcat is captured and checked right away, in its own file --
+# see verify_quick_add_real_tap.sh's own comment on this exact point: a
+# force-stop/relaunch cycle between two taps generates enough log volume
+# on this emulator to rotate the *first* tap's own lines out of the
+# buffer before a single end-of-Part-1 dump ever reads them, which looks
+# exactly like "the tap only worked once" without actually being that.
 echo "--- First tap (real JSON payload, real charge SMS text, timestamp 1000000) ---"
 tap_body 555 "$PAYLOAD_1" tap1.sh
 # A previous run's own timestamps showed real, if slow, engine startup
@@ -129,28 +135,38 @@ tap_body 555 "$PAYLOAD_1" tap1.sh
 # to give all of that room to finish, not just the callback dispatch itself.
 sleep 20
 
+adb logcat -d > part1a_logcat.txt
+echo "--- entire logcat for Part 1, tap 1 ---"
+cat part1a_logcat.txt
+
+grep -q "_onNotificationResponse: actionId=null" part1a_logcat.txt || {
+  echo "FAIL: the first tap on the notification body never reached _onNotificationResponse."
+  exit 1
+}
+if grep -q "commitSmsQuickAdd: could not resolve a ledger" part1a_logcat.txt; then
+  echo "FAIL: commitSmsQuickAdd treated a resolvable charge as unresolvable -- seeded rule/vendor mapping regressed."
+  exit 1
+fi
+
 echo "--- Force-stopping for a cold start before the second tap ---"
 adb shell am force-stop "$PKG"
 adb shell am start -n "$PKG/$PKG.MainActivity"
+adb logcat -c
 sleep 15
 
 echo "--- Second tap (same body, different timestamp -- second engine + dedupe both have to behave correctly) ---"
 tap_body 556 "$PAYLOAD_2" tap2.sh
 sleep 20
 
-adb logcat -d > part1_logcat.txt
-echo "--- entire logcat for Part 1 ---"
-cat part1_logcat.txt
+adb logcat -d > part1b_logcat.txt
+echo "--- entire logcat for Part 1, tap 2 ---"
+cat part1b_logcat.txt
 
-TAP_COUNT=$(grep -c "_onNotificationResponse: actionId=null" part1_logcat.txt || true)
-echo "_onNotificationResponse invocation count: $TAP_COUNT (expected 2)"
-if [ "$TAP_COUNT" -lt 2 ]; then
-  echo "FAIL: a tap on the notification body never reached _onNotificationResponse both times -- the tap does not work."
+grep -q "_onNotificationResponse: actionId=null" part1b_logcat.txt || {
+  echo "FAIL: the second tap on the notification body never reached _onNotificationResponse."
   exit 1
-fi
-
-ADDED_COUNT=$(grep -c "commitSmsQuickAdd: could not resolve a ledger" part1_logcat.txt || true)
-if [ "$ADDED_COUNT" -gt 0 ]; then
+}
+if grep -q "commitSmsQuickAdd: could not resolve a ledger" part1b_logcat.txt; then
   echo "FAIL: commitSmsQuickAdd treated a resolvable charge as unresolvable -- seeded rule/vendor mapping regressed."
   exit 1
 fi
