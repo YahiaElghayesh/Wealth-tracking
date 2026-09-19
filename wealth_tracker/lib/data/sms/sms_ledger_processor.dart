@@ -15,6 +15,25 @@ import 'sms_rule_engine.dart';
 const _dedupeKey = 'sms_processed_ids';
 const _dedupeCap = 200;
 
+/// Guards against a real race [_dedupeKey]'s own DB-backed check cannot:
+/// [processIncomingSms] and [commitSmsQuickAdd] both read-then-later-write
+/// that persisted list, with real `await`s (a database query, at minimum)
+/// in between -- two calls for the *same* dedupeId, started close enough
+/// together, can both read "not yet processed" before either one gets
+/// around to marking it. This used to be a purely theoretical race (only
+/// ever one delivery path existed for a given kind of tap); a real,
+/// on-device double-add (confirmed via CI: two ledger rows became four)
+/// showed up the moment a second, independent delivery path for the same
+/// notification tap was added (MainActivity.kt's own onNewIntent fallback,
+/// alongside flutter_local_notifications' normal delivery -- see that
+/// fallback's own doc comment for why it exists) on a device where both
+/// happen to fire for one real tap. A plain in-memory set, added to
+/// *before* either function's first `await`, closes it: Dart doesn't
+/// yield to another call between one call's own synchronous statements, so
+/// whichever call's `add` runs first wins the claim before the second one
+/// gets far enough to even check.
+final _inFlightDedupeIds = <String>{};
+
 /// Separate from [_dedupeKey] on purpose -- that key means "this SMS's
 /// *ledger* outcome (a review-screen visit, a quick-add, or a confirmed
 /// no-op) is fully settled, never act on it again", which a charge SMS
@@ -198,117 +217,133 @@ Future<void> processIncomingSms(
 
   debugPrint('processIncomingSms: called, timestampMillis=$timestampMillis');
   final dedupeId = '$timestampMillis:${body.hashCode}';
-  if (await _alreadyProcessed(db, dedupeId)) {
-    debugPrint('processIncomingSms: already processed, dedupeId=$dedupeId');
+  // Claimed synchronously, before this function's first `await` -- see
+  // [_inFlightDedupeIds]'s own doc comment for the real, on-device double-
+  // add this closes that the DB-backed dedupe check just below (on its
+  // own, with real awaits between reading and eventually writing it) can't.
+  if (!_inFlightDedupeIds.add(dedupeId)) {
+    debugPrint('processIncomingSms: already in flight, dedupeId=$dedupeId');
     QuickActionExemption.release();
     return;
   }
-
-  final matches = await _matchAllRules(db, body);
-  await _applyBalanceMatchesOnce(db, matches, dedupeId);
-
-  _RuleMatch? reviewable;
-  for (final m in matches) {
-    if (m.rule.operation != 'ledgerPayment') continue;
-    final isRepayment = m.match.valueRole == 'repayment';
-    final resolvedTarget = isRepayment
-        ? m.rule.targetCounterpartyId
-        : resolveLedgerTarget(m.rule, m.match.vendor);
-    if (isRepayment || (m.rule.autoAddCharges && resolvedTarget != null)) {
-      final outcome = await applySmsRule(db, m.rule, m.match);
-      if (outcome.applied &&
-          m.rule.notifyOnMatch &&
-          outcome.notificationTitle != null) {
-        await showSmsRuleNotification(
-          title: outcome.notificationTitle!,
-          body: outcome.notificationBody ?? '',
-        );
-      }
-      continue;
+  try {
+    if (await _alreadyProcessed(db, dedupeId)) {
+      debugPrint('processIncomingSms: already processed, dedupeId=$dedupeId');
+      QuickActionExemption.release();
+      return;
     }
-    reviewable ??= m;
-  }
 
-  if (reviewable == null) {
-    debugPrint('processIncomingSms: nothing reviewable, marking settled');
-    // Fully settled (balance-only/repayment matches, or nothing at all) --
-    // nothing left for a later tap to do, so it's safe to mark this
-    // dedupeId settled for good now.
-    await _markProcessed(db, dedupeId);
-    QuickActionExemption.release();
-    return;
-  }
+    final matches = await _matchAllRules(db, body);
+    await _applyBalanceMatchesOnce(db, matches, dedupeId);
 
-  final rule = reviewable.rule;
-  final match = reviewable.match;
-  final vendor = (match.vendor?.trim().isNotEmpty ?? false)
-      ? match.vendor!
-      : (match.sender ?? 'Unknown');
-  final payload = BankChargePayload(
-    vendor: vendor,
-    amount: match.value ?? 0,
-    currency: match.currency ?? rule.currency ?? defaultCurrency,
-    occurredAt: DateTime.now(),
-    dedupeId: dedupeId,
-    // Null when the matched vendor has no configured mapping and the
-    // rule has no fallback ledger either -- SmsReviewScreen already
-    // handles a null counterpartyId by asking the user to pick one from
-    // scratch, exactly the "ask which ledger" this is meant to trigger.
-    counterpartyId: resolveLedgerTarget(rule, match.vendor),
-    category:
-        rule.category ??
-        ((match.vendor?.trim().isNotEmpty ?? false) ? match.vendor : null),
-  );
+    _RuleMatch? reviewable;
+    for (final m in matches) {
+      if (m.rule.operation != 'ledgerPayment') continue;
+      final isRepayment = m.match.valueRole == 'repayment';
+      final resolvedTarget = isRepayment
+          ? m.rule.targetCounterpartyId
+          : resolveLedgerTarget(m.rule, m.match.vendor);
+      if (isRepayment || (m.rule.autoAddCharges && resolvedTarget != null)) {
+        final outcome = await applySmsRule(db, m.rule, m.match);
+        if (outcome.applied &&
+            m.rule.notifyOnMatch &&
+            outcome.notificationTitle != null) {
+          await showSmsRuleNotification(
+            title: outcome.notificationTitle!,
+            body: outcome.notificationBody ?? '',
+          );
+        }
+        continue;
+      }
+      reviewable ??= m;
+    }
 
-  debugPrint('processIncomingSms: reviewable match found, awaiting navigator');
-  final navigator = await _awaitNavigator();
-  if (navigator == null) {
-    debugPrint(
-      'processIncomingSms: navigator never became available, reposting review notification',
-    );
-    // A cold start (the process was killed, this tap is what's relaunching
-    // it) can easily take longer than _awaitNavigator's own wait to get a
-    // first frame up -- previously this branch marked the SMS "processed"
-    // regardless and gave up silently, so a slow cold start meant the app
-    // just opened to whatever screen it last showed, with the charge gone
-    // for good and nothing left to tap. Reposting the review notification
-    // (the same fallback commitSmsQuickAdd/commitSmsAutoDetect already use
-    // for their own "can't act on this right now" cases) leaves an actual
-    // next step instead -- and *not* marking this dedupeId processed means
-    // a second tap on that notification gets a fresh, uncontested attempt.
-    await showSmsChargeReviewNotification(
-      body: body,
-      timestampMillis: timestampMillis,
+    if (reviewable == null) {
+      debugPrint('processIncomingSms: nothing reviewable, marking settled');
+      // Fully settled (balance-only/repayment matches, or nothing at all)
+      // -- nothing left for a later tap to do, so it's safe to mark this
+      // dedupeId settled for good now.
+      await _markProcessed(db, dedupeId);
+      QuickActionExemption.release();
+      return;
+    }
+
+    final rule = reviewable.rule;
+    final match = reviewable.match;
+    final vendor = (match.vendor?.trim().isNotEmpty ?? false)
+        ? match.vendor!
+        : (match.sender ?? 'Unknown');
+    final payload = BankChargePayload(
       vendor: vendor,
-      amountText: match.value == null
-          ? null
-          : formatMoney(match.value!, payload.currency),
-      // This repost is reached only via the quickAddFailed=true path below
-      // (a plain body tap never calls processIncomingSms directly
-      // otherwise) -- preserving that on the repost is what makes a
-      // second tap retry opening the ledger picker again instead of
-      // reverting to a first-ever tap's "try Quick Add" behavior.
-      quickAddFailed: true,
+      amount: match.value ?? 0,
+      currency: match.currency ?? rule.currency ?? defaultCurrency,
+      occurredAt: DateTime.now(),
+      dedupeId: dedupeId,
+      // Null when the matched vendor has no configured mapping and the
+      // rule has no fallback ledger either -- SmsReviewScreen already
+      // handles a null counterpartyId by asking the user to pick one from
+      // scratch, exactly the "ask which ledger" this is meant to trigger.
+      counterpartyId: resolveLedgerTarget(rule, match.vendor),
+      category:
+          rule.category ??
+          ((match.vendor?.trim().isNotEmpty ?? false) ? match.vendor : null),
     );
-    QuickActionExemption.release();
-    return;
+
+    debugPrint(
+      'processIncomingSms: reviewable match found, awaiting navigator',
+    );
+    final navigator = await _awaitNavigator();
+    if (navigator == null) {
+      debugPrint(
+        'processIncomingSms: navigator never became available, reposting review notification',
+      );
+      // A cold start (the process was killed, this tap is what's
+      // relaunching it) can easily take longer than _awaitNavigator's own
+      // wait to get a first frame up -- previously this branch marked the
+      // SMS "processed" regardless and gave up silently, so a slow cold
+      // start meant the app just opened to whatever screen it last showed,
+      // with the charge gone for good and nothing left to tap. Reposting
+      // the review notification (the same fallback commitSmsQuickAdd/
+      // commitSmsAutoDetect already use for their own "can't act on this
+      // right now" cases) leaves an actual next step instead -- and *not*
+      // marking this dedupeId processed means a second tap on that
+      // notification gets a fresh, uncontested attempt.
+      await showSmsChargeReviewNotification(
+        body: body,
+        timestampMillis: timestampMillis,
+        vendor: vendor,
+        amountText: match.value == null
+            ? null
+            : formatMoney(match.value!, payload.currency),
+        // This repost is reached only via the quickAddFailed=true path
+        // below (a plain body tap never calls processIncomingSms directly
+        // otherwise) -- preserving that on the repost is what makes a
+        // second tap retry opening the ledger picker again instead of
+        // reverting to a first-ever tap's "try Quick Add" behavior.
+        quickAddFailed: true,
+      );
+      QuickActionExemption.release();
+      return;
+    }
+    debugPrint('processIncomingSms: navigator ready, pushing SmsReviewScreen');
+    await _markProcessed(db, dedupeId);
+    navigator.push(
+      MaterialPageRoute(
+        builder: (_) =>
+            SmsReviewScreen(payload: payload, wasLockedOnArrival: wasLocked),
+      ),
+    );
+    // [SmsReviewScreen]'s own initState claims its lifecycle-tied exemption
+    // synchronously during this same frame's build phase, strictly before
+    // any postFrameCallback fires -- so releasing here, once the frame is
+    // done, can never let the exemption count touch zero while the app is
+    // still locked and that screen is on screen.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      QuickActionExemption.release();
+    });
+  } finally {
+    _inFlightDedupeIds.remove(dedupeId);
   }
-  debugPrint('processIncomingSms: navigator ready, pushing SmsReviewScreen');
-  await _markProcessed(db, dedupeId);
-  navigator.push(
-    MaterialPageRoute(
-      builder: (_) =>
-          SmsReviewScreen(payload: payload, wasLockedOnArrival: wasLocked),
-    ),
-  );
-  // [SmsReviewScreen]'s own initState claims its lifecycle-tied exemption
-  // synchronously during this same frame's build phase, strictly before
-  // any postFrameCallback fires -- so releasing here, once the frame is
-  // done, can never let the exemption count touch zero while the app is
-  // still locked and that screen is on screen.
-  WidgetsBinding.instance.addPostFrameCallback((_) {
-    QuickActionExemption.release();
-  });
 }
 
 /// Runs with no UI and no user confirmation, invoked on a first-ever tap
@@ -340,63 +375,77 @@ Future<bool> commitSmsQuickAdd(
   if (body.trim().isEmpty) return false;
 
   final dedupeId = '$timestampMillis:${body.hashCode}';
-  if (await _alreadyProcessed(db, dedupeId)) return false;
+  // Claimed synchronously, before this function's first `await` -- see
+  // [_inFlightDedupeIds]'s own doc comment for the real, on-device double-
+  // add this closes (confirmed via CI after a second, independent tap-
+  // delivery path was added: two ledger rows became four) that the
+  // DB-backed dedupe check just below, on its own, cannot.
+  if (!_inFlightDedupeIds.add(dedupeId)) {
+    debugPrint('commitSmsQuickAdd: already in flight, dedupeId=$dedupeId');
+    return false;
+  }
+  try {
+    if (await _alreadyProcessed(db, dedupeId)) return false;
 
-  final matches = await _matchAllRules(db, body);
-  await _applyBalanceMatchesOnce(db, matches, dedupeId);
+    final matches = await _matchAllRules(db, body);
+    await _applyBalanceMatchesOnce(db, matches, dedupeId);
 
-  var ledgerApplied = false;
-  // First charge match that couldn't be applied -- a repayment never
-  // needs this (it always nets against one fixed ledger, never a
-  // per-vendor one -- see resolveLedgerTarget's own doc comment), and
-  // only the first one matters, matching the single `reviewable` tracked
-  // elsewhere in this file for the same underlying reason.
-  _RuleMatch? needsLedgerSelection;
-  for (final m in matches) {
-    if (m.rule.operation != 'ledgerPayment') continue;
-    final outcome = await applySmsRule(db, m.rule, m.match);
-    if (!outcome.applied) {
-      if (m.match.valueRole != 'repayment') needsLedgerSelection ??= m;
-      continue;
+    var ledgerApplied = false;
+    // First charge match that couldn't be applied -- a repayment never
+    // needs this (it always nets against one fixed ledger, never a
+    // per-vendor one -- see resolveLedgerTarget's own doc comment), and
+    // only the first one matters, matching the single `reviewable` tracked
+    // elsewhere in this file for the same underlying reason.
+    _RuleMatch? needsLedgerSelection;
+    for (final m in matches) {
+      if (m.rule.operation != 'ledgerPayment') continue;
+      final outcome = await applySmsRule(db, m.rule, m.match);
+      if (!outcome.applied) {
+        if (m.match.valueRole != 'repayment') needsLedgerSelection ??= m;
+        continue;
+      }
+      ledgerApplied = true;
+      if (m.rule.notifyOnMatch && outcome.notificationTitle != null) {
+        await showSmsRuleNotification(
+          title: outcome.notificationTitle!,
+          body: outcome.notificationBody ?? '',
+        );
+      }
     }
-    ledgerApplied = true;
-    if (m.rule.notifyOnMatch && outcome.notificationTitle != null) {
-      await showSmsRuleNotification(
-        title: outcome.notificationTitle!,
-        body: outcome.notificationBody ?? '',
+
+    if (ledgerApplied) {
+      await _markProcessed(db, dedupeId);
+    } else if (needsLedgerSelection != null) {
+      debugPrint(
+        'commitSmsQuickAdd: could not resolve a ledger, reposting review notification',
       );
+      final vendor =
+          (needsLedgerSelection.match.vendor?.trim().isNotEmpty ?? false)
+          ? needsLedgerSelection.match.vendor!
+          : (needsLedgerSelection.match.sender ?? 'a bank text');
+      final value = needsLedgerSelection.match.value;
+      final currency =
+          needsLedgerSelection.match.currency ??
+          needsLedgerSelection.rule.currency ??
+          defaultCurrency;
+      await showSmsChargeReviewNotification(
+        body: body,
+        timestampMillis: timestampMillis,
+        vendor: vendor,
+        amountText: value == null ? null : formatMoney(value, currency),
+        // Quick Add itself just failed to resolve a ledger for this exact
+        // SMS -- a tap on this repost needs to go to processIncomingSms's
+        // ledger picker, not repeat this same failing attempt again (see
+        // showSmsChargeReviewNotification's own doc comment on this
+        // param).
+        quickAddFailed: true,
+      );
+      debugPrint('commitSmsQuickAdd: review notification reposted');
     }
+    return ledgerApplied;
+  } finally {
+    _inFlightDedupeIds.remove(dedupeId);
   }
-
-  if (ledgerApplied) {
-    await _markProcessed(db, dedupeId);
-  } else if (needsLedgerSelection != null) {
-    debugPrint(
-      'commitSmsQuickAdd: could not resolve a ledger, reposting review notification',
-    );
-    final vendor =
-        (needsLedgerSelection.match.vendor?.trim().isNotEmpty ?? false)
-        ? needsLedgerSelection.match.vendor!
-        : (needsLedgerSelection.match.sender ?? 'a bank text');
-    final value = needsLedgerSelection.match.value;
-    final currency =
-        needsLedgerSelection.match.currency ??
-        needsLedgerSelection.rule.currency ??
-        defaultCurrency;
-    await showSmsChargeReviewNotification(
-      body: body,
-      timestampMillis: timestampMillis,
-      vendor: vendor,
-      amountText: value == null ? null : formatMoney(value, currency),
-      // Quick Add itself just failed to resolve a ledger for this exact
-      // SMS -- a tap on this repost needs to go to processIncomingSms's
-      // ledger picker, not repeat this same failing attempt again (see
-      // showSmsChargeReviewNotification's own doc comment on this param).
-      quickAddFailed: true,
-    );
-    debugPrint('commitSmsQuickAdd: review notification reposted');
-  }
-  return ledgerApplied;
 }
 
 /// Headless entry point SmsReceiver.kt enqueues for *every* incoming SMS,

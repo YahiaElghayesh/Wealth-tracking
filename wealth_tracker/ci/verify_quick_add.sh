@@ -170,12 +170,19 @@ cur.execute(
     "ORDER BY date"
 )
 rows = cur.fetchall()
-print(f"--- ledger_transactions rows for the seeded counterparty: {len(rows)} (expected 2) ---")
+print(f"--- ledger_transactions rows for the seeded counterparty: {len(rows)} (expected exactly 2) ---")
 for row in rows:
     print("  ", row)
 if len(rows) < 2:
     print("FAIL: both taps reached _onNotificationResponse, but the on-device "
           "database doesn't actually contain both ledger entries.")
+    sys.exit(1)
+if len(rows) > 2:
+    print("FAIL: more than 2 rows -- a tap is being double-committed (a real "
+          "bug this exact check once let through with a '< 2' comparison: "
+          "flutter_local_notifications' own delivery and MainActivity.kt's "
+          "independent native fallback both firing for the same real tap, "
+          "each calling commitSmsQuickAdd, produced 4 rows for 2 taps).")
     sys.exit(1)
 for row in rows:
     counterparty_id, amount, currency, category, source = row
@@ -204,7 +211,11 @@ sleep 15
 adb logcat -c
 
 echo "--- Tapping the notification body for a charge with no resolvable ledger (no target, no vendor mapping) ---"
-tap_body 777 "$UNRESOLVABLE_PAYLOAD" tap3.sh
+# Notification id matches what showSmsChargeReviewNotification actually
+# uses (timestampMillis & 0x7fffffff) -- a mismatched id here previously
+# let this test silently check the wrong log line for a nonexistent id
+# while the real one used $UNRESOLVABLE_TIMESTAMP, without ever failing.
+tap_body "$UNRESOLVABLE_TIMESTAMP" "$UNRESOLVABLE_PAYLOAD" tap3.sh
 sleep 20
 
 adb logcat -d > unresolvable_logcat.txt

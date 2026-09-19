@@ -239,12 +239,19 @@ cur.execute(
     "ORDER BY date"
 )
 rows = cur.fetchall()
-print(f"--- ledger_transactions rows for the seeded counterparty: {len(rows)} (expected 2) ---")
+print(f"--- ledger_transactions rows for the seeded counterparty: {len(rows)} (expected exactly 2) ---")
 for row in rows:
     print("  ", row)
 if len(rows) < 2:
     print("FAIL: both taps reached _onNotificationResponse, but the on-device "
           "database doesn't actually contain both ledger entries.")
+    sys.exit(1)
+if len(rows) > 2:
+    print("FAIL: more than 2 rows -- a tap is being double-committed (a real "
+          "bug this exact check once let through with a '< 2' comparison: "
+          "flutter_local_notifications' own delivery and MainActivity.kt's "
+          "independent native fallback both firing for the same real tap, "
+          "each calling commitSmsQuickAdd, produced 4 rows for 2 taps).")
     sys.exit(1)
 for row in rows:
     counterparty_id, amount, currency, category, source = row
