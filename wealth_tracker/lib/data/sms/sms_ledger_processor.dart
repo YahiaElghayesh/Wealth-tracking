@@ -26,11 +26,12 @@ const _dedupeCap = 200;
 const _balanceAppliedKey = 'sms_balance_applied_ids';
 const _balanceAppliedCap = 200;
 
-/// The WorkManager task name a bank-SMS charge-review notification's
-/// "Quick add" action enqueues (see `notificationTapBackground` in
-/// app.dart, registered with flutter_local_notifications) -- must match
-/// the string switched on in `priceRefreshCallbackDispatcher`
-/// (lib/data/pricing/background_refresh.dart).
+/// Unused by the current notification-tap path (a body tap now runs
+/// [commitSmsQuickAdd] directly from whichever isolate already received
+/// it -- see [processIncomingSms]'s own doc comment and app.dart's
+/// `_onNotificationResponse`) -- kept only because
+/// `priceRefreshCallbackDispatcher` (lib/data/pricing/background_refresh
+/// .dart) still switches on it as a harmless dead branch.
 const smsQuickAddTaskName = 'smsQuickAdd';
 
 /// The WorkManager task name SmsReceiver.kt enqueues unconditionally for
@@ -282,6 +283,12 @@ Future<void> processIncomingSms(
       amountText: match.value == null
           ? null
           : formatMoney(match.value!, payload.currency),
+      // This repost is reached only via the quickAddFailed=true path below
+      // (a plain body tap never calls processIncomingSms directly
+      // otherwise) -- preserving that on the repost is what makes a
+      // second tap retry opening the ledger picker again instead of
+      // reverting to a first-ever tap's "try Quick Add" behavior.
+      quickAddFailed: true,
     );
     QuickActionExemption.release();
     return;
@@ -304,26 +311,21 @@ Future<void> processIncomingSms(
   });
 }
 
-/// Headless counterpart to [processIncomingSms] for the notification's
-/// "Quick add" action -- runs with no UI and no user confirmation, so it
-/// only ever commits a ledger entry when a matched 'ledgerPayment' rule
-/// already resolves the SMS to a specific ledger + category on its own.
-/// A matched *charge* that can't resolve one (no vendor mapping, no
-/// fallback ledger on the rule either -- exactly [resolveLedgerTarget]'s
-/// own "ask which ledger" case) used to be silently left for "the
-/// notification's normal tap" -- except flutter_local_notifications'
-/// own default cancels whichever notification an action was tapped on
-/// the instant it's tapped, Quick Add included (see
-/// AndroidNotificationAction.cancelNotification's default in the
-/// vendored plugin), so that notification is already gone by the time
-/// this runs. There is no "normal tap" left to fall back to. Posting a
-/// fresh review notification -- same call [commitSmsAutoDetect] already
-/// makes for the equivalent case, since a headless isolate has no
-/// Navigator to push [SmsReviewScreen] onto directly either -- is what
-/// actually gives the user something left to act on. Shares
-/// [processIncomingSms]'s dedupe key space so a charge added this way is
-/// not reviewable-and-addable again from a later tap on the same
-/// notification, and vice versa.
+/// Runs with no UI and no user confirmation, invoked on a first-ever tap
+/// on [showSmsChargeReviewNotification] (see that function's own doc
+/// comment for why this is the body tap now, not a separate action
+/// button) -- only ever commits a ledger entry when a matched
+/// 'ledgerPayment' rule already resolves the SMS to a specific ledger +
+/// category on its own. A matched *charge* that can't resolve one (no
+/// vendor mapping, no fallback ledger on the rule either -- exactly
+/// [resolveLedgerTarget]'s own "ask which ledger" case) reposts a fresh
+/// review notification with `quickAddFailed: true`, so its own next tap
+/// goes to [processIncomingSms] instead of repeating this same failing
+/// attempt -- since flutter_local_notifications' own default cancels a
+/// tapped notification, there'd otherwise be nothing left to act on at
+/// all. Shares [processIncomingSms]'s dedupe key space so a charge added
+/// this way is not reviewable-and-addable again from a later tap on the
+/// same notification, and vice versa.
 ///
 /// Returns whether a ledger entry was actually added, purely so a caller
 /// (or a test) can tell "matched and added" apart from "nothing to do
@@ -387,11 +389,10 @@ Future<bool> commitSmsQuickAdd(
       vendor: vendor,
       amountText: value == null ? null : formatMoney(value, currency),
       // Quick Add itself just failed to resolve a ledger for this exact
-      // SMS -- offering the same "Quick add" action on the notification
-      // this posts would only ever repeat that same failure, looping the
-      // notification away and back with nothing to show for it (see
+      // SMS -- a tap on this repost needs to go to processIncomingSms's
+      // ledger picker, not repeat this same failing attempt again (see
       // showSmsChargeReviewNotification's own doc comment on this param).
-      includeQuickAddAction: false,
+      quickAddFailed: true,
     );
     debugPrint('commitSmsQuickAdd: review notification reposted');
   }

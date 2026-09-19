@@ -15,14 +15,12 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// user's own phone without this.
 ///
 /// Backed by [SharedPreferences] rather than an in-memory list because the
-/// breadcrumbs this needs to capture run across at least three genuinely
-/// separate Dart isolates/engines that share no memory with each other or
-/// with the main app: the foreground isolate ([install] is called from
-/// `main()`), the WorkManager headless isolate
-/// (`priceRefreshCallbackDispatcher`, background_refresh.dart), and the
-/// `ActionBroadcastReceiver`-spun headless isolate for a "Quick add" tap
-/// (`notificationTapBackground`, app.dart) -- a plain static list would only
-/// ever capture whichever one of those happened to install it.
+/// breadcrumbs this needs to capture run across genuinely separate Dart
+/// isolates/engines that share no memory with each other or with the main
+/// app: the foreground isolate ([install] is called from `main()`) and the
+/// WorkManager headless isolate (`priceRefreshCallbackDispatcher`,
+/// background_refresh.dart) -- a plain static list would only ever capture
+/// whichever one of those happened to install it.
 class AppDebugLog {
   AppDebugLog._();
 

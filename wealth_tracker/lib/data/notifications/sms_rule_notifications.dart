@@ -80,23 +80,23 @@ Future<void> showSmsRuleNotification({
   );
 }
 
-/// Action id [showSmsChargeReviewNotification] attaches to its "Quick add"
-/// button -- app.dart's notification-response handling (both the
-/// foreground callback and the background one) checks for this to decide
-/// whether a tap means "commit headlessly" rather than "open the review
-/// screen".
-const smsChargeReviewQuickAddActionId = 'quick_add';
-
 /// The JSON shape [showSmsChargeReviewNotification] encodes as its
 /// payload, and app.dart's notification-response handling decodes -- just
 /// enough for `commitSmsQuickAdd`/`processIncomingSms` to re-run their own
 /// (already tested) matching against the same raw SMS, rather than trying
 /// to thread the already-computed match through the notification itself.
+/// [quickAddFailed] tells that handling which of the two to re-run: see
+/// [showSmsChargeReviewNotification]'s own doc comment.
 Map<String, dynamic> smsChargeReviewPayload({
   required String body,
   required int timestampMillis,
+  bool quickAddFailed = false,
 }) {
-  return {'body': body, 'timestampMillis': timestampMillis};
+  return {
+    'body': body,
+    'timestampMillis': timestampMillis,
+    if (quickAddFailed) 'quickAddFailed': true,
+  };
 }
 
 /// Shows the notification for a matched 'ledgerPayment' rule tagged as a
@@ -105,13 +105,27 @@ Map<String, dynamic> smsChargeReviewPayload({
 /// .dart`) since that headless isolate has no Navigator to push
 /// `SmsReviewScreen` onto directly. Carries a JSON payload (see
 /// [smsChargeReviewPayload]) so tapping it -- handled in app.dart via
-/// flutter_local_notifications' own response callbacks, both foreground
-/// and background -- can re-run the real matching logic against the
-/// original SMS: tapping the notification body itself re-invokes
-/// `processIncomingSms` to open the review screen for real, while the
-/// "Quick add" action ([smsChargeReviewQuickAddActionId],
-/// `showsUserInterface: false` so it never brings up the UI at all)
-/// re-invokes `commitSmsQuickAdd` headlessly.
+/// flutter_local_notifications' own response callbacks and the native
+/// fallback in MainActivity.kt/native_sms_channel.dart -- can re-run the
+/// real matching logic against the original SMS.
+///
+/// A single tap on the body is the *only* interaction this notification
+/// offers -- there used to also be a separate "Quick add" action button,
+/// removed after a real, reported device-specific failure mode: Android's
+/// heads-up (pop-up) presentation of a notification doesn't reliably
+/// register a tap on an action button until the notification has settled
+/// into the shade a moment later (a tap on the button during the pop-up
+/// itself was silently swallowed, working only on a second tap once it had
+/// already dropped into the notification pane) -- a body tap, launching
+/// the app the same ordinary way any notification does, doesn't have that
+/// same failure mode. [quickAddFailed] is what the removed button used to
+/// signal implicitly through its own presence/absence: false (the normal,
+/// first-ever notification for this charge) means a tap should attempt
+/// `commitSmsQuickAdd` first, same as the old button did; true (this
+/// exact notification is itself a repost, from `commitSmsQuickAdd` having
+/// already tried and failed to resolve a ledger for this SMS) means a tap
+/// should go straight to `processIncomingSms` instead, opening the review
+/// screen's ledger picker rather than repeating the same failing attempt.
 ///
 /// Notification id is derived from [timestampMillis] (not fixed, unlike
 /// [showSmsRuleNotification]) so multiple pending charges each get their
@@ -123,16 +137,7 @@ Future<void> showSmsChargeReviewNotification({
   required String vendor,
   String? amountText,
   String? targetName,
-  // `commitSmsQuickAdd` reposts this exact notification when its own
-  // Quick Add attempt just failed to resolve a ledger for this SMS --
-  // re-offering the same "Quick add" action there would tap into the
-  // identical, already-proven-unresolvable attempt every time, looking to
-  // the user like the button "does nothing" (disappears, then reappears,
-  // forever) rather than the dead end it actually is. `commitSmsAutoDetect`
-  // posting this for the first time doesn't have that guarantee -- a
-  // charge can land here just because a rule's `autoAddCharges` is off
-  // while its target still resolves fine -- so it keeps the action.
-  bool includeQuickAddAction = true,
+  bool quickAddFailed = false,
 }) async {
   final plugin = FlutterLocalNotificationsPlugin();
   const androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');
@@ -145,18 +150,20 @@ Future<void> showSmsChargeReviewNotification({
       : (targetName == null
             ? '$amountText will be added'
             : '$amountText will be added to $targetName');
-  final notificationBody = !includeQuickAddAction
+  final notificationBody = quickAddFailed
       ? '${addedTo ?? 'A charge was detected'}. Tap to pick a ledger.'
-      : (addedTo == null
-            ? 'Tap to review, or Quick add to log it as-is.'
-            : '$addedTo. Tap to review, or Quick add to log it as-is.');
+      : (addedTo == null ? 'Tap to add.' : '$addedTo. Tap to add.');
   final id = timestampMillis & 0x7fffffff; // masked to a positive 32-bit id
   await plugin.show(
     id: id,
     title: 'Charge detected: $vendor',
     body: notificationBody,
     payload: jsonEncode(
-      smsChargeReviewPayload(body: body, timestampMillis: timestampMillis),
+      smsChargeReviewPayload(
+        body: body,
+        timestampMillis: timestampMillis,
+        quickAddFailed: quickAddFailed,
+      ),
     ),
     notificationDetails: NotificationDetails(
       android: AndroidNotificationDetails(
@@ -172,14 +179,6 @@ Future<void> showSmsChargeReviewNotification({
         // report, applied here too since this is the other notification
         // kind this app posts.
         groupKey: 'sms_review_$id',
-        actions: includeQuickAddAction
-            ? const [
-                AndroidNotificationAction(
-                  smsChargeReviewQuickAddActionId,
-                  'Quick add',
-                ),
-              ]
-            : const [],
       ),
     ),
   );

@@ -28,8 +28,10 @@ Future<PendingSms?>? _pendingSmsFuture;
 /// charge that needs review (`showSmsChargeReviewNotification`) is posted
 /// from Dart via flutter_local_notifications, and its tap is handled
 /// through that plugin's own payload/response mechanism (see app.dart's
-/// `_onNotificationResponse`/`notificationTapBackground`), not this
-/// channel. Left in place, rather than removed, since nothing calling
+/// `_onNotificationResponse`, plus [listenForNewSms]'s own
+/// `onNotificationBodyTapped`/`onNativeNewIntent` params below for the
+/// independent native fallback that same tap also goes through), not this
+/// legacy path. Left in place, rather than removed, since nothing calling
 /// this now-always-null path causes any harm -- `main()` still calls it
 /// as part of [coldStartLaunchPending]'s computation, for one.
 ///

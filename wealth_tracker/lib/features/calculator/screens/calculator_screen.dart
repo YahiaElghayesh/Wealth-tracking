@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:drift/drift.dart' show Value;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/format/money_formatter.dart';
@@ -1734,6 +1735,31 @@ class _CardField extends ConsumerWidget {
                     color: colors.bad,
                     fontWeight: FontWeight.w700,
                   ),
+                ),
+                const SizedBox(width: 4),
+                // Plain "1234.56", not the comma-grouped display string --
+                // this exists so the amount can be pasted straight into a
+                // banking app's payment field, and a thousands separator
+                // would make that field reject or misparse it.
+                IconButton(
+                  icon: const Icon(Icons.copy_outlined, size: 16),
+                  tooltip: 'Copy amount owed',
+                  visualDensity: VisualDensity.compact,
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                  onPressed: () async {
+                    await Clipboard.setData(
+                      ClipboardData(text: owed.toStringAsFixed(2)),
+                    );
+                    if (!context.mounted) return;
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(
+                          'Copied ${formatMoney(owed, card.currency)}',
+                        ),
+                      ),
+                    );
+                  },
                 ),
               ],
             ),

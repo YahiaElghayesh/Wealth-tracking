@@ -2,41 +2,36 @@
 # Run inside the verify-quick-add CI job, against a real (emulated) Android
 # device with the actual debug APK installed.
 #
-# Every earlier version of this script proved the Dart code behind Quick Add
-# and the notification tap is correct by hand-constructing the underlying
-# Android Intent/broadcast a real tap is *supposed* to send, then firing it
-# directly via `adb shell am broadcast`/`am start`. That reliably caught
-# every bug in the code that runs *after* such an Intent arrives -- but it
-# never once verified that a real incoming SMS actually produces a real,
-# on-screen notification with a real, tappable "Quick add" button, or that
-# tapping that actual rendered UI (with a real finger, or a real screen tap
-# here) is what sends that Intent in the first place. A bug in how the
-# notification/action itself gets constructed -- a wrong PendingIntent flag,
-# a channel importance too low for the action to render, anything in that
-# construction path -- would pass every previous version of this test and
-# still fail for a real user, which is exactly what kept happening after
-# three separate rounds of that style of test all reporting success.
+# Every earlier version of this script proved the Dart code behind the
+# notification tap is correct by hand-constructing the underlying Android
+# Intent/broadcast a real tap is *supposed* to send, then firing it directly
+# via `adb shell am broadcast`/`am start`. That reliably caught every bug in
+# the code that runs *after* such an Intent arrives -- but it never once
+# verified that a real incoming SMS actually produces a real, on-screen
+# notification, or that tapping that actual rendered UI (with a real finger,
+# or a real screen tap here) is what sends that Intent in the first place.
 #
 # This version instead: injects a real SMS into the emulator (`adb emu sms
 # send`, which triggers the exact same Telephony.Sms.Intents.SMS_RECEIVED_
 # ACTION broadcast a real bank text does), waits for the real notification
-# it produces, dumps the real on-screen UI via uiautomator, locates the
-# real "Quick add" button (or the notification body) by its exact visible
-# text, and taps those exact screen coordinates with `adb shell input tap`
-# -- the same primitive a real finger tap resolves to. Three scenarios:
+# it produces, dumps the real on-screen UI via uiautomator, locates it by
+# its exact visible text, and taps those exact screen coordinates with
+# `adb shell input tap` -- the same primitive a real finger tap resolves
+# to. Two scenarios:
 #   Part 1: a charge that RESOLVES to a known ledger, tapped twice in a row
-#     (two separate real SMS) -- checks the on-device database actually
-#     gets both ledger entries.
-#   Part 2: a plain tap on that same kind of notification's body, after a
-#     genuinely cold start -- checks SmsReviewScreen actually opens
-#     on-screen.
-#   Part 3: a charge that CANNOT resolve a ledger -- resolveLedgerTarget's
+#     (two separate real SMS, the second one after a genuine cold start) --
+#     checks the on-device database actually gets both ledger entries. A
+#     plain tap on the notification's body is the whole interaction now --
+#     see showSmsChargeReviewNotification's own doc comment for why the
+#     separate "Quick add" action button this used to test was removed
+#     entirely (a real device reported it silently swallowing a tap during
+#     the notification's heads-up pop-up).
+#   Part 2: a charge that CANNOT resolve a ledger -- resolveLedgerTarget's
 #     own "ask which ledger" case, and the original, real-world request
-#     this notification exists for. Taps its real "Quick add" button,
-#     confirms it correctly reports nothing added and reposts a
-#     notification instead, then taps *that* notification's body (cold
-#     start again) and confirms the real "which ledger?" picker is on
-#     screen.
+#     this notification exists for. Taps it once, confirms it correctly
+#     reports nothing added and reposts a notification instead, then taps
+#     *that* notification and confirms the real "which ledger?" picker is
+#     on screen.
 # See build-apk.yml's own comment on this job for the native-layer bugs an
 # earlier, non-UI-driven version of Part 1 alone already caught.
 set -euo pipefail
@@ -78,7 +73,7 @@ echo "--- Granting RECEIVE_SMS and POST_NOTIFICATIONS (dangerous/runtime permiss
 adb shell pm grant "$PKG" android.permission.RECEIVE_SMS
 adb shell pm grant "$PKG" android.permission.POST_NOTIFICATIONS
 
-echo "--- Launching the app once, so it registers the background notification-response callback handle, and so path_provider/drift create the app's real sqlite file ---"
+echo "--- Launching the app once, so it registers the notification-response callback, and so path_provider/drift create the app's real sqlite file ---"
 adb shell am start -n "$PKG/$PKG.MainActivity"
 sleep 15
 
@@ -125,9 +120,7 @@ dump_ui() {
 # Prints "$x $y" for the first node whose exact visible text or
 # content-desc equals $2 in the dump at $1, or fails loudly with the full
 # dump printed (so a mismatch is immediately diagnosable) if nothing
-# matches. Exact match, not substring -- the notification body text here
-# literally contains the phrase "Quick add" inside a sentence, so a naive
-# substring search finds the wrong node entirely.
+# matches. Exact match, not substring.
 find_tap_coords() {
   local dump="$1" needle="$2"
   python3 - "$dump" "$needle" <<'PYEOF'
@@ -158,12 +151,10 @@ PYEOF
 # commitSmsAutoDetect end to end (a real, if expedited, background engine
 # spin-up plus WorkManager's own scheduling latency) -- a single fixed
 # sleep before one dump attempt was proven too short on a loaded CI
-# runner (the target notification simply didn't exist yet at the moment
-# checked, confirmed by the dump showing only Android's own stock
-# "new SMS message" notification instead). Polling for the actual
-# condition rather than guessing a delay removes that whole class of
-# flake. Fails loudly with the full last-seen dump if $2 elapses with no
-# match, so a genuine absence is still immediately diagnosable.
+# runner. Polling for the actual condition rather than guessing a delay
+# removes that whole class of flake. Fails loudly with the full last-seen
+# dump if $2 elapses with no match, so a genuine absence is still
+# immediately diagnosable.
 tap_notification_text() {
   local needle="$1" timeout="${2:-90}" waited=0 dump
   while [ "$waited" -lt "$timeout" ]; do
@@ -183,7 +174,7 @@ tap_notification_text() {
   echo "FAIL: could not find on-screen node with exact text '$needle' within ${timeout}s."
   echo "--- last UI dump ---"
   cat "$dump"
-  echo "--- full logcat up to this point (was previously never captured on this failure path) ---"
+  echo "--- full logcat up to this point ---"
   adb logcat -d
   exit 1
 }
@@ -200,39 +191,36 @@ send_real_sms() {
   adb emu sms send TestBank "$body"
 }
 
-# --- Part 1: Quick Add, twice in a row, on a charge that resolves -------
+# --- Part 1: a real tap, twice in a row, on a charge that resolves ------
 
-echo "=== Part 1: Quick Add on a real, resolvable charge notification, twice in a row ==="
+echo "=== Part 1: a real notification tap on a resolvable charge, twice in a row (second one after a genuine cold start) ==="
 
-echo "--- Sending real SMS #1 ---"
+echo "--- Sending real SMS #1 (app left warm/running from the launch above) ---"
 send_real_sms "$CHARGE_SMS"
-tap_notification_text "Quick add"
+tap_notification_text "Charge detected: Breadfast"
 sleep 15
+
+echo "--- Force-stopping for a genuine cold start before the second tap ---"
+adb shell am force-stop "$PKG"
+adb logcat -c
 
 echo "--- Sending real SMS #2 (same text -- a real device timestamp still makes each dedupeId distinct) ---"
 send_real_sms "$CHARGE_SMS"
-tap_notification_text "Quick add"
-sleep 15
+tap_notification_text "Charge detected: Breadfast"
+sleep 20
 
 adb logcat -d > part1_logcat.txt
 echo "--- entire logcat for Part 1 ---"
 cat part1_logcat.txt
 
-TAP_COUNT=$(grep -c "notificationTapBackground: actionId=quick_add" part1_logcat.txt || true)
-echo "notificationTapBackground invocation count: $TAP_COUNT (expected 2)"
+TAP_COUNT=$(grep -c "_onNotificationResponse: actionId=null" part1_logcat.txt || true)
+echo "_onNotificationResponse invocation count: $TAP_COUNT (expected 2)"
 if [ "$TAP_COUNT" -lt 2 ]; then
-  echo "FAIL: a real tap on the real 'Quick add' button never reached notificationTapBackground both times -- the button does not work."
+  echo "FAIL: a real tap on the notification never reached _onNotificationResponse both times -- the tap does not work."
   exit 1
 fi
-if grep -q "Engine is already initialised" part1_logcat.txt; then
-  echo "FAIL: the engine-caching bug is back -- a tap after the first one is being silently dropped."
-  exit 1
-fi
-
-ADDED_COUNT=$(grep -c "notificationTapBackground: commitSmsQuickAdd added=true" part1_logcat.txt || true)
-echo "commitSmsQuickAdd added=true count: $ADDED_COUNT (expected 2)"
-if [ "$ADDED_COUNT" -lt 2 ]; then
-  echo "FAIL: the tap reached Dart, but commitSmsQuickAdd never reported success both times."
+if grep -q "commitSmsQuickAdd: could not resolve a ledger" part1_logcat.txt; then
+  echo "FAIL: commitSmsQuickAdd treated a resolvable charge as unresolvable -- seeded rule/vendor mapping regressed."
   exit 1
 fi
 
@@ -255,7 +243,7 @@ print(f"--- ledger_transactions rows for the seeded counterparty: {len(rows)} (e
 for row in rows:
     print("  ", row)
 if len(rows) < 2:
-    print("FAIL: Quick Add reported success in its own log line, but the on-device "
+    print("FAIL: both taps reached _onNotificationResponse, but the on-device "
           "database doesn't actually contain both ledger entries.")
     sys.exit(1)
 for row in rows:
@@ -269,134 +257,68 @@ for row in rows:
 print("PASS: both ledger entries exist on-device with the expected data.")
 PYEOF
 
-echo "PASS: two real taps on the real Quick Add button each actually committed a ledger entry."
+echo "PASS: two real taps on the real notification each actually committed a ledger entry."
 
-# --- Part 2: a real tap on the notification BODY, after a cold start ----
+# --- Part 2: a real tap on a charge that CANNOT resolve a ledger --------
 
-echo "=== Part 2: a real tap on the notification body, after a genuinely cold start ==="
+echo "=== Part 2: a real tap on a charge with no resolvable ledger -- the original 'ask which ledger' request ==="
 
-echo "--- Force-stopping the app for a genuinely cold start ---"
-adb shell am force-stop "$PKG"
-adb logcat -c
-
-echo "--- Sending a fresh real SMS while the app is stopped (mirrors a bank text arriving while the app isn't running) ---"
-send_real_sms "$CHARGE_SMS"
-
-tap_notification_text "Charge detected: Breadfast"
-# Generous: a genuinely cold Flutter engine start on this emulator plus up
-# to 5s of processIncomingSms's own _awaitNavigator wait plus the screen's
-# own build.
-sleep 20
-
-adb logcat -d > part2_logcat.txt
-echo "--- entire logcat for Part 2 ---"
-cat part2_logcat.txt
-
-grep -q "_onNotificationResponse: actionId=null" part2_logcat.txt || {
-  echo "FAIL: the real tap on the notification body never reached _onNotificationResponse at all."
-  exit 1
-}
-grep -q "processIncomingSms: reviewable match found, awaiting navigator" part2_logcat.txt || {
-  echo "FAIL: processIncomingSms didn't even find a reviewable match for the tapped charge."
-  exit 1
-}
-if grep -q "processIncomingSms: navigator never became available" part2_logcat.txt; then
-  echo "FAIL: processIncomingSms lost the cold-start Navigator race."
-  exit 1
-fi
-grep -q "processIncomingSms: navigator ready, pushing SmsReviewScreen" part2_logcat.txt || {
-  echo "FAIL: processIncomingSms never reached the point of actually pushing SmsReviewScreen."
-  exit 1
-}
-
-echo "--- Confirming the actual on-screen UI, not just the log line that claims to have pushed it ---"
-dump_ui window_dump.xml
-if ! grep -q "Confirm payment" window_dump.xml; then
-  echo "FAIL: SmsReviewScreen's own log line printed, but its AppBar title 'Confirm payment' never actually appeared on screen."
-  cat window_dump.xml
-  exit 1
-fi
-
-echo "PASS: a real tap on the notification body, after a cold start, opened SmsReviewScreen for real, on-screen."
-
-# --- Part 3: Quick Add on a charge that CANNOT resolve a ledger ---------
-
-echo "=== Part 3: Quick Add on a real charge with no resolvable ledger -- the original 'ask which ledger' request ==="
-
-echo "--- Relaunching the app (Part 2 left it force-stopped) ---"
+echo "--- Relaunching the app (Part 1 left it force-stopped) ---"
 adb shell am start -n "$PKG/$PKG.MainActivity"
 sleep 15
 adb logcat -c
 
 echo "--- Sending the real, unresolvable-charge SMS ---"
 send_real_sms "$UNRESOLVABLE_SMS"
-tap_notification_text "Quick add"
+tap_notification_text "Charge detected: Uber"
 sleep 15
 
-adb logcat -d > part3_logcat.txt
-echo "--- entire logcat for tapping Quick Add on the unresolvable charge ---"
-cat part3_logcat.txt
+adb logcat -d > part2_logcat.txt
+echo "--- entire logcat for tapping the unresolvable charge's notification ---"
+cat part2_logcat.txt
 
-grep -q "notificationTapBackground: actionId=quick_add" part3_logcat.txt || {
-  echo "FAIL: the real tap on the unresolvable charge's Quick Add button never reached notificationTapBackground."
+grep -q "_onNotificationResponse: actionId=null" part2_logcat.txt || {
+  echo "FAIL: the real tap on the unresolvable charge's notification never reached _onNotificationResponse."
   exit 1
 }
-grep -q "commitSmsQuickAdd: could not resolve a ledger, reposting review notification" part3_logcat.txt || {
+grep -q "commitSmsQuickAdd: could not resolve a ledger, reposting review notification" part2_logcat.txt || {
   echo "FAIL: commitSmsQuickAdd never even recognized this as an unresolvable charge."
   exit 1
 }
-grep -q "commitSmsQuickAdd: review notification reposted" part3_logcat.txt || {
-  echo "FAIL: commitSmsQuickAdd recognized the charge as unresolvable but never actually reposted a review notification -- this is the real Quick Add 'does nothing' report."
-  exit 1
-}
-grep -q "notificationTapBackground: commitSmsQuickAdd added=false" part3_logcat.txt || {
-  echo "FAIL: expected commitSmsQuickAdd to report added=false for an unresolvable charge."
+grep -q "commitSmsQuickAdd: review notification reposted" part2_logcat.txt || {
+  echo "FAIL: commitSmsQuickAdd recognized the charge as unresolvable but never actually reposted a review notification -- this is the real 'tapping it does nothing' report."
   exit 1
 }
 
-echo "--- Tapping the reposted (Quick-Add-button-stripped) notification's body ---"
-# Deliberately no force-stop/kill here. Two things were tried and both were
-# self-inflicted test artifacts, not app bugs: `am force-stop` cancels an
-# app's own posted notifications as a documented side effect (the very
-# notification this step needs to tap, posted moments ago by the Quick Add
-# step above, would vanish with nothing left to repost it); `am kill` turned
-# out not to reliably kill this app's process shortly after an expedited
-# WorkManager task ran (Android still considered it too important to kill),
-# so the pidof check correctly refused to claim a cold tap that wasn't
-# actually cold, rather than silently passing on a warm one.
-#
-# The cold-start case for a body tap is already conclusively proven above in
-# Part 2 -- a genuine `am force-stop` cold start, a real notification, a real
-# tap, landing in the exact same `_onNotificationResponse` -> processIncomingSms
-# code path this reposted notification's tap also goes through, since a tap
-# doesn't know or care whether the app process happened to be alive when the
-# notification was posted. What Part 2 does NOT cover, and what's unique to
-# this step, is the notification content itself: this is the one Quick Add
-# reposts after failing to resolve a ledger (no "Quick add" action on it,
-# forcing the body tap). Tapping it here, warm, is real evidence that this
-# specific notification is real, on-screen, and correctly wired -- combined
-# with Part 2's proof that a cold body tap reaches the same code, that's
-# complete coverage without relying on a flaky process-kill primitive.
+echo "--- Tapping the reposted notification, warm (app never force-stopped since the tap above) ---"
+# Deliberately no force-stop/kill here -- both were tried in earlier
+# versions of this script and were self-inflicted test artifacts, not app
+# bugs (force-stop cancels an app's own posted notifications as a
+# documented side effect; `am kill` doesn't reliably kill this app's
+# process shortly after an expedited WorkManager task ran). A warm tap is
+# also the more relevant case now: a real, on-device report showed exactly
+# this scenario (app already open, tapping a notification) failing until a
+# native fallback was added -- this is what actually proves that fix.
 tap_notification_text "Charge detected: Uber"
-sleep 25
+sleep 20
 
-adb logcat -d > part3_body_tap_logcat.txt
+adb logcat -d > part2_body_tap_logcat.txt
 echo "--- entire logcat for tapping the unresolvable charge's reposted notification ---"
-cat part3_body_tap_logcat.txt
+cat part2_body_tap_logcat.txt
 
-grep -q "_onNotificationResponse: actionId=null" part3_body_tap_logcat.txt || {
-  echo "FAIL: tapping the reposted notification's body never reached _onNotificationResponse."
+grep -q "_onNotificationResponse: actionId=null" part2_body_tap_logcat.txt || {
+  echo "FAIL: tapping the reposted notification never reached _onNotificationResponse."
   exit 1
 }
-grep -q "processIncomingSms: reviewable match found, awaiting navigator" part3_body_tap_logcat.txt || {
+grep -q "processIncomingSms: reviewable match found, awaiting navigator" part2_body_tap_logcat.txt || {
   echo "FAIL: processIncomingSms didn't find the unresolvable charge reviewable a second time."
   exit 1
 }
-if grep -q "processIncomingSms: navigator never became available" part3_body_tap_logcat.txt; then
-  echo "FAIL: lost the cold-start Navigator race for the unresolvable charge's own review screen."
+if grep -q "processIncomingSms: navigator never became available" part2_body_tap_logcat.txt; then
+  echo "FAIL: lost the Navigator race for the unresolvable charge's own review screen."
   exit 1
 fi
-grep -q "processIncomingSms: navigator ready, pushing SmsReviewScreen" part3_body_tap_logcat.txt || {
+grep -q "processIncomingSms: navigator ready, pushing SmsReviewScreen" part2_body_tap_logcat.txt || {
   echo "FAIL: never reached the point of pushing SmsReviewScreen for the unresolvable charge."
   exit 1
 }
@@ -414,4 +336,4 @@ if ! grep -q "Add to which ledger?" window_dump_unresolvable.xml; then
   exit 1
 fi
 
-echo "PASS: a real tap on the real Quick Add button for an unresolvable charge correctly reposted a notification, and a real tap on that notification opened a real, on-screen 'which ledger?' picker."
+echo "PASS: a real tap on an unresolvable charge's notification correctly reposted a notification, and a real tap on that repost opened a real, on-screen 'which ledger?' picker."

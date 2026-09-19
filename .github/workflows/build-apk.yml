@@ -287,6 +287,22 @@ jobs:
   # Quick Add reposts (no "Quick add" action on it, forcing a body tap) is
   # real, on-screen, and wired to the same handler -- tapping it warm proves
   # that without depending on a flaky process-kill primitive.
+  #
+  # Since then, two more real, on-device reports (not caught by any of the
+  # above, which all ran on a stock AOSP emulator): (1) tapping a notification
+  # while the app was already open and in active use produced zero Dart-side
+  # evidence at all -- flutter_local_notifications' own onNewIntent delivery
+  # chain silently failing specifically for an already-running app on that
+  # device -- fixed with an independent native fallback in MainActivity.kt
+  # that doesn't depend on that chain; (2) the separate "Quick add" action
+  # button worked once a notification had settled into the shade but silently
+  # swallowed a tap during its initial heads-up pop-up -- fixed by removing
+  # the button entirely in favor of a single body tap doing both jobs (see
+  # showSmsChargeReviewNotification's own doc comment for the `quickAddFailed`
+  # flag this now turns on). Both scripts below were rewritten to match: no
+  # more "Quick add" button text to search for, and Part 1 now includes a
+  # cold-start tap specifically to keep covering what the removed button's
+  # own repeated-tap test used to.
   verify-quick-add-real-tap:
     runs-on: ubuntu-latest
     defaults:

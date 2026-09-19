@@ -32,97 +32,6 @@ import 'features/networth/screens/dashboard_screen.dart';
 import 'features/recurring/screens/recurring_payments_screen.dart';
 import 'features/settings/providers/settings_providers.dart';
 
-/// Top-level (per flutter_local_notifications' own requirement) handler
-/// for a notification action tapped while this app's Dart VM isn't
-/// running at all -- the only action any notification in this app
-/// attaches is [showSmsChargeReviewNotification]'s "Quick add"
-/// (`showsUserInterface: false`, so tapping it never launches the UI, and
-/// always arrives here rather than [_RootShellState]'s own foreground
-/// handler). Builds its own [AppDatabase] and profile lookup exactly like
-/// `runSmsQuickAddTask` (background_refresh.dart) does for the same
-/// action fired from a live isolate -- there is no ProviderScope here.
-@pragma('vm:entry-point')
-void notificationTapBackground(NotificationResponse response) {
-  // A third, separate Dart isolate from both the foreground app and
-  // WorkManager's own (see AppDebugLog's own doc comment) -- this is the
-  // isolate ActionBroadcastReceiver spins up specifically for a tapped
-  // `showsUserInterface: false` action (this app's only one, "Quick add"),
-  // installed here so its breadcrumbs land in the same user-viewable log.
-  AppDebugLog.install();
-  // Deliberately a permanent, unconditional log line, not a temporary
-  // debug leftover -- this headless isolate has no UI and no other way to
-  // observe from `adb logcat` whether a background notification-action
-  // tap reached Dart at all, which is exactly the "nothing happens" shape
-  // every bug in this path has taken (a broadcast that never got
-  // delivered, or one that did but the callback handle it needed wasn't
-  // registered) -- see the manifest's own `ActionBroadcastReceiver`
-  // <receiver> entry for the actual bug this most recently was.
-  debugPrint(
-    'notificationTapBackground: actionId=${response.actionId} id=${response.id}',
-  );
-  if (response.actionId != smsChargeReviewQuickAddActionId) return;
-  unawaited(_commitQuickAddFromBackground(response));
-}
-
-Future<void> _commitQuickAddFromBackground(
-  NotificationResponse response,
-) async {
-  final payload = response.payload;
-  // Permanent -- every step from here on used to fail completely
-  // silently (a null payload, a jsonDecode that throws, or a decoded map
-  // missing a key all just `return`ed with nothing printed anywhere),
-  // which is exactly why a real, valid payload's failure was previously
-  // indistinguishable in logcat from the earlier engine/plumbing bugs
-  // this file's other breadcrumbs were added to catch.
-  debugPrint('notificationTapBackground: payload=$payload');
-  if (payload == null) return;
-  Map<String, dynamic> decoded;
-  try {
-    decoded = jsonDecode(payload) as Map<String, dynamic>;
-  } catch (e) {
-    debugPrint('notificationTapBackground: jsonDecode failed: $e');
-    return;
-  }
-  final body = decoded['body'] as String?;
-  final timestampMillis = decoded['timestampMillis'] as int?;
-  if (body == null || timestampMillis == null) {
-    debugPrint(
-      'notificationTapBackground: missing body/timestampMillis in $decoded',
-    );
-    return;
-  }
-
-  // Permanent, unconditional breadcrumbs, same reasoning as
-  // notificationTapBackground's own -- this whole function has, at
-  // various points, silently hung or thrown with zero trace anywhere
-  // else visible from a headless isolate, and a single "did it finish"
-  // log line wasn't enough to tell which step that was ever happening
-  // in. Each one is genuinely one await away from the one before it.
-  debugPrint('notificationTapBackground: opening AppDatabase');
-  final db = AppDatabase();
-  try {
-    debugPrint('notificationTapBackground: reading SharedPreferences');
-    final prefs = await SharedPreferences.getInstance();
-    debugPrint('notificationTapBackground: loading SecureSettingsStore');
-    final secureSettings = await SecureSettingsStore.load(prefs);
-    debugPrint('notificationTapBackground: resolving activeProfileId');
-    final profileId = SettingsRepository(prefs, secureSettings).activeProfileId;
-    debugPrint('notificationTapBackground: calling commitSmsQuickAdd');
-    final added = await commitSmsQuickAdd(
-      db,
-      body: body,
-      timestampMillis: timestampMillis,
-      profileId: profileId,
-    );
-    debugPrint('notificationTapBackground: commitSmsQuickAdd added=$added');
-  } catch (e, st) {
-    debugPrint('notificationTapBackground: _commitQuickAddFromBackground threw: $e\n$st');
-  } finally {
-    debugPrint('notificationTapBackground: closing AppDatabase');
-    await db.close();
-  }
-}
-
 class WealthTrackerApp extends ConsumerWidget {
   const WealthTrackerApp({super.key});
 
@@ -233,7 +142,6 @@ class _RootShellState extends ConsumerState<_RootShell>
     await plugin.initialize(
       settings: const InitializationSettings(android: androidSettings),
       onDidReceiveNotificationResponse: _onNotificationResponse,
-      onDidReceiveBackgroundNotificationResponse: notificationTapBackground,
     );
     final launchDetails = await plugin.getNotificationAppLaunchDetails();
     final response = launchDetails?.notificationResponse;
@@ -245,14 +153,15 @@ class _RootShellState extends ConsumerState<_RootShell>
 
   /// Handles a tap on [showSmsChargeReviewNotification] while this isolate
   /// is alive -- either the app was already open, or it just cold-started
-  /// from that very tap (see [_initSmsRuleNotificationHandling]). The
-  /// "Quick add" action ([smsChargeReviewQuickAddActionId]) commits
-  /// headlessly via [commitSmsQuickAdd]; tapping the notification body
-  /// itself re-runs [processIncomingSms], which re-matches the same SMS
-  /// and pushes [SmsReviewScreen] for real -- both re-derive everything
-  /// from the raw body/timestamp in the payload rather than trusting
-  /// anything precomputed, the same "re-run the tested logic, don't thread
-  /// a result through" choice [commitSmsAutoDetect] itself makes.
+  /// from that very tap (see [_initSmsRuleNotificationHandling]). A single
+  /// body tap does either job, decided by the payload's `quickAddFailed`
+  /// flag (see [showSmsChargeReviewNotification]'s own doc comment): false
+  /// commits headlessly via [commitSmsQuickAdd], true re-runs
+  /// [processIncomingSms] instead, which re-matches the same SMS and
+  /// pushes [SmsReviewScreen] for real -- both re-derive everything from
+  /// the raw body/timestamp in the payload rather than trusting anything
+  /// precomputed, the same "re-run the tested logic, don't thread a result
+  /// through" choice [commitSmsAutoDetect] itself makes.
   void _onNotificationResponse(NotificationResponse response) {
     debugPrint(
       '_onNotificationResponse: actionId=${response.actionId} id=${response.id}',
@@ -276,9 +185,15 @@ class _RootShellState extends ConsumerState<_RootShell>
       return;
     }
 
-    if (response.actionId == smsChargeReviewQuickAddActionId) {
+    // See showSmsChargeReviewNotification's own doc comment: there's no
+    // more separate "Quick add" action to check response.actionId against
+    // -- a single body tap now does either job, decided by whether this
+    // exact notification is a first-ever one (try Quick Add) or a repost
+    // from Quick Add having already failed to resolve a ledger (open the
+    // review screen's picker instead).
+    if (decoded['quickAddFailed'] == true) {
       unawaited(
-        commitSmsQuickAdd(
+        processIncomingSms(
           ref.read(databaseProvider),
           body: body,
           timestampMillis: timestampMillis,
@@ -289,7 +204,7 @@ class _RootShellState extends ConsumerState<_RootShell>
     }
 
     unawaited(
-      processIncomingSms(
+      commitSmsQuickAdd(
         ref.read(databaseProvider),
         body: body,
         timestampMillis: timestampMillis,
@@ -358,14 +273,27 @@ class _RootShellState extends ConsumerState<_RootShell>
           );
           return;
         }
-        unawaited(
-          processIncomingSms(
-            ref.read(databaseProvider),
-            body: body,
-            timestampMillis: timestampMillis,
-            profileId: ref.read(activeProfileIdProvider),
-          ),
-        );
+        // Same quickAddFailed dispatch as _onNotificationResponse -- see
+        // that function's own comment on it.
+        if (decoded['quickAddFailed'] == true) {
+          unawaited(
+            processIncomingSms(
+              ref.read(databaseProvider),
+              body: body,
+              timestampMillis: timestampMillis,
+              profileId: ref.read(activeProfileIdProvider),
+            ),
+          );
+        } else {
+          unawaited(
+            commitSmsQuickAdd(
+              ref.read(databaseProvider),
+              body: body,
+              timestampMillis: timestampMillis,
+              profileId: ref.read(activeProfileIdProvider),
+            ),
+          );
+        }
       },
     );
     WidgetsBinding.instance.addPostFrameCallback((_) async {
