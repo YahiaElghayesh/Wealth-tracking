@@ -461,7 +461,19 @@ class _SmsReviewScreenState extends ConsumerState<SmsReviewScreen> {
           ),
         ),
         bottomSheet: SafeArea(
-          minimum: const EdgeInsets.only(bottom: 12),
+          // `minimum` is a floor applied *in addition to* whatever real
+          // system inset MediaQuery reports -- 12 was sized for a device
+          // correctly reporting its own gesture-nav inset, on top of which
+          // this just adds a little visual breathing room. Reported (with a
+          // screenshot) as not enough on a real device with a classic
+          // 3-button navigation bar: the buttons rendered underneath it,
+          // unreachable. Raised well past a typical ~48dp 3-button bar
+          // height, since this is meant to be a real floor against a
+          // possibly-misreported inset, not just extra padding on top of a
+          // correct one -- a device that reports its own inset correctly
+          // and larger than this still gets that larger value, same as
+          // before.
+          minimum: const EdgeInsets.only(bottom: 48),
           child: Padding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
             child: Row(
