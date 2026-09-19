@@ -311,14 +311,63 @@ class _RootShellState extends ConsumerState<_RootShell>
   /// notification this app shows now ([showSmsChargeReviewNotification])
   /// and how its tap is actually handled.
   void _initSmsCapture() {
-    listenForNewSms((sms) {
-      processIncomingSms(
-        ref.read(databaseProvider),
-        body: sms.body,
-        timestampMillis: sms.timestampMillis,
-        profileId: ref.read(activeProfileIdProvider),
-      );
-    });
+    listenForNewSms(
+      (sms) {
+        processIncomingSms(
+          ref.read(databaseProvider),
+          body: sms.body,
+          timestampMillis: sms.timestampMillis,
+          profileId: ref.read(activeProfileIdProvider),
+        );
+      },
+      onNativeNewIntent: (action) {
+        // Always fires, for every onNewIntent -- see MainActivity.kt's own
+        // comment on why this exists. Once this appears in a real device's
+        // debug log, whether or not _onNotificationResponse ever does,
+        // tells apart "onNewIntent itself never ran" from "it ran but
+        // flutter_local_notifications' own delivery of it failed".
+        debugPrint('_initSmsCapture: native onNewIntent fired, action=$action');
+      },
+      onNotificationBodyTapped: (payload) {
+        // See MainActivity.kt's own onNewIntent override: an independent
+        // fallback for a plain notification-body tap, parallel to (not
+        // dependent on) flutter_local_notifications' own onDidReceive
+        // NotificationResponse delivery -- a real on-device report showed
+        // that path never reaching Dart at all while the app was already
+        // open, with no other evidence of why. This re-derives everything
+        // from the same raw payload _onNotificationResponse itself would
+        // have received, the same "re-run the tested logic" choice
+        // processIncomingSms's other callers already make.
+        debugPrint(
+          '_initSmsCapture: native onNotificationBodyTapped fallback fired, payload=$payload',
+        );
+        Map<String, dynamic> decoded;
+        try {
+          decoded = jsonDecode(payload) as Map<String, dynamic>;
+        } catch (e) {
+          debugPrint(
+            '_initSmsCapture: onNotificationBodyTapped jsonDecode failed: $e',
+          );
+          return;
+        }
+        final body = decoded['body'] as String?;
+        final timestampMillis = decoded['timestampMillis'] as int?;
+        if (body == null || timestampMillis == null) {
+          debugPrint(
+            '_initSmsCapture: onNotificationBodyTapped missing body/timestampMillis in $decoded',
+          );
+          return;
+        }
+        unawaited(
+          processIncomingSms(
+            ref.read(databaseProvider),
+            body: body,
+            timestampMillis: timestampMillis,
+            profileId: ref.read(activeProfileIdProvider),
+          ),
+        );
+      },
+    );
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       final pending = await takePendingSms();
       if (pending != null) {

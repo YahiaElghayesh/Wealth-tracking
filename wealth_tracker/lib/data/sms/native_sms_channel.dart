@@ -55,15 +55,33 @@ Future<PendingSms?> takePendingSms() {
 /// this Activity is already running arrives via `onNewIntent` instead of a
 /// fresh launch, so MainActivity pushes it straight to Dart rather than
 /// waiting for another `takePendingSms` call that would never happen.
-void listenForNewSms(void Function(PendingSms sms) onSms) {
+///
+/// [onNotificationBodyTapped] and [onNativeNewIntent] are a second,
+/// independent purpose this same channel now also serves -- see
+/// MainActivity.kt's own `onNewIntent` override for why. Only one handler
+/// can ever be registered on a [MethodChannel] at a time, which is why
+/// these live in the same function rather than each getting their own
+/// `listenFor...` -- a second call here would silently replace, not add
+/// to, whatever the first one registered.
+void listenForNewSms(
+  void Function(PendingSms sms) onSms, {
+  void Function(String payload)? onNotificationBodyTapped,
+  void Function(String? action)? onNativeNewIntent,
+}) {
   _channel.setMethodCallHandler((call) async {
-    if (call.method != 'onNewSms') return;
-    final args = (call.arguments as Map).cast<String, dynamic>();
-    onSms(
-      PendingSms(
-        body: args['body'] as String,
-        timestampMillis: (args['timestampMillis'] as num).toInt(),
-      ),
-    );
+    switch (call.method) {
+      case 'onNewSms':
+        final args = (call.arguments as Map).cast<String, dynamic>();
+        onSms(
+          PendingSms(
+            body: args['body'] as String,
+            timestampMillis: (args['timestampMillis'] as num).toInt(),
+          ),
+        );
+      case 'onNotificationBodyTapped':
+        onNotificationBodyTapped?.call(call.arguments as String);
+      case 'nativeOnNewIntent':
+        onNativeNewIntent?.call(call.arguments as String?);
+    }
   });
 }

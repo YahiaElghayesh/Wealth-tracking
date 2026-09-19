@@ -74,7 +74,40 @@ class MainActivity : FlutterFragmentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
+        // Unconditional, permanent breadcrumb -- not gated behind whether
+        // anything below finds something to act on. A real, on-device
+        // report (app already open and in active use, a real tap on a real
+        // posted notification's body) showed zero Dart-side evidence the
+        // tap was ever received at all -- not even flutter_local_notifications'
+        // own always-first-line log statement. That leaves two very
+        // different possibilities that look identical from Dart: this
+        // native onNewIntent callback itself never firing at all on this
+        // device/OEM for an Activity that's already topmost and resumed
+        // (a real, documented category of OEM bug), or it firing correctly
+        // but flutter_local_notifications' own onAttachedToActivity/
+        // NewIntentListener registration silently failing to propagate it.
+        // This line, on its own copyable debug log, is what tells those two
+        // apart the next time this happens.
+        smsChannel?.invokeMethod("nativeOnNewIntent", intent.action)
         extractPendingSms(intent)?.let { smsChannel?.invokeMethod("onNewSms", it) }
+        // Independent of flutter_local_notifications' own PendingIntent ->
+        // onAttachedToActivity/NewIntentListener -> MethodChannel chain --
+        // deliberately duplicates just enough of what that plugin's own
+        // onNewIntent does (see its FlutterLocalNotificationsPlugin.java:
+        // SELECT_NOTIFICATION action, "payload" extra) so a tap on this
+        // app's own review notification still reaches Dart even if
+        // something in that chain silently fails on a given device/OEM, as
+        // the evidence above shows happening for real. Deliberately only
+        // for a plain body tap (SELECT_NOTIFICATION) -- the "Quick add"
+        // action already reaches Dart through a completely different route
+        // (ActionBroadcastReceiver's own headless engine, a plain
+        // PendingIntent.getBroadcast, no Activity/onNewIntent involved at
+        // all) that this same evidence shows working correctly.
+        if (intent.action == "SELECT_NOTIFICATION") {
+            intent.getStringExtra("payload")?.let {
+                smsChannel?.invokeMethod("onNotificationBodyTapped", it)
+            }
+        }
     }
 
     // Dart's counterpart lives in lib/data/sms/native_sms_channel.dart —
