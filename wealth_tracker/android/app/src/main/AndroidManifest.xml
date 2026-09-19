@@ -158,7 +158,7 @@
         </receiver>
 
         <!-- flutter_local_notifications' own receiver for a
-             `showsUserInterface: false` notification action -- unused by
+             `showsUserInterface: false` notification action — unused by
              this app since the SMS charge-review notification's "Quick
              add" button was removed (see sms_rule_notifications.dart's own
              doc comment: it's a plain body tap now, not a separate action,
@@ -167,7 +167,7 @@
              rather than removed, since the plugin builds a PendingIntent
              targeting this exact class whenever *any* app-defined action
              exists, and, unlike every other plugin's Android component,
-             does NOT declare it in its own manifest -- the plugin's own
+             does NOT declare it in its own manifest — the plugin's own
              README says the *app* must add this receiver itself, so
              removing it now would just be a landmine for the next
              `showsUserInterface: false` action this app ever adds.
